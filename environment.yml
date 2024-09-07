@@ -16,3 +16,5 @@ dependencies:
   - joblib
   - pandas
   - scipy
+  - pip:
+    - pyqt6
