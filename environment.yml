@@ -1,0 +1,18 @@
+name: speclab
+channels:
+  - conda-forge
+  - michael--s--phillips
+  - defaults
+dependencies:
+  - python  # You can adjust the Python version if needed
+  - matplotlib
+  - spectral
+  - numpy
+  - rasterio
+  - opencv
+  - geopandas
+  - IPython
+  - hypyrameter
+  - joblib
+  - pandas
+  - scipy
