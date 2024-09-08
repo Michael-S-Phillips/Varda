@@ -3,14 +3,19 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 import sys
 
-#When you subclass a Qt class you must always call the super 
+# When you subclass a Qt class you must always call the super 
 # __init__ function to allow Qt to set up the object.
 
 class BasicWidget(QWidget):
-
+    '''
+    A wrapper class for a widget. If we want to apply a consistent style
+    to each widget in the layout, we can use this when creating a new one.
+    '''
     def __init__(self):
         super(BasicWidget, self).__init__()
         # self.setStyleSheet("border: 2px solid; fill: gray")
+
+        # sets background color to gray as default
         self.setAutoFillBackground(True)
 
         palette = self.palette()
@@ -20,6 +25,11 @@ class BasicWidget(QWidget):
 
 
 class MainWindow(QMainWindow):
+    '''
+    Creates the main window and layout for the GUI. Each GUI
+    component is initialized (we will probably need to turn each
+    component into a class attribute that is publicly accessible)
+    '''
     def __init__(self):
         super().__init__()
 
@@ -27,6 +37,7 @@ class MainWindow(QMainWindow):
 
         self.setFixedSize(QSize(1100, 850))
 
+        # ----------- creating layout for mainWindow ---------
         mainLayout = QHBoxLayout()
 
         left_panel_layout = QVBoxLayout()
@@ -69,9 +80,10 @@ class MainWindow(QMainWindow):
         widget = QWidget()
         widget.setLayout(mainLayout)
         self.setCentralWidget(widget)
+        # ---------------------------------- 
         
 
-
+# showing main window
 app = QApplication(sys.argv)
 window = MainWindow()
 window.show()
