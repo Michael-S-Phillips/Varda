@@ -30,9 +30,9 @@ class MainWindow(QMainWindow):
     component is initialized (we will probably need to turn each
     component into a class attribute that is publicly accessible)
     '''
+    
     def __init__(self):
         super().__init__()
-
         self.setWindowTitle("SpecLab")
 
         self.setFixedSize(QSize(1100, 850))
@@ -47,10 +47,10 @@ class MainWindow(QMainWindow):
         left_panel_layout.addWidget(image_manager)
 
         context_zoom_layout = QHBoxLayout()
-        contextImage = BasicWidget()
-        zoomImage = BasicWidget()
-        context_zoom_layout.addWidget(contextImage)
-        context_zoom_layout.addWidget(zoomImage)
+        context_image = BasicWidget()
+        zoom_image = BasicWidget()
+        context_zoom_layout.addWidget(context_image)
+        context_zoom_layout.addWidget(zoom_image)
 
         image_viewing_layout = QVBoxLayout()
         menu_options = BasicWidget()
@@ -81,6 +81,17 @@ class MainWindow(QMainWindow):
         widget.setLayout(mainLayout)
         self.setCentralWidget(widget)
         # ---------------------------------- 
+
+        # creating attributes for class 
+        self.main_layout = mainLayout
+
+        self.file_explorer = file_explorer
+        self.image_manager = image_manager
+        self.context_image = context_image
+        self.zoom_image = zoom_image
+        self.menu_options = menu_options
+        self.tabs = tabs
+        self.image_view = image_view
         
 
 # showing main window
