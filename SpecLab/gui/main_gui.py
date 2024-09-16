@@ -29,13 +29,13 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("SpecLab")
 
-        self.setFixedSize(QSize(1100, 850))
+        #self.setFixedSize(QSize(1100, 850))
 
         # ----------- creating layout for mainWindow ---------
         mainLayout = QHBoxLayout()
         splitter = QSplitter()
 
-        file_explorer = TextWidget("File Explorer")
+        file_explorer = FileExplorer()
         image_manager = TextWidget("Image Manager")
 
         splitter.addWidget(file_explorer)
