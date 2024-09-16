@@ -5,7 +5,8 @@ from PyQt6.QtWidgets import QWidget, QFileDialog, QVBoxLayout, QTreeView
 from PyQt6.QtCore import *
 from . import BasicWidget
 from PyQt6.QtGui import QFileSystemModel
-import os
+
+
 class FileExplorer(BasicWidget):
     def __init__(self):
         super(FileExplorer, self).__init__()

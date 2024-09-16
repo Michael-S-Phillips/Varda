@@ -82,6 +82,8 @@ class MainWindow(QMainWindow):
 def startGui():
     # showing main window
     app = QApplication(sys.argv)
+    with open("resources/style.qss", "r") as styling:
+        app.setStyleSheet(styling.read())
     window = MainWindow()
     window.show()
     app.exec()
