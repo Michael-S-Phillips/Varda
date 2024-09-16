@@ -1,3 +1,4 @@
-from gui import SplitterTest
+from gui import main_gui
+
 if __name__ == "__main__":
-    SplitterTest.startGui()
+    main_gui.startGui()

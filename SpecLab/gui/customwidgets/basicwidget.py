@@ -11,7 +11,7 @@ class BasicWidget(QWidget):
 
     def __init__(self):
         super(BasicWidget, self).__init__()
-        # self.setStyleSheet("border: 2px solid; fill: gray")
+        #self.setStyleSheet("border: 3px solid; fill: black")
 
         # sets background color to gray as default
         self.setAutoFillBackground(True)

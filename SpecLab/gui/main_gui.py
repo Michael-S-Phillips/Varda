@@ -2,9 +2,19 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 import sys
-from CustomWidgets.BasicWidget import BasicWidget
-# When you subclass a Qt class you must always call the super 
-# __init__ function to allow Qt to set up the object.
+from customwidgets import *
+
+
+# When you subclass a Qt class you must always call the super
+# __init__ function to allow Qt to set up the object
+class TextWidget(BasicWidget):
+    def __init__(self, text: str):
+        super(TextWidget, self).__init__()
+        self.label = QLabel(text)
+        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.layout = QHBoxLayout()
+        self.setLayout(self.layout)
+        self.layout.addWidget(self.label)
 
 
 class MainWindow(QMainWindow):
@@ -13,32 +23,34 @@ class MainWindow(QMainWindow):
     component is initialized (we will probably need to turn each
     component into a class attribute that is publicly accessible)
     '''
-    
+
     def __init__(self):
         super().__init__()
+
         self.setWindowTitle("SpecLab")
 
         self.setFixedSize(QSize(1100, 850))
 
         # ----------- creating layout for mainWindow ---------
         mainLayout = QHBoxLayout()
+        splitter = QSplitter()
 
-        left_panel_layout = QVBoxLayout()
-        file_explorer = BasicWidget()
-        image_manager = BasicWidget()
-        left_panel_layout.addWidget(file_explorer)
-        left_panel_layout.addWidget(image_manager)
+        file_explorer = TextWidget("File Explorer")
+        image_manager = TextWidget("Image Manager")
+
+        splitter.addWidget(file_explorer)
+        splitter.addWidget(image_manager)
 
         context_zoom_layout = QHBoxLayout()
-        context_image = BasicWidget()
-        zoom_image = BasicWidget()
-        context_zoom_layout.addWidget(context_image)
-        context_zoom_layout.addWidget(zoom_image)
+        contextImage = TextWidget("contextImage")
+        zoomImage = TextWidget("zoomImage")
+        context_zoom_layout.addWidget(contextImage)
+        context_zoom_layout.addWidget(zoomImage)
 
         image_viewing_layout = QVBoxLayout()
-        menu_options = BasicWidget()
-        tabs = BasicWidget()
-        image_view = BasicWidget()
+        menu_options = TextWidget("Menu Options")
+        tabs = TextWidget("Tabs")
+        image_view = SpectralImageDisplay()
 
         image_view.setFixedSize(800, 500)
         tabs.setFixedSize(800, 40)
@@ -53,29 +65,20 @@ class MainWindow(QMainWindow):
         right_panel_layout.addLayout(context_zoom_layout)
 
         right_panel_layout.setSpacing(2)
-        left_panel_layout.setSpacing(2)
-  
-        mainLayout.addLayout(left_panel_layout)
+        # left_panel_layout.setSpacing(2)
+
+        mainLayout.addWidget(splitter)
+        # mainLayout.addLayout(left_panel_layout)
         mainLayout.addLayout(right_panel_layout)
         mainLayout.setSpacing(2)
-        mainLayout.setContentsMargins(0,0,0,0)
+        mainLayout.setContentsMargins(0, 0, 0, 0)
 
         widget = QWidget()
         widget.setLayout(mainLayout)
         self.setCentralWidget(widget)
         # ---------------------------------- 
 
-        # creating attributes for class 
-        self.main_layout = mainLayout
 
-        self.file_explorer = file_explorer
-        self.image_manager = image_manager
-        self.context_image = context_image
-        self.zoom_image = zoom_image
-        self.menu_options = menu_options
-        self.tabs = tabs
-        self.image_view = image_view
-        
 def startGui():
     # showing main window
     app = QApplication(sys.argv)
