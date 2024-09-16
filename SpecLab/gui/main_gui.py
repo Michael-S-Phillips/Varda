@@ -2,26 +2,9 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 import sys
-
+from CustomWidgets.BasicWidget import BasicWidget
 # When you subclass a Qt class you must always call the super 
 # __init__ function to allow Qt to set up the object.
-
-class BasicWidget(QWidget):
-    '''
-    A wrapper class for a widget. If we want to apply a consistent style
-    to each widget in the layout, we can use this when creating a new one.
-    '''
-    def __init__(self):
-        super(BasicWidget, self).__init__()
-        # self.setStyleSheet("border: 2px solid; fill: gray")
-
-        # sets background color to gray as default
-        self.setAutoFillBackground(True)
-
-        palette = self.palette()
-        palette.setColor(QPalette.ColorRole.Window, QColor("gray"))
-        self.setPalette(palette)
-
 
 
 class MainWindow(QMainWindow):
@@ -93,10 +76,9 @@ class MainWindow(QMainWindow):
         self.tabs = tabs
         self.image_view = image_view
         
-
-# showing main window
-app = QApplication(sys.argv)
-window = MainWindow()
-window.show()
-app.exec()
-
+def startGui():
+    # showing main window
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    app.exec()
