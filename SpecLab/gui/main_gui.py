@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 import sys
-from customwidgets import *
+from gui.customwidgets import *
 
 
 # When you subclass a Qt class you must always call the super
