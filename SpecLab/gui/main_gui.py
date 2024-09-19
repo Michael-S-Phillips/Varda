@@ -7,14 +7,7 @@ from customwidgets import *
 
 # When you subclass a Qt class you must always call the super
 # __init__ function to allow Qt to set up the object
-class TextWidget(BasicWidget):
-    def __init__(self, text: str):
-        super(TextWidget, self).__init__()
-        self.label = QLabel(text)
-        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.layout = QHBoxLayout()
-        self.setLayout(self.layout)
-        self.layout.addWidget(self.label)
+
 
 
 class MainWindow(QMainWindow):
@@ -29,47 +22,60 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("SpecLab")
 
-        #self.setFixedSize(QSize(1100, 850))
+        # self.setFixedSize(QSize(1100, 850))
 
         # ----------- creating layout for mainWindow ---------
         mainLayout = QHBoxLayout()
         splitter = QSplitter()
 
-        file_explorer = FileExplorer()
-        image_manager = TextWidget("Image Manager")
+        fileExplorer = FileExplorer()
+        imageManager = TextWidget("Image Manager")
 
-        splitter.addWidget(file_explorer)
-        splitter.addWidget(image_manager)
+        splitter.addWidget(fileExplorer)
+        splitter.addWidget(imageManager)
 
-        context_zoom_layout = QHBoxLayout()
+        # Context Zoom Setup
+        contextZoomLayout = QHBoxLayout()
+        contextZoomSplitter = QSplitter()
         contextImage = TextWidget("contextImage")
         zoomImage = TextWidget("zoomImage")
-        context_zoom_layout.addWidget(contextImage)
-        context_zoom_layout.addWidget(zoomImage)
 
-        image_viewing_layout = QVBoxLayout()
-        menu_options = TextWidget("Menu Options")
+        contextZoomSplitter.addWidget(contextImage)
+        contextZoomSplitter.addWidget(zoomImage)
+
+        contextZoomLayout.addWidget(contextZoomSplitter)
+
+        imageViewingLayout = QVBoxLayout()
+
+        imageView = SpectralImageDisplay()
+        #imageView.setFixedSize(800, 500)
+        fullImageWidget = QSplitter(Qt.Orientation.Vertical)
+        fullImageWidget.addWidget(imageView)
+        fullImageWidget.addWidget(contextZoomSplitter)
+
+        imageViewingLayout.addWidget(fullImageWidget)
+
+        menuOptions = TextWidget("Menu Options")
         tabs = TextWidget("Tabs")
-        image_view = SpectralImageDisplay()
-
-        image_view.setFixedSize(800, 500)
         tabs.setFixedSize(800, 40)
-        menu_options.setFixedSize(800, 40)
+        menuOptions.setFixedSize(800, 40)
+        menuLayout = QVBoxLayout()
+        menuLayout.addWidget(menuOptions)
+        menuLayout.addWidget(tabs)
 
-        image_viewing_layout.addWidget(menu_options)
-        image_viewing_layout.addWidget(tabs)
-        image_viewing_layout.addWidget(image_view)
+        rightPanelLayout = QVBoxLayout()
+        rightPanelLayout.addLayout(menuLayout)
+        rightPanelLayout.addLayout(imageViewingLayout)
+        #rightPanelLayout.addLayout(fullImageWidget)
 
-        right_panel_layout = QVBoxLayout()
-        right_panel_layout.addLayout(image_viewing_layout)
-        right_panel_layout.addLayout(context_zoom_layout)
+        #rightPanelLayout.addLayout(contextZoomLayout)
 
-        right_panel_layout.setSpacing(2)
+        rightPanelLayout.setSpacing(2)
         # left_panel_layout.setSpacing(2)
 
         mainLayout.addWidget(splitter)
         # mainLayout.addLayout(left_panel_layout)
-        mainLayout.addLayout(right_panel_layout)
+        mainLayout.addLayout(rightPanelLayout)
         mainLayout.setSpacing(2)
         mainLayout.setContentsMargins(0, 0, 0, 0)
 
@@ -85,5 +91,5 @@ def startGui():
     with open("resources/style.qss", "r") as styling:
         app.setStyleSheet(styling.read())
     window = MainWindow()
-    window.show()
+    window.showMaximized()
     app.exec()

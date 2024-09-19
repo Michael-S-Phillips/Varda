@@ -9,6 +9,9 @@ $py.class
 .manifest
 .spec
 
+# Builds
+build/
+
 # Environments
 .venv
 venv
