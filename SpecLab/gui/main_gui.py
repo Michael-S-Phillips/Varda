@@ -3,7 +3,6 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 import sys
 from gui.customwidgets import *
-from gui.SpectralDataViewer import SpectralDataViewer
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 # When you subclass a Qt class you must always call the super
