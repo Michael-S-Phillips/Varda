@@ -3,8 +3,9 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 import sys
 from gui.customwidgets import *
+from gui.SpectralDataViewer import SpectralDataViewer
 
-
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 # When you subclass a Qt class you must always call the super
 # __init__ function to allow Qt to set up the object
 
@@ -28,10 +29,10 @@ class MainWindow(QMainWindow):
         mainLayout = QHBoxLayout()
         splitter = QSplitter()
 
-        fileExplorer = FileExplorer()
+        self.fileExplorer = FileExplorer()
         imageManager = TextWidget("Image Manager")
 
-        splitter.addWidget(fileExplorer)
+        splitter.addWidget(self.fileExplorer)
         splitter.addWidget(imageManager)
 
         # Context Zoom Setup
@@ -47,13 +48,17 @@ class MainWindow(QMainWindow):
 
         imageViewingLayout = QVBoxLayout()
 
-        imageView = SpectralImageDisplay()
-        #imageView.setFixedSize(800, 500)
-        fullImageWidget = QSplitter(Qt.Orientation.Vertical)
-        fullImageWidget.addWidget(imageView)
-        fullImageWidget.addWidget(contextZoomSplitter)
+        # only spectral image display and spectral data viewer talk?
+        # when button is clicked to open file, send message to spectralImgDis
+        # thru the main gui to create a spectral data viewer object
 
-        imageViewingLayout.addWidget(fullImageWidget)
+        self.imageView = SpectralImageDisplay(mainLayout)
+        #imageView.setFixedSize(800, 500)
+        self.fullImageWidget = QSplitter(Qt.Orientation.Vertical)
+        self.fullImageWidget.addWidget(self.imageView)
+        self.fullImageWidget.addWidget(contextZoomSplitter)
+
+        imageViewingLayout.addWidget(self.fullImageWidget)
 
         menuOptions = TextWidget("Menu Options")
         tabs = TextWidget("Tabs")
@@ -66,6 +71,7 @@ class MainWindow(QMainWindow):
         rightPanelLayout = QVBoxLayout()
         rightPanelLayout.addLayout(menuLayout)
         rightPanelLayout.addLayout(imageViewingLayout)
+
         #rightPanelLayout.addLayout(fullImageWidget)
 
         #rightPanelLayout.addLayout(contextZoomLayout)
@@ -82,14 +88,23 @@ class MainWindow(QMainWindow):
         widget = QWidget()
         widget.setLayout(mainLayout)
         self.setCentralWidget(widget)
+
         # ---------------------------------- 
+        self.add_image("./testImages/CRISM/frt00012dfa_07_if164j_mtr3.hdr")
+
+    def add_image(self, filePath):
+        print("here")
+        self.imageView.createPlt(filePath)
+
+
 
 
 def startGui():
     # showing main window
     app = QApplication(sys.argv)
-    with open("resources/style.qss", "r") as styling:
+    with open("./resources/style.qss", "r") as styling:
         app.setStyleSheet(styling.read())
     window = MainWindow()
     window.showMaximized()
+
     app.exec()
