@@ -39,12 +39,12 @@ class SpectralDataViewer:
     def display_data(self):
         if self.data is not None:
             # Determine the stretch limits for each band
-            self.left_red_min_stretch_var = 90
-            self.left_red_max_stretch_var = 98
-            self.left_green_min_stretch_var = 2
-            self.left_green_max_stretch_var = 98
-            self.left_blue_min_stretch_var = 2
-            self.left_blue_max_stretch_var = 98
+            self.left_red_min_stretch_var = 10
+            self.left_red_max_stretch_var = 1
+            self.left_green_min_stretch_var = 10
+            self.left_green_max_stretch_var = 1
+            self.left_blue_min_stretch_var = 10
+            self.left_blue_max_stretch_var = 1
 
             # Use the stretch limits to display the image
             return self.display_left_data(self.default_rgb_bands)
