@@ -98,12 +98,8 @@ class MainWindow(QMainWindow):
         widget.setLayout(mainLayout)
         self.setCentralWidget(widget)
 
-        # ---------------------------------- 
-<<<<<<< HEAD
-        self.add_image("./testImages/HySpex/220724_VNIR_Reflectance.hdr")
-=======
-        self.add_image(str(Path("./testImages/CRISM/frt00012dfa_07_if164j_mtr3.hdr")))
->>>>>>> a8ffe3c72e072548e4511b34ba684230737ed1be
+        # ----------------------------------
+        self.add_image(str(Path("./testImages/HySpex/220724_VNIR_Reflectance.hdr")))
 
     def add_image(self, filePath):
         print("here")
