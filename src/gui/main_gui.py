@@ -3,10 +3,19 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 import sys
 from gui.customwidgets import *
+# dont know why this must be explicit
+from gui.customwidgets.specimagedisplay import SpectralZoomImage
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 # When you subclass a Qt class you must always call the super
 # __init__ function to allow Qt to set up the object
+
+'''
+"FYI": main_gui.py will initialize window and layout.
+It will only interact with widget classes (in customwidgets) to maintain
+low cohesion. Widget classes will interact with processing / 
+visualization classes accordingly. 
+'''
 
 
 
@@ -30,6 +39,7 @@ class MainWindow(QMainWindow):
 
         self.fileExplorer = FileExplorer()
         imageManager = TextWidget("Image Manager")
+        self.imageView = SpectralImageDisplay(mainLayout)
 
         splitter.addWidget(self.fileExplorer)
         splitter.addWidget(imageManager)
@@ -37,11 +47,11 @@ class MainWindow(QMainWindow):
         # Context Zoom Setup
         contextZoomLayout = QHBoxLayout()
         contextZoomSplitter = QSplitter()
-        contextImage = TextWidget("contextImage")
-        zoomImage = TextWidget("zoomImage")
+        self.contextImage = SpectralImageDisplay(self.imageView)
+        self.zoomImage = SpectralZoomImage(self.imageView)
 
-        contextZoomSplitter.addWidget(contextImage)
-        contextZoomSplitter.addWidget(zoomImage)
+        contextZoomSplitter.addWidget(self.contextImage)
+        contextZoomSplitter.addWidget(self.zoomImage)
 
         contextZoomLayout.addWidget(contextZoomSplitter)
 
@@ -51,7 +61,6 @@ class MainWindow(QMainWindow):
         # when button is clicked to open file, send message to spectralImgDis
         # thru the main gui to create a spectral data viewer object
 
-        self.imageView = SpectralImageDisplay(mainLayout)
         #imageView.setFixedSize(800, 500)
         self.fullImageWidget = QSplitter(Qt.Orientation.Vertical)
         self.fullImageWidget.addWidget(self.imageView)
@@ -89,7 +98,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(widget)
 
         # ---------------------------------- 
-        self.add_image("./testImages/CRISM/frt00012dfa_07_if164j_mtr3.hdr")
+        self.add_image("./testImages/HySpex/220724_VNIR_Reflectance.hdr")
 
     def add_image(self, filePath):
         print("here")
