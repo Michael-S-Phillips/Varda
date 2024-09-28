@@ -3,8 +3,9 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 import sys
 from gui.customwidgets import *
-# dont know why this must be explicit
+# don't know why this must be explicit
 from gui.customwidgets.specimagedisplay import SpectralZoomImage
+from pathlib import Path
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 # When you subclass a Qt class you must always call the super
@@ -98,7 +99,11 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(widget)
 
         # ---------------------------------- 
+<<<<<<< HEAD
         self.add_image("./testImages/HySpex/220724_VNIR_Reflectance.hdr")
+=======
+        self.add_image(str(Path("./testImages/CRISM/frt00012dfa_07_if164j_mtr3.hdr")))
+>>>>>>> a8ffe3c72e072548e4511b34ba684230737ed1be
 
     def add_image(self, filePath):
         print("here")
@@ -110,7 +115,7 @@ class MainWindow(QMainWindow):
 def startGui():
     # showing main window
     app = QApplication(sys.argv)
-    with open("./resources/style.qss", "r") as styling:
+    with open(str(Path("./resources/style.qss")), "r") as styling:
         app.setStyleSheet(styling.read())
     window = MainWindow()
     window.showMaximized()
