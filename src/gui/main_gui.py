@@ -3,6 +3,7 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 import sys
 from gui.customwidgets import *
+from pathlib import Path
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 # When you subclass a Qt class you must always call the super
@@ -89,7 +90,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(widget)
 
         # ---------------------------------- 
-        self.add_image("./testImages/CRISM/frt00012dfa_07_if164j_mtr3.hdr")
+        self.add_image(str(Path("./testImages/CRISM/frt00012dfa_07_if164j_mtr3.hdr")))
 
     def add_image(self, filePath):
         print("here")
@@ -101,7 +102,7 @@ class MainWindow(QMainWindow):
 def startGui():
     # showing main window
     app = QApplication(sys.argv)
-    with open("./resources/style.qss", "r") as styling:
+    with open(str(Path("./resources/style.qss")), "r") as styling:
         app.setStyleSheet(styling.read())
     window = MainWindow()
     window.showMaximized()
