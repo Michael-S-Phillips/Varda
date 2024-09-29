@@ -22,7 +22,6 @@ class SpectralImageDisplay(FigureCanvasQTAgg):
         self.vertices = []
         super(SpectralImageDisplay, self).__init__(self.figure)
         self.label = QLabel(self)
-        self.toolbar = SpecNavigationToolbar(self, self)
 
 
     def setImage(self, img: np.ndarray):
@@ -88,6 +87,7 @@ class SpectralImageDisplay(FigureCanvasQTAgg):
 
 
     def setZoomActionEvents(self):
+        self.toolbar = SpecNavigationToolbar(self, self)
         # self.setFocusPolicy(Qt.ClickFocus)
         self.mpl_connect('button_press_event', self.on_click)
 
@@ -120,17 +120,6 @@ class SpectralImageDisplay(FigureCanvasQTAgg):
 # drawing the ROI on the zoom image?
 # what format should spectralZoomImage take in?
 # adobe photo shop organic image and also polygon 
-
-
-# Mins 9/28
-
-# Image viewer info:
-# context: slight zoomed in version of the main image window
-# zoom: will move around based on where we are in the image window (super zoomed in)
-# ROI: statisics of ROI associated (plot *avg spectrum std histogram, wavelength array*)
-# option to add columns and also custom functions
-# perhaps a toggle button for ROI in context window
-# option to select a given ROI
 
 
 class SpectralZoomImage(SpectralImageDisplay):
