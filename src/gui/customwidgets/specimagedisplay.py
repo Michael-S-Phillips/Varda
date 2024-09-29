@@ -119,12 +119,25 @@ class SpectralImageDisplay(FigureCanvasQTAgg):
 # what format should spectralZoomImage take in?
 # adobe photo shop organic image and also polygon 
 
+
+# Mins 9/28
+
+# Image viewer info:
 # context: slight zoomed in version of the main image window
 # zoom: will move around based on where we are in the image window (super zoomed in)
-# ROI: statisics of ROI associated (plot *avg spectrum std histogram, wavelength array*)
+# ROI: statisics of ROI associated (plot avg spectrum, wavelength array, ROI color and ROI id are
+# the most important aspects we should integrate)
     # option to add columns and also custom functions
     # perhaps a toggle button for ROI in context window
     # option to select a given ROI
+
+# Jesse will check out an adobe photoshop like functionality for ROI 
+# (organic drawing or geometric drawing options)
+# Hamad will figure out that buffer overflow errer he experiences on his branch
+# Emma will create some more button functionality to naviagate an image
+
+# Meeting again on Monday at 11am. I will book a room in the main
+# library for that time. 
 
 
 
