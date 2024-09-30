@@ -19,6 +19,6 @@ venv/
 
 
 # Other
-testImages/*
+src/testImages/*
 .idea
 .DS_Store
