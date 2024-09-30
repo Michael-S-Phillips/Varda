@@ -16,8 +16,6 @@ from gui.customwidgets.SpecNavigationToolbar import SpecNavigationToolbar
 import pyqtgraph as pg
 from pyqtgraph import ImageView
 
-
-
 class SpectralImageDisplay(ImageView):
     
     def __init__(self, parent=None):
@@ -30,23 +28,6 @@ class SpectralImageDisplay(ImageView):
     def createPlt(self, fileName):
         self.button_layout = QHBoxLayout()
         self.current_roi = None
-        self.rect_roi_button = QPushButton("Rect ROI", self)
-        self.rect_roi_button.clicked.connect(self.add_rectangular_roi)
-        self.rect_roi_button.setStyleSheet("""
-            QPushButton {
-                background-color: white;
-                width: 80px;
-                height: 20px;
-                color: black;
-                font-size: 10px;
-                border-radius: 5px;
-                border: 1px solid black;
-            }
-            QPushButton:hover {
-                background-color: lightgray;
-            }
-        """)
-        self.button_layout.addWidget(self.rect_roi_button)
 
         self.polyline_roi_button = QPushButton("Poly ROI", self)
         self.polyline_roi_button.clicked.connect(self.add_polyline_roi)
@@ -59,7 +40,6 @@ class SpectralImageDisplay(ImageView):
                 font-size: 10px;
                 border-radius: 5px;
                 border: 1px solid black;
-                margin-left: 80px;
                                                
             }
             QPushButton:hover {
@@ -67,6 +47,7 @@ class SpectralImageDisplay(ImageView):
             }
         """)
         self.button_layout.addWidget(self.polyline_roi_button)
+    
 
         print('Creating plt...')
 
@@ -74,31 +55,18 @@ class SpectralImageDisplay(ImageView):
         # imv = pg.ImageView(self)
         self.show()
         self.setImage(np.array(sdv.image))
-        
-
-    def add_rectangular_roi(self):
-        if self.current_roi is not None:
-            self.removeItem(self.current_roi)
-
-        self.current_roi = pg.RectROI([100, 100], [100, 100], pen=(10, 9, 100))
-        self.current_roi.sigRegionChanged.connect(self.update_roi)
-        self.addItem(self.current_roi)
 
     def add_polyline_roi(self):
         if self.current_roi is not None:
             self.removeItem(self.current_roi)
 
-        # Create and add a polyline ROI (starting with a triangle)
-        initial_points = [[20, 20], [40, 40], [60, 30]]
-        self.current_roi = pg.PolyLineROI(initial_points, closed=True, pen=(10, 9, 10))
+        initial_points = [[100, 100], [100, 300], [300, 300], [300, 100]]
+        self.current_roi = pg.PolyLineROI(initial_points, closed=True, pen=(10, 15, 10))
         self.current_roi.sigRegionChanged.connect(self.update_roi)
         self.addItem(self.current_roi)
 
     def update_roi(self):
-        # Callback when the ROI changes
-        if isinstance(self.current_roi, pg.RectROI):
-            print(f"Rectangular ROI bounds: {self.current_roi.saveState()}")
-        elif isinstance(self.current_roi, pg.PolyLineROI):
+        if isinstance(self.current_roi, pg.PolyLineROI):
             print(f"Polyline ROI points: {self.current_roi.getState()['points']}")
 
 
@@ -106,8 +74,10 @@ class SpectralImageDisplay(ImageView):
 class SpectralZoomImage(SpectralImageDisplay):
     def __init__(self, parent):
         super(SpectralZoomImage, self).__init__(parent)
+        self.ui.histogram.hide()
 
 
 class SpectralContextImage(SpectralImageDisplay):
     def __init__(self, parent):
         super(SpectralZoomImage, self).__init__(parent)
+        self.ui.histogram.hide()
