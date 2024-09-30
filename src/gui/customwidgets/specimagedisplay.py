@@ -31,10 +31,6 @@ class SpectralImageDisplay(ImageView):
     def dropEvent(self, event):
         self.createPlt(str(Path(event.mimeData().urls()[0].toLocalFile())))
 
-    def setImage(self, img: np.ndarray):
-        self.label.clear()
-        self.label.setPixmap(QPixmap(qimage2ndarray.array2qimage(img, normalize=(0, 1))))
-
     def onclick(self, event):
         # Right-click to finish drawing the polygon
         if event.button == 3:
