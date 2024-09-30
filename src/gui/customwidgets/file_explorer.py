@@ -1,7 +1,7 @@
 """
 file_explorer.py
 """
-from PyQt6.QtWidgets import QWidget, QFileDialog, QVBoxLayout, QTreeView, QPushButton
+from PyQt6.QtWidgets import QWidget, QFileDialog, QVBoxLayout, QTreeView, QPushButton, QAbstractItemView
 from PyQt6.QtCore import *
 from . import BasicWidget
 from PyQt6.QtGui import QFileSystemModel
@@ -23,6 +23,8 @@ class FileExplorer(BasicWidget):
         self.setLayout(self.layout)
         self.fileName = None
 
+        self.tree_view.setDragEnabled(True)
+        #self.tree_view.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
 
         button = QPushButton("Open File", self)
         button.clicked.connect(self.open_file_dialog)

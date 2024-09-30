@@ -22,7 +22,14 @@ class SpectralImageDisplay(FigureCanvasQTAgg):
         self.vertices = []
         super(SpectralImageDisplay, self).__init__(self.figure)
         self.label = QLabel(self)
+        self.setAcceptDrops(True)
 
+    def dragEnterEvent(self, event):
+        # if event.mimeData().hasFormat('image/hdr'):
+        event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        self.createPlt(str(Path(event.mimeData().urls()[0].toLocalFile())))
 
     def setImage(self, img: np.ndarray):
         self.label.clear()
@@ -103,6 +110,7 @@ class SpectralImageDisplay(FigureCanvasQTAgg):
 
     def createPlt(self, fileName):
         print('Creating plt...')
+        print(fileName)
         self.is_drawingROI = False
         self.setZoomActionEvents()
         sdv = SpectralDataViewer(fileName)
