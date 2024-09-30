@@ -1,21 +1,39 @@
+from abc import abstractproperty, abstractmethod
+
 import spectral
 import rasterio as rio
-import matplotlib.pyplot as plt
 import numpy as np
 from skimage import exposure
-from PyQt6.QtWidgets import *
+import re
 
-class SpectralDataViewer:
+
+class SpectralImage():
+    subclasses = {}
+
+    # this forces subclasses to set this value
+    @property
+    @abstractmethod
+    def image_type(self):
+        pass
+
+    # runs whenever a subclass is declared, adding it to the list of available subclasses
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.subclasses[cls.image_type] = cls
+
+    # determines which subclass is needed and returns a new instance of it
+    @classmethod
+    def new_image(cls, file_path):
+        image_type = re.search("hdr$", file_path).group()
+        if image_type not in cls.subclasses:
+            raise ValueError(f"Bad file type {image_type}")
+        return cls.subclasses[image_type](file_path)
+
     def __init__(self, file_path):
-        # self.root = root
-        # self.root.title("Spectral Cube Analysis Tool")
         self.data = None
         self.transform = None
         self.default_rgb_bands = (29, 19, 9)  # Example default bands
 
-        # Setup UI
-        # load_button = tk.Button(root, text="Load Data", command=self.load_data)
-        # load_button.pack()
         self.file_path = file_path
         self.image = self.load_data()
         print("Spectral data viewer image: " + str(self.image))
@@ -34,7 +52,6 @@ class SpectralDataViewer:
 
             # Display the data using the updated method
             return self.display_data()
-
 
     def display_data(self):
         if self.data is not None:
@@ -77,28 +94,14 @@ class SpectralDataViewer:
         # Apply stretching, gamma correction, and CLAHE to each band
         gamma_value = 0.8  # Adjust gamma to lighten dark areas, <1 for lightening, >1 for darkening
         if left_red_stretch is not None:
-            left_rgb_image[:, :, 0] = self.stretch_band(left_rgb_image[:, :, 0], left_red_stretch, 
-                        gamma=gamma_value, apply_clahe=True)
+            left_rgb_image[:, :, 0] = self.stretch_band(left_rgb_image[:, :, 0], left_red_stretch,
+                                                        gamma=gamma_value, apply_clahe=True)
         if left_green_stretch is not None:
-            left_rgb_image[:, :, 1] = self.stretch_band(left_rgb_image[:, :, 1], left_green_stretch, 
-                        gamma=gamma_value, apply_clahe=True)
+            left_rgb_image[:, :, 1] = self.stretch_band(left_rgb_image[:, :, 1], left_green_stretch,
+                                                        gamma=gamma_value, apply_clahe=True)
         if left_blue_stretch is not None:
-            left_rgb_image[:, :, 2] = self.stretch_band(left_rgb_image[:, :, 2], left_blue_stretch, 
-                        gamma=gamma_value, apply_clahe=True)
-
-
-        # left_rgb_image[:, :, 0] = self.stretch_band(left_rgb_image[:, :, 0], left_red_stretch, gamma=gamma_value,
-        #                                             apply_clahe=True)
-        # left_rgb_image[:, :, 1] = self.stretch_band(left_rgb_image[:, :, 1], left_green_stretch, gamma=gamma_value,
-        #                                             apply_clahe=True)
-        # left_rgb_image[:, :, 2] = self.stretch_band(left_rgb_image[:, :, 2], left_blue_stretch, gamma=gamma_value,
-        #                                             apply_clahe=True)
-
-        # Display the image using matplotlib
-        # plt.imshow(left_rgb_image)
-        # plt.title('Enhanced RGB Composite of Spectral Data')
-        # plt.axis('off')
-        # plt.show()
+            left_rgb_image[:, :, 2] = self.stretch_band(left_rgb_image[:, :, 2], left_blue_stretch,
+                                                        gamma=gamma_value, apply_clahe=True)
 
         # Update window title with file name
         name = self.data.filename.split('/')[-1].split('.')[0]
@@ -106,9 +109,3 @@ class SpectralDataViewer:
         print("left rgb img: " + str(left_rgb_image))
 
         return left_rgb_image
-
-
-# if __name__ == "__main__":
-#     root = tk.Tk()
-#     app = SpectralDataViewer(root)
-#     root.mainloop()
