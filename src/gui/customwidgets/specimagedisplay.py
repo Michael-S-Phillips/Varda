@@ -13,113 +13,94 @@ matplotlib.use('QtAgg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
 from pathlib import Path
 from gui.customwidgets.SpecNavigationToolbar import SpecNavigationToolbar
-class SpectralImageDisplay(FigureCanvasQTAgg):
+import pyqtgraph as pg
+from pyqtgraph import ImageView
 
-    def __init__(self, parent):
-        self.figure, self.ax = plt.subplots(figsize=(6, 6))
-        # self.canvas = FigureCanvasQTAgg(self.figure)
 
+
+class SpectralImageDisplay(ImageView):
+    
+    def __init__(self, parent=None):
+        super(SpectralImageDisplay, self).__init__()
+
+        self.parent = parent
         self.vertices = []
-        super(SpectralImageDisplay, self).__init__(self.figure)
-        self.label = QLabel(self)
 
-
-    def setImage(self, img: np.ndarray):
-        self.label.clear()
-        self.label.setPixmap(QPixmap(qimage2ndarray.array2qimage(img, normalize=(0, 1))))
-
-    def onclick(self, event):
-        # Right-click to finish drawing the polygon
-        if event.button == 3:
-            self.finish_ROI()
-            return
-
-        # Add vertex if left mouse button is clicked
-        if event.inaxes is not None and self.is_drawingROI:
-            self.vertices.append((event.xdata, event.ydata))
-            self.draw_ROI()
-
-    def draw_ROI(self):
-        self.ax.set_aspect('equal', adjustable='box')
-
-        # self.ax.imshow(self.current_image)
-
-        if self.vertices:
-            x, y = zip(*self.vertices)
-            # self.ax.fill(x + (x[0],), y + (y[0],), alpha=0.5, edgecolor='black')
-            self.ax.fill(x, y, alpha=0.5, edgecolor='black')
-        self.draw()
-    def finish_ROI(self):
-        self.draw()
-        self.is_drawingROI = False
-
-    def ROIclicked(self):
-        if (self.is_drawingROI):
-            self.is_drawingROI = False
-        else:
-            self.is_drawingROI = True
-
-    def zoomClicked(self):
-        if (self.is_drawingROI):
-            self.is_drawingROI = False
-        else:
-            self.is_drawingROI = True
-
-    def on_click(self, event):
-        if self.zoomButton.isChecked():
-            if event.button == 1:  # Left click for zoom in
-                self.zoom(1.2)
-            elif event.button == 3:  # Right click for zoom out
-                self.zoom(1 / 1.2)
-
-    def zoom(self, factor):
-        xlim = self.ax.get_xlim()
-        ylim = self.ax.get_ylim()
-
-        # Calculate new limits
-        new_xlim = [(x - (xlim[1] - xlim[0]) / 2 * (1 - factor)) for x in xlim]
-        new_ylim = [(y - (ylim[1] - ylim[0]) / 2 * (1 - factor)) for y in ylim]
-
-        # Set new limits
-        self.ax.set_xlim(new_xlim)
-        self.ax.set_ylim(new_ylim)
-        self.draw()
-
-
-    def setZoomActionEvents(self):
-        self.toolbar = SpecNavigationToolbar(self, self)
-        # self.setFocusPolicy(Qt.ClickFocus)
-        self.mpl_connect('button_press_event', self.on_click)
-
-        #self.zoomButton = QPushButton("Zoom in", self)
-        #self.zoomButton.setStyleSheet('background-color: grey; padding: 5px; margin-left: 80px')
-        #self.zoomButton.clicked.connect(self.zoomClicked)
-
-        #self.ROIbutton = QPushButton("Select ROI", self)
-        #self.ROIbutton.setStyleSheet('background-color: grey; padding: 5px')
-        #self.ROIbutton.clicked.connect(self.ROIclicked)
-        # Connect the mouse click event to the onclick method
-        #self.cid = self.figure.canvas.mpl_connect("button_press_event", self.onclick)
 
     def createPlt(self, fileName):
+        self.button_layout = QHBoxLayout()
+        self.current_roi = None
+        self.rect_roi_button = QPushButton("Rect ROI", self)
+        self.rect_roi_button.clicked.connect(self.add_rectangular_roi)
+        self.rect_roi_button.setStyleSheet("""
+            QPushButton {
+                background-color: white;
+                width: 80px;
+                height: 20px;
+                color: black;
+                font-size: 10px;
+                border-radius: 5px;
+                border: 1px solid black;
+            }
+            QPushButton:hover {
+                background-color: lightgray;
+            }
+        """)
+        self.button_layout.addWidget(self.rect_roi_button)
+
+        self.polyline_roi_button = QPushButton("Poly ROI", self)
+        self.polyline_roi_button.clicked.connect(self.add_polyline_roi)
+        self.polyline_roi_button.setStyleSheet("""
+            QPushButton {
+                background-color: white;
+                width: 80px;
+                height: 20px;
+                color: black;
+                font-size: 10px;
+                border-radius: 5px;
+                border: 1px solid black;
+                margin-left: 80px;
+                                               
+            }
+            QPushButton:hover {
+                background-color: lightgray;
+            }
+        """)
+        self.button_layout.addWidget(self.polyline_roi_button)
+
         print('Creating plt...')
-        self.is_drawingROI = False
-        self.setZoomActionEvents()
+
         sdv = SpectralDataViewer(fileName)
-        self.current_image = np.array(sdv.image)
+        # imv = pg.ImageView(self)
+        self.show()
+        self.setImage(np.array(sdv.image))
+        
 
-        # Display the image
-        self.ax.imshow(self.current_image)
-        # Set fixed limits based on the image dimensions
-        self.ax.set_xlim(0, self.current_image.shape[1])
-        self.ax.set_ylim(self.current_image.shape[0], 0)  # Invert y-axis
+    def add_rectangular_roi(self):
+        if self.current_roi is not None:
+            self.removeItem(self.current_roi)
 
-        self.draw()  # Refresh the plot
+        self.current_roi = pg.RectROI([100, 100], [100, 100], pen=(10, 9, 100))
+        self.current_roi.sigRegionChanged.connect(self.update_roi)
+        self.addItem(self.current_roi)
 
+    def add_polyline_roi(self):
+        if self.current_roi is not None:
+            self.removeItem(self.current_roi)
 
-# drawing the ROI on the zoom image?
-# what format should spectralZoomImage take in?
-# adobe photo shop organic image and also polygon 
+        # Create and add a polyline ROI (starting with a triangle)
+        initial_points = [[20, 20], [40, 40], [60, 30]]
+        self.current_roi = pg.PolyLineROI(initial_points, closed=True, pen=(10, 9, 10))
+        self.current_roi.sigRegionChanged.connect(self.update_roi)
+        self.addItem(self.current_roi)
+
+    def update_roi(self):
+        # Callback when the ROI changes
+        if isinstance(self.current_roi, pg.RectROI):
+            print(f"Rectangular ROI bounds: {self.current_roi.saveState()}")
+        elif isinstance(self.current_roi, pg.PolyLineROI):
+            print(f"Polyline ROI points: {self.current_roi.getState()['points']}")
+
 
 
 class SpectralZoomImage(SpectralImageDisplay):
