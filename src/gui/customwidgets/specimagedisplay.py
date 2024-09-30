@@ -17,12 +17,86 @@ import pyqtgraph as pg
 from pyqtgraph import ImageView
 
 class SpectralImageDisplay(ImageView):
-    
+
     def __init__(self, parent=None):
         super(SpectralImageDisplay, self).__init__()
 
         self.parent = parent
         self.vertices = []
+
+    def dragEnterEvent(self, event):
+        # if event.mimeData().hasFormat('image/hdr'):
+        event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        self.createPlt(str(Path(event.mimeData().urls()[0].toLocalFile())))
+
+    def setImage(self, img: np.ndarray):
+        self.label.clear()
+        self.label.setPixmap(QPixmap(qimage2ndarray.array2qimage(img, normalize=(0, 1))))
+
+    def onclick(self, event):
+        # Right-click to finish drawing the polygon
+        if event.button == 3:
+            self.finish_ROI()
+            return
+
+        # Add vertex if left mouse button is clicked
+        if event.inaxes is not None and self.is_drawingROI:
+            self.vertices.append((event.xdata, event.ydata))
+            self.draw_ROI()
+
+    def draw_ROI(self):
+        self.ax.set_aspect('equal', adjustable='box')
+
+        # self.ax.imshow(self.current_image)
+
+        if self.vertices:
+            x, y = zip(*self.vertices)
+            # self.ax.fill(x + (x[0],), y + (y[0],), alpha=0.5, edgecolor='black')
+            self.ax.fill(x, y, alpha=0.5, edgecolor='black')
+        self.draw()
+    def finish_ROI(self):
+        self.draw()
+        self.is_drawingROI = False
+
+    def ROIclicked(self):
+        if (self.is_drawingROI):
+            self.is_drawingROI = False
+        else:
+            self.is_drawingROI = True
+
+    def zoomClicked(self):
+        if (self.is_drawingROI):
+            self.is_drawingROI = False
+        else:
+            self.is_drawingROI = True
+
+    def on_click(self, event):
+        if self.zoomButton.isChecked():
+            if event.button == 1:  # Left click for zoom in
+                self.zoom(1.2)
+            elif event.button == 3:  # Right click for zoom out
+                self.zoom(1 / 1.2)
+
+    def zoom(self, factor):
+        xlim = self.ax.get_xlim()
+        ylim = self.ax.get_ylim()
+
+        # Calculate new limits
+        new_xlim = [(x - (xlim[1] - xlim[0]) / 2 * (1 - factor)) for x in xlim]
+        new_ylim = [(y - (ylim[1] - ylim[0]) / 2 * (1 - factor)) for y in ylim]
+
+        # Set new limits
+        self.ax.set_xlim(new_xlim)
+        self.ax.set_ylim(new_ylim)
+        self.draw()
+
+
+    def setZoomActionEvents(self):
+        self.toolbar = SpecNavigationToolbar(self, self)
+        # self.setFocusPolicy(Qt.ClickFocus)
+        self.mpl_connect('button_press_event', self.on_click)
 
 
     def createPlt(self, fileName):
@@ -55,6 +129,15 @@ class SpectralImageDisplay(ImageView):
         # imv = pg.ImageView(self)
         self.show()
         self.setImage(np.array(sdv.image))
+
+
+    def add_rectangular_roi(self):
+        if self.current_roi is not None:
+            self.removeItem(self.current_roi)
+
+        self.current_roi = pg.RectROI([100, 100], [100, 100], pen=(10, 9, 100))
+        self.current_roi.sigRegionChanged.connect(self.update_roi)
+        self.addItem(self.current_roi)
 
     def add_polyline_roi(self):
         if self.current_roi is not None:
