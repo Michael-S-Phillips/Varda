@@ -39,24 +39,12 @@ class SpectralDataViewer:
     def display_data(self):
         if self.data is not None:
             # Determine the stretch limits for each band
-            # red_band = float(0)
-            # green_band = float(0)
-            # blue_band = float(0)
-            # red_index = self.left_wvl.index(red_band)
-            # green_index = self.left_wvl.index(green_band)
-            # blue_index = self.left_wvl.index(blue_band)
             self.left_red_min_stretch_var = 10
             self.left_red_max_stretch_var = 1
             self.left_green_min_stretch_var = 10
             self.left_green_max_stretch_var = 1
             self.left_blue_min_stretch_var = 10
             self.left_blue_max_stretch_var = 1
-            # self.left_red_min_stretch_var.set(np.nanmedian(self.left_data[:,:,red_index])-np.nanquantile(self.left_data[:,:,red_index], 0.6))
-            # self.left_red_max_stretch_var.set(np.nanmedian(self.left_data[:,:,red_index])+np.nanquantile(self.left_data[:,:,red_index], 0.6))
-            # self.left_green_min_stretch_var.set(np.nanmedian(self.left_data[:,:,green_index])-np.nanquantile(self.left_data[:,:,green_index], 0.6))
-            # self.left_green_max_stretch_var.set(np.nanmedian(self.left_data[:,:,green_index])+np.nanquantile(self.left_data[:,:,green_index], 0.6))
-            # self.left_blue_min_stretch_var.set(np.nanmedian(self.left_data[:,:,blue_index])-np.nanquantile(self.left_data[:,:,blue_index], 0.6))
-            # self.left_blue_max_stretch_var.set(np.nanmedian(self.left_data[:,:,blue_index])+np.nanquantile(self.left_data[:,:,blue_index], 0.6))
 
             # Use the stretch limits to display the image
             return self.display_left_data(self.default_rgb_bands)
