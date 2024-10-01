@@ -3,23 +3,12 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 import sys
 from gui.customwidgets import *
-# don't know why this must be explicit
-from gui.customwidgets.specimagedisplay import SpectralZoomImage
 from pathlib import Path
-import pyqtgraph as pg
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
 # When you subclass a Qt class you must always call the super
 # __init__ function to allow Qt to set up the object
-
-'''
-"FYI": main_gui.py will initialize window and layout.
-It will only interact with widget classes (in customwidgets) to maintain
-low cohesion. Widget classes will interact with processing / 
-visualization classes accordingly. 
-'''
-
-
 
 class MainWindow(QMainWindow):
     '''
@@ -41,7 +30,6 @@ class MainWindow(QMainWindow):
 
         self.fileExplorer = FileExplorer()
         imageManager = TextWidget("Image Manager")
-        self.imageView = SpectralImageDisplay(mainLayout)
 
         splitter.addWidget(self.fileExplorer)
         splitter.addWidget(imageManager)
@@ -49,14 +37,11 @@ class MainWindow(QMainWindow):
         # Context Zoom Setup
         contextZoomLayout = QHBoxLayout()
         contextZoomSplitter = QSplitter()
-        self.contextImage = SpectralZoomImage(mainLayout)
-        self.zoomImage = SpectralZoomImage(mainLayout)
+        contextImage = TextWidget("contextImage")
+        zoomImage = TextWidget("zoomImage")
 
-
-
-
-        contextZoomSplitter.addWidget(self.contextImage)
-        contextZoomSplitter.addWidget(self.zoomImage)
+        contextZoomSplitter.addWidget(contextImage)
+        contextZoomSplitter.addWidget(zoomImage)
 
         contextZoomLayout.addWidget(contextZoomSplitter)
 
@@ -66,7 +51,8 @@ class MainWindow(QMainWindow):
         # when button is clicked to open file, send message to spectralImgDis
         # thru the main gui to create a spectral data viewer object
 
-        #imageView.setFixedSize(800, 500)
+        self.imageView = SpectralImageDisplay()
+        # imageView.setFixedSize(800, 500)
         self.fullImageWidget = QSplitter(Qt.Orientation.Vertical)
         self.fullImageWidget.addWidget(self.imageView)
         self.fullImageWidget.addWidget(contextZoomSplitter)
@@ -85,9 +71,9 @@ class MainWindow(QMainWindow):
         rightPanelLayout.addLayout(menuLayout)
         rightPanelLayout.addLayout(imageViewingLayout)
 
-        #rightPanelLayout.addLayout(fullImageWidget)
+        # rightPanelLayout.addLayout(fullImageWidget)
 
-        #rightPanelLayout.addLayout(contextZoomLayout)
+        # rightPanelLayout.addLayout(contextZoomLayout)
 
         rightPanelLayout.setSpacing(2)
         # left_panel_layout.setSpacing(2)
@@ -103,12 +89,21 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(widget)
 
         # ----------------------------------
-        self.add_image(str(Path("./testImages/HySpex/220724_VNIR_Reflectance.hdr")))
+        self.open_image_dialog()
+
+    def open_image_dialog(self):
+        # Open file dialog to select the image file
+        file_dialog = QFileDialog()
+        file_dialog.setNameFilters(["HDR Files (*.hdr)", "All Files (*)"])
+        if file_dialog.exec():
+            selected_files = file_dialog.selectedFiles()
+            if selected_files:
+                file_path = selected_files[0]
+                self.add_image(file_path)
 
     def add_image(self, filePath):
+        print("Adding image:", filePath)
         self.imageView.createPlt(filePath)
-
-
 
 
 def startGui():
