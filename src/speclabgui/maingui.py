@@ -1,9 +1,15 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
+import os
+currdir = os.getcwd()
+os.chdir(currdir + "/speclabgui/")
+print(os.getcwd())
 
 from customwidgets.spectralimageworkspace import SpectralImageWorkspace
-from speclabgui.customwidgets import *
+from customwidgets import *
 from pathlib import Path
 import sys
+import os
+
 '''
 "FYI": maingui.py will initialize window and layout.
 It will only interact with widget classes (in customwidgets) to maintain
