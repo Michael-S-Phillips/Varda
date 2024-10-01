@@ -2,14 +2,13 @@
 spectralimageworkspace.py
 A QtWidget which acts as a workspace for a single spectral image.
 Including a main image display, context image, and zoom image.
+
+NOTE: This is where we'll handle getting the views to interact with each other.
 """
 from pathlib import Path
 from typing import override
-import PyQt6.QtWidgets as QtWidgets
-import PyQt6.QtCore as QtCore
-import numpy as np
-
-from speclabgui.customwidgets.spectralimagedisplay import SpectralImageDisplay, SpectralZoomImage, SpectralContextImage
+from PyQt6 import QtCore, QtGui, QtWidgets
+from speclabgui.customwidgets.spectralimagedisplays import SpectralMainImageDisplay, SpectralZoomImage, SpectralContextImage
 import speclabimageprocessing as speclab
 
 class SpectralImageWorkspace(QtWidgets.QWidget):
@@ -18,11 +17,12 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.setAcceptDrops(True)
 
         self.sdv = None
+
         layout = QtWidgets.QVBoxLayout()
 
         self.mainSplitter = QtWidgets.QSplitter(self)
 
-        self.mainImage = SpectralImageDisplay(parent)
+        self.mainImage = SpectralMainImageDisplay(parent)
         self.contextImage = SpectralContextImage(parent)
         self.zoomImage = SpectralZoomImage(parent)
         self.contextZoomSplitter = QtWidgets.QSplitter(self)
@@ -38,22 +38,17 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
     @override
     def dragEnterEvent(self, event, **kwargs):
-        # if event.mimeData().hasFormat('image/hdr'):
+        # TODO: Verify that file is an .hdr (or other valid format) before accepting event
         event.acceptProposedAction()
 
     @override
     def dropEvent(self, event, **kwargs):
-        self.createPlt(str(Path(event.mimeData().urls()[0].toLocalFile())))
+        self.loadNewImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
 
-    def createPlt(self, fileName):
-
-
-        print('Creating plt...')
-
+    def loadNewImage(self, fileName):
+        print('Loading image...')
         sdv = speclab.SpectralImage.new_image(fileName)
-        # imv = pg.ImageView(self)
-        imageArray = np.array(sdv.image)
-        self.mainImage.setImage(imageArray)
-        self.contextImage.setImage(imageArray)
-        self.zoomImage.setImage(imageArray)
+        self.mainImage.setImage(sdv.image)
+        self.contextImage.setImage(sdv.image)
+        self.zoomImage.setImage(sdv.image)
         self.show()
