@@ -10,6 +10,7 @@ import pyqtgraph as pg
 from pyqtgraph import ImageView
 import speclabimageprocessing as specLab
 
+
 class SpectralImageDisplay(ImageView):
 
     def __init__(self, parent=None):

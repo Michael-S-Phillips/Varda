@@ -3,7 +3,7 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 from speclabgui.customwidgets import *
 # don't know why this must be explicit
-from speclabgui.customwidgets.spectralimagedisplay import SpectralZoomImage
+from speclabgui.customwidgets.spectralimagedisplay import SpectralZoomImage, SpectralContextImage
 from pathlib import Path
 import sys
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -44,7 +44,7 @@ class MainGui(QMainWindow):
         # Context Zoom Setup
         contextZoomLayout = QHBoxLayout()
         contextZoomSplitter = QSplitter()
-        self.contextImage = SpectralZoomImage(mainLayout)
+        self.contextImage = SpectralContextImage(mainLayout)
         self.zoomImage = SpectralZoomImage(mainLayout)
 
         contextZoomSplitter.addWidget(self.contextImage)
