@@ -7,7 +7,7 @@ from skimage import exposure
 import re
 
 
-class SpectralImage():
+class SpectralImage:
     subclasses = {}
 
     # this forces subclasses to set this value
@@ -16,7 +16,7 @@ class SpectralImage():
     def image_type(self):
         pass
 
-    # runs whenever a subclass is declared, adding it to the list of available subclasses
+    # runs whenever a subclass is declared. adds it to the list of available subclasses
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls.subclasses[cls.image_type] = cls
