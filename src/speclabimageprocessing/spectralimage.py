@@ -1,4 +1,4 @@
-from abc import abstractproperty, abstractmethod
+from abc import abstractmethod
 import spectral
 import rasterio as rio
 import numpy as np

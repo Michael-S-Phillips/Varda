@@ -1,12 +1,11 @@
-from PyQt6.QtWidgets import *
-from PyQt6.QtCore import *
-from PyQt6.QtGui import *
+from PyQt6 import QtCore, QtGui, QtWidgets
 
-class TextWidget(QWidget):
+
+class TextWidget(QtWidgets.QWidget):
     def __init__(self, text: str):
         super(TextWidget, self).__init__()
-        self.label = QLabel(text)
-        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.layout = QHBoxLayout()
+        self.label = QtWidgets.QLabel(text)
+        self.label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.layout = QtWidgets.QHBoxLayout()
         self.setLayout(self.layout)
         self.layout.addWidget(self.label)

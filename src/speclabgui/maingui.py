@@ -1,11 +1,5 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
-import os
-currdir = os.getcwd()
-os.chdir(currdir + "/speclabgui/")
-print(os.getcwd())
-
-from customwidgets.spectralimageworkspace import SpectralImageWorkspace
-from customwidgets import *
+from speclabgui.customwidgets import SpectralImageWorkspace, FileExplorer, TextWidget
 from pathlib import Path
 import sys
 import os
@@ -75,7 +69,7 @@ class MainGui(QtWidgets.QMainWindow):
         # self.add_image(str(Path("./testImages/HySpex/220724_VNIR_Reflectance.hdr")))
 
     def add_image(self, filePath):
-        self.imageView.createPlt(filePath)
+        self.imageView.loadNewImage(filePath)
 
 
 def startGui():

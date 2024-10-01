@@ -2,26 +2,19 @@
 spectralimagedisplay.py
 """
 from PyQt6 import QtCore, QtGui, QtWidgets
-from typing import override
-import numpy as np
-from pathlib import Path
 import pyqtgraph as pg
 from pyqtgraph import ImageView
-import speclabimageprocessing as speclab
 
 
-class SpectralImageDisplay(ImageView):
+class SpectralMainImageDisplay(ImageView):
 
-    def __init__(self, parent=None, hasROI=True):
-        super(SpectralImageDisplay, self).__init__(parent)
+    def __init__(self, parent=None):
+        super(SpectralMainImageDisplay, self).__init__(parent)
         self.setAcceptDrops(True)
 
         self.buttonLayout = None
         self.currentROI = None
         self.vertices = []
-
-        if not hasROI:
-            return
 
         self.buttonLayout = QtWidgets.QHBoxLayout()
         self.currentROI = None
@@ -67,13 +60,13 @@ class SpectralImageDisplay(ImageView):
             print(f"Polyline ROI points: {self.currentROI.getState()['points']}")
 
 
-class SpectralZoomImage(SpectralImageDisplay):
+class SpectralZoomImage(ImageView):
     def __init__(self, parent):
-        super(SpectralZoomImage, self).__init__(parent, hasROI=False)
+        super(SpectralZoomImage, self).__init__(parent)
         self.ui.histogram.hide()
 
 
-class SpectralContextImage(SpectralImageDisplay):
+class SpectralContextImage(ImageView):
     def __init__(self, parent):
-        super(SpectralContextImage, self).__init__(parent, hasROI=False)
+        super(SpectralContextImage, self).__init__(parent)
         self.ui.histogram.hide()
