@@ -1,9 +1,33 @@
+from abc import abstractmethod
 import spectral
 import rasterio as rio
 import numpy as np
 from skimage import exposure
+import re
 
-class SpectralDataViewer:
+
+class SpectralImage:
+    subclasses = {}
+
+    # this forces subclasses to set this value
+    @property
+    @abstractmethod
+    def image_type(self):
+        pass
+
+    # runs whenever a subclass is declared. adds it to the list of available subclasses
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.subclasses[cls.image_type] = cls
+
+    # determines which subclass is needed and returns a new instance of it
+    @classmethod
+    def new_image(cls, file_path):
+        image_type = re.search("hdr$", file_path).group()
+        if image_type not in cls.subclasses:
+            raise ValueError(f"Bad file type {image_type}")
+        return cls.subclasses[image_type](file_path)
+
     def __init__(self, file_path):
         self.file_path = file_path
         self.data = None

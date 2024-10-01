@@ -10,3 +10,7 @@ QWidget {
 QLabel {
     qproperty-alignment: AlignCenter;
 }
+
+QPushButton:hover {
+    background-color: #333333;
+}
