@@ -1,38 +1,32 @@
 """
 spectralimagedisplay.py
 """
+from PyQt6 import QtCore, QtGui, QtWidgets
 from typing import override
-from PyQt6.QtWidgets import *
 import numpy as np
-import speclabimageprocessing
 from pathlib import Path
 import pyqtgraph as pg
 from pyqtgraph import ImageView
-import speclabimageprocessing as specLab
+import speclabimageprocessing as speclab
 
 
 class SpectralImageDisplay(ImageView):
 
-    def __init__(self, parent=None):
-        super(SpectralImageDisplay, self).__init__()
+    def __init__(self, parent=None, hasROI=True):
+        super(SpectralImageDisplay, self).__init__(parent)
         self.setAcceptDrops(True)
-        self.parent = parent
+
+        self.buttonLayout = None
+        self.currentROI = None
         self.vertices = []
 
-    @override
-    def dragEnterEvent(self, event):
-        # if event.mimeData().hasFormat('image/hdr'):
-        event.acceptProposedAction()
+        if not hasROI:
+            return
 
-    @override
-    def dropEvent(self, event):
-        self.createPlt(str(Path(event.mimeData().urls()[0].toLocalFile())))
-
-    def createPlt(self, fileName):
-        self.buttonLayout = QHBoxLayout()
+        self.buttonLayout = QtWidgets.QHBoxLayout()
         self.currentROI = None
 
-        self.polylineROIButton = QPushButton("Poly ROI", self)
+        self.polylineROIButton = QtWidgets.QPushButton("Poly ROI", self)
         self.polylineROIButton.clicked.connect(self.addPolylineROI)
         self.polylineROIButton.setStyleSheet("""
             QPushButton {
@@ -50,13 +44,6 @@ class SpectralImageDisplay(ImageView):
             }
         """)
         self.buttonLayout.addWidget(self.polylineROIButton)
-
-        print('Creating plt...')
-
-        sdv = specLab.SpectralImage.new_image(fileName)
-        # imv = pg.ImageView(self)
-        self.show()
-        self.setImage(np.array(sdv.image))
 
     def addRectangularROI(self):
         if self.currentROI is not None:
@@ -82,11 +69,11 @@ class SpectralImageDisplay(ImageView):
 
 class SpectralZoomImage(SpectralImageDisplay):
     def __init__(self, parent):
-        super(SpectralZoomImage, self).__init__(parent)
+        super(SpectralZoomImage, self).__init__(parent, hasROI=False)
         self.ui.histogram.hide()
 
 
 class SpectralContextImage(SpectralImageDisplay):
     def __init__(self, parent):
-        super(SpectralContextImage, self).__init__(parent)
+        super(SpectralContextImage, self).__init__(parent, hasROI=False)
         self.ui.histogram.hide()
