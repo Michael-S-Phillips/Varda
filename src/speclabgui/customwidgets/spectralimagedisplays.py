@@ -5,6 +5,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QMenu
 import pyqtgraph as pg
 from pyqtgraph import ImageView
+from speclabgui.customwidgets.ROIWindow import ROIWindow
 
 
 class SpectralMainImageDisplay(ImageView):
@@ -14,6 +15,7 @@ class SpectralMainImageDisplay(ImageView):
         self.setAcceptDrops(True)
 
         self.buttonLayout = None
+        self.currentROIs = []
         self.currentROI = None
         self.vertices = []
         self.savedROIS = []
@@ -27,6 +29,8 @@ class SpectralMainImageDisplay(ImageView):
 
         self.menuButton = QMenu(self)
         self.menuButton.addAction("Poly ROI", self.addPolylineROI)
+        self.buttonLayout.addWidget(self.options)
+
         self.menuButton.addAction("Save ROI", self.saveROI)
         self.menuButton.addAction("Load ROI", self.loadROI)
 
@@ -53,25 +57,16 @@ class SpectralMainImageDisplay(ImageView):
         # add button to save ROI state
         # self.menu = QMenu(self)
 
-        # self.saveROIButton = QtWidgets.QPushButton("Save ROI", self)
-        # self.saveROIButton.clicked.connect(self.saveROI)
-
-        # self.loadROIButton = QtWidgets.QPushButton("Load ROI", self)
-        # self.loadROIButton.clicked.connect(self.loadROI)
-
     def loadROI(self):
-        if (self.savedROIS != []):
-            for i in range(len(self.savedROIS)):
-                self.menuButton.addAction("ROI "+ str(i+1), self.loadROIState(i))
-            self.showMenu()
-        else:
-            self.loadROIButton.setEnabled(False)
+        roiPopupWindow = ROIWindow(self, self.savedROIS)
+        roiPopupWindow.show()
 
     def showMenu(self):
         self.menuButton.exec(self.options.mapToGlobal(self.options.rect().bottomLeft()))
 
         
     def loadROIState(self, i):
+        print(self.savedROIS[i]['pos'])
         self.currentROI.setState(self.savedROIS[i])
 
 
@@ -80,25 +75,19 @@ class SpectralMainImageDisplay(ImageView):
             state = self.currentROI.saveState()
             self.savedROIS.append(state)
 
-    def addRectangularROI(self):
-        if self.currentROI is not None:
-            self.removeItem(self.currentROI)
-
-        self.currentROI = pg.RectROI([100, 100], [100, 100], pen=(10, 9, 100))
-        self.currentROI.sigRegionChanged.connect(self.updateROI)
-        self.addItem(self.currentROI)
-
     def addPolylineROI(self):
         if self.currentROI is not None:
             self.savedROIS.append(self.currentROI)
 
         initial_points = [[100, 100], [100, 300], [300, 300], [300, 100]]
+        
         self.currentROI = pg.PolyLineROI(initial_points, closed=True, pen=(10, 15, 10))
+        self.currentROIs.append(self.currentROI)
         self.currentROI.sigRegionChanged.connect(self.updateROI)
         self.addItem(self.currentROI)
 
     def updateROI(self):
-        if isinstance(self.currentROI, pg.PolyLineROI):
+        if isinstance(self.currentROIs, pg.PolyLineROI):
             print(f"Polyline ROI points: {self.currentROI.getState()['points']}")
 
 
