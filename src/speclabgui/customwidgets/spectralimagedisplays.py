@@ -5,8 +5,10 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QMenu
 import pyqtgraph as pg
 from pyqtgraph import ImageView
+from pyqtgraph.functions import mkPen, Colors
 from speclabgui.customwidgets.ROIWindow import ROIWindow
 
+color_keys = ['b', 'g', 'r', 'c', 'm', 'y', 'w']
 
 class SpectralMainImageDisplay(ImageView):
 
@@ -66,9 +68,7 @@ class SpectralMainImageDisplay(ImageView):
 
         
     def loadROIState(self, i):
-        print(self.savedROIS[i]['pos'])
         self.currentROI.setState(self.savedROIS[i])
-
 
     def saveROI(self):
         if (self.currentROI != None):
@@ -81,10 +81,12 @@ class SpectralMainImageDisplay(ImageView):
 
         initial_points = [[100, 100], [100, 300], [300, 300], [300, 100]]
         
-        self.currentROI = pg.PolyLineROI(initial_points, closed=True, pen=(10, 15, 10))
+        self.currentROI = pg.PolyLineROI(initial_points, closed=True)
+        self.currentROI.setPen(mkPen(cosmetic=False, width=2, color=Colors[color_keys[len(self.currentROIs)]]))
         self.currentROIs.append(self.currentROI)
         self.currentROI.sigRegionChanged.connect(self.updateROI)
-        self.addItem(self.currentROI)
+        for ROI in self.currentROIs:
+            self.addItem(ROI)
 
     def updateROI(self):
         if isinstance(self.currentROIs, pg.PolyLineROI):

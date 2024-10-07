@@ -10,6 +10,8 @@ User can add notes, see mean / std of a spectral plot, and select an
 ROI they want to view on the image display
 '''
 
+color_keys = ['blue', 'green', 'red', 'cyan', 'magenta', 'yellow', 'white']
+
 class ROIWindow(QDialog):
     def __init__(self, imageView, rois):
         super().__init__(imageView)
@@ -18,18 +20,19 @@ class ROIWindow(QDialog):
 
         self.table = QTableWidget(self)
         self.table.setRowCount(len(self.rois))
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["   ROI ID   ", "   Notes   ", \
-            "   Mean Spectrum Plot   ", "   Std Spectrum Plot   "])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["     ROI ID     ", "     Color     ", 
+            "     Notes     ", "     Mean Spectrum Plot     ", "     Std Spectrum Plot     "])
 
         for col in range(self.table.columnCount()):
             self.table.resizeColumnToContents(col)
 
         for (row, roi) in enumerate(self.rois):
-            self.table.setItem(row, 0, QTableWidgetItem(row))
-            self.table.setItem(row, 1, QTableWidgetItem(" "))
-            self.table.setCellWidget(row, 2, QPushButton("Load Spec", self))
+            self.table.setItem(row, 0, QTableWidgetItem("ROI: " + str(row)))
+            self.table.setItem(row, 1, QTableWidgetItem(color_keys[row]))
+            self.table.setItem(row, 2, QTableWidgetItem(" "))
             self.table.setCellWidget(row, 3, QPushButton("Load Spec", self))
+            self.table.setCellWidget(row, 4, QPushButton("Load Spec", self))
 
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
