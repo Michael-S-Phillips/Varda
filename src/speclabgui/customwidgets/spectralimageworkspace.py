@@ -11,6 +11,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from speclabgui.customwidgets.spectralimagedisplays import SpectralMainImageDisplay, SpectralZoomImage, SpectralContextImage
 import speclabimageprocessing as speclab
 
+
 class SpectralImageWorkspace(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(SpectralImageWorkspace, self).__init__(parent)
@@ -34,6 +35,26 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.mainSplitter.addWidget(self.contextZoomSplitter)
 
         layout.addWidget(self.mainSplitter)
+
+        self.red_slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
+        self.red_slider.setValue(0)  # Set initial slice to 0
+        self.red_slider.setTickInterval(1)
+        self.red_slider.valueChanged.connect(self.updateSlice)
+
+        self.green_slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
+        self.green_slider.setValue(0)  # Set initial slice to 0
+        self.green_slider.setTickInterval(1)
+        self.green_slider.valueChanged.connect(self.updateSlice)
+
+        self.blue_slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
+        self.blue_slider.setValue(0)  # Set initial slice to 0
+        self.blue_slider.setTickInterval(1)
+        self.blue_slider.valueChanged.connect(self.updateSlice)
+
+        layout.addWidget(self.red_slider)
+        layout.addWidget(self.green_slider)
+        layout.addWidget(self.blue_slider)
+
         self.setLayout(layout)
 
     @override
@@ -47,8 +68,24 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
     def loadNewImage(self, fileName):
         print('Loading image...')
-        sdv = speclab.SpectralImage.new_image(fileName)
-        self.mainImage.setImage(sdv.image)
-        self.contextImage.setImage(sdv.image)
-        self.zoomImage.setImage(sdv.image)
+        self.sdv = speclab.SpectralImage.new_image(fileName)
+        self.red_slider.setRange(0, self.sdv.data.shape[2] - 1)
+        self.green_slider.setRange(0, self.sdv.data.shape[2] - 1)
+        self.blue_slider.setRange(0, self.sdv.data.shape[2] - 1)
+
+        self.mainImage.setImage(self.sdv.image)
+        self.contextImage.setImage(self.sdv.image)
+        self.zoomImage.setImage(self.sdv.image)
         self.show()
+
+    def updateSlice(self, value):
+        print("red band: " + str(self.red_slider.value()))
+        print("green band: " + str(self.green_slider.value()))
+        print("blue band: " + str(self.blue_slider.value()))
+
+        slice_data = self.sdv.data[:, :, [self.red_slider.value(), self.green_slider.value(), self.blue_slider.value()]]  # Get the current slice
+
+        # Update the image items
+        self.mainImage.setImage(slice_data)
+        #self.contextImage.setImage(slice_data)
+        #self.zoomImage.setImage(slice_data)
