@@ -73,9 +73,9 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.green_slider.setRange(0, self.sdv.data.shape[2] - 1)
         self.blue_slider.setRange(0, self.sdv.data.shape[2] - 1)
 
-        self.mainImage.setImage(self.sdv.image)
-        self.contextImage.setImage(self.sdv.image)
-        self.zoomImage.setImage(self.sdv.image)
+        self.mainImage.setImage(self.sdv.image, autoLevels=False)
+        self.contextImage.setImage(self.sdv.image, autoLevels=False)
+        self.zoomImage.setImage(self.sdv.image, autoLevels=False)
         self.show()
 
     def updateSlice(self, value):
@@ -86,6 +86,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         slice_data = self.sdv.data[:, :, [self.red_slider.value(), self.green_slider.value(), self.blue_slider.value()]]  # Get the current slice
 
         # Update the image items
-        self.mainImage.setImage(slice_data)
+        self.mainImage.setImage(slice_data, autoLevels=False)
         #self.contextImage.setImage(slice_data)
         #self.zoomImage.setImage(slice_data)

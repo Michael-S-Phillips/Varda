@@ -10,6 +10,8 @@ class SpectralMainImageDisplay(ImageView):
 
     def __init__(self, parent=None):
         super(SpectralMainImageDisplay, self).__init__(parent)
+        self.getImageItem().setLevels(None, None)
+        self.getImageItem().axisOrder = "row-major"
         self.setAcceptDrops(True)
 
         self.buttonLayout = None

@@ -60,7 +60,7 @@ class SpectralImage:
         if self.file_path:
             # Load header data
             self._header_data = spectral.open_image(self.file_path)
-            wavelengths = self._header_data.metadata["wavelength"]
+            # wavelengths = self._header_data.metadata["wavelength"]
             data_ignore_value = self._header_data.metadata["data ignore value"]
 
             # Load geospatial data
