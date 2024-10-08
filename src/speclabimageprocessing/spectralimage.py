@@ -19,6 +19,7 @@ class SpectralImage:
     """
     runs whenever a subclass is declared. adds it to the list of available subclasses
     """
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls.subclasses[cls.image_type] = cls
@@ -26,6 +27,7 @@ class SpectralImage:
     """
     determines which subclass is needed and returns a new instance of it
     """
+
     @classmethod
     def new_image(cls, file_path):
         # TODO: possibly need more complex system to determine file type? right now its just based on the file extension
@@ -36,29 +38,48 @@ class SpectralImage:
 
     def __init__(self, file_path):
         self.file_path = file_path
-        self.data = None
+
+        self._header_data = None
+        self._data = None
+        self._data_transposed = None
         self.transform = None
         self.default_rgb_bands = (29, 19, 9)  # Example default bands
         self.image = self.load_data()
+
+    """
+    public getter for img data, which returns the array in the format [width, height, channel] for plotting
+    """
+    @property
+    def data(self):
+        return self._data_transposed
 
     """
     loads a spectral image
     """
     def load_data(self):
         if self.file_path:
-            # Load spectral data
-            self.data = spectral.open_image(self.file_path)
-            self.data = self.data.load()
+            # Load header data
+            self._header_data = spectral.open_image(self.file_path)
+            wavelengths = self._header_data.metadata["wavelength"]
+            data_ignore_value = self._header_data.metadata["data ignore value"]
 
             # Load geospatial data
             rio_path = self.file_path.replace("hdr", "img")
-            with rio.open(rio_path) as dataset:
-                self.transform = dataset.transform
+            with rio.open(rio_path) as src:
+                self._data = src.read(masked=True)
+                self._data_transposed = np.transpose(self._data)
+                src.bands = self.default_rgb_bands
+                self.transform = src.transform
+                print(src.width, src.height)
+                print(src.crs)
+                print(src.transform)
+                print(src.count)
+                print(src.indexes)
 
             return self.display_data()
 
     def display_data(self):
-        if self.data is not None:
+        if self._data_transposed is not None:
             return self.display_rgb_data(self.default_rgb_bands)
 
     def display_rgb_data(self, band_indices):
@@ -67,13 +88,20 @@ class SpectralImage:
         left_blue_stretch = (0, 1)
 
         # Extract the RGB bands
-        rgb_image = self.data[:, :, [band_indices[0], band_indices[1], band_indices[2]]]
+        rgb_image = self._data_transposed[[band_indices[0], band_indices[1], band_indices[2]], :, :]
 
-        rgb_image[:, :, 0] = self.stretch_band(rgb_image[:, :, 0], left_red_stretch)
-        rgb_image[:, :, 1] = self.stretch_band(rgb_image[:, :, 1], left_green_stretch)
-        rgb_image[:, :, 2] = self.stretch_band(rgb_image[:, :, 2], left_blue_stretch)
+        # arrange array as [width, height, rgb]
+        rgb_image = np.transpose(rgb_image)
+        #np.set_printoptions(threshold=np.inf)
+        print(rgb_image[:, :, :])
 
-        # Normalize each band
+        rgb_image[0, :, :] = self.stretch_band(rgb_image[0, :, :], left_red_stretch)
+        rgb_image[1, :, :] = self.stretch_band(rgb_image[1, :, :], left_green_stretch)
+        rgb_image[2, :, :] = self.stretch_band(rgb_image[2, :, :], left_blue_stretch)
+        print("post-stretch")
+        print(rgb_image[0, :, :])
+
+        # # Normalize each band
         # for i in range(3):
         #     band = rgb_image[:, :, i]
         #     p2, p98 = np.percentile(band, (2, 98))
