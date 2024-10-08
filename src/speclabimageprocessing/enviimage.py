@@ -2,7 +2,7 @@ from speclabimageprocessing.spectralimage import SpectralImage
 import re
 
 
-class HDRImage(SpectralImage):
+class ENVIImage(SpectralImage):
     image_type = "hdr"
 
     def __init__(self, file_path):
