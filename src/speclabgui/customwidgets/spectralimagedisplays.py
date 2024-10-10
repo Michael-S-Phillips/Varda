@@ -6,21 +6,22 @@ from typing import override
 from PyQt6 import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
 from pyqtgraph import ImageView, InfiniteLine
+from pyqtgraph import functions as fn
 
 
 class SpectralMainImageDisplay(ImageView):
 
     def __init__(self, parent=None):
         super(SpectralMainImageDisplay, self).__init__(parent)
+        self.ui.histogram.setLevelMode("rgba")
         pg.setConfigOptions(imageAxisOrder='row-major')
-        self.getImageItem().setLevels(None, None)
         self.setAcceptDrops(True)
 
         self.buttonLayout = None
         self.currentROI = None
         self.vertices = []
 
-        self.currentBands = [9, 19, 29]
+        self.currentBands = {'r': 9, 'g': 19, 'b': 29}
 
         self.buttonLayout = QtWidgets.QHBoxLayout()
         self.currentROI = None
@@ -44,24 +45,26 @@ class SpectralMainImageDisplay(ImageView):
         """)
         self.buttonLayout.addWidget(self.polylineROIButton)
 
-        self.red_band_select = InfiniteLine(50, movable=True)
-        self.red_band_select.setPen(color='r', width=2)
-        self.red_band_select.setZValue(1)
-        self.ui.roiPlot.addItem(self.red_band_select)
-        self.red_band_select.show()
+        self.redBandSelect = InfiniteLine(50, movable=True)
+        self.redBandSelect.setPen(color='r', width=2)
+        self.redBandSelect.setZValue(1)
+        self.ui.roiPlot.addItem(self.redBandSelect)
+        self.redBandSelect.show()
+        self.redBandSelect.sigPositionChanged.connect(self.redBandChanged)
 
-        self.green_band_select = InfiniteLine(100, movable=True)
-        self.green_band_select.setPen(color='g', width=2)
-        self.green_band_select.setZValue(1)
-        self.ui.roiPlot.addItem(self.green_band_select)
-        self.green_band_select.show()
+        self.greenBandSelect = InfiniteLine(100, movable=True)
+        self.greenBandSelect.setPen(color='g', width=2)
+        self.greenBandSelect.setZValue(1)
+        self.ui.roiPlot.addItem(self.greenBandSelect)
+        self.greenBandSelect.show()
+        self.greenBandSelect.sigPositionChanged.connect(self.greenBandChanged)
 
-        self.blue_band_select = InfiniteLine(150, movable=True)
-        self.blue_band_select.setPen(color='blue', width=2)
-        self.blue_band_select.setZValue(1)
-        self.ui.roiPlot.addItem(self.blue_band_select)
-        self.blue_band_select.show()
-
+        self.blueBandSelect = InfiniteLine(150, movable=True)
+        self.blueBandSelect.setPen(color='blue', width=2)
+        self.blueBandSelect.setZValue(1)
+        self.ui.roiPlot.addItem(self.blueBandSelect)
+        self.blueBandSelect.show()
+        self.blueBandSelect.sigPositionChanged.connect(self.blueBandChanged)
 
     def addRectangularROI(self):
         if self.currentROI is not None:
@@ -88,11 +91,13 @@ class SpectralMainImageDisplay(ImageView):
     we override this method to allow for refreshing the image with custom bands 
     without re-running the entire setImage method (laggy)
     """
+
     @override
-    def updateImage(self, autoHistogramRange=True):
+    def updateImage(self, autoHistogramRange=False):
         ## Redraw image on screen
         if self.image is None:
             return
+        print(self.currentBands)
 
         image = self.getProcessedImage()
         if autoHistogramRange:
@@ -114,21 +119,84 @@ class SpectralMainImageDisplay(ImageView):
         # Select time index
         if self.axes['t'] is not None:
             self.ui.roiPlot.show()
-            image = image[:, :, self.currentBands]
+            image = image[:, :, list(self.currentBands.values())]
         self.imageItem.updateImage(image)
 
     def setRedIndex(self, ind):
-        self.currentBands[0] = ind
-
-    def setCurrentIndex(self, ind):
         """Set the currently displayed frame index."""
-        index = pg.fn.clip_scalar(ind, 0, self.nframes()-1)
+        index = fn.clip_scalar(ind, 0, self.nframes() - 1)
         self.currentIndex = index
         self.updateImage()
         self.ignoreTimeLine = True
         # Implicitly call timeLineChanged
-        self.timeLine.setValue(self.tVals[index])
+        self.redBandSelect.setValue(self.tVals[index][0])
         self.ignoreTimeLine = False
+
+    def setGreenIndex(self, ind):
+        """Set the currently displayed frame index."""
+        index = fn.clip_scalar(ind, 0, self.nframes() - 1)
+        self.currentIndex = index
+        self.updateImage()
+        self.ignoreTimeLine = True
+        # Implicitly call timeLineChanged
+        self.greenBandSelect.setValue(self.tVals[index][1])
+        self.ignoreTimeLine = False
+
+    def setBlueIndex(self, ind):
+        """Set the currently displayed frame index."""
+        index = fn.clip_scalar(ind, 0, self.nframes() - 1)
+        self.currentIndex = index
+        self.updateImage()
+        self.ignoreTimeLine = True
+        # Implicitly call timeLineChanged
+        self.blueBandSelect.setValue(self.tVals[index][2])
+        self.ignoreTimeLine = False
+
+    def redBandChanged(self):
+        (ind, time) = self.timeIndex(self.redBandSelect)
+        if ind != self.currentBands['r']:
+            self.currentBands['r'] = ind
+            self.updateImage()
+
+        # if self.discreteTimeLine:
+        #     with fn.SignalBlock(self.timeLine.sigPositionChanged, self.timeLineChanged):
+        #         if self.tVals is not None:
+        #             self.timeLine.setPos(self.tVals[ind])
+        #         else:
+        #             self.timeLine.setPos(ind)
+
+        self.sigTimeChanged.emit(ind, time)
+
+    def greenBandChanged(self):
+        (ind, time) = self.timeIndex(self.greenBandSelect)
+        if ind != self.currentBands['g']:
+            self.currentBands['g'] = ind
+            self.updateImage()
+
+        # if self.discreteTimeLine:
+        #     with fn.SignalBlock(self.timeLine.sigPositionChanged, self.timeLineChanged):
+        #         if self.tVals is not None:
+        #             self.timeLine.setPos(self.tVals[ind])
+        #         else:
+        #             self.timeLine.setPos(ind)
+
+        self.sigTimeChanged.emit(ind, time)
+
+    def blueBandChanged(self):
+        (ind, time) = self.timeIndex(self.blueBandSelect)
+        if ind != self.currentBands['b']:
+            self.currentBands['b'] = ind
+            self.updateImage()
+
+        # if self.discreteTimeLine:
+        #     with fn.SignalBlock(self.timeLine.sigPositionChanged, self.timeLineChanged):
+        #         if self.tVals is not None:
+        #             self.timeLine.setPos(self.tVals[ind])
+        #         else:
+        #             self.timeLine.setPos(ind)
+
+        self.sigTimeChanged.emit(ind, time)
+
 
 class SpectralZoomImage(ImageView):
     def __init__(self, parent):

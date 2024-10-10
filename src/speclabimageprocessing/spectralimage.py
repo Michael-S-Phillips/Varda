@@ -59,6 +59,15 @@ class SpectralImage:
         return self._data.T
 
     """
+    returns the range of image (lowest and highest value). 
+    For now just returning 0 and 1 because every image should be normalized
+    """
+    @property
+    def range(self):
+        return 0, 1
+
+
+    """
     loads a spectral image
     """
     def load_data(self):
@@ -88,6 +97,7 @@ class SpectralImage:
                 print(src.count)
                 print(src.indexes)
 
+            self.calculateMean()
             return self.display_data()
 
     def display_data(self):
@@ -116,10 +126,6 @@ class SpectralImage:
         # for i in range(3):
         #     rgb_image[:, :, i] = exposure.equalize_adapthist(rgb_image[:, :, i], clip_limit=0.03)
 
-        print(f"RGB image shape: {rgb_image.shape}")
-        print(f"RGB image dtype: {rgb_image.dtype}")
-        print(f"RGB image min: {np.min(rgb_image)}, max: {np.max(rgb_image)}")
-
         return rgb_image
 
     def stretch_band(self, band, stretch_range):
@@ -127,6 +133,9 @@ class SpectralImage:
         stretched_band = (band - min_val) / (max_val - min_val)
         stretched_band = np.clip(stretched_band, 0, 1)
         return stretched_band
+
+    def calculateMean(self):
+        return np.mean(self.data, axis=(1, 2))
 
 
 class Metadata:
