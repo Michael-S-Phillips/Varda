@@ -7,6 +7,8 @@ NOTE: This is where we'll handle getting the views to interact with each other.
 """
 from pathlib import Path
 from typing import override
+
+import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
 from speclabgui.customwidgets.spectralimagedisplays import SpectralMainImageDisplay, SpectralZoomImage, SpectralContextImage
 import speclabimageprocessing as speclab
@@ -69,23 +71,43 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
     def loadNewImage(self, fileName):
         print('Loading image...')
         self.sdv = speclab.SpectralImage.new_image(fileName)
-        self.red_slider.setRange(0, self.sdv.data.shape[2] - 1)
-        self.green_slider.setRange(0, self.sdv.data.shape[2] - 1)
-        self.blue_slider.setRange(0, self.sdv.data.shape[2] - 1)
+        colorDataIndex = self.sdv.axes['t']
 
-        self.mainImage.setImage(self.sdv.image, autoLevels=False)
-        self.contextImage.setImage(self.sdv.image, autoLevels=False)
-        self.zoomImage.setImage(self.sdv.image, autoLevels=False)
+        self.red_slider.setRange(0, self.sdv.data.shape[colorDataIndex] - 1)
+        self.red_slider.setValue(self.sdv.default_bands[0])
+        self.green_slider.setRange(0, self.sdv.data.shape[colorDataIndex] - 1)
+        self.green_slider.setValue(self.sdv.default_bands[1])
+        self.blue_slider.setRange(0, self.sdv.data.shape[colorDataIndex] - 1)
+        self.blue_slider.setValue(self.sdv.default_bands[2])
+
+        print("sdv data shape: " + str(self.sdv.data.shape))
+        self.mainImage.setImage(self.sdv.data, axes=self.sdv.axes)
+        self.contextImage.setImage(self.sdv.data, axes=self.sdv.axes)
+        self.zoomImage.setImage(self.sdv.data, axes=self.sdv.axes)
+
+        self.updateSlice()
         self.show()
 
-    def updateSlice(self, value):
-        print("red band: " + str(self.red_slider.value()))
-        print("green band: " + str(self.green_slider.value()))
-        print("blue band: " + str(self.blue_slider.value()))
+    def updateSlice(self):
+        red = self.red_slider.value()
+        green = self.green_slider.value()
+        blue = self.blue_slider.value()
 
-        slice_data = self.sdv.data[:, :, [self.red_slider.value(), self.green_slider.value(), self.blue_slider.value()]]  # Get the current slice
+        #print("red band: " + str(red))
+        #print("green band: " + str(green))
+        #print("blue band: " + str(blue))
+
+        #slice_data = self.sdv.data[[red, green, blue]]  # Get the current slice
+        #slice_data = self.sdv.data[ :, :, [self.red_slider.value(), self.green_slider.value(), self.blue_slider.value()]]  # Get the current slice
+        #print("slice data shape: " + str(slice_data.shape))
 
         # Update the image items
-        self.mainImage.setImage(slice_data, autoLevels=False)
-        #self.contextImage.setImage(slice_data)
-        #self.zoomImage.setImage(slice_data)
+        print("ImageView image shape: " + str(self.mainImage.image.shape))
+        print("ImageView imageDisp shape: " + str(self.mainImage.getProcessedImage().shape))
+        self.mainImage.currentBands = [red, green, blue]
+        self.mainImage.updateImage()
+        #self.mainImage.setImage(slice_data, autoLevels=False, axes={'t': None, 'x': 1, 'y': 2, 'c': 0})
+
+        #self.contextImage.setImage(slice_data, autoLevels=False, axes={'t':0, 'x':1, 'y':2})
+        #self.zoomImage.setImage(slice_data, autoLevels=False, axes={'t':0, 'x':1, 'y':2})
+

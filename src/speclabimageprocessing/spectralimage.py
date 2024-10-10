@@ -4,7 +4,7 @@ import rasterio as rio
 import numpy as np
 from skimage import exposure
 import re
-
+import json
 
 class SpectralImage:
     # dictionary of all subclasses of SpectralImage, mapped to their associated keyword
@@ -39,19 +39,24 @@ class SpectralImage:
     def __init__(self, file_path):
         self.file_path = file_path
 
+        self._envi_header = None
+        self._profile = None
+        self._meta = None
         self._header_data = None
         self._data = None
         self._data_transposed = None
         self.transform = None
-        self.default_rgb_bands = (29, 19, 9)  # Example default bands
+        self.default_bands = (29, 19, 9)  # Example default bands
         self.image = self.load_data()
+        # dict mapping value types to indexes (t is the spectral data)
+        self.axes = {'x': 0, 'y': 1, 't':2}
 
     """
     public getter for img data, which returns the array in the format [width, height, channel] for plotting
     """
     @property
     def data(self):
-        return self._data_transposed
+        return self._data.T
 
     """
     loads a spectral image
@@ -67,8 +72,15 @@ class SpectralImage:
             rio_path = self.file_path.replace("hdr", "img")
             with rio.open(rio_path) as src:
                 self._data = src.read(masked=True)
-                self._data_transposed = np.transpose(self._data)
-                src.bands = self.default_rgb_bands
+                self._meta = Metadata(src)
+                self._meta = src.meta
+                self._profile = src.profile
+                self._envi_header = src.tags(ns="ENVI")
+                # get default bands
+                bands = self._envi_header["default_bands"].strip("{}").split(',')
+                self.default_bands = [int(x) for x in bands]
+                print("default bands: ", self.default_bands)
+
                 self.transform = src.transform
                 print(src.width, src.height)
                 print(src.crs)
@@ -79,8 +91,8 @@ class SpectralImage:
             return self.display_data()
 
     def display_data(self):
-        if self._data_transposed is not None:
-            return self.display_rgb_data(self.default_rgb_bands)
+        if self._data is not None:
+            return self.display_rgb_data(self.default_bands)
 
     def display_rgb_data(self, band_indices):
         left_red_stretch = (0, 1)
@@ -88,18 +100,11 @@ class SpectralImage:
         left_blue_stretch = (0, 1)
 
         # Extract the RGB bands
-        rgb_image = self._data_transposed[[band_indices[0], band_indices[1], band_indices[2]], :, :]
-
-        # arrange array as [width, height, rgb]
-        rgb_image = np.transpose(rgb_image)
-        #np.set_printoptions(threshold=np.inf)
-        print(rgb_image[:, :, :])
+        rgb_image = self._data[[band_indices[0], band_indices[1], band_indices[2]], :, :]
 
         rgb_image[0, :, :] = self.stretch_band(rgb_image[0, :, :], left_red_stretch)
         rgb_image[1, :, :] = self.stretch_band(rgb_image[1, :, :], left_green_stretch)
         rgb_image[2, :, :] = self.stretch_band(rgb_image[2, :, :], left_blue_stretch)
-        print("post-stretch")
-        print(rgb_image[0, :, :])
 
         # # Normalize each band
         # for i in range(3):
@@ -122,3 +127,10 @@ class SpectralImage:
         stretched_band = (band - min_val) / (max_val - min_val)
         stretched_band = np.clip(stretched_band, 0, 1)
         return stretched_band
+
+
+class Metadata:
+    def __init__(self, image):
+        self._meta = image.meta
+        self._profile = image.profile
+        self._envi_header = image.tags(ns="ENVI")
