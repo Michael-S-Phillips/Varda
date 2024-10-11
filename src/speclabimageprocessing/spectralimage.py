@@ -6,6 +6,7 @@ from skimage import exposure
 import re
 import json
 
+
 class SpectralImage:
     # dictionary of all subclasses of SpectralImage, mapped to their associated keyword
     subclasses = {}
@@ -49,11 +50,12 @@ class SpectralImage:
         self.default_bands = (29, 19, 9)  # Example default bands
         self.image = self.load_data()
         # dict mapping value types to indexes (t is the spectral data)
-        self.axes = {'x': 0, 'y': 1, 't':2}
+        self.axes = {'x': 0, 'y': 1, 't': 2}
 
     """
     public getter for img data, which returns the array in the format [width, height, channel] for plotting
     """
+
     @property
     def data(self):
         return self._data.T
@@ -62,14 +64,15 @@ class SpectralImage:
     returns the range of image (lowest and highest value). 
     For now just returning 0 and 1 because every image should be normalized
     """
+
     @property
     def range(self):
         return 0, 1
 
-
     """
     loads a spectral image
     """
+
     def load_data(self):
         if self.file_path:
             # Load header data
@@ -139,7 +142,35 @@ class SpectralImage:
 
 
 class Metadata:
+
     def __init__(self, image):
         self._meta = image.meta
         self._profile = image.profile
         self._envi_header = image.tags(ns="ENVI")
+
+        self._wavelengths = self._envi_header["wavelengths"]
+        self._band_names = self._envi_header["band names"]
+        self._geospatial_info = self._envi_header["geospatial info"]
+        self._image_bounds = None
+        self._no_data_vals = None
+
+    @property
+    def wavelengths(self):
+        if self._wavelengths is None:
+            return "N/A"
+        return self._wavelengths
+
+    @wavelengths.setter
+    def wavelengths(self, wavelengths):
+        self._wavelengths = np.array(wavelengths)
+
+    @property
+    def band_names(self):
+        if self._band_names is None:
+            return "N/A"
+        return self._band_names
+
+    @band_names.setter
+    def band_names(self, band_names):
+        self._band_names = np.array(band_names)
+

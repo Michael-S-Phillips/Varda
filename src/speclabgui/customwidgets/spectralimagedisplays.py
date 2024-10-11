@@ -122,36 +122,6 @@ class SpectralMainImageDisplay(ImageView):
             image = image[:, :, list(self.currentBands.values())]
         self.imageItem.updateImage(image)
 
-    def setRedIndex(self, ind):
-        """Set the currently displayed frame index."""
-        index = fn.clip_scalar(ind, 0, self.nframes() - 1)
-        self.currentIndex = index
-        self.updateImage()
-        self.ignoreTimeLine = True
-        # Implicitly call timeLineChanged
-        self.redBandSelect.setValue(self.tVals[index][0])
-        self.ignoreTimeLine = False
-
-    def setGreenIndex(self, ind):
-        """Set the currently displayed frame index."""
-        index = fn.clip_scalar(ind, 0, self.nframes() - 1)
-        self.currentIndex = index
-        self.updateImage()
-        self.ignoreTimeLine = True
-        # Implicitly call timeLineChanged
-        self.greenBandSelect.setValue(self.tVals[index][1])
-        self.ignoreTimeLine = False
-
-    def setBlueIndex(self, ind):
-        """Set the currently displayed frame index."""
-        index = fn.clip_scalar(ind, 0, self.nframes() - 1)
-        self.currentIndex = index
-        self.updateImage()
-        self.ignoreTimeLine = True
-        # Implicitly call timeLineChanged
-        self.blueBandSelect.setValue(self.tVals[index][2])
-        self.ignoreTimeLine = False
-
     def redBandChanged(self):
         (ind, time) = self.timeIndex(self.redBandSelect)
         if ind != self.currentBands['r']:
