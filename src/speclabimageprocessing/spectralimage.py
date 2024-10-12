@@ -1,4 +1,7 @@
 from abc import abstractmethod
+from types import MappingProxyType
+from typing import override, final
+
 import spectral
 import rasterio as rio
 import numpy as np
@@ -21,6 +24,7 @@ class SpectralImage:
     runs whenever a subclass is declared. adds it to the list of available subclasses
     """
 
+    @override
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls.subclasses[cls.image_type] = cls
@@ -38,8 +42,9 @@ class SpectralImage:
         return cls.subclasses[image_type](file_path)
 
     def __init__(self, file_path):
-        self.file_path = file_path
+        self._file_path = file_path
 
+        self._file = None
         self._meta = None
         self._header_data = None
         self._data = None
@@ -53,6 +58,7 @@ class SpectralImage:
     """
     public getter for img data, which returns the array in the format [width, height, channel] for plotting
     """
+
     @property
     def data(self):
         return self._data.T
@@ -61,6 +67,7 @@ class SpectralImage:
     returns the range of image (lowest and highest value). 
     For now just returning 0 and 1 because every image should be normalized
     """
+
     @property
     def range(self):
         return 0, 1
@@ -72,31 +79,30 @@ class SpectralImage:
     """
     loads a spectral image
     """
+
     def load_data(self):
-        if self.file_path:
-            # Load header data
-            self._header_data = spectral.open_image(self.file_path)
-            # wavelengths = self._header_data.metadata["wavelength"]
-            data_ignore_value = self._header_data.metadata["data ignore value"]
+        if self._file_path is None:
+            return
 
-            # Load geospatial data
-            rio_path = self.file_path.replace("hdr", "img")
-            with rio.open(rio_path) as src:
-                self._data = src.read(masked=True)
-                self._meta = Metadata(src)
-                # get default bands
-                self.default_bands = self._meta.default_bands
-                print("default bands: ", self.default_bands)
+        # Load geospatial data
+        rio_path = self._file_path.replace("hdr", "img")
+        self._file = rio.open(rio_path)
+        self._data = self._file.read(masked=True)
+        self._meta = Metadata(self._file)
 
-                self.transform = src.transform
-                print(src.width, src.height)
-                print(src.crs)
-                print(src.transform)
-                print(src.count)
-                print(src.indexes)
+        # get default bands
+        self.default_bands = self._meta["default bands"]
+        print("default bands: ", self.default_bands)
 
-            self.calculateMean()
-            return self.display_data()
+        self.transform = self._file.transform
+        print(self._file.width, self._file.height)
+        print(self._file.crs)
+        print(self._file.transform)
+        print(self._file.count)
+        print(self._file.indexes)
+
+        self.calculate_mean()
+        return self.display_data()
 
     def display_data(self):
         if self._data is not None:
@@ -126,52 +132,65 @@ class SpectralImage:
 
         return rgb_image
 
+    """
+    requests a subset of the image data, based on the given band parameters to use for rgb indexes
+    """
+
+    def request_rgb_data(self, bands):
+        pass
+
     def stretch_band(self, band, stretch_range):
         min_val, max_val = stretch_range
         stretched_band = (band - min_val) / (max_val - min_val)
         stretched_band = np.clip(stretched_band, 0, 1)
         return stretched_band
 
-    def calculateMean(self):
-        return np.mean(self.data, axis=(1, 2))
+    def calculate_mean(self):
+        return np.mean(self._data, axis=(1, 2))
 
 
-class Metadata:
-
+class Metadata(dict):
     def __init__(self, image):
-        self._meta = image.meta
-        self._profile = image.profile
-        self._envi_header = image.tags(ns="ENVI")
+        super().__init__()
 
-        self._wavelengths = self._envi_header["wavelengths"]
-        self._band_names = self._envi_header["band names"]
-        self._geospatial_info = self._envi_header["geospatial info"]
+        # get rasterio metadata
+        self['width'] = image.width
+        self['height'] = image.height
+        self['bands'] = image.count
+        self['pixel size'] = image.res
+        self['crs'] = image.crs
+        self['dtype'] = image.dtypes[0]
+        self['no data value'] = image.nodata
+        self['driver'] = image.driver
+
+        # get envi metadata
+        envi_data = image.tags(ns="ENVI")
+        self["description"] = envi_data["description"].strip("{}") if "description" in envi_data else None
+
+        default_bands = envi_data["default_bands"] if "default_bands" in envi_data else None
+        if default_bands:
+            default_bands = [int(band) for band in envi_data["default_bands"].strip("{}").split(',')]
+            default_bands = {'r': default_bands[0], 'g': default_bands[1], 'b': default_bands[2]}
+        self["default bands"] = default_bands
+
+        self["wavelength units"] = envi_data["wavelength_units"] if "wavelength_units" in envi_data else None
+        self["band names"] = envi_data["band_names"].strip("{}").split(',') if "band_names" in envi_data else None
+
+        wavelength = envi_data["wavelength"] if "wavelength" in envi_data else None
+        self["wavelength"] = [float(wavelength) for wavelength in wavelength.strip("{}").split(',')]
+
+        self["geospatial info"] = envi_data["geospatial_info"] if "geospatial_info" in envi_data else None
+
+        print("ENVI RAW DATA")
+        for key, value in envi_data.items():
+            print(f"    {key}: {value}")
+
+        print(self)
         self._image_bounds = None
         self._no_data_vals = None
 
-    @property
-    def wavelengths(self):
-        if self._wavelengths is None:
-            return "N/A"
-        return self._wavelengths
-
-    @wavelengths.setter
-    def wavelengths(self, wavelengths):
-        self._wavelengths = np.array(wavelengths)
-
-    @property
-    def band_names(self):
-        if self._band_names is None:
-            return "N/A"
-        return self._band_names
-
-    @band_names.setter
-    def band_names(self, band_names):
-        self._band_names = np.array(band_names)
-
-    @property
-    def default_bands(self):
-        if self._envi_header is None:
-            return None
-        bands = [int(band) for band in self._envi_header["default_bands"].strip("{}").split(',')]
-        return {'r': bands[0], 'g': bands[1], 'b': bands[2]}
+    def __repr__(self):
+        out = "Metadata:\n"
+        for key, value in self.items():
+            out += "    " + f"{key}: {value}" + "\n"
+        return out
