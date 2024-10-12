@@ -40,14 +40,12 @@ class SpectralImage:
     def __init__(self, file_path):
         self.file_path = file_path
 
-        self._envi_header = None
-        self._profile = None
         self._meta = None
         self._header_data = None
         self._data = None
         self._data_transposed = None
         self.transform = None
-        self.default_bands = (29, 19, 9)  # Example default bands
+        self.default_bands = {'r': 29, 'g': 19, 'b': 9}  # Example default bands
         self.image = self.load_data()
         # dict mapping value types to indexes (t is the spectral data)
         self.axes = {'x': 0, 'y': 1, 't': 2}
@@ -55,7 +53,6 @@ class SpectralImage:
     """
     public getter for img data, which returns the array in the format [width, height, channel] for plotting
     """
-
     @property
     def data(self):
         return self._data.T
@@ -64,15 +61,17 @@ class SpectralImage:
     returns the range of image (lowest and highest value). 
     For now just returning 0 and 1 because every image should be normalized
     """
-
     @property
     def range(self):
         return 0, 1
 
+    @property
+    def meta(self):
+        return self._meta
+
     """
     loads a spectral image
     """
-
     def load_data(self):
         if self.file_path:
             # Load header data
@@ -85,12 +84,8 @@ class SpectralImage:
             with rio.open(rio_path) as src:
                 self._data = src.read(masked=True)
                 self._meta = Metadata(src)
-                self._meta = src.meta
-                self._profile = src.profile
-                self._envi_header = src.tags(ns="ENVI")
                 # get default bands
-                bands = self._envi_header["default_bands"].strip("{}").split(',')
-                self.default_bands = [int(x) for x in bands]
+                self.default_bands = self._meta.default_bands
                 print("default bands: ", self.default_bands)
 
                 self.transform = src.transform
@@ -113,7 +108,7 @@ class SpectralImage:
         left_blue_stretch = (0, 1)
 
         # Extract the RGB bands
-        rgb_image = self._data[[band_indices[0], band_indices[1], band_indices[2]], :, :]
+        rgb_image = self._data[[band_indices['r'], band_indices['g'], band_indices['b']], :, :]
 
         rgb_image[0, :, :] = self.stretch_band(rgb_image[0, :, :], left_red_stretch)
         rgb_image[1, :, :] = self.stretch_band(rgb_image[1, :, :], left_green_stretch)
@@ -174,3 +169,9 @@ class Metadata:
     def band_names(self, band_names):
         self._band_names = np.array(band_names)
 
+    @property
+    def default_bands(self):
+        if self._envi_header is None:
+            return None
+        bands = [int(band) for band in self._envi_header["default_bands"].strip("{}").split(',')]
+        return {'r': bands[0], 'g': bands[1], 'b': bands[2]}

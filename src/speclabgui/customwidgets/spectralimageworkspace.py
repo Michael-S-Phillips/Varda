@@ -59,6 +59,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.contextImage.setImage(self.sdv.data, axes=self.sdv.axes, autoLevels=False, levels=(0, 1))
         self.zoomImage.setImage(self.sdv.data, axes=self.sdv.axes, autoLevels=False, levels=(0, 1))
 
+        self.mainImage.currentBands = self.sdv.meta.default_bands
         if self.plot is None:
             self.plot = pg.plot(self.sdv.calculateMean(), title="Sine Wave Plot", labels={'left': 'Average Strength', 'bottom': 'Frequency'})
             self.mainSplitter.addWidget(self.plot)

@@ -97,6 +97,7 @@ class SpectralMainImageDisplay(ImageView):
         ## Redraw image on screen
         if self.image is None:
             return
+
         print(self.currentBands)
 
         image = self.getProcessedImage()
