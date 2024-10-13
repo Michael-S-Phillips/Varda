@@ -1,4 +1,5 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
+import pyqtgraph as pg
 from speclabgui.customwidgets import SpectralImageWorkspace, FileExplorer, TextWidget
 from pathlib import Path
 import sys
@@ -20,6 +21,8 @@ class MainGui(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SpecLab")
+        # set configs
+        pg.setConfigOptions(imageAxisOrder='row-major')
 
         # ----------- creating layout for mainWindow ---------
         mainLayout = QtWidgets.QHBoxLayout()
