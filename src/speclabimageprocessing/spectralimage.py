@@ -61,7 +61,7 @@ class SpectralImage:
 
     @property
     def data(self):
-        return self._data.T
+        return self._data
 
     """
     returns the range of image (lowest and highest value). 
@@ -87,7 +87,10 @@ class SpectralImage:
         # Load geospatial data
         rio_path = self._file_path.replace("hdr", "img")
         self._file = rio.open(rio_path)
-        self._data = self._file.read(masked=True)
+        # NOTE: masked=True makes this return a MaskedArray, which is MUCH slower than a normal array
+        # To get around this, we can call the .data attribute to get the raw array when passing into images,
+        # TODO: we should prob just mask the array manually?
+        self._data = self._file.read(masked=True).transpose(1, 2, 0)
         self._meta = Metadata(self._file)
 
         # get default bands
@@ -146,7 +149,7 @@ class SpectralImage:
         return stretched_band
 
     def calculate_mean(self):
-        return np.mean(self._data, axis=(1, 2))
+        return np.mean(self._data, axis=(0, 1))
 
 
 class Metadata(dict):
@@ -174,11 +177,12 @@ class Metadata(dict):
         self["default bands"] = default_bands
 
         self["wavelength units"] = envi_data["wavelength_units"] if "wavelength_units" in envi_data else None
-        self["band names"] = envi_data["band_names"].strip("{}").split(',') if "band_names" in envi_data else None
+        self["band names"] = np.asarray(envi_data["band_names"].strip("{}").split(',')) if "band_names" in envi_data else None
 
         wavelength = envi_data["wavelength"] if "wavelength" in envi_data else None
-        self["wavelength"] = [float(wavelength) for wavelength in wavelength.strip("{}").split(',')]
-
+        if wavelength is not None:
+            wavelength = np.asarray([float(wavelength) for wavelength in wavelength.strip("{}").split(',')])
+        self["wavelength"] = wavelength
         self["geospatial info"] = envi_data["geospatial_info"] if "geospatial_info" in envi_data else None
 
         print("ENVI RAW DATA")
