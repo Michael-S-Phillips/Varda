@@ -1,10 +1,12 @@
 """
 spectralimagedisplay.py
 """
+from typing import override
+
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QMenu
 import pyqtgraph as pg
-from pyqtgraph import ImageView
+from pyqtgraph import ImageView, InfiniteLine
 from pyqtgraph.functions import mkPen, Colors
 from speclabgui.customwidgets.ROIWindow import ROIWindow
 
@@ -14,6 +16,8 @@ class SpectralMainImageDisplay(ImageView):
 
     def __init__(self, parent=None):
         super(SpectralMainImageDisplay, self).__init__(parent)
+        self.ui.histogram.setLevelMode("rgba")
+        pg.setConfigOptions(imageAxisOrder='row-major')
         self.setAcceptDrops(True)
 
         self.buttonLayout = None
@@ -92,7 +96,21 @@ class SpectralMainImageDisplay(ImageView):
         if isinstance(self.currentROIs, pg.PolyLineROI):
             print(f"Polyline ROI points: {self.currentROI.getState()['points']}")
 
+    """
+    we override this method so we can add a image parameter. calling this method is faster than SetImage,
+    but assumes that the new image will work with the same parameters as the previous image.
+    """
+    @override
+    def updateImage(self, image=None, autoHistogramRange=False):
+        if image is not None:
+            self.image = image
+            self.imageDisp = None
+        super().updateImage(autoHistogramRange=autoHistogramRange)
 
+
+# TODO: figure out what to do with contextImage and zoomImage lol.
+#  mainImages functionality is straying pretty far beyond the base ImageView.
+#  Maybe they should all be same class and special usage is controlled by workspace. idk
 class SpectralZoomImage(ImageView):
     def __init__(self, parent):
         super(SpectralZoomImage, self).__init__(parent)

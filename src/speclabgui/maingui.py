@@ -1,8 +1,10 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
+import pyqtgraph as pg
 from speclabgui.customwidgets import SpectralImageWorkspace, FileExplorer, TextWidget
 from pathlib import Path
 import sys
 import os
+
 
 '''
 "FYI": maingui.py will initialize window and layout.
@@ -22,7 +24,8 @@ class MainGui(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SpecLab")
-
+        # set configs
+        pg.setConfigOptions(imageAxisOrder='row-major')
         # ----------- creating layout for mainWindow ---------
         mainLayout = QtWidgets.QHBoxLayout()
         splitter = QtWidgets.QSplitter()
@@ -35,7 +38,6 @@ class MainGui(QtWidgets.QMainWindow):
 
         splitter.setStretchFactor(0, 10)
         splitter.setStretchFactor(1, 13)
-
 
         menuOptions = TextWidget("Menu Options")
         tabs = TextWidget("Tabs")
@@ -63,7 +65,6 @@ class MainGui(QtWidgets.QMainWindow):
         widget = QtWidgets.QWidget()
         widget.setLayout(mainLayout)
         self.setCentralWidget(splitter)
-
 
         # ----------------------------------
         # self.add_image(str(Path("./testImages/HySpex/220724_VNIR_Reflectance.hdr")))
