@@ -40,36 +40,12 @@ class SpectralMainImageDisplay(ImageView):
         self.menuButton.addAction("Save ROI", self.saveROI)
         self.menuButton.addAction("Load ROI", self.loadROI)
 
-
-        # self.polylineROIButton = QtWidgets.QPushButton("Poly ROI", self)
-        # self.polylineROIButton.clicked.connect(self.addPolylineROI)
-        # self.polylineROIButton.setStyleSheet("""
-        #     QPushButton {
-        #         background-color: white;
-        #         width: 80px;
-        #         height: 20px;
-        #         color: black;
-        #         font-size: 10px;
-        #         border-radius: 5px;
-        #         border: 1px solid black;
-
-        #     }
-        #     QPushButton:hover {
-        #         background-color: lightgray;
-        #     }
-        # """)
-        # self.buttonLayout.addWidget(self.polylineROIButton)
-
-        # add button to save ROI state
-        # self.menu = QMenu(self)
-
     def loadROI(self):
         roiPopupWindow = ROIWindow(self, self.savedROIS)
         roiPopupWindow.show()
 
     def showMenu(self):
         self.menuButton.exec(self.options.mapToGlobal(self.options.rect().bottomLeft()))
-
         
     def loadROIState(self, i):
         self.currentROI.setState(self.savedROIS[i])
@@ -80,7 +56,7 @@ class SpectralMainImageDisplay(ImageView):
             self.savedROIS.append(state)
 
     def addPolylineROI(self):
-        if self.currentROI is not None:
+        if self.currentROI is not None and self.currentROI not in self.savedROIS:
             self.savedROIS.append(self.currentROI)
 
         initial_points = [[100, 100], [100, 300], [300, 300], [300, 100]]
@@ -88,13 +64,10 @@ class SpectralMainImageDisplay(ImageView):
         self.currentROI = pg.PolyLineROI(initial_points, closed=True)
         self.currentROI.setPen(mkPen(cosmetic=False, width=2, color=Colors[color_keys[len(self.currentROIs)]]))
         self.currentROIs.append(self.currentROI)
-        self.currentROI.sigRegionChanged.connect(self.updateROI)
+
         for ROI in self.currentROIs:
             self.addItem(ROI)
 
-    def updateROI(self):
-        if isinstance(self.currentROIs, pg.PolyLineROI):
-            print(f"Polyline ROI points: {self.currentROI.getState()['points']}")
 
     """
     we override this method so we can add a image parameter. calling this method is faster than SetImage,
@@ -108,9 +81,6 @@ class SpectralMainImageDisplay(ImageView):
         super().updateImage(autoHistogramRange=autoHistogramRange)
 
 
-# TODO: figure out what to do with contextImage and zoomImage lol.
-#  mainImages functionality is straying pretty far beyond the base ImageView.
-#  Maybe they should all be same class and special usage is controlled by workspace. idk
 class SpectralZoomImage(ImageView):
     def __init__(self, parent):
         super(SpectralZoomImage, self).__init__(parent)
