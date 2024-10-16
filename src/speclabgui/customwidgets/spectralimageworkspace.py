@@ -64,17 +64,13 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
     def loadNewImage(self, fileName):
         print('Loading image...')
         self.sdv = speclab.SpectralImage.new_image(fileName)
-        self.mainImage.currentBands = self.sdv.meta["default bands"]
+        self.currentBands = self.sdv.meta["default bands"]
 
         print("sdv data shape: " + str(self.sdv.data.shape))
 
         img = self.sdv.data[:, :, list(self.currentBands.values())].data
 
-        if self.plot is None:
-            self.initializePlot()
-        else:
-            self.plot.plotItem.clear()
-            self.plot.plotItem.plot(self.sdv.calculate_mean())
+        self.initializePlot()
 
         levels = (0, 1)
         axes = {'x': 1, 'y': 0, 'c': 2, 't': None}
@@ -87,6 +83,8 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
     def initializePlot(self):
 
+        if self.plot is not None:
+            self.plot.close()
         self.currentBands = self.sdv.meta["default bands"]
 
         wavelength = self.sdv.meta["wavelength"]
