@@ -27,7 +27,7 @@ class SpectralMainImageDisplay(ImageView):
         self.savedROIS = []
 
         self.buttonLayout = QtWidgets.QHBoxLayout()
-        
+
         self.currentROI = None
 
         self.options = QtWidgets.QPushButton("Options", self)
@@ -46,7 +46,7 @@ class SpectralMainImageDisplay(ImageView):
 
     def showMenu(self):
         self.menuButton.exec(self.options.mapToGlobal(self.options.rect().bottomLeft()))
-        
+
     def loadROIState(self, i):
         self.currentROI.setState(self.savedROIS[i])
 
@@ -60,7 +60,7 @@ class SpectralMainImageDisplay(ImageView):
             self.savedROIS.append(self.currentROI)
 
         initial_points = [[100, 100], [100, 300], [300, 300], [300, 100]]
-        
+
         self.currentROI = pg.PolyLineROI(initial_points, closed=True)
         self.currentROI.setPen(mkPen(cosmetic=False, width=2, color=Colors[color_keys[len(self.currentROIs)]]))
         self.currentROIs.append(self.currentROI)

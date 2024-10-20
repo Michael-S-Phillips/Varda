@@ -1,3 +1,5 @@
+from speclabgui import maingui
+
 from PyQt6 import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
 from speclabgui.customwidgets import SpectralImageWorkspace, FileExplorer, TextWidget
@@ -5,14 +7,12 @@ from pathlib import Path
 import sys
 import os
 
-
 '''
 "FYI": maingui.py will initialize window and layout.
 It will only interact with widget classes (in customwidgets) to maintain
 low cohesion. Widget classes will interact with processing / 
 visualization classes accordingly. 
 '''
-
 
 class MainGui(QtWidgets.QMainWindow):
     """
@@ -26,59 +26,69 @@ class MainGui(QtWidgets.QMainWindow):
         self.setWindowTitle("SpecLab")
         # set configs
         pg.setConfigOptions(imageAxisOrder='row-major')
-        # ----------- creating layout for mainWindow ---------
-        mainLayout = QtWidgets.QHBoxLayout()
+        self.initUI()
+
+    def initUI(self):
+        # Create a splitter for the main layout
         splitter = QtWidgets.QSplitter()
 
+        # File Explorer as a dockable widget
+        self.fileExplorerDock = QtWidgets.QDockWidget("File Explorer", self)
         self.fileExplorer = FileExplorer()
-        imageManager = TextWidget("Image Manager")
+        self.fileExplorerDock.setWidget(self.fileExplorer)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.fileExplorerDock)
 
-        splitter.addWidget(self.fileExplorer)
-        splitter.addWidget(imageManager)
+        # Tabs as a dockable widget
+        self.tabsDock = QtWidgets.QDockWidget("Tabs", self)
+        tabWidget = QtWidgets.QTabWidget()
+        tabWidget.addTab(TextWidget("Controls and Actions"), "Control Panel")
+        tabWidget.addTab(TextWidget("Adjust Settings"), "Settings")
+        tabWidget.addTab(TextWidget("View Logs"), "Logs")
+        self.tabsDock.setWidget(tabWidget)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.tabsDock)
 
-        splitter.setStretchFactor(0, 10)
-        splitter.setStretchFactor(1, 13)
-
-        menuOptions = TextWidget("Menu Options")
-        tabs = TextWidget("Tabs")
-        tabs.setFixedSize(800, 40)
-        menuOptions.setFixedSize(800, 40)
-        menuLayout = QtWidgets.QVBoxLayout()
-        menuLayout.addWidget(menuOptions)
-        menuLayout.addWidget(tabs)
-
+        # Spectral Image Workspace as a dockable widget
+        self.imageViewDock = QtWidgets.QDockWidget("Image Workspace", self)
         self.imageView = SpectralImageWorkspace(self)
+        self.imageViewDock.setWidget(self.imageView)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.imageViewDock)
 
-        rightPanelLayout = QtWidgets.QVBoxLayout()
-        rightPanelLayout.addLayout(menuLayout)
-        rightPanelLayout.addWidget(self.imageView)
+        # Setup the menu bar
+        menuBar = self.menuBar()
+        fileMenu = menuBar.addMenu('File')
+        fileMenu.addAction('Open', self.openFile)
+        fileMenu.addAction('Save', self.saveFile)
+        fileMenu.addAction('Exit', self.exitApp)
 
-        rightPanelLayout.setSpacing(2)
-        imageWidget = QtWidgets.QWidget()
-        imageWidget.setLayout(rightPanelLayout)
-        splitter.addWidget(imageWidget)
-        splitter.setStretchFactor(2, 10)
+        helpMenu = menuBar.addMenu('Help')
+        helpMenu.addAction('About', self.aboutDialog)
 
-        mainLayout.addWidget(splitter)
-        mainLayout.setSpacing(2)
-        mainLayout.setContentsMargins(0, 0, 0, 0)
+        # Create a central widget
         widget = QtWidgets.QWidget()
-        widget.setLayout(mainLayout)
-        self.setCentralWidget(splitter)
+        splitter.addWidget(self.imageView)
+        widget.setLayout(QtWidgets.QVBoxLayout())
+        widget.layout().addWidget(splitter)
+        self.setCentralWidget(widget)
 
-        # ----------------------------------
-        # self.add_image(str(Path("./testImages/HySpex/220724_VNIR_Reflectance.hdr")))
+    def openFile(self):
+        print("Open file dialog...")
 
-    def add_image(self, filePath):
-        self.imageView.loadNewImage(filePath)
+    def saveFile(self):
+        print("Save file functionality...")
 
+    def exitApp(self):
+        self.close()
+
+    def aboutDialog(self):
+        print("Show about dialog...")
 
 def startGui():
-    # showing main window
     app = QtWidgets.QApplication(sys.argv)
-    with open(str(Path("./resources/style.qss")), "r") as styling:
-        app.setStyleSheet(styling.read())
+    # Remove external stylesheet to revert to default Qt styling
     window = MainGui()
     window.showMaximized()
     window.show()
     app.exec()
+
+if __name__ == "__main__":
+    startGui()
