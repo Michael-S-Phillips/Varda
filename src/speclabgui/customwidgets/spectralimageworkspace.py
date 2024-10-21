@@ -16,11 +16,7 @@ from PyQt6.QtCore import QThreadPool
 import pyqtgraph as pg
 import numpy as np
 
-# local imports
-from speclabgui.customwidgets.spectralimagedisplays import (
-    SpectralMainImageDisplay,
-    SpectralZoomImage,
-    SpectralContextImage)
+
 import speclabimageprocessing as speclab
 from speclabimageprocessing import ImageLoader
 from vardaconfig import DEBUG
@@ -81,17 +77,28 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout()
         self.mainSplitter = QtWidgets.QSplitter(self)
 
-        self.mainImage = SpectralMainImageDisplay(parent)
-        self.contextImage = SpectralContextImage(parent)
-        self.zoomImage = SpectralZoomImage(parent)
+        self.mainImage = ImageView(parent)
+        self.contextImage = ImageView(parent)
+        self.zoomImage = ImageView(parent)
+        self.contextImage.ui.histogram.hide()
+        self.zoomImage.ui.histogram.hide()
         self.contextZoomSplitter = QtWidgets.QSplitter(self)
         self.contextZoomSplitter.addWidget(self.contextImage)
         self.contextZoomSplitter.addWidget(self.zoomImage)
 
         self.mainSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        self.options = QtWidgets.QPushButton("Options", self)
+        self.options.clicked.connect(self.showMenu)
+
+        self.menuButton = QMenu(self)
+        self.menuButton.addAction("Poly ROI", self.addPolylineROI)
+
+        self.menuButton.addAction("Save ROI", self.saveROI)
+        self.menuButton.addAction("Load ROI", self.loadROI)
+
+        self.mainSplitter.addWidget(self.options)
         self.mainSplitter.addWidget(self.mainImage)
         self.mainSplitter.addWidget(self.contextZoomSplitter)
-
         layout.addWidget(self.mainSplitter)
 
         # initialize status bar at bottom of widget
