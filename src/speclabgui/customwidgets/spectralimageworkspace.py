@@ -22,6 +22,7 @@ from speclabgui.customwidgets.spectralimagedisplays import (
     SpectralZoomImage,
     SpectralContextImage)
 import speclabimageprocessing as speclab
+from speclabimageprocessing import ImageLoader
 from vardaconfig import DEBUG
 
 
@@ -105,8 +106,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # dont allow user to load image if previous image is still loading
         if (self.isLoadingImage):
             return
-        if event.mimeData().urls()[0].toLocalFile().endswith('.hdr'):
-            event.acceptProposedAction()
+        event.acceptProposedAction()
 
     @override
     def dropEvent(self, event, **kwargs):
@@ -115,6 +115,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
     def loadImage(self, fileName):
         self.isLoadingImage = True
 
+        img = ImageLoader()
         # update status to indicate loading
         self.statusBar.showLoadingMessage()
 
@@ -130,7 +131,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # self.thread.start()
 
     def actuallyLoadImage(self, fileName):
-        return speclab.SpectralImage.new_image(fileName)
+        return speclab.ImageLoader.new_image(fileName)
 
     def onImageLoaded(self, image):
         self.isLoadingImage = False
@@ -170,9 +171,12 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.onPlotLoaded()
 
     def constructPlot(self):
-        wavelength = self.image.meta["wavelength"]
-        if wavelength is None:
+        if self.image.meta["wavelength"] is not None:
+            wavelength = self.image.meta["wavelength"]
+        elif self.image.meta["bands"] is not None:
             wavelength = np.arange(self.image.meta["bands"])
+        else:
+            wavelength = self.image.data.shape[2]
         minWavelength = min(wavelength)
         maxWavelength = max(wavelength)
 
@@ -190,7 +194,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # construct red band selector
         if self.redBandSelect is None:
             self.redBandSelect = pg.InfiniteLine(
-                pos=wavelength[self.image.meta["default bands"]['r']],
+                pos=wavelength[self.image.default_bands['r']],
                 pen=(pg.mkPen(color='red', width=2)),
                 movable=True,
                 bounds=(minWavelength, maxWavelength)
@@ -202,7 +206,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # construct green band selector
         if self.greenBandSelect is None:
             self.greenBandSelect = pg.InfiniteLine(
-                pos=wavelength[self.image.meta["default bands"]['g']],
+                pos=wavelength[self.image.default_bands['g']],
                 pen=(pg.mkPen(color='green', width=2)),
                 movable=True,
                 bounds=(minWavelength, maxWavelength)
@@ -214,7 +218,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # construct blue band selector
         if self.blueBandSelect is None:
             self.blueBandSelect = pg.InfiniteLine(
-                pos=wavelength[self.image.meta["default bands"]['b']],
+                pos=wavelength[self.image.default_bands['b']],
                 pen=(pg.mkPen(color='blue', width=2)),
                 movable=True,
                 bounds=(minWavelength, maxWavelength)

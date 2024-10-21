@@ -5,13 +5,14 @@ from typing import override
 # third party imports
 import numpy as np
 import rasterio as rio
+import h5py
 
 # local imports
 from speclabimageprocessing.image import Image
 from speclabimageprocessing.metadata import Metadata
 
 
-class ENVIImage(Image):
+class NEONImage(Image):
 
     @property
     def data(self):
@@ -21,11 +22,11 @@ class ENVIImage(Image):
     def meta(self):
         return self._meta
 
-    image_type = ".img"
+    image_type = ".h5"
 
     @override
     def __init__(self, file_path):
-        print("ENVI subclass Used")
+        print("NEON subclass Used")
 
         self._file_path = file_path
         self._meta = None
@@ -43,22 +44,23 @@ class ENVIImage(Image):
 
         # self._file = rio.open(self._file_path)
         timeStarted = time.time()
-        with rio.open(self._file_path) as src:
+        with h5py.File(self._file_path, 'r') as hdf:
             print("time to open file: ", time.time() - timeStarted)
 
-            # TODO: we should probably mask the array manually. masked=True makes this
-            #  return a MaskedArray which is much slower
-            timeStarted = time.time()
-            self._data = src.read(masked=True).transpose(1, 2, 0)
-            print("time to read data: ", time.time() - timeStarted)
+            print("Available groups/datasets in the file:")
 
-            self._meta = Metadata(src)
+            hdf.visititems(lambda name, obj: print(f"{name}: {obj}"))
+            # TODO: extract dataset without hardcoding
+            dataset = hdf["SERC/Reflectance/Reflectance_Data"]
+            timeStarted = time.time()
+            self._data = dataset[:]
+            print("time to read data: ", time.time() - timeStarted)
+            with rio.open(self._file_path) as src:
+                self._meta = Metadata(src)
 
         # get default bands
-        self.default_bands = self._meta["default bands"]
-
-    def calculate_mean(self):
-        pass
+        if self._meta["default bands"] is not None:
+            self.default_bands = self._meta["default bands"]
 
     def request_rgb_data(self, bands):
         redBand = bands['r']
