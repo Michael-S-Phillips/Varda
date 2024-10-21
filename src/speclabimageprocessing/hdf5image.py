@@ -12,7 +12,7 @@ from speclabimageprocessing.image import Image
 from speclabimageprocessing.metadata import Metadata
 
 
-class NEONImage(Image):
+class HDF5Image(Image):
 
     @property
     def data(self):

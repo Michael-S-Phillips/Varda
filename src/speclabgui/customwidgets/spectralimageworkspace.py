@@ -144,14 +144,15 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             "Image loaded in " + str(round(self.statusBar.timeElapsed, 2))
             + " seconds"), msecs=5000)
         self.image = image
-        self.currentBands = self.image.meta["default bands"]
+        if self.image.meta["default bands"] is not None:
+            self.currentBands = self.image.meta["default bands"]
 
         if DEBUG:
             print("image data shape: " + str(self.image.data.shape))
 
         self.initializePlot()
 
-        img = self.image.data[:, :, list(self.currentBands.values())].data
+        img = self.image.data[:, :, list(self.currentBands.values())]
         levels = (0, 1)
         axes = {'x': 1, 'y': 0, 'c': 2, 't': None}
         self.mainImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
@@ -173,10 +174,13 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
     def constructPlot(self):
         if self.image.meta["wavelength"] is not None:
             wavelength = self.image.meta["wavelength"]
-        elif self.image.meta["bands"] is not None:
-            wavelength = np.arange(self.image.meta["bands"])
+            if DEBUG:
+                print("using wavelength for plot")
         else:
-            wavelength = self.image.data.shape[2]
+            if DEBUG:
+                print("using data shape for plot")
+                print("data shape: ", self.image.data.shape)
+            wavelength = np.arange(self.image.data.shape[2])
         minWavelength = min(wavelength)
         maxWavelength = max(wavelength)
 
@@ -254,7 +258,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             self.updateImage()
 
     def updateImage(self):
-        img = self.image.data[:, :, list(self.currentBands.values())].data
+        img = self.image.data[:, :, list(self.currentBands.values())]
         # timeStart = time.time()
         self.mainImage.updateImage(img)
         # print("Time to set Image: ", time.time() - timeStart)

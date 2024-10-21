@@ -15,7 +15,7 @@ class ENVIImage(Image):
 
     @property
     def data(self):
-        return self._data
+        return self._data.data
 
     @property
     def meta(self):

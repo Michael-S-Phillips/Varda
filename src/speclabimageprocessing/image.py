@@ -7,6 +7,10 @@ from abc import ABC, abstractmethod
 import numpy as np
 import rasterio as rio
 
+# local imports
+from speclabimageprocessing import *
+
+
 class Image(ABC):
     """
     Abstract base class for all images in varda.
