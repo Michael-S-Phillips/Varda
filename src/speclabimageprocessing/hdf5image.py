@@ -42,7 +42,6 @@ class NEONImage(Image):
         if self._file_path is None:
             return
 
-        # self._file = rio.open(self._file_path)
         timeStarted = time.time()
         with h5py.File(self._file_path, 'r') as hdf:
             print("time to open file: ", time.time() - timeStarted)
@@ -55,8 +54,8 @@ class NEONImage(Image):
             timeStarted = time.time()
             self._data = dataset[:]
             print("time to read data: ", time.time() - timeStarted)
-            with rio.open(self._file_path) as src:
-                self._meta = Metadata(src)
+        with rio.open(self._file_path) as src:
+            self._meta = Metadata(src)
 
         # get default bands
         if self._meta["default bands"] is not None:
