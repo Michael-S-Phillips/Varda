@@ -51,9 +51,11 @@ class SpectralImage:
         self._data_transposed = None
         self.transform = None
         self.default_bands = {'r': 29, 'g': 19, 'b': 9}  # Example default bands
-        self.image = self.load_data()
+        self.load_data()
+        self.mean = np.mean(self._data, axis=(0, 1))
         # dict mapping value types to indexes (t is the spectral data)
         self.axes = {'x': 0, 'y': 1, 't': 2}
+
 
     """
     public getter for img data, which returns the array in the format [width, height, channel] for plotting
@@ -95,17 +97,10 @@ class SpectralImage:
 
         # get default bands
         self.default_bands = self._meta["default bands"]
-        print("default bands: ", self.default_bands)
 
         self.transform = self._file.transform
-        print(self._file.width, self._file.height)
-        print(self._file.crs)
-        print(self._file.transform)
-        print(self._file.count)
-        print(self._file.indexes)
 
-        self.calculate_mean()
-        return self.display_data()
+        self.image = self.display_data()
 
     def display_data(self):
         if self._data is not None:
@@ -123,16 +118,6 @@ class SpectralImage:
         rgb_image[1, :, :] = self.stretch_band(rgb_image[1, :, :], left_green_stretch)
         rgb_image[2, :, :] = self.stretch_band(rgb_image[2, :, :], left_blue_stretch)
 
-        # # Normalize each band
-        # for i in range(3):
-        #     band = rgb_image[:, :, i]
-        #     p2, p98 = np.percentile(band, (2, 98))
-        #     rgb_image[:, :, i] = exposure.rescale_intensity(band, in_range=(p2, p98))
-        #
-        # # Apply CLAHE to enhance contrast
-        # for i in range(3):
-        #     rgb_image[:, :, i] = exposure.equalize_adapthist(rgb_image[:, :, i], clip_limit=0.03)
-
         return rgb_image
 
     """
@@ -147,9 +132,6 @@ class SpectralImage:
         stretched_band = (band - min_val) / (max_val - min_val)
         stretched_band = np.clip(stretched_band, 0, 1)
         return stretched_band
-
-    def calculate_mean(self):
-        return np.mean(self._data, axis=(0, 1))
 
 
 class Metadata(dict):
@@ -185,11 +167,10 @@ class Metadata(dict):
         self["wavelength"] = wavelength
         self["geospatial info"] = envi_data["geospatial_info"] if "geospatial_info" in envi_data else None
 
-        print("ENVI RAW DATA")
-        for key, value in envi_data.items():
-            print(f"    {key}: {value}")
+        # print("ENVI RAW DATA")
+        # for key, value in envi_data.items():
+        #     print(f"    {key}: {value}")
 
-        print(self)
         self._image_bounds = None
         self._no_data_vals = None
 
