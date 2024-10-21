@@ -11,10 +11,11 @@ from typing import override
 
 import numpy as np
 from PyQt6 import QtCore, QtGui, QtWidgets
-from pyqtgraph import InfiniteLine
+from pyqtgraph.functions import mkPen, Colors
+from pyqtgraph import InfiniteLine, ImageView
+from PyQt6.QtWidgets import QMenu
+from speclabgui.customwidgets.ROIWindow import ROIWindow
 
-from speclabgui.customwidgets.spectralimagedisplays import SpectralMainImageDisplay, SpectralZoomImage, \
-    SpectralContextImage
 import speclabimageprocessing as speclab
 import pyqtgraph as pg
 
@@ -33,20 +34,36 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.sigBandChanged = QtCore.pyqtSignal(int)
         self.currentBands = {'r': 0, 'g': 0, 'b': 0}
 
+        self.currentROI = None
+        self.savedROIs = []
+        self.vertices = []
+        self.currentROIs = []
+
         layout = QtWidgets.QVBoxLayout()
         self.mainSplitter = QtWidgets.QSplitter(self)
 
-        self.mainImage = SpectralMainImageDisplay(parent)
-        self.contextImage = SpectralContextImage(parent)
-        self.zoomImage = SpectralZoomImage(parent)
+        self.mainImage = ImageView(parent)
+        self.contextImage = ImageView(parent)
+        self.zoomImage = ImageView(parent)
+        self.contextImage.ui.histogram.hide()
+        self.zoomImage.ui.histogram.hide()
         self.contextZoomSplitter = QtWidgets.QSplitter(self)
         self.contextZoomSplitter.addWidget(self.contextImage)
         self.contextZoomSplitter.addWidget(self.zoomImage)
 
         self.mainSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        self.options = QtWidgets.QPushButton("Options", self)
+        self.options.clicked.connect(self.showMenu)
+
+        self.menuButton = QMenu(self)
+        self.menuButton.addAction("Poly ROI", self.addPolylineROI)
+
+        self.menuButton.addAction("Save ROI", self.saveROI)
+        self.menuButton.addAction("Load ROI", self.loadROI)
+
+        self.mainSplitter.addWidget(self.options)
         self.mainSplitter.addWidget(self.mainImage)
         self.mainSplitter.addWidget(self.contextZoomSplitter)
-
         layout.addWidget(self.mainSplitter)
 
         self.setLayout(layout)
@@ -174,3 +191,32 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         ind = inds[-1][-1]
         print("INDEX: ", ind)
         return ind, val
+
+    def loadROI(self):
+        roiPopupWindow = ROIWindow(self.mainImage, self.savedROIs)
+        roiPopupWindow.show()
+
+    def showMenu(self):
+        self.menuButton.exec(self.options.mapToGlobal(self.options.rect().bottomLeft()))
+
+    def loadROIState(self, i):
+        self.currentROI.setState(self.savedROIs[i])
+
+    def saveROI(self):
+        if (self.currentROI != None):
+            state = self.currentROI.saveState()
+            self.savedROIs.append(state)
+
+    def addPolylineROI(self):
+        color_keys = ['b', 'g', 'r', 'c', 'm', 'y', 'w']
+        if self.currentROI is not None and self.currentROI not in self.savedROIs:
+            self.savedROIs.append(self.currentROI)
+
+        initial_points = [[100, 100], [100, 300], [300, 300], [300, 100]]
+
+        self.currentROI = pg.PolyLineROI(initial_points, closed=True)
+        self.currentROI.setPen(mkPen(cosmetic=False, width=2, color=Colors[color_keys[len(self.currentROIs)]]))
+        self.currentROIs.append(self.currentROI)
+
+        for ROI in self.currentROIs:
+            self.mainImage.addItem(ROI)
