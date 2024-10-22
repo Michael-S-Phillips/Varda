@@ -1,14 +1,4 @@
-# standard library
-import time
-from typing import override
 from abc import ABC, abstractmethod
-
-# third party imports
-import numpy as np
-import rasterio as rio
-
-# local imports
-from speclabimageprocessing import *
 
 
 class Image(ABC):
@@ -33,6 +23,10 @@ class Image(ABC):
         super().__init_subclass__(**kwargs)
         Image.subclasses.append(cls)
 
+    @abstractmethod
+    def request_rgb_data(self, bands):
+        pass
+
     """
     Getters that all image subclasses must provide:
         data -  ndarray containing the raw image data
@@ -42,9 +36,9 @@ class Image(ABC):
     @property
     @abstractmethod
     def data(self):
-        return self._data
+        pass
 
     @property
     @abstractmethod
     def meta(self):
-        return self._meta
+        pass
