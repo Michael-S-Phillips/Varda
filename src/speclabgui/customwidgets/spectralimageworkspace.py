@@ -17,11 +17,12 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import QThreadPool
 import pyqtgraph as pg
 import numpy as np
+from pyqtgraph.functions import mkPen, Colors
 
-
-
+# local imports
 import speclabimageprocessing as speclab
 from speclabimageprocessing import ImageLoader, Image
+import ROIWindow
 import debug
 
 
@@ -248,12 +249,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.plot.addItem(self.redBandSelect)
 
         self.mainSplitter.addWidget(self.plot)
-
-    def redBandChanged(self):
-        (ind, val) = self.bandIndex(self.redBandSelect)
-        if ind != self.currentBands['r']:
-            self.currentBands['r'] = ind
-            self.updateImage()
 
     def greenBandChanged(self):
         (ind, val) = self.bandIndex(self.greenBandSelect)
