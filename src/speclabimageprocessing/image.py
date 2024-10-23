@@ -23,15 +23,17 @@ class Image(ABC):
         super().__init_subclass__(**kwargs)
         Image.subclasses.append(cls)
 
-    @abstractmethod
-    def request_rgb_data(self, bands):
-        pass
 
     """
     Getters that all image subclasses must provide:
         data -  ndarray containing the raw image data
         meta -  Metadata dictionary
     """
+    def get_image_slice(self, bands):
+        try:
+            return self.data[:, :, bands]
+        except TypeError:
+            raise TypeError("bands must be an iterable object (list, tuple, ndarray)")
 
     @property
     @abstractmethod
@@ -41,4 +43,14 @@ class Image(ABC):
     @property
     @abstractmethod
     def meta(self):
+        pass
+
+    @property
+    @abstractmethod
+    def normalized_data(self):
+        pass
+
+    @property
+    @abstractmethod
+    def uint8_data(self):
         pass

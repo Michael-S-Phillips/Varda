@@ -9,17 +9,21 @@ NOTE: This is where we'll handle getting the views to interact with each other.
 import time
 from pathlib import Path
 from typing import override
+import cProfile
 
+import pyqtgraph
 # Third-party
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import QThreadPool
 import pyqtgraph as pg
 import numpy as np
+from pyqtgraph.functions import mkPen, Colors
 
-
+# local imports
 import speclabimageprocessing as speclab
 from speclabimageprocessing import ImageLoader, Image
-from vardaconfig import DEBUG
+import ROIWindow
+import debug
 
 
 class SpectralImageWorkspace(QtWidgets.QWidget):
@@ -63,6 +67,12 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(SpectralImageWorkspace, self).__init__(parent)
         self.setAcceptDrops(True)
+
+        self.update_timer = QtCore.QTimer()
+        self.update_timer = QtCore.QTimer(self)
+        self.update_timer.setSingleShot(True)
+        self.update_timer.timeout.connect(self.updateContextAndZoom)
+
 
         self.isLoadingImage = False
         self.image = None
@@ -158,12 +168,12 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         if self.image.meta.default_bands is not None:
             self.currentBands = self.image.meta.default_bands
 
-        if DEBUG:
+        if debug.DEBUG:
             print("image data shape: " + str(self.image.data.shape))
 
         self.initializePlot()
 
-        self.updateImage()
+        self.setImage()
         self.show()
 
     def initializePlot(self):
@@ -175,10 +185,10 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
     def constructPlot(self):
         if self.image.meta.wavelength is not None:
             wavelength = self.image.meta.wavelength
-            if DEBUG:
+            if debug.DEBUG:
                 print("using wavelength for plot")
         else:
-            if DEBUG:
+            if debug.DEBUG:
                 print("using data shape for plot")
                 print("data shape: ", self.image.data.shape)
             wavelength = np.arange(self.image.data.shape[2])
@@ -240,12 +250,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
         self.mainSplitter.addWidget(self.plot)
 
-    def redBandChanged(self):
-        (ind, val) = self.bandIndex(self.redBandSelect)
-        if ind != self.currentBands['r']:
-            self.currentBands['r'] = ind
-            self.updateImage()
-
     def greenBandChanged(self):
         (ind, val) = self.bandIndex(self.greenBandSelect)
         if ind != self.currentBands['g']:
@@ -258,17 +262,46 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             self.currentBands['b'] = ind
             self.updateImage()
 
-    def updateImage(self):
+    def setImage(self):
+        if debug.DEBUG:
+            timeStarted = time.perf_counter() * 1000
         img = self.image.data[:, :, list(self.currentBands.values())]
         levels = (0, 1)
         axes = {'x': 1, 'y': 0, 'c': 2, 't': None}
-        self.mainImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
+
+        self.mainImage.setImage(img, autoLevels=False, levels=levels,
+                                         axes=axes,
                                 autoHistogramRange=False, levelMode="rgba")
         self.contextImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
                                    autoHistogramRange=False, levelMode="rgba")
         self.zoomImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
                                 autoHistogramRange=False, levelMode="rgba")
-        # print("Time to set Image: ", time.time() - timeStart)
+
+        if timeStarted:
+            print("time to set images:", round(time.perf_counter() * 1000 -
+                                               timeStarted, 3),
+                                               "ms")
+
+    def updateImage(self):
+        profile = debug.Profiler()
+        img = self.image.data[:, :, list(self.currentBands.values())]
+
+        self.mainImage.imageItem.image = img.view()
+        self.mainImage.imageItem.updateImage()
+
+        self.update_timer.start(50)  # Adjust the interval if needed
+
+
+
+        profile("time to update views")
+    def updateContextAndZoom(self):
+        img = self.image.data[:, :, list(self.currentBands.values())]
+
+        self.contextImage.imageItem.image = img.view()
+        self.contextImage.imageItem.updateImage()
+
+        self.zoomImage.imageItem.image = img.view()
+        self.zoomImage.imageItem.updateImage()
 
     def bandIndex(self, band):
         """

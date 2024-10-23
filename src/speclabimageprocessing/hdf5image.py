@@ -7,7 +7,6 @@ import numpy as np
 import rasterio as rio
 import h5py
 
-import vardaconfig
 # local imports
 from speclabimageprocessing.image import Image
 from speclabimageprocessing.metadata import Metadata
@@ -46,7 +45,7 @@ class HDF5Image(Image):
 
         timeStarted = time.time()
         with h5py.File(self._file_path, 'r') as hdf:
-            if vardaconfig.DEBUG:
+            if debug.DEBUG:
                 print("time to open file: ", time.time() - timeStarted)
 
             print("Available groups/datasets in the file:")
