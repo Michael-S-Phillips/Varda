@@ -9,7 +9,7 @@ import rasterio as rio
 # local imports
 from speclabimageprocessing.image import Image
 from speclabimageprocessing.metadata import Metadata
-import vardaconfig
+import debug
 
 
 class ENVIImage(Image):
@@ -57,7 +57,7 @@ class ENVIImage(Image):
     def _parse_metadata(self, image):
 
         # get rasterio metadata
-        if vardaconfig.DEBUG:
+        if debug.DEBUG:
             print(image.meta)
         driver = image.driver
 
@@ -77,7 +77,7 @@ class ENVIImage(Image):
 
         # get envi metadata
         envi_data = image.tags(ns="ENVI")
-        if vardaconfig.DEBUG:
+        if debug.DEBUG:
             print("Raw Metadata:", envi_data)
 
         description = envi_data["description"].strip(

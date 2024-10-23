@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import override
 import cProfile
 
+import pyqtgraph
 # Third-party
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import QThreadPool
@@ -18,9 +19,10 @@ import pyqtgraph as pg
 import numpy as np
 
 
+
 import speclabimageprocessing as speclab
 from speclabimageprocessing import ImageLoader, Image
-from vardaconfig import DEBUG
+import debug
 
 
 class SpectralImageWorkspace(QtWidgets.QWidget):
@@ -64,6 +66,12 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(SpectralImageWorkspace, self).__init__(parent)
         self.setAcceptDrops(True)
+
+        self.update_timer = QtCore.QTimer()
+        self.update_timer = QtCore.QTimer(self)
+        self.update_timer.setSingleShot(True)
+        self.update_timer.timeout.connect(self.updateContextAndZoom)
+
 
         self.isLoadingImage = False
         self.image = None
@@ -159,7 +167,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         if self.image.meta.default_bands is not None:
             self.currentBands = self.image.meta.default_bands
 
-        if DEBUG:
+        if debug.DEBUG:
             print("image data shape: " + str(self.image.data.shape))
 
         self.initializePlot()
@@ -176,10 +184,10 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
     def constructPlot(self):
         if self.image.meta.wavelength is not None:
             wavelength = self.image.meta.wavelength
-            if DEBUG:
+            if debug.DEBUG:
                 print("using wavelength for plot")
         else:
-            if DEBUG:
+            if debug.DEBUG:
                 print("using data shape for plot")
                 print("data shape: ", self.image.data.shape)
             wavelength = np.arange(self.image.data.shape[2])
@@ -260,7 +268,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             self.updateImage()
 
     def setImage(self):
-        if DEBUG:
+        if debug.DEBUG:
             timeStarted = time.perf_counter() * 1000
         img = self.image.data[:, :, list(self.currentBands.values())]
         levels = (0, 1)
@@ -279,28 +287,26 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
                                                timeStarted, 3),
                                                "ms")
 
-    def getImageSlice(self):
+    def updateImage(self):
+        profile = debug.Profiler()
         img = self.image.data[:, :, list(self.currentBands.values())]
 
-    def updateImage(self):
-        img = self.image.data[:, :, list(self.currentBands.values())]
-        # if DEBUG:
-        #     print("time to slice array:", round(time.perf_counter() * 1000 -
-        #                                         timeStarted, 3), "ms")
-        #     timeStarted = time.perf_counter() * 1000
-        if DEBUG:
-            timeStarted = time.perf_counter() * 1000
         self.mainImage.imageItem.image = img.view()
         self.mainImage.imageItem.updateImage()
+
+        self.update_timer.start(50)  # Adjust the interval if needed
+
+
+
+        profile("time to update views")
+    def updateContextAndZoom(self):
+        img = self.image.data[:, :, list(self.currentBands.values())]
 
         self.contextImage.imageItem.image = img.view()
         self.contextImage.imageItem.updateImage()
 
         self.zoomImage.imageItem.image = img.view()
         self.zoomImage.imageItem.updateImage()
-        if DEBUG:
-            print("time to update views:", round(time.perf_counter() * 1000 -
-                                                timeStarted, 3), "ms")
 
     def bandIndex(self, band):
         """

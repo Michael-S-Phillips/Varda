@@ -6,7 +6,6 @@ import numpy as np
 from affine import Affine
 
 # local imports
-import vardaconfig
 
 
 class Metadata():
