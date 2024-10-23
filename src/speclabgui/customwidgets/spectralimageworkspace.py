@@ -9,16 +9,21 @@ NOTE: This is where we'll handle getting the views to interact with each other.
 import time
 from pathlib import Path
 from typing import override
+import cProfile
 
+import pyqtgraph
 # Third-party
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import QThreadPool
 import pyqtgraph as pg
 import numpy as np
+from pyqtgraph.functions import mkPen, Colors
 
-
+# local imports
 import speclabimageprocessing as speclab
-from vardaconfig import DEBUG
+from speclabimageprocessing import ImageLoader, Image
+import ROIWindow
+import debug
 
 
 class SpectralImageWorkspace(QtWidgets.QWidget):
@@ -63,6 +68,12 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         super(SpectralImageWorkspace, self).__init__(parent)
         self.setAcceptDrops(True)
 
+        self.update_timer = QtCore.QTimer()
+        self.update_timer = QtCore.QTimer(self)
+        self.update_timer.setSingleShot(True)
+        self.update_timer.timeout.connect(self.updateContextAndZoom)
+
+
         self.isLoadingImage = False
         self.image = None
         self.plot = None
@@ -72,13 +83,18 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.sigBandChanged = QtCore.pyqtSignal(int)
         self.currentBands = {'r': 0, 'g': 0, 'b': 0}
 
+        self.currentROI = None
+        self.savedROIs = []
+        self.vertices = []
+        self.currentROIs = []
+
         # create main layout
         layout = QtWidgets.QVBoxLayout()
         self.mainSplitter = QtWidgets.QSplitter(self)
 
-        self.mainImage = ImageView(parent)
-        self.contextImage = ImageView(parent)
-        self.zoomImage = ImageView(parent)
+        self.mainImage = pg.ImageView(parent)
+        self.contextImage = pg.ImageView(parent)
+        self.zoomImage = pg.ImageView(parent)
         self.contextImage.ui.histogram.hide()
         self.zoomImage.ui.histogram.hide()
         self.contextZoomSplitter = QtWidgets.QSplitter(self)
@@ -89,7 +105,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.options = QtWidgets.QPushButton("Options", self)
         self.options.clicked.connect(self.showMenu)
 
-        self.menuButton = QMenu(self)
+        self.menuButton = QtWidgets.QMenu(self)
         self.menuButton.addAction("Poly ROI", self.addPolylineROI)
 
         self.menuButton.addAction("Save ROI", self.saveROI)
@@ -112,8 +128,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # dont allow user to load image if previous image is still loading
         if (self.isLoadingImage):
             return
-        if event.mimeData().urls()[0].toLocalFile().endswith('.hdr'):
-            event.acceptProposedAction()
+        event.acceptProposedAction()
 
     @override
     def dropEvent(self, event, **kwargs):
@@ -126,7 +141,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.statusBar.showLoadingMessage()
 
         # initialize BackgroundWorker
-        worker = self.BackgroundWorker(self.actuallyLoadImage, fileName)
+        worker = self.BackgroundWorker(self.createImageObject, fileName)
 
         # connect signals
         worker.signals.result.connect(self.onImageLoaded)
@@ -136,8 +151,8 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.threadpool.start(worker)
         # self.thread.start()
 
-    def actuallyLoadImage(self, fileName):
-        return speclab.SpectralImage.new_image(fileName)
+    def createImageObject(self, fileName) -> Image:
+        return speclab.ImageLoader.new_image(fileName)
 
     def onImageLoaded(self, image):
         self.isLoadingImage = False
@@ -150,24 +165,15 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             "Image loaded in " + str(round(self.statusBar.timeElapsed, 2))
             + " seconds"), msecs=5000)
         self.image = image
-        self.currentBands = self.image.meta["default bands"]
+        if self.image.meta.default_bands is not None:
+            self.currentBands = self.image.meta.default_bands
 
-        if DEBUG:
+        if debug.DEBUG:
             print("image data shape: " + str(self.image.data.shape))
 
         self.initializePlot()
 
-        img = self.image.data[:, :, list(self.currentBands.values())].data
-        levels = (0, 1)
-        axes = {'x': 1, 'y': 0, 'c': 2, 't': None}
-        self.mainImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
-                                autoHistogramRange=False)
-        self.contextImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
-                                   autoHistogramRange=False)
-        self.zoomImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
-                                autoHistogramRange=False)
-
-        self.updateImage()
+        self.setImage()
         self.show()
 
     def initializePlot(self):
@@ -177,9 +183,15 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.onPlotLoaded()
 
     def constructPlot(self):
-        wavelength = self.image.meta["wavelength"]
-        if wavelength is None:
-            wavelength = np.arange(self.image.meta["bands"])
+        if self.image.meta.wavelength is not None:
+            wavelength = self.image.meta.wavelength
+            if debug.DEBUG:
+                print("using wavelength for plot")
+        else:
+            if debug.DEBUG:
+                print("using data shape for plot")
+                print("data shape: ", self.image.data.shape)
+            wavelength = np.arange(self.image.data.shape[2])
         minWavelength = min(wavelength)
         maxWavelength = max(wavelength)
 
@@ -197,7 +209,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # construct red band selector
         if self.redBandSelect is None:
             self.redBandSelect = pg.InfiniteLine(
-                pos=wavelength[self.image.meta["default bands"]['r']],
+                pos=wavelength[self.image.default_bands['r']],
                 pen=(pg.mkPen(color='red', width=2)),
                 movable=True,
                 bounds=(minWavelength, maxWavelength)
@@ -209,7 +221,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # construct green band selector
         if self.greenBandSelect is None:
             self.greenBandSelect = pg.InfiniteLine(
-                pos=wavelength[self.image.meta["default bands"]['g']],
+                pos=wavelength[self.image.default_bands['g']],
                 pen=(pg.mkPen(color='green', width=2)),
                 movable=True,
                 bounds=(minWavelength, maxWavelength)
@@ -221,7 +233,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # construct blue band selector
         if self.blueBandSelect is None:
             self.blueBandSelect = pg.InfiniteLine(
-                pos=wavelength[self.image.meta["default bands"]['b']],
+                pos=wavelength[self.image.default_bands['b']],
                 pen=(pg.mkPen(color='blue', width=2)),
                 movable=True,
                 bounds=(minWavelength, maxWavelength)
@@ -238,12 +250,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
         self.mainSplitter.addWidget(self.plot)
 
-    def redBandChanged(self):
-        (ind, val) = self.bandIndex(self.redBandSelect)
-        if ind != self.currentBands['r']:
-            self.currentBands['r'] = ind
-            self.updateImage()
-
     def greenBandChanged(self):
         (ind, val) = self.bandIndex(self.greenBandSelect)
         if ind != self.currentBands['g']:
@@ -256,11 +262,46 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             self.currentBands['b'] = ind
             self.updateImage()
 
+    def setImage(self):
+        if debug.DEBUG:
+            timeStarted = time.perf_counter() * 1000
+        img = self.image.data[:, :, list(self.currentBands.values())]
+        levels = (0, 1)
+        axes = {'x': 1, 'y': 0, 'c': 2, 't': None}
+
+        self.mainImage.setImage(img, autoLevels=False, levels=levels,
+                                         axes=axes,
+                                autoHistogramRange=False, levelMode="rgba")
+        self.contextImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
+                                   autoHistogramRange=False, levelMode="rgba")
+        self.zoomImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
+                                autoHistogramRange=False, levelMode="rgba")
+
+        if timeStarted:
+            print("time to set images:", round(time.perf_counter() * 1000 -
+                                               timeStarted, 3),
+                                               "ms")
+
     def updateImage(self):
-        img = self.image.data[:, :, list(self.currentBands.values())].data
-        # timeStart = time.time()
-        self.mainImage.updateImage(img)
-        # print("Time to set Image: ", time.time() - timeStart)
+        profile = debug.Profiler()
+        img = self.image.data[:, :, list(self.currentBands.values())]
+
+        self.mainImage.imageItem.image = img.view()
+        self.mainImage.imageItem.updateImage()
+
+        self.update_timer.start(50)  # Adjust the interval if needed
+
+
+
+        profile("time to update views")
+    def updateContextAndZoom(self):
+        img = self.image.data[:, :, list(self.currentBands.values())]
+
+        self.contextImage.imageItem.image = img.view()
+        self.contextImage.imageItem.updateImage()
+
+        self.zoomImage.imageItem.image = img.view()
+        self.zoomImage.imageItem.updateImage()
 
     def bandIndex(self, band):
         """
@@ -273,10 +314,10 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         """
         val = band.value()
 
-        if self.image.meta["wavelength"] is None:
+        if self.image.meta.wavelength is None:
             return int(val), val
 
-        inds = np.where(self.image.meta["wavelength"] <= val)
+        inds = np.where(self.image.meta.wavelength <= val)
 
         if len(inds) < 1:
             return 0, val
@@ -285,6 +326,31 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
         return ind, val
 
+    def loadROI(self):
+        roiPopupWindow = ROIWindow(self.mainImage, self.savedROIs)
+        roiPopupWindow.show()
+
+    def showMenu(self):
+        self.menuButton.exec(self.options.mapToGlobal(self.options.rect().bottomLeft()))
+
+    def loadROIState(self, i):
+        self.currentROI.setState(self.savedROIs[i])
+
+    def saveROI(self):
+        if (self.currentROI != None):
+            state = self.currentROI.saveState()
+            self.savedROIs.append(state)
+
+    def addPolylineROI(self):
+        color_keys = ['b', 'g', 'r', 'c', 'm', 'y', 'w']
+        if self.currentROI is not None and self.currentROI not in self.savedROIs:
+            self.savedROIs.append(self.currentROI)
+        initial_points = [[100, 100], [100, 300], [300, 300], [300, 100]]
+        self.currentROI = pg.PolyLineROI(initial_points, closed=True)
+        self.currentROI.setPen(mkPen(cosmetic=False, width=2, color=Colors[color_keys[len(self.currentROIs)]]))
+        self.currentROIs.append(self.currentROI)
+        for ROI in self.currentROIs:
+            self.mainImage.addItem(ROI)
 
 """
 A custom widget for the statusbar. 
