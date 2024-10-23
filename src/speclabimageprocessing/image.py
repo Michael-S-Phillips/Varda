@@ -42,3 +42,13 @@ class Image(ABC):
     @abstractmethod
     def meta(self):
         pass
+
+    @property
+    @abstractmethod
+    def normalized_data(self):
+        pass
+
+    @property
+    @abstractmethod
+    def uint8_data(self):
+        pass

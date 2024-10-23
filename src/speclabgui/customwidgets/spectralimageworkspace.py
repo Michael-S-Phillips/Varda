@@ -9,6 +9,7 @@ NOTE: This is where we'll handle getting the views to interact with each other.
 import time
 from pathlib import Path
 from typing import override
+import cProfile
 
 # Third-party
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -163,7 +164,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
         self.initializePlot()
 
-        self.updateImage()
+        self.setImage()
         self.show()
 
     def initializePlot(self):
@@ -258,17 +259,48 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             self.currentBands['b'] = ind
             self.updateImage()
 
-    def updateImage(self):
+    def setImage(self):
+        if DEBUG:
+            timeStarted = time.perf_counter() * 1000
         img = self.image.data[:, :, list(self.currentBands.values())]
         levels = (0, 1)
         axes = {'x': 1, 'y': 0, 'c': 2, 't': None}
-        self.mainImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
+
+        self.mainImage.setImage(img, autoLevels=False, levels=levels,
+                                         axes=axes,
                                 autoHistogramRange=False, levelMode="rgba")
         self.contextImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
                                    autoHistogramRange=False, levelMode="rgba")
         self.zoomImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
                                 autoHistogramRange=False, levelMode="rgba")
-        # print("Time to set Image: ", time.time() - timeStart)
+
+        if timeStarted:
+            print("time to set images:", round(time.perf_counter() * 1000 -
+                                               timeStarted, 3),
+                                               "ms")
+
+    def getImageSlice(self):
+        img = self.image.data[:, :, list(self.currentBands.values())]
+
+    def updateImage(self):
+        img = self.image.data[:, :, list(self.currentBands.values())]
+        # if DEBUG:
+        #     print("time to slice array:", round(time.perf_counter() * 1000 -
+        #                                         timeStarted, 3), "ms")
+        #     timeStarted = time.perf_counter() * 1000
+        if DEBUG:
+            timeStarted = time.perf_counter() * 1000
+        self.mainImage.imageItem.image = img.view()
+        self.mainImage.imageItem.updateImage()
+
+        self.contextImage.imageItem.image = img.view()
+        self.contextImage.imageItem.updateImage()
+
+        self.zoomImage.imageItem.image = img.view()
+        self.zoomImage.imageItem.updateImage()
+        if DEBUG:
+            print("time to update views:", round(time.perf_counter() * 1000 -
+                                                timeStarted, 3), "ms")
 
     def bandIndex(self, band):
         """

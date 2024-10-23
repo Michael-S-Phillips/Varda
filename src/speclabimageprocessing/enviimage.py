@@ -24,9 +24,12 @@ class ENVIImage(Image):
         self._meta = None
         self._header_data = None
         self._data = None
+        self._normalized_data = None
+        self._uint8_data = None
         self.default_bands = {'r': 29, 'g': 19, 'b': 9}  # Example default bands
         self._load_data()
         self.mean = np.mean(self._data, axis=(0, 1))
+
         # dict mapping value types to indexes (t is the spectral data)
         self.axes = {'x': 0, 'y': 1, 't': 2}
 
@@ -48,6 +51,8 @@ class ENVIImage(Image):
             self._meta = self._parse_metadata(src)
         # get default bands
         self.default_bands = self._meta.default_bands
+
+        self._uint8_data = self.normalized_data * 255
 
     def _parse_metadata(self, image):
 
@@ -127,3 +132,13 @@ class ENVIImage(Image):
     @property
     def meta(self):
         return self._meta
+
+    @property
+    def normalized_data(self):
+        if self._normalized_data is None:
+            self._normalized_data = (self._data - np.min(self._data)) / (np.max(self._data) - np.min(self._data))
+        return self._normalized_data
+
+    @property
+    def uint8_data(self):
+        return self._uint8_data.data
