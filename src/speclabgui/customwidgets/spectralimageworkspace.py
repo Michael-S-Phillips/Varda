@@ -18,11 +18,16 @@ from PyQt6.QtCore import QThreadPool
 import pyqtgraph as pg
 import numpy as np
 from pyqtgraph.functions import mkPen, Colors
+from pyqtgraph import ROI
+import cv2
+import spectral
+import rasterio as rio
+
 
 # local imports
 import speclabimageprocessing as speclab
 from speclabimageprocessing import ImageLoader, Image
-import ROIWindow
+from speclabgui.customwidgets.ROIWindow import ROIWindow
 import debug
 
 
@@ -115,6 +120,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.mainSplitter.addWidget(self.mainImage)
         self.mainSplitter.addWidget(self.contextZoomSplitter)
         layout.addWidget(self.mainSplitter)
+        self.roiWind = None
 
         # initialize status bar at bottom of widget
         self.statusBar = WorkspaceStatusBar(self)
@@ -176,13 +182,13 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.setImage()
         self.show()
 
-    def initializePlot(self):
+    def initializePlot(self, roi=None):
         timeStarted = time.time()
         self.constructPlot()
         print("time to construct plot: ", time.time() - timeStarted)
         self.onPlotLoaded()
 
-    def constructPlot(self):
+    def constructPlot(self, roi=None):
         if self.image.meta.wavelength is not None:
             wavelength = self.image.meta.wavelength
             if debug.DEBUG:
@@ -205,6 +211,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         else:
             self.plot.plotItem.clear()
             self.plot.plotItem.plot(self.image.mean)
+            
 
         # construct red band selector
         if self.redBandSelect is None:
@@ -214,7 +221,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
                 movable=True,
                 bounds=(minWavelength, maxWavelength)
             )
-            self.redBandSelect.sigPositionChanged.connect(self.redBandChanged)
+            self.redBandSelect.sigPositionChanged.connect(self.greenBandChanged)
         else:
             self.redBandSelect.setBounds((minWavelength, maxWavelength))
 
@@ -242,7 +249,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         else:
             self.blueBandSelect.setBounds((minWavelength, maxWavelength))
 
-    def onPlotLoaded(self):
+    def onPlotLoaded(self, roi=None):
         # add band selectors to plot
         self.plot.addItem(self.blueBandSelect)
         self.plot.addItem(self.greenBandSelect)
@@ -327,19 +334,24 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         return ind, val
 
     def loadROI(self):
-        roiPopupWindow = ROIWindow(self.mainImage, self.savedROIs)
-        roiPopupWindow.show()
+        if self.roiWind:
+            self.roiWind.updateROIs(self.savedROIs)
+        self.roiWind = ROIWindow(self, self.savedROIs)
+        self.roiWind.show()
 
     def showMenu(self):
         self.menuButton.exec(self.options.mapToGlobal(self.options.rect().bottomLeft()))
 
     def loadROIState(self, i):
-        self.currentROI.setState(self.savedROIs[i])
+        self.currentROI = self.savedROIs[i]
 
     def saveROI(self):
-        if (self.currentROI != None):
-            state = self.currentROI.saveState()
-            self.savedROIs.append(state)
+        if self.currentROI is not None:
+            if self.currentROI not in self.savedROIs:
+                self.savedROIs.append(self.currentROI)
+            else:
+                update_curr = self.savedROIs.index(self.currentROI)
+                self.savedROIs[update_curr].setState(self.currentROI.getState())
 
     def addPolylineROI(self):
         color_keys = ['b', 'g', 'r', 'c', 'm', 'y', 'w']
@@ -351,6 +363,102 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.currentROIs.append(self.currentROI)
         for ROI in self.currentROIs:
             self.mainImage.addItem(ROI)
+
+
+    def roi_in_range(self, roi):
+        # checking to see if the roi is fully inside the image. Not sure if this is
+        # necessary, or if rois can be slightly outside the image and thats okay
+        if self.image:
+            img_width, img_height = self.image._meta.width, self.image._meta.height
+            
+            for vertex in roi.getLocalHandlePositions():
+                pos = vertex[1]
+                x, y = pos.x(), pos.y()
+
+                if 0 <= x < img_width and 0 <= y < img_height:
+                    return True
+
+            print("ROI is not fully contained inside the image")
+        print("No image has been loaded yet")
+        return False
+
+    
+    def calculate_mean_stats(self, data, mask, allow_nan):
+        gstats = spectral.calc_stats(data, mask=mask, allow_nan=allow_nan)
+        mean_spectrum = gstats.mean
+        mean_spectrum = np.where(mean_spectrum < 0, np.nan, mean_spectrum)
+        mean_spectrum = np.where(mean_spectrum > 1, np.nan, mean_spectrum)
+        return mean_spectrum
+    
+    def calculate_std_stats(self, data, mask, allow_nan):
+        # mask_std = np.zeros((self.image._meta.height, self.image._meta.width, self.image._meta.bandcount), dtype=np.uint8)
+        # std_spectrum = data * mask_std
+        # std_spectrum = np.where(mask_std < 0, np.nan, mask_std)
+        # std_spectrum = np.where(mask_std > 1, np.nan, mask_std)
+        # std_spectrum = np.nanstd(std_spectrum)
+
+        # todo: figure out how to calculate std stats
+        gstats = spectral.calc_stats(data, mask=mask, allow_nan=allow_nan)
+        mean_spectrum = gstats.mean
+        mean_spectrum = np.where(mean_spectrum < 0, np.nan, mean_spectrum)
+        mean_spectrum = np.where(mean_spectrum > 1, np.nan, mean_spectrum)
+        return mean_spectrum
+
+    def loadMeanPlot(self, roi):
+        print("Loading mean spectrum plot...")
+        if (self.roi_in_range(roi)):
+            # (Using similar routine to original scat.py), getting the roi as a slice of the
+            # data image array, then masking it with the original image 
+            # Need to check with michael that this is done correctly
+            mask = np.zeros((self.image._meta.width, self.image._meta.height), dtype=np.uint8)
+
+            polygon_points_int = [(int(pos.x()), int(pos.y())) for _, pos in roi.getLocalHandlePositions()]
+            cv2.fillPoly(mask, [np.array(polygon_points_int)], 1)
+
+            mean_spec = self.calculate_mean_stats(self.image._data, mask, True)
+
+            print("plotting spectrum ")
+            if self.plot is None:
+                self.plot = pg.plot(x=range(len(mean_spec)), y=mean_spec,
+                                title="Mean spectrum",
+                                labels={'left': 'Average Strength',
+                                        'bottom': 'Band'})
+                self.plot.setMouseEnabled(x=False, y=False)
+            else:
+                self.plot.plotItem.clear()
+                self.plot.setWindowTitle("Mean spectrum")
+                self.plot.setLabel('bottom', "Band") 
+                self.plot.setLabel('left', "Average Strength") 
+                self.plot.plot(range(len(mean_spec)), mean_spec) 
+
+    def loadStdPlot(self, roi):
+        print("Loading std spectrum plot...")
+        if (self.roi_in_range(roi)):
+             # (Using similar routine to original scat.py), getting the roi as a slice of the
+            # data image array, then masking it with the original image 
+            # Need to check with michael that this is done correctly
+            mask1 = np.zeros((self.image._meta.width, self.image._meta.height), dtype=np.uint8)
+
+            polygon_points_int = [(int(pos.x()), int(pos.y())) for _, pos in roi.getLocalHandlePositions()]
+            cv2.fillPoly(mask1, [np.array(polygon_points_int)], 1)
+
+            std_spec = self.calculate_std_stats(self.image._data, mask1, True)
+
+            print("plotting spectrum (std)")
+            bands = self.image._meta.bandcount
+            if self.plot is None:
+                self.plot = pg.plot(x=range(len(std_spec)), y=std_spec,
+                                title="Mean spectrum",
+                                labels={'left': 'Average Strength',
+                                        'bottom': 'Band'})
+                self.plot.setMouseEnabled(x=False, y=False)
+            else:
+                self.plot.plotItem.clear()
+                self.plot.setWindowTitle("Mean spectrum")
+                self.plot.setLabel('bottom', "Band") 
+                self.plot.setLabel('left', "Average Strength") 
+                self.plot.plot(range(len(std_spec)), std_spec) 
+
 
 """
 A custom widget for the statusbar. 
