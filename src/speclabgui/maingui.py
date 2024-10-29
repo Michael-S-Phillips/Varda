@@ -2,7 +2,7 @@ from speclabgui import maingui
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
-from speclabgui.customwidgets import SpectralImageWorkspace, FileExplorer, TextWidget
+from speclabgui.customwidgets import FileExplorer, SpectralImageWorkspace, ControlPanel
 from pathlib import Path
 import sys
 import os
@@ -39,12 +39,13 @@ class MainGui(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.fileExplorerDock)
 
         # Tabs as a dockable widget
-        self.tabsDock = QtWidgets.QDockWidget("Tabs", self)
-        tabWidget = QtWidgets.QTabWidget()
-        tabWidget.addTab(TextWidget("Controls and Actions"), "Control Panel")
-        tabWidget.addTab(TextWidget("Adjust Settings"), "Settings")
-        tabWidget.addTab(TextWidget("View Logs"), "Logs")
-        self.tabsDock.setWidget(tabWidget)
+        self.controlPanel = ControlPanel(self)
+        # self.tabsDock = QtWidgets.QDockWidget("Tabs", self)
+        # tabWidget = QtWidgets.QTabWidget()
+        # tabWidget.addTab(TextWidget("Controls and Actions"), "Control Panel")
+        # tabWidget.addTab(TextWidget("Adjust Settings"), "Settings")
+        # tabWidget.addTab(TextWidget("View Logs"), "Logs")
+        # self.tabsDock.setWidget(tabWidget)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.tabsDock)
 
         # Spectral Image Workspace as a dockable widget
