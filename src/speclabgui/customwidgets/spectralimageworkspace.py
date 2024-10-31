@@ -221,7 +221,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
                 movable=True,
                 bounds=(minWavelength, maxWavelength)
             )
-            self.redBandSelect.sigPositionChanged.connect(self.greenBandChanged)
+            self.redBandSelect.sigPositionChanged.connect(self.redBandChanged)
         else:
             self.redBandSelect.setBounds((minWavelength, maxWavelength))
 
@@ -256,6 +256,12 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.plot.addItem(self.redBandSelect)
 
         self.mainSplitter.addWidget(self.plot)
+
+    def redBandChanged(self):
+        (ind, val) = self.bandIndex(self.redBandSelect)
+        if ind != self.currentBands['r']:
+            self.currentBands['r'] = ind
+            self.updateImage()
 
     def greenBandChanged(self):
         (ind, val) = self.bandIndex(self.greenBandSelect)
