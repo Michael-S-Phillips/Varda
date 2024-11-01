@@ -10,6 +10,7 @@ import h5py
 # local imports
 from imageprocessing.image import Image
 from imageprocessing.metadata import Metadata
+import debug
 
 
 class HDF5Image(Image):
