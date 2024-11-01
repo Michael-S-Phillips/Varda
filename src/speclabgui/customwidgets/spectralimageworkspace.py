@@ -223,6 +223,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             )
             self.redBandSelect.sigPositionChanged.connect(self.redBandChanged)
         else:
+            self.redBandSelect.setValue(wavelength[self.image.default_bands['r']])
             self.redBandSelect.setBounds((minWavelength, maxWavelength))
 
         # construct green band selector
@@ -235,6 +236,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             )
             self.greenBandSelect.sigPositionChanged.connect(self.greenBandChanged)
         else:
+            self.greenBandSelect.setValue(wavelength[self.image.default_bands['g']])
             self.greenBandSelect.setBounds((minWavelength, maxWavelength))
 
         # construct blue band selector
@@ -247,6 +249,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             )
             self.blueBandSelect.sigPositionChanged.connect(self.blueBandChanged)
         else:
+            self.blueBandSelect.setValue(wavelength[self.image.default_bands['b']])
             self.blueBandSelect.setBounds((minWavelength, maxWavelength))
 
     def onPlotLoaded(self, roi=None):
@@ -305,8 +308,8 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.update_timer.start(50)  # Adjust the interval if needed
 
 
-
         profile("time to update views")
+
     def updateContextAndZoom(self):
         img = self.image.data[:, :, list(self.currentBands.values())]
 
@@ -334,7 +337,8 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
         if len(inds) < 1:
             return 0, val
-
+        if len(inds) == 0:
+            return 0, val
         ind = inds[-1][-1]
 
         return ind, val
