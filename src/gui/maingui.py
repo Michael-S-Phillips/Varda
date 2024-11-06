@@ -5,6 +5,7 @@ import pyqtgraph as pg
 from gui.customwidgets import FileExplorer, SpectralImageWorkspace
 from gui.customwidgets.controlpanel import ControlPanel
 from pathlib import Path
+from PyQt6.QtGui import QIcon
 import sys
 import os
 
@@ -71,6 +72,8 @@ class MainGui(QtWidgets.QMainWindow):
         widget.setLayout(QtWidgets.QVBoxLayout())
         widget.layout().addWidget(splitter)
         self.setCentralWidget(widget)
+
+        self.setWindowIcon(QIcon("./img/logo.svg"))
 
     def openFile(self):
         print("Open file dialog...")
