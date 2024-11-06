@@ -19,15 +19,14 @@ import pyqtgraph as pg
 import numpy as np
 from pyqtgraph.functions import mkPen, Colors
 from pyqtgraph import ROI
+import cv2
 import spectral
 import rasterio as rio
 
 
 # local imports
-import speclabimageprocessing as speclab
-from speclabimageprocessing import ImageLoader, Image
-from speclabgui.customwidgets.ROIWindow import ROIWindow
-import cv2
+from imageprocessing import ImageLoader, Image
+from gui.customwidgets.ROIWindow import ROIWindow
 import debug
 
 
@@ -78,6 +77,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.update_timer.setSingleShot(True)
         self.update_timer.timeout.connect(self.updateContextAndZoom)
 
+
         self.isLoadingImage = False
         self.image = None
         self.plot = None
@@ -106,72 +106,30 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.contextZoomSplitter.addWidget(self.zoomImage)
 
         self.mainSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
-        self.options = QtWidgets.QPushButton("Options", self)
-        self.options.clicked.connect(self.showMenu)
 
-        self.menuButton = QtWidgets.QMenu(self)
-        self.menuButton.addAction("Poly ROI", self.addPolylineROI)
+        self.controls = parent.controlPanel.controls
+        #self.options.clicked.connect(self.showMenu)
 
-        self.menuButton.addAction("Save ROI", self.saveROI)
-        self.menuButton.addAction("Load ROI", self.loadROI)
+        #self.menuButton = QtWidgets.QMenu(self)
+        # self.menuButton.addAction("Poly ROI", self.addPolylineROI)
 
-        self.mainSplitter.addWidget(self.options)
+        # self.menuButton.addAction("Save ROI", self.saveROI)
+        # self.menuButton.addAction("Load ROI", self.loadROI)
+        # self.mainSplitter.addWidget(self.options)
         self.mainSplitter.addWidget(self.mainImage)
         self.mainSplitter.addWidget(self.contextZoomSplitter)
-
-        # Create pixel spectrum plot
-        self.pixel_plot = pg.PlotWidget(title="Pixel Spectrum")
-        self.pixel_plot.setLabels(left='Intensity', bottom='Frequency')
-        self.mainSplitter.addWidget(self.pixel_plot)
-
         layout.addWidget(self.mainSplitter)
         self.roiWind = None
+        
+        self.controls.addAction("Poly ROI", self.addPolylineROI)
+        self.controls.addAction("Save ROI", self.saveROI)
+        self.controls.addAction("Load ROI", self.loadROI)
 
         # initialize status bar at bottom of widget
         self.statusBar = WorkspaceStatusBar(self)
         layout.addWidget(self.statusBar)
 
         self.setLayout(layout)
-
-        # Connect mouse click event to the spectral plot update
-        self.mainImage.scene.sigMouseClicked.connect(self.updatePixelPlot)
-
-    def updatePixelPlot(self, event):
-        """
-        Update the pixel spectrum plot with data from the clicked pixel
-        """
-        if self.image is None:
-            return
-
-        # Get click position in image coordinates
-        pos = self.mainImage.getImageItem().mapFromScene(event.scenePos())
-        x, y = int(pos.x()), int(pos.y())
-
-        # Check if click is within image bounds
-        if (0 <= x < self.image.data.shape[1] and
-                0 <= y < self.image.data.shape[0]):
-
-            # Get spectral data for the clicked pixel
-            spectral_data = self.image.data[y, x, :]
-
-            # Get wavelength data
-            if self.image.meta.wavelength is not None:
-                wavelength = self.image.meta.wavelength
-            else:
-                wavelength = np.arange(self.image.data.shape[2])
-
-            # Clear previous plot and create new one
-            self.pixel_plot.clear()
-            self.pixel_plot.plot(wavelength, spectral_data, pen='y')
-
-            # Update plot title with pixel coordinates
-            self.pixel_plot.setTitle(f"Pixel Spectrum at ({x}, {y})")
-
-            # Update status bar
-            self.statusBar.showMessage(
-                f"Selected pixel coordinates: ({x}, {y})",
-                msecs=3000
-            )
 
     @override
     def dragEnterEvent(self, event, **kwargs):
@@ -203,7 +161,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # self.thread.start()
 
     def createImageObject(self, fileName) -> Image:
-        return speclab.ImageLoader.new_image(fileName)
+        return ImageLoader.new_image(fileName)
 
     def onImageLoaded(self, image):
         self.isLoadingImage = False
@@ -266,7 +224,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
                 movable=True,
                 bounds=(minWavelength, maxWavelength)
             )
-            self.redBandSelect.sigPositionChanged.connect(self.redBandChanged)
+            self.redBandSelect.sigPositionChanged.connect(self.greenBandChanged)
         else:
             self.redBandSelect.setBounds((minWavelength, maxWavelength))
 
@@ -301,12 +259,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.plot.addItem(self.redBandSelect)
 
         self.mainSplitter.addWidget(self.plot)
-
-    def redBandChanged(self):
-        (ind, val) = self.bandIndex(self.redBandSelect)
-        if ind != self.currentBands['r']:
-            self.currentBands['r'] = ind
-            self.updateImage()
 
     def greenBandChanged(self):
         (ind, val) = self.bandIndex(self.greenBandSelect)
@@ -390,8 +342,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.roiWind = ROIWindow(self, self.savedROIs)
         self.roiWind.show()
 
-    def showMenu(self):
-        self.menuButton.exec(self.options.mapToGlobal(self.options.rect().bottomLeft()))
 
     def loadROIState(self, i):
         self.currentROI = self.savedROIs[i]

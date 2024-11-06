@@ -4,7 +4,7 @@
 import re
 from pathlib import Path
 # local imports
-from speclabimageprocessing.image import Image
+from imageprocessing.image import Image
 
 
 class ImageLoader:

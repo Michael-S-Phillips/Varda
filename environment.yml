@@ -1,4 +1,4 @@
-name: speclab
+name: Varda
 channels:
   - conda-forge
   - michael--s--phillips

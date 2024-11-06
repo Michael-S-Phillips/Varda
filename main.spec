@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['SpecLab\\main.py'],
+    ['Varda\\main.py'],
     pathex=['.venv/Lib/site-packages'],
     binaries=[],
     datas=[],
