@@ -1,0 +1,16 @@
+/*
+* Style sheet for the overall application.
+* We can define styling for different widgets to have them applied to all instances of the widget
+*/
+
+QWidget {
+ border: 3px solid ;
+}
+
+QLabel {
+    qproperty-alignment: AlignCenter;
+}
+
+QPushButton:hover {
+    background-color: #333333;
+}
