@@ -19,7 +19,6 @@ import pyqtgraph as pg
 import numpy as np
 from pyqtgraph.functions import mkPen, Colors
 from pyqtgraph import ROI
-import cv2
 import spectral
 import rasterio as rio
 
@@ -28,6 +27,7 @@ import rasterio as rio
 import speclabimageprocessing as speclab
 from speclabimageprocessing import ImageLoader, Image
 from speclabgui.customwidgets.ROIWindow import ROIWindow
+import cv2
 import debug
 
 
@@ -78,7 +78,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.update_timer.setSingleShot(True)
         self.update_timer.timeout.connect(self.updateContextAndZoom)
 
-
         self.isLoadingImage = False
         self.image = None
         self.plot = None
@@ -119,6 +118,12 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.mainSplitter.addWidget(self.options)
         self.mainSplitter.addWidget(self.mainImage)
         self.mainSplitter.addWidget(self.contextZoomSplitter)
+
+        # Create pixel spectrum plot
+        self.pixel_plot = pg.PlotWidget(title="Pixel Spectrum")
+        self.pixel_plot.setLabels(left='Intensity', bottom='Frequency')
+        self.mainSplitter.addWidget(self.pixel_plot)
+
         layout.addWidget(self.mainSplitter)
         self.roiWind = None
 
@@ -127,6 +132,46 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         layout.addWidget(self.statusBar)
 
         self.setLayout(layout)
+
+        # Connect mouse click event to the spectral plot update
+        self.mainImage.scene.sigMouseClicked.connect(self.updatePixelPlot)
+
+    def updatePixelPlot(self, event):
+        """
+        Update the pixel spectrum plot with data from the clicked pixel
+        """
+        if self.image is None:
+            return
+
+        # Get click position in image coordinates
+        pos = self.mainImage.getImageItem().mapFromScene(event.scenePos())
+        x, y = int(pos.x()), int(pos.y())
+
+        # Check if click is within image bounds
+        if (0 <= x < self.image.data.shape[1] and
+                0 <= y < self.image.data.shape[0]):
+
+            # Get spectral data for the clicked pixel
+            spectral_data = self.image.data[y, x, :]
+
+            # Get wavelength data
+            if self.image.meta.wavelength is not None:
+                wavelength = self.image.meta.wavelength
+            else:
+                wavelength = np.arange(self.image.data.shape[2])
+
+            # Clear previous plot and create new one
+            self.pixel_plot.clear()
+            self.pixel_plot.plot(wavelength, spectral_data, pen='y')
+
+            # Update plot title with pixel coordinates
+            self.pixel_plot.setTitle(f"Pixel Spectrum at ({x}, {y})")
+
+            # Update status bar
+            self.statusBar.showMessage(
+                f"Selected pixel coordinates: ({x}, {y})",
+                msecs=3000
+            )
 
     @override
     def dragEnterEvent(self, event, **kwargs):
