@@ -1,10 +1,10 @@
 # standard library
 
 # third party imports
-import re
 from pathlib import Path
+
 # local imports
-from imageprocessing.image import Image
+from imagetypes.image import Image
 
 
 class ImageLoader:
@@ -22,4 +22,3 @@ class ImageLoader:
             if c.image_type == image_type:
                 return c(file_path)
         raise ValueError(f"Bad file type {image_type}")
-

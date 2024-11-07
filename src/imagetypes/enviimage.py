@@ -7,12 +7,16 @@ import numpy as np
 import rasterio as rio
 
 # local imports
-from imageprocessing.image import Image
-from imageprocessing.metadata import Metadata
+from imagetypes.image import Image
+from imagetypes.metadata import Metadata
 import debug
 
 
 class ENVIImage(Image):
+
+    @override
+    def process(self, process):
+        self._data = process.execute(image=self._data)
 
     image_type = ".img"
 
