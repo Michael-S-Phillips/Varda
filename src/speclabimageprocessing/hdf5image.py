@@ -22,6 +22,10 @@ class HDF5Image(Image):
     def meta(self):
         return self._meta
 
+    @override
+    def process(self, process):
+        self._data = process.execute(image=self._data)
+
     image_type = ".h5"
 
     @override

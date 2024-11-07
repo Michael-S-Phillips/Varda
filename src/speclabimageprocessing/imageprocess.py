@@ -10,6 +10,8 @@ class ImageProcess(ABC):
         """
         super().__init_subclass__(**kwargs)
         ImageProcess.subclasses.append(cls)
+        print("ImageProcess subclass added")
+        print(ImageProcess.subclasses)
 
 
     @abstractmethod

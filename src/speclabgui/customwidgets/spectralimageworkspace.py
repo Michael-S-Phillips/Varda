@@ -9,23 +9,20 @@ NOTE: This is where we'll handle getting the views to interact with each other.
 import time
 from pathlib import Path
 from typing import override
-import cProfile
 
-import pyqtgraph
 # Third-party
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import QThreadPool
 import pyqtgraph as pg
 import numpy as np
+from pyqtgraph.examples.ROItypes import updateImage
 from pyqtgraph.functions import mkPen, Colors
-from pyqtgraph import ROI
 import spectral
 import rasterio as rio
 
-
 # local imports
 import speclabimageprocessing as speclab
-from speclabimageprocessing import ImageLoader, Image
+from speclabimageprocessing import ImageLoader, Image, ImageProcess
 from speclabgui.customwidgets.ROIWindow import ROIWindow
 import cv2
 import debug
@@ -72,7 +69,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(SpectralImageWorkspace, self).__init__(parent)
         self.setAcceptDrops(True)
-
+        self.appliedProcesses = []
         self.update_timer = QtCore.QTimer()
         self.update_timer = QtCore.QTimer(self)
         self.update_timer.setSingleShot(True)
@@ -106,16 +103,33 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.contextZoomSplitter.addWidget(self.zoomImage)
 
         self.mainSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
-        self.options = QtWidgets.QPushButton("Options", self)
-        self.options.clicked.connect(self.showMenu)
 
-        self.menuButton = QtWidgets.QMenu(self)
-        self.menuButton.addAction("Poly ROI", self.addPolylineROI)
+        menuBar = QtWidgets.QMenuBar(self)
 
-        self.menuButton.addAction("Save ROI", self.saveROI)
-        self.menuButton.addAction("Load ROI", self.loadROI)
+        roiMenu = menuBar.addMenu("ROI")
+        roiMenu.addAction("Poly ROI", self.addPolylineROI)
+        roiMenu.addAction("Save ROI", self.saveROI)
+        roiMenu.addAction("Load ROI", self.loadROI)
+        self.processingMenu = menuBar.addMenu("Processing")
+        self.refreshProcessingMenu()
+        # refreshTimer = QtCore.QTimer(self)
+        # refreshTimer.setInterval(5000)
+        # refreshTimer.timeout.connect(self.refreshProcessingMenu)
+        # refreshTimer.start()
+        # self.options = QtWidgets.QPushButton("Options", self)
+        # self.options.clicked.connect(self.showMenu)
+        #
+        # self.menuButton = QtWidgets.QMenu(self)
+        # self.menuButton.addAction("Poly ROI", self.addPolylineROI)
+        #
+        # self.menuButton.addAction("Save ROI", self.saveROI)
+        # self.menuButton.addAction("Load ROI", self.loadROI)
 
-        self.mainSplitter.addWidget(self.options)
+        # self.processingMenu = self.generateProcessingMenu()
+        # self.processingButton = QtWidgets.QPushButton("Processing", self)
+        # self.processingButton.clicked.connect(self.showProcessingMenu)
+
+        # self.mainSplitter.addWidget(self.options)
         self.mainSplitter.addWidget(self.mainImage)
         self.mainSplitter.addWidget(self.contextZoomSplitter)
 
@@ -124,6 +138,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.pixel_plot.setLabels(left='Intensity', bottom='Frequency')
         self.mainSplitter.addWidget(self.pixel_plot)
 
+        layout.addWidget(menuBar)
         layout.addWidget(self.mainSplitter)
         self.roiWind = None
 
@@ -135,6 +150,43 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
         # Connect mouse click event to the spectral plot update
         self.mainImage.scene.sigMouseClicked.connect(self.updatePixelPlot)
+
+    def refreshProcessingMenu(self):
+        print("refreshing processing menu")
+        print("Image List", Image.subclasses)
+        print("Processing List", ImageProcess.subclasses)
+
+        self.processingMenu.clear()
+        for process in ImageProcess.subclasses:
+            self.processingMenu.addAction(process.__name__, lambda: self.processImage(process))
+
+    def generateProcessControlMenu(self, process):
+        dialog = QtWidgets.QDialog()
+        layout = QtWidgets.QVBoxLayout()
+        for key, value in
+        pass
+
+    def dispatchThreadProcess(self, process, onComplete, *args, **kwargs):
+        """
+        General purpose method to dispatch a process to a thread
+        """
+        # initialize BackgroundWorker
+        worker = self.BackgroundWorker(process, *args, **kwargs)
+        # connect signals
+        worker.signals.result.connect(onComplete)
+        # dispatch thread
+        self.threadpool.start(worker)
+
+    def processImage(self, process):
+        self.statusBar.showLoadingMessage()
+        p = process()
+        self.appliedProcesses.append(p)
+        self.dispatchThreadProcess(self.image.process, self.onProcessFinished, p)
+
+    def onProcessFinished(self):
+        self.statusBar.loadingFinished()
+
+        self.updateImage()
 
     def updatePixelPlot(self, event):
         """
@@ -196,25 +248,17 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
         # connect signals
         worker.signals.result.connect(self.onImageLoaded)
-        # self.thread.started.connect(self.worker.loadImage)
 
         # execute thread
         self.threadpool.start(worker)
-        # self.thread.start()
 
     def createImageObject(self, fileName) -> Image:
-        return speclab.ImageLoader.new_image(fileName)
+        return ImageLoader.new_image(fileName)
 
     def onImageLoaded(self, image):
-        self.isLoadingImage = False
-
         # clear loading status
-        self.statusBar.clearLoadingMessage()
+        self.statusBar.loadingFinished()
 
-        # temporary status message
-        self.statusBar.showMessage(self.statusBar.tr(
-            "Image loaded in " + str(round(self.statusBar.timeElapsed, 2))
-            + " seconds"), msecs=5000)
         self.image = image
         if self.image.meta.default_bands is not None:
             self.currentBands = self.image.meta.default_bands
@@ -347,8 +391,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         profile = debug.Profiler()
         img = self.image.data[:, :, list(self.currentBands.values())]
 
-        self.mainImage.imageItem.image = img.view()
-        self.mainImage.imageItem.updateImage()
+        self.mainImage.imageItem.setImage(img.view())
 
         self.update_timer.start(50)  # Adjust the interval if needed
 
@@ -396,6 +439,9 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
     def showMenu(self):
         self.menuButton.exec(self.options.mapToGlobal(self.options.rect().bottomLeft()))
+
+    def showProcessingMenu(self):
+        self.processingMenu.exec(self.options.mapToGlobal(self.options.rect().bottomLeft()))
 
     def loadROIState(self, i):
         self.currentROI = self.savedROIs[i]
@@ -538,8 +584,12 @@ class WorkspaceStatusBar(QtWidgets.QStatusBar):
         self.showMessage(f"Loading... {animationChars[self.animationIndex]}")
         self.animationIndex = (self.animationIndex + 1) % len(animationChars)
 
-    def clearLoadingMessage(self):
+    def loadingFinished(self):
         self.timeElapsed = time.time() - self.timeStarted
         self.animationTimer.stop()
         self.animationTimer.timeout.disconnect(self.updateLoadingMessage)
         self.clearMessage()
+        # temporary status message
+        self.showMessage(self.tr(
+            "Image loaded in " + str(round(self.timeElapsed, 2))
+            + " seconds"), msecs=5000)

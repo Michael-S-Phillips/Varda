@@ -23,6 +23,12 @@ class Image(ABC):
         super().__init_subclass__(**kwargs)
         Image.subclasses.append(cls)
 
+    @abstractmethod
+    def process(self, process):
+        """
+        Executes a process on the image
+        """
+        pass
 
     """
     Getters that all image subclasses must provide:

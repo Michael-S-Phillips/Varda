@@ -5,11 +5,22 @@ from typing import override
 import numpy as np
 
 # local imports
-from ImageProcess import ImageProcess
+from speclabimageprocessing.imageprocess import ImageProcess
 
 class Normalize(ImageProcess):
 
+    @property
+    def threshold(self):
+        return self._threshold
+
+    @threshold.setter
+    def threshold(self, value):
+        self._threshold = value
+
     def __init__(self):
+        parameters = {
+            'threshold': {'type': float, 'default': 0.0, 'description': 'Threshold value to be added to the minimum and subtracted from the maximum value of the image.'},
+        }
         super().__init__()
 
     @override

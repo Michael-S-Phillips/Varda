@@ -14,6 +14,10 @@ import debug
 
 class ENVIImage(Image):
 
+    @override
+    def process(self, process):
+        self._data = process.execute(image=self._data)
+
     image_type = ".img"
 
     @override
