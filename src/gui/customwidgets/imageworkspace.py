@@ -15,16 +15,16 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import QThreadPool
 import pyqtgraph as pg
 import numpy as np
-from pyqtgraph.examples.ROItypes import updateImage
 from pyqtgraph.functions import mkPen, Colors
+from pyqtgraph import ROI
+import cv2
 import spectral
 import rasterio as rio
 
 # local imports
-import speclabimageprocessing as speclab
-from speclabimageprocessing import ImageLoader, Image, ImageProcess
-from speclabgui.customwidgets.ROIWindow import ROIWindow
-import cv2
+from imagetypes import ImageLoader, Image
+from imageprocessing import ImageProcess
+from gui.customwidgets.ROIWindow import ROIWindow
 import debug
 
 
@@ -105,7 +105,11 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.mainSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
 
         menuBar = QtWidgets.QMenuBar(self)
+        self.controls = parent.controlPanel.controls
+        #self.options.clicked.connect(self.showMenu)
 
+        #self.menuButton = QtWidgets.QMenu(self)
+        # self.menuButton.addAction("Poly ROI", self.addPolylineROI)
         roiMenu = menuBar.addMenu("ROI")
         roiMenu.addAction("Poly ROI", self.addPolylineROI)
         roiMenu.addAction("Save ROI", self.saveROI)
@@ -125,10 +129,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # self.menuButton.addAction("Save ROI", self.saveROI)
         # self.menuButton.addAction("Load ROI", self.loadROI)
 
-        # self.processingMenu = self.generateProcessingMenu()
-        # self.processingButton = QtWidgets.QPushButton("Processing", self)
-        # self.processingButton.clicked.connect(self.showProcessingMenu)
-
         # self.mainSplitter.addWidget(self.options)
         self.mainSplitter.addWidget(self.mainImage)
         self.mainSplitter.addWidget(self.contextZoomSplitter)
@@ -141,6 +141,10 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         layout.addWidget(menuBar)
         layout.addWidget(self.mainSplitter)
         self.roiWind = None
+
+        self.controls.addAction("Poly ROI", self.addPolylineROI)
+        self.controls.addAction("Save ROI", self.saveROI)
+        self.controls.addAction("Load ROI", self.loadROI)
 
         # initialize status bar at bottom of widget
         self.statusBar = WorkspaceStatusBar(self)
@@ -163,7 +167,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
     def generateProcessControlMenu(self, process):
         dialog = QtWidgets.QDialog()
         layout = QtWidgets.QVBoxLayout()
-        for key, value in
         pass
 
     def dispatchThreadProcess(self, process, onComplete, *args, **kwargs):
@@ -178,6 +181,9 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.threadpool.start(worker)
 
     def processImage(self, process):
+        if self.image is None:
+            self.statusBar.showMessage("You must load an image first!", 5000)
+            return
         self.statusBar.showLoadingMessage()
         p = process()
         self.appliedProcesses.append(p)
@@ -310,7 +316,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
                 movable=True,
                 bounds=(minWavelength, maxWavelength)
             )
-            self.redBandSelect.sigPositionChanged.connect(self.redBandChanged)
+            self.redBandSelect.sigPositionChanged.connect(self.greenBandChanged)
         else:
             self.redBandSelect.setValue(wavelength[self.image.default_bands['r']])
             self.redBandSelect.setBounds((minWavelength, maxWavelength))
@@ -348,12 +354,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.plot.addItem(self.redBandSelect)
 
         self.mainSplitter.addWidget(self.plot)
-
-    def redBandChanged(self):
-        (ind, val) = self.bandIndex(self.redBandSelect)
-        if ind != self.currentBands['r']:
-            self.currentBands['r'] = ind
-            self.updateImage()
 
     def greenBandChanged(self):
         (ind, val) = self.bandIndex(self.greenBandSelect)
@@ -437,8 +437,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.roiWind = ROIWindow(self, self.savedROIs)
         self.roiWind.show()
 
-    def showMenu(self):
-        self.menuButton.exec(self.options.mapToGlobal(self.options.rect().bottomLeft()))
 
     def showProcessingMenu(self):
         self.processingMenu.exec(self.options.mapToGlobal(self.options.rect().bottomLeft()))

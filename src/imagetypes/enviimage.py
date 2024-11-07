@@ -7,8 +7,8 @@ import numpy as np
 import rasterio as rio
 
 # local imports
-from speclabimageprocessing.image import Image
-from speclabimageprocessing.metadata import Metadata
+from imagetypes.image import Image
+from imagetypes.metadata import Metadata
 import debug
 
 

@@ -5,17 +5,10 @@ from typing import override
 import numpy as np
 
 # local imports
-from speclabimageprocessing.imageprocess import ImageProcess
+from imageprocessing.imageprocess import ImageProcess
+
 
 class Normalize(ImageProcess):
-
-    @property
-    def threshold(self):
-        return self._threshold
-
-    @threshold.setter
-    def threshold(self, value):
-        self._threshold = value
 
     def __init__(self):
         parameters = {

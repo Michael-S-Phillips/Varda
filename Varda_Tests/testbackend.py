@@ -2,7 +2,7 @@ import unittest
 
 import os
 from pathlib import Path
-from speclabimageprocessing import *
+from imagetypes import *
 
 
 class TestBackend(unittest.TestCase):

@@ -8,8 +8,9 @@ import rasterio as rio
 import h5py
 
 # local imports
-from speclabimageprocessing.image import Image
-from speclabimageprocessing.metadata import Metadata
+from imagetypes.image import Image
+from imagetypes.metadata import Metadata
+import debug
 
 
 class HDF5Image(Image):
@@ -21,6 +22,10 @@ class HDF5Image(Image):
     @property
     def meta(self):
         return self._meta
+
+    @property
+    def uint8_data(self):
+        pass
 
     @override
     def process(self, process):
@@ -60,7 +65,6 @@ class HDF5Image(Image):
             while len(f.keys()) == 1:
                 keys = list(f.keys())
                 f = f[keys[0]]
-
 
             dataset = hdf["SERC/Reflectance/Reflectance_Data"]
             timeStarted = time.time()
