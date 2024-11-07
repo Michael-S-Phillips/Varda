@@ -23,6 +23,12 @@ class Image(ABC):
         super().__init_subclass__(**kwargs)
         Image.subclasses.append(cls)
 
+    @abstractmethod
+    def process(self, process):
+        """
+        Executes a process on the image
+        """
+        pass
 
     """
     Getters that all image subclasses must provide:
@@ -43,11 +49,6 @@ class Image(ABC):
     @property
     @abstractmethod
     def meta(self):
-        pass
-
-    @property
-    @abstractmethod
-    def normalized_data(self):
         pass
 
     @property
