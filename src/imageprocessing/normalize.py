@@ -10,10 +10,19 @@ from imageprocessing.imageprocess import ImageProcess
 
 class Normalize(ImageProcess):
 
+    name = "Normalize"
+
+    # not being used yet. will be used for categorization
+    path = "Basic Processing/Normalize"
+
+    parameters = {
+        'threshold': {'type': float, 'default': 0.0,
+                      'description': 'Threshold value to be added to the minimum and '
+                                     'subtracted from the maximum value of the image.'},
+    }
+
     def __init__(self):
-        parameters = {
-            'threshold': {'type': float, 'default': 0.0, 'description': 'Threshold value to be added to the minimum and subtracted from the maximum value of the image.'},
-        }
+
         super().__init__()
 
     @override

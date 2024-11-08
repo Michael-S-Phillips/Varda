@@ -2,5 +2,6 @@
 from .imageworkspace import SpectralImageWorkspace
 from .fileexplorer import FileExplorer
 from .textwidget import TextWidget
-__all__ = ["SpectralImageWorkspace", "FileExplorer", "TextWidget"]
+from .roiwindow import ROIWindow
+__all__ = ["SpectralImageWorkspace", "FileExplorer", "TextWidget", "ROIWindow"]
 

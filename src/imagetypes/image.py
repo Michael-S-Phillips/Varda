@@ -30,6 +30,14 @@ class Image(ABC):
         """
         pass
 
+    @classmethod
+    def __str__(cls):
+        return "name: " + cls.__name__
+
+    @classmethod
+    def __repr__(cls):
+        return "name: " + cls.__name__
+
     """
     Getters that all image subclasses must provide:
         data -  ndarray containing the raw image data
