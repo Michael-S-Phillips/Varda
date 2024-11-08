@@ -16,6 +16,7 @@ low cohesion. Widget classes will interact with processing /
 visualization classes accordingly. 
 '''
 
+
 class MainGui(QtWidgets.QMainWindow):
     """
     Creates the main window and layout for the GUI. Each GUI
@@ -34,18 +35,30 @@ class MainGui(QtWidgets.QMainWindow):
         # Create a splitter for the main layout
         splitter = QtWidgets.QSplitter()
 
-        # File Explorer as a dockable widget
+        # File Explorer as a dockable workspaceTabs
         self.fileExplorerDock = QtWidgets.QDockWidget("File Explorer", self)
         self.fileExplorer = FileExplorer()
         self.fileExplorerDock.setWidget(self.fileExplorer)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.fileExplorerDock)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea,
+                           self.fileExplorerDock)
 
-        # Tabs as a dockable widget
+        # Tabs as a dockable workspaceTabs
+        self.controlPanel = ControlPanel(self)
+        # self.tabsDock = QtWidgets.QDockWidget("Tabs", self)
+        # tabWidget = QtWidgets.QTabWidget()
+        # tabWidget.addTab(TextWidget("Controls and Actions"), "Control Panel")
+        # tabWidget.addTab(TextWidget("Adjust Settings"), "Settings")
+        # tabWidget.addTab(TextWidget("View Logs"), "Logs")
+        # self.tabsDock.setWidget(tabWidget)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
+                           self.controlPanel.tabsDock)
 
-        # Spectral Image Workspace as a dockable widget
+        # Spectral Image Workspace as a dockable workspaceTabs
         self.imageViewDock = QtWidgets.QDockWidget("Image Workspace", self)
         self.imageView = SpectralImageWorkspace(self)
         self.imageViewDock.setWidget(self.imageView)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
+                           self.imageViewDock)
 
         self.controlPanel = ControlPanel(self.imageView)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock)
@@ -61,12 +74,12 @@ class MainGui(QtWidgets.QMainWindow):
         helpMenu = menuBar.addMenu('Help')
         helpMenu.addAction('About', self.aboutDialog)
 
-        # Create a central widget
-        widget = QtWidgets.QWidget()
+        # Create a central workspaceTabs
+        workspaceTabs = QtWidgets.QTabWidget()
         splitter.addWidget(self.imageView)
-        widget.setLayout(QtWidgets.QVBoxLayout())
-        widget.layout().addWidget(splitter)
-        self.setCentralWidget(widget)
+        workspaceTabs.setLayout(QtWidgets.QVBoxLayout())
+        workspaceTabs.addTab(splitter, "workspace 1")
+        self.setCentralWidget(workspaceTabs)
 
         self.setWindowIcon(QIcon("./img/logo.svg"))
 
@@ -82,6 +95,7 @@ class MainGui(QtWidgets.QMainWindow):
     def aboutDialog(self):
         print("Show about dialog...")
 
+
 def startGui():
     app = QtWidgets.QApplication(sys.argv)
     # Remove external stylesheet to revert to default Qt styling
@@ -90,6 +104,6 @@ def startGui():
     window.show()
     app.exec()
 
+
 if __name__ == "__main__":
     startGui()
-
