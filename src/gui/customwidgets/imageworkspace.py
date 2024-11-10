@@ -308,6 +308,8 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         return ImageLoader.new_image(fileName)
 
     def onImageLoaded(self, image):
+        self.isLoadingImage = False
+
         # clear loading status
         self.statusBar.loadingFinished()
 
