@@ -169,26 +169,25 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
     def openProcessControlMenu(self, process):
         dialog = QtWidgets.QDialog()
         dialog.setWindowTitle(process.name)
-        layout = QtWidgets.QVBoxLayout()
-        print(process.parameters)
-        for name, details in process.parameters.items():
-            label = QtWidgets.QLabel()
-            label.setText(name)
-            label.setToolTip(details["description"])
-            layout.addWidget(label)
-            layout.addItem(QtWidgets.QSpacerItem(20, 0,
-                                                 QtWidgets.QSizePolicy.Policy.Fixed,
-                                                 QtWidgets.QSizePolicy.Policy.Minimum))
-            if details["type"] == float:
-                validator = QtGui.QDoubleValidator()
-                inputbox = QtWidgets.QLineEdit()
-                inputbox.setValidator(validator)
-                layout.addWidget(inputbox)
+        layout = QtWidgets.QFormLayout()
+        layout.setSpacing(10)
+        dialog.setLayout(layout)
 
-            if details["type"] == bool:
-                validator = QtGui.QDoubleValidator()
-                inputbox = QtWidgets.QCheckBox()
-                layout.addWidget(inputbox)
+        for name, details in process.parameters.items():
+            paramName = QtWidgets.QLabel()
+            paramName.setText(name)
+            paramName.setToolTip(details["description"])
+
+            if details["type"] == float:
+                input = QtWidgets.QLineEdit()
+                input.setText(str(details["default"]))
+                input.setValidator(QtGui.QDoubleValidator())
+                layout.addRow(paramName, input)
+            elif details["type"] == bool:
+                input = QtWidgets.QCheckBox()
+                input.setChecked(details["default"])
+                layout.addRow(paramName, input)
+
 
 
         layout.addItem(QtWidgets.QSpacerItem(0, 20,
@@ -199,7 +198,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         layout.addWidget(executeButton)
         layout.addItem(QtWidgets.QSpacerItem(60, 0, QtWidgets.QSizePolicy.Policy.Fixed,
                                              QtWidgets.QSizePolicy.Policy.Minimum))
-        dialog.setLayout(layout)
         dialog.exec()
 
     def processImage(self, process):
