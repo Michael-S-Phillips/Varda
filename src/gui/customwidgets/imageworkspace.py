@@ -91,18 +91,31 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
         # create main layout
         layout = QtWidgets.QVBoxLayout()
+        self.imageSplitter = QtWidgets.QSplitter(self)
         self.mainSplitter = QtWidgets.QSplitter(self)
 
         self.mainImage = pg.ImageView(parent)
+        self.mainImage.ui.roiBtn.setVisible(False)
+        self.mainImage.ui.menuBtn.setVisible(False)
         self.contextImage = pg.ImageView(parent)
         self.zoomImage = pg.ImageView(parent)
         self.contextImage.ui.histogram.hide()
+        self.contextImage.ui.roiBtn.setVisible(False)
+        self.contextImage.ui.menuBtn.setVisible(False)
         self.zoomImage.ui.histogram.hide()
+        self.zoomImage.ui.roiBtn.setVisible(False)
+        self.zoomImage.ui.menuBtn.setVisible(False)
         self.contextZoomSplitter = QtWidgets.QSplitter(self)
+
+        self.imageSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
+        self.contextZoomSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        self.mainSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
         self.contextZoomSplitter.addWidget(self.contextImage)
         self.contextZoomSplitter.addWidget(self.zoomImage)
 
-        self.mainSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        self.imageSplitter.addWidget(self.mainImage)
+        self.imageSplitter.addWidget(self.contextZoomSplitter)
+        self.mainSplitter.addWidget(self.imageSplitter)
 
         menuBar = QtWidgets.QMenuBar(self)
         self.controls = parent.controlPanel.controls
@@ -130,8 +143,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # self.menuButton.addAction("Load ROI", self.loadROI)
 
         # self.mainSplitter.addWidget(self.options)
-        self.mainSplitter.addWidget(self.mainImage)
-        self.mainSplitter.addWidget(self.contextZoomSplitter)
 
         # Create pixel spectrum plot
         self.pixel_plot = pg.PlotWidget(title="Pixel Spectrum")
