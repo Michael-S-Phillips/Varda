@@ -41,19 +41,14 @@ class MainGui(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.fileExplorerDock)
 
         # Tabs as a dockable widget
-        self.controlPanel = ControlPanel(self)
-        # self.tabsDock = QtWidgets.QDockWidget("Tabs", self)
-        # tabWidget = QtWidgets.QTabWidget()
-        # tabWidget.addTab(TextWidget("Controls and Actions"), "Control Panel")
-        # tabWidget.addTab(TextWidget("Adjust Settings"), "Settings")
-        # tabWidget.addTab(TextWidget("View Logs"), "Logs")
-        # self.tabsDock.setWidget(tabWidget)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock)
 
         # Spectral Image Workspace as a dockable widget
         self.imageViewDock = QtWidgets.QDockWidget("Image Workspace", self)
         self.imageView = SpectralImageWorkspace(self)
         self.imageViewDock.setWidget(self.imageView)
+
+        self.controlPanel = ControlPanel(self.imageView)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.imageViewDock)
 
         # Setup the menu bar

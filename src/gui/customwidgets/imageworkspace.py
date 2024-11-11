@@ -110,6 +110,9 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.imageSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
         self.contextZoomSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
         self.mainSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        self.mainImage.setMinimumSize(450, 450)
+        self.contextImage.setMinimumSize(250, 250)
+        self.zoomImage.setMinimumSize(250, 250)
         self.contextZoomSplitter.addWidget(self.contextImage)
         self.contextZoomSplitter.addWidget(self.zoomImage)
 
@@ -118,15 +121,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.mainSplitter.addWidget(self.imageSplitter)
 
         menuBar = QtWidgets.QMenuBar(self)
-        self.controls = parent.controlPanel.controls
-        #self.options.clicked.connect(self.showMenu)
 
-        #self.menuButton = QtWidgets.QMenu(self)
-        # self.menuButton.addAction("Poly ROI", self.addPolylineROI)
-        roiMenu = menuBar.addMenu("ROI")
-        roiMenu.addAction("Poly ROI", self.addPolylineROI)
-        roiMenu.addAction("Save ROI", self.saveROI)
-        roiMenu.addAction("Load ROI", self.loadROI)
         self.processingMenu = menuBar.addMenu("Processing")
         self.refreshProcessingMenu()
         # refreshTimer = QtCore.QTimer(self)
@@ -135,27 +130,16 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # refreshTimer.start()
         # self.options = QtWidgets.QPushButton("Options", self)
         # self.options.clicked.connect(self.showMenu)
-        #
-        # self.menuButton = QtWidgets.QMenu(self)
-        # self.menuButton.addAction("Poly ROI", self.addPolylineROI)
-        #
-        # self.menuButton.addAction("Save ROI", self.saveROI)
-        # self.menuButton.addAction("Load ROI", self.loadROI)
-
-        # self.mainSplitter.addWidget(self.options)
 
         # Create pixel spectrum plot
         self.pixel_plot = pg.PlotWidget(title="Pixel Spectrum")
+        self.pixel_plot.resize(600, 400)
         self.pixel_plot.setLabels(left='Intensity', bottom='Frequency')
         self.mainSplitter.addWidget(self.pixel_plot)
 
         layout.addWidget(menuBar)
         layout.addWidget(self.mainSplitter)
         self.roiWind = None
-
-        self.controls.addAction("Poly ROI", self.addPolylineROI)
-        self.controls.addAction("Save ROI", self.saveROI)
-        self.controls.addAction("Load ROI", self.loadROI)
 
         # initialize status bar at bottom of widget
         self.statusBar = WorkspaceStatusBar(self)
