@@ -43,15 +43,13 @@ class MainGui(QtWidgets.QMainWindow):
                            self.fileExplorerDock)
 
         # Tabs as a dockable workspaceTabs
-        self.controlPanel = ControlPanel(self)
         # self.tabsDock = QtWidgets.QDockWidget("Tabs", self)
         # tabWidget = QtWidgets.QTabWidget()
         # tabWidget.addTab(TextWidget("Controls and Actions"), "Control Panel")
         # tabWidget.addTab(TextWidget("Adjust Settings"), "Settings")
         # tabWidget.addTab(TextWidget("View Logs"), "Logs")
         # self.tabsDock.setWidget(tabWidget)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
-                           self.controlPanel.tabsDock)
+
 
         # Spectral Image Workspace as a dockable workspaceTabs
         self.imageViewDock = QtWidgets.QDockWidget("Image Workspace", self)

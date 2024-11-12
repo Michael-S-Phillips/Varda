@@ -115,7 +115,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # self.mainSplitter.addWidget(self.imageSplitter)
 
         menuBar = QtWidgets.QMenuBar(self)
-        self.controls = parent.controlPanel.controls
         # MenuBar
         self.menuBar = QtWidgets.QMenuBar(self)
         roiMenu = self.menuBar.addMenu("ROI")
@@ -144,9 +143,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.pixel_plot.setLabels(left='Intensity', bottom='Frequency')
         self.mainSplitter.addWidget(self.pixel_plot)
         self.mainSplitter.setStretchFactor(1, 1)
-        self.controls.addAction("Poly ROI", self.addPolylineROI)
-        self.controls.addAction("Save ROI", self.saveROI)
-        self.controls.addAction("Load ROI", self.loadROI)
 
         # Connect mouse click event to the spectral plot update
         self.imageViewer.mainView.scene().sigMouseClicked.connect(
