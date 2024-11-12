@@ -14,9 +14,9 @@ color_keys = ['blue', 'green', 'red', 'cyan', 'magenta', 'yellow', 'white']
 
 class ROIWindow(QDialog):
     def __init__(self, imageWorkspace, rois):
-        super().__init__(imageWorkspace.mainImage)
+        super().__init__(imageWorkspace.imageViewer)
         self.workspace = imageWorkspace
-        self.imageView = imageWorkspace.mainImage
+        self.imageView = imageWorkspace.imageViewer.mainImageItem
         self.rois = rois
 
         self.table = QTableWidget(self)
