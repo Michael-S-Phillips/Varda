@@ -24,9 +24,9 @@ import rasterio as rio
 # local imports
 from imagetypes import ImageLoader, Image
 from imageprocessing import ImageProcess
-from gui.customwidgets.ROIWindow import ROIWindow
+from gui.customwidgets.roiwindow import ROIWindow
+from gui.customwidgets.imageviewer import ImageViewer
 import debug
-
 
 class SpectralImageWorkspace(QtWidgets.QWidget):
     """
@@ -69,86 +69,96 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(SpectralImageWorkspace, self).__init__(parent)
         self.setAcceptDrops(True)
-        self.appliedProcesses = []
-        self.update_timer = QtCore.QTimer()
-        self.update_timer = QtCore.QTimer(self)
-        self.update_timer.setSingleShot(True)
-        self.update_timer.timeout.connect(self.updateContextAndZoom)
-
         self.isLoadingImage = False
         self.image = None
         self.plot = None
         self.redBandSelect = None
         self.greenBandSelect = None
         self.blueBandSelect = None
-        self.sigBandChanged = QtCore.pyqtSignal(int)
-        self.currentBands = {'r': 0, 'g': 0, 'b': 0}
-
         self.currentROI = None
+        self.roiWind = None
+        self.sigBandChanged = QtCore.pyqtSignal(int)
+        self.updateTimer = None
+        self.initializeUpdateImageTimer()
+        self.currentBands = {'r': 0, 'g': 0, 'b': 0}
+        self.imageAxes = {'x': 1, 'y': 0, 'c': 2, 't': None}
+        self.appliedProcesses = []
         self.savedROIs = []
         self.vertices = []
         self.currentROIs = []
 
-        # create main layout
-        layout = QtWidgets.QVBoxLayout()
-        self.imageSplitter = QtWidgets.QSplitter(self)
-        self.mainSplitter = QtWidgets.QSplitter(self)
+        # create main UI elements
+        # self.imageSplitter = QtWidgets.QSplitter(self)
+        # self.mainSplitter = QtWidgets.QSplitter(self)
+        #
+        # self.mainImage = pg.ImageView(parent)
+        # self.mainImage.ui.roiBtn.setVisible(False)
+        # self.mainImage.ui.menuBtn.setVisible(False)
+        # self.contextImage = pg.ImageView(parent)
+        # self.zoomImage = pg.ImageView(parent)
+        # self.contextImage.ui.histogram.hide()
+        # self.contextImage.ui.roiBtn.setVisible(False)
+        # self.contextImage.ui.menuBtn.setVisible(False)
+        # self.zoomImage.ui.histogram.hide()
+        # self.zoomImage.ui.roiBtn.setVisible(False)
+        # self.zoomImage.ui.menuBtn.setVisible(False)
+        # self.contextZoomSplitter = QtWidgets.QSplitter(self)
 
-        self.mainImage = pg.ImageView(parent)
-        self.mainImage.ui.roiBtn.setVisible(False)
-        self.mainImage.ui.menuBtn.setVisible(False)
-        self.contextImage = pg.ImageView(parent)
-        self.zoomImage = pg.ImageView(parent)
-        self.contextImage.ui.histogram.hide()
-        self.contextImage.ui.roiBtn.setVisible(False)
-        self.contextImage.ui.menuBtn.setVisible(False)
-        self.zoomImage.ui.histogram.hide()
-        self.zoomImage.ui.roiBtn.setVisible(False)
-        self.zoomImage.ui.menuBtn.setVisible(False)
-        self.contextZoomSplitter = QtWidgets.QSplitter(self)
+        # self.imageSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
+        # self.contextZoomSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        # self.mainSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        # self.contextZoomSplitter.addWidget(self.contextImage)
+        # self.contextZoomSplitter.addWidget(self.zoomImage)
 
-        self.imageSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
-        self.contextZoomSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
-        self.mainSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
-        self.mainImage.setMinimumSize(450, 450)
-        self.contextImage.setMinimumSize(250, 250)
-        self.zoomImage.setMinimumSize(250, 250)
-        self.contextZoomSplitter.addWidget(self.contextImage)
-        self.contextZoomSplitter.addWidget(self.zoomImage)
-
-        self.imageSplitter.addWidget(self.mainImage)
-        self.imageSplitter.addWidget(self.contextZoomSplitter)
-        self.mainSplitter.addWidget(self.imageSplitter)
+        # self.imageSplitter.addWidget(self.mainImage)
+        # self.imageSplitter.addWidget(self.contextZoomSplitter)
+        # self.mainSplitter.addWidget(self.imageSplitter)
 
         menuBar = QtWidgets.QMenuBar(self)
-
-        self.processingMenu = menuBar.addMenu("Processing")
+        # MenuBar
+        self.menuBar = QtWidgets.QMenuBar(self)
+        roiMenu = self.menuBar.addMenu("ROI")
+        roiMenu.addAction("Poly ROI", self.addPolylineROI)
+        roiMenu.addAction("Save ROI", self.saveROI)
+        roiMenu.addAction("Load ROI", self.loadROI)
+        self.processingMenu = self.menuBar.addMenu("Processing")
         self.refreshProcessingMenu()
-        # refreshTimer = QtCore.QTimer(self)
-        # refreshTimer.setInterval(5000)
-        # refreshTimer.timeout.connect(self.refreshProcessingMenu)
-        # refreshTimer.start()
-        # self.options = QtWidgets.QPushButton("Options", self)
-        # self.options.clicked.connect(self.showMenu)
+
+        self.mainSplitter = QtWidgets.QSplitter(
+            parent=self, orientation=QtCore.Qt.Orientation.Vertical
+        )
+
+        # image views
+        self.imageViewer = ImageViewer()
+
+        self.mainSplitter.addWidget(self.imageViewer)
+        self.mainSplitter.setStretchFactor(0, 30)
+
+        # status bar at bottom
+        self.statusBar = WorkspaceStatusBar(self)
 
         # Create pixel spectrum plot
         self.pixel_plot = pg.PlotWidget(title="Pixel Spectrum")
         self.pixel_plot.resize(600, 400)
         self.pixel_plot.setLabels(left='Intensity', bottom='Frequency')
         self.mainSplitter.addWidget(self.pixel_plot)
-
-        layout.addWidget(menuBar)
-        layout.addWidget(self.mainSplitter)
-        self.roiWind = None
-
-        # initialize status bar at bottom of widget
-        self.statusBar = WorkspaceStatusBar(self)
-        layout.addWidget(self.statusBar)
-
-        self.setLayout(layout)
+        self.mainSplitter.setStretchFactor(1, 1)
 
         # Connect mouse click event to the spectral plot update
-        self.mainImage.scene.sigMouseClicked.connect(self.updatePixelPlot)
+        self.imageViewer.mainView.scene().sigMouseClicked.connect(
+            self.updatePixelPlot)
+
+        # initialize layout
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(self.menuBar)
+        layout.addWidget(self.mainSplitter)
+        layout.addWidget(self.statusBar)
+        self.setLayout(layout)
+
+    def initializeUpdateImageTimer(self):
+        self.updateTimer = QtCore.QTimer(self)
+        self.updateTimer.setSingleShot(True)
+        self.updateTimer.timeout.connect(self.updateContextAndZoom)
 
     def refreshProcessingMenu(self):
         print("refreshing processing menu")
@@ -157,12 +167,63 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
         self.processingMenu.clear()
         for process in ImageProcess.subclasses:
-            self.processingMenu.addAction(process.__name__, lambda: self.processImage(process))
+            print("process being added to menu:", process)
+            self.processingMenu.addAction(process.__name__,
+                                          lambda p=process: self.openProcessControlMenu(
+                                              p))
 
-    def generateProcessControlMenu(self, process):
+    class parameterWidget(QtWidgets.QWidget):
+        def __init__(self, process, parent=None):
+            super().__init__(parent)
+
+    def openProcessControlMenu(self, process):
         dialog = QtWidgets.QDialog()
-        layout = QtWidgets.QVBoxLayout()
-        pass
+        dialog.setWindowTitle(process.name)
+        layout = QtWidgets.QFormLayout()
+        layout.setSpacing(10)
+        dialog.setLayout(layout)
+
+        for name, details in process.parameters.items():
+            paramName = QtWidgets.QLabel()
+            paramName.setText(name)
+            paramName.setToolTip(details["description"])
+
+            if details["type"] == float:
+                input = QtWidgets.QLineEdit()
+                input.setText(str(details["default"]))
+                input.setValidator(QtGui.QDoubleValidator())
+                layout.addRow(paramName, input)
+            elif details["type"] == bool:
+                input = QtWidgets.QCheckBox()
+                input.setChecked(details["default"])
+                layout.addRow(paramName, input)
+
+
+
+        layout.addItem(QtWidgets.QSpacerItem(0, 20,
+                                             QtWidgets.QSizePolicy.Policy.Minimum,
+                                             QtWidgets.QSizePolicy.Policy.Expanding))
+        executeButton = QtWidgets.QPushButton("Execute")
+        executeButton.clicked.connect(lambda: self.processImage(process))
+        layout.addWidget(executeButton)
+        layout.addItem(QtWidgets.QSpacerItem(60, 0, QtWidgets.QSizePolicy.Policy.Fixed,
+                                             QtWidgets.QSizePolicy.Policy.Minimum))
+        dialog.exec()
+
+    def processImage(self, process):
+        if self.image is None:
+            self.statusBar.showMessage("You must load an image first!", 5000)
+            return
+
+        self.statusBar.showLoadingMessage()
+        # p = process()
+        self.appliedProcesses.append(process)
+        self.dispatchThreadProcess(self.image.process, self.onProcessFinished, process)
+
+    def onProcessFinished(self):
+        self.statusBar.loadingFinished()
+
+        self.updateImage()
 
     def dispatchThreadProcess(self, process, onComplete, *args, **kwargs):
         """
@@ -175,29 +236,16 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         # dispatch thread
         self.threadpool.start(worker)
 
-    def processImage(self, process):
-        if self.image is None:
-            self.statusBar.showMessage("You must load an image first!", 5000)
-            return
-        self.statusBar.showLoadingMessage()
-        p = process()
-        self.appliedProcesses.append(p)
-        self.dispatchThreadProcess(self.image.process, self.onProcessFinished, p)
-
-    def onProcessFinished(self):
-        self.statusBar.loadingFinished()
-
-        self.updateImage()
-
     def updatePixelPlot(self, event):
+        print(event.scenePos())
         """
-        Update the pixel spectrum plot with data from the clicked pixel
+        Update the pixel spectrum plot with data from the clicked pixel 
         """
         if self.image is None:
             return
 
         # Get click position in image coordinates
-        pos = self.mainImage.getImageItem().mapFromScene(event.scenePos())
+        pos = self.imageViewer.mainImageItem.mapFromScene(event.scenePos())
         x, y = int(pos.x()), int(pos.y())
 
         # Check if click is within image bounds
@@ -228,11 +276,14 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
     @override
     def dragEnterEvent(self, event, **kwargs):
-        # TODO: Allow other file extensions
         # dont allow user to load image if previous image is still loading
         if (self.isLoadingImage):
             return
-        event.acceptProposedAction()
+        # TODO: Make it so we don't need to hardcode possible file extensions
+        if str(Path(event.mimeData().urls()[0].toLocalFile())).endswith(
+                ('.hdr', '.img', '.h5')):
+            event.acceptProposedAction()
+
 
     @override
     def dropEvent(self, event, **kwargs):
@@ -257,6 +308,8 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         return ImageLoader.new_image(fileName)
 
     def onImageLoaded(self, image):
+        self.isLoadingImage = False
+
         # clear loading status
         self.statusBar.loadingFinished()
 
@@ -301,7 +354,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         else:
             self.plot.plotItem.clear()
             self.plot.plotItem.plot(self.image.mean)
-            
 
         # construct red band selector
         if self.redBandSelect is None:
@@ -311,7 +363,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
                 movable=True,
                 bounds=(minWavelength, maxWavelength)
             )
-            self.redBandSelect.sigPositionChanged.connect(self.greenBandChanged)
+            self.redBandSelect.sigPositionChanged.connect(self.redBandChanged)
         else:
             self.redBandSelect.setValue(wavelength[self.image.default_bands['r']])
             self.redBandSelect.setBounds((minWavelength, maxWavelength))
@@ -349,6 +401,13 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.plot.addItem(self.redBandSelect)
 
         self.mainSplitter.addWidget(self.plot)
+        self.mainSplitter.setStretchFactor(2, 1)
+
+    def redBandChanged(self):
+        (ind, val) = self.bandIndex(self.redBandSelect)
+        if ind != self.currentBands['r']:
+            self.currentBands['r'] = ind
+            self.updateImage()
 
     def greenBandChanged(self):
         (ind, val) = self.bandIndex(self.greenBandSelect)
@@ -363,44 +422,42 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             self.updateImage()
 
     def setImage(self):
-        if debug.DEBUG:
-            timeStarted = time.perf_counter() * 1000
+        profile = debug.Profiler()
         img = self.image.data[:, :, list(self.currentBands.values())]
         levels = (0, 1)
         axes = {'x': 1, 'y': 0, 'c': 2, 't': None}
+        self.imageViewer.setImage(img)
 
-        self.mainImage.setImage(img, autoLevels=False, levels=levels,
-                                         axes=axes,
-                                autoHistogramRange=False, levelMode="rgba")
-        self.contextImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
-                                   autoHistogramRange=False, levelMode="rgba")
-        self.zoomImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
-                                autoHistogramRange=False, levelMode="rgba")
 
-        if timeStarted:
-            print("time to set images:", round(time.perf_counter() * 1000 -
-                                               timeStarted, 3),
-                                               "ms")
+        # self.mainImage.setImage(img, autoLevels=False, levels=levels,
+        #                         axes=axes,
+        #                         autoHistogramRange=False, levelMode="rgba")
+        # self.contextImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
+        #                            autoHistogramRange=False, levelMode="rgba")
+        # self.zoomImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
+        #                         autoHistogramRange=False, levelMode="rgba")
+
+        profile("Time to set images")
 
     def updateImage(self):
         profile = debug.Profiler()
+
         img = self.image.data[:, :, list(self.currentBands.values())]
+        self.imageViewer.mainImageItem.setImage(img.view())
+        self.updateTimer.start(50)  # Adjust the interval if needed
 
-        self.mainImage.imageItem.setImage(img.view())
+        profile("time to update main view")
 
-        self.update_timer.start(50)  # Adjust the interval if needed
-
-
-        profile("time to update views")
 
     def updateContextAndZoom(self):
+        profile = debug.Profiler()
+
         img = self.image.data[:, :, list(self.currentBands.values())]
 
-        self.contextImage.imageItem.image = img.view()
-        self.contextImage.imageItem.updateImage()
+        self.imageViewer.mainImageItem.setImage(img.view())
 
-        self.zoomImage.imageItem.image = img.view()
-        self.zoomImage.imageItem.updateImage()
+        profile("time to update context and zoom views")
+
 
     def bandIndex(self, band):
         """
@@ -432,9 +489,9 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.roiWind = ROIWindow(self, self.savedROIs)
         self.roiWind.show()
 
-
     def showProcessingMenu(self):
-        self.processingMenu.exec(self.options.mapToGlobal(self.options.rect().bottomLeft()))
+        self.processingMenu.exec(
+            self.options.mapToGlobal(self.options.rect().bottomLeft()))
 
     def loadROIState(self, i):
         self.currentROI = self.savedROIs[i]
@@ -453,18 +510,18 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             self.savedROIs.append(self.currentROI)
         initial_points = [[100, 100], [100, 300], [300, 300], [300, 100]]
         self.currentROI = pg.PolyLineROI(initial_points, closed=True)
-        self.currentROI.setPen(mkPen(cosmetic=False, width=2, color=Colors[color_keys[len(self.currentROIs)]]))
+        self.currentROI.setPen(mkPen(cosmetic=False, width=2,
+                                     color=Colors[color_keys[len(self.currentROIs)]]))
         self.currentROIs.append(self.currentROI)
         for ROI in self.currentROIs:
-            self.mainImage.addItem(ROI)
-
+            self.imageViewer.mainView.addItem(ROI)
 
     def roi_in_range(self, roi):
         # checking to see if the roi is fully inside the image. Not sure if this is
         # necessary, or if rois can be slightly outside the image and thats okay
         if self.image:
             img_width, img_height = self.image._meta.width, self.image._meta.height
-            
+
             for vertex in roi.getLocalHandlePositions():
                 pos = vertex[1]
                 x, y = pos.x(), pos.y()
@@ -476,14 +533,13 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         print("No image has been loaded yet")
         return False
 
-    
     def calculate_mean_stats(self, data, mask, allow_nan):
         gstats = spectral.calc_stats(data, mask=mask, allow_nan=allow_nan)
         mean_spectrum = gstats.mean
         mean_spectrum = np.where(mean_spectrum < 0, np.nan, mean_spectrum)
         mean_spectrum = np.where(mean_spectrum > 1, np.nan, mean_spectrum)
         return mean_spectrum
-    
+
     def calculate_std_stats(self, data, mask, allow_nan):
         # mask_std = np.zeros((self.image._meta.height, self.image._meta.width, self.image._meta.bandcount), dtype=np.uint8)
         # std_spectrum = data * mask_std
@@ -502,38 +558,42 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         print("Loading mean spectrum plot...")
         if (self.roi_in_range(roi)):
             # (Using similar routine to original scat.py), getting the roi as a slice of the
-            # data image array, then masking it with the original image 
+            # data image array, then masking it with the original image
             # Need to check with michael that this is done correctly
-            mask = np.zeros((self.image._meta.width, self.image._meta.height), dtype=np.uint8)
+            mask = np.zeros((self.image._meta.width, self.image._meta.height),
+                            dtype=np.uint8)
 
-            polygon_points_int = [(int(pos.x()), int(pos.y())) for _, pos in roi.getLocalHandlePositions()]
+            polygon_points_int = [(int(pos.x()), int(pos.y())) for _, pos in
+                                  roi.getLocalHandlePositions()]
             cv2.fillPoly(mask, [np.array(polygon_points_int)], 1)
 
-            mean_spec = self.calculate_mean_stats(self.image._data, mask, True)
+            mean_spec = self.calculate_mean_stats(self.image.data, mask, True)
 
             print("plotting spectrum ")
             if self.plot is None:
                 self.plot = pg.plot(x=range(len(mean_spec)), y=mean_spec,
-                                title="Mean spectrum",
-                                labels={'left': 'Average Strength',
-                                        'bottom': 'Band'})
+                                    title="Mean spectrum",
+                                    labels={'left': 'Average Strength',
+                                            'bottom': 'Band'})
                 self.plot.setMouseEnabled(x=False, y=False)
             else:
                 self.plot.plotItem.clear()
                 self.plot.setWindowTitle("Mean spectrum")
-                self.plot.setLabel('bottom', "Band") 
-                self.plot.setLabel('left', "Average Strength") 
-                self.plot.plot(range(len(mean_spec)), mean_spec) 
+                self.plot.setLabel('bottom', "Band")
+                self.plot.setLabel('left', "Average Strength")
+                self.plot.plot(range(len(mean_spec)), mean_spec)
 
     def loadStdPlot(self, roi):
         print("Loading std spectrum plot...")
         if (self.roi_in_range(roi)):
-             # (Using similar routine to original scat.py), getting the roi as a slice of the
-            # data image array, then masking it with the original image 
+            # (Using similar routine to original scat.py), getting the roi as a slice of the
+            # data image array, then masking it with the original image
             # Need to check with michael that this is done correctly
-            mask1 = np.zeros((self.image._meta.width, self.image._meta.height), dtype=np.uint8)
+            mask1 = np.zeros((self.image._meta.width, self.image._meta.height),
+                             dtype=np.uint8)
 
-            polygon_points_int = [(int(pos.x()), int(pos.y())) for _, pos in roi.getLocalHandlePositions()]
+            polygon_points_int = [(int(pos.x()), int(pos.y())) for _, pos in
+                                  roi.getLocalHandlePositions()]
             cv2.fillPoly(mask1, [np.array(polygon_points_int)], 1)
 
             std_spec = self.calculate_std_stats(self.image._data, mask1, True)
@@ -542,16 +602,16 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             bands = self.image._meta.bandcount
             if self.plot is None:
                 self.plot = pg.plot(x=range(len(std_spec)), y=std_spec,
-                                title="Mean spectrum",
-                                labels={'left': 'Average Strength',
-                                        'bottom': 'Band'})
+                                    title="Mean spectrum",
+                                    labels={'left': 'Average Strength',
+                                            'bottom': 'Band'})
                 self.plot.setMouseEnabled(x=False, y=False)
             else:
                 self.plot.plotItem.clear()
                 self.plot.setWindowTitle("Mean spectrum")
-                self.plot.setLabel('bottom', "Band") 
-                self.plot.setLabel('left', "Average Strength") 
-                self.plot.plot(range(len(std_spec)), std_spec) 
+                self.plot.setLabel('bottom', "Band")
+                self.plot.setLabel('left', "Average Strength")
+                self.plot.plot(range(len(std_spec)), std_spec)
 
 
 """

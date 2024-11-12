@@ -13,7 +13,30 @@ class ImageProcess(ABC):
         print("ImageProcess subclass added")
         print(ImageProcess.subclasses)
 
+    @property
+    @abstractmethod
+    def name(self):
+        pass
+
+    @property
+    @abstractmethod
+    def path(self):
+        pass
+
+    @property
+    @abstractmethod
+    def parameters(self):
+        pass
 
     @abstractmethod
     def execute(self, image):
         pass
+
+
+    @classmethod
+    def __str__(cls):
+        return "name: " + cls.__name__
+
+    @classmethod
+    def __repr__(cls):
+        return "name: " + cls.__name__

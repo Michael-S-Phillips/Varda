@@ -3,13 +3,14 @@ from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QMenu, QMessageB
 from PyQt6.QtCore import Qt, QPoint, QEvent
 import sys
 
+
 class DropdownMenu(QMenu):
     # subclass for controlPanel, creates a dropdown menu inside a dropdown menu
     # for the controls panel
     def __init__(self, options, event_handler, parent=None):
         super().__init__(parent)
         self.options = options
-        self.event_handler = event_handler  
+        self.event_handler = event_handler
         self.create_menu()
 
     def create_menu(self):
@@ -24,25 +25,28 @@ class DropdownMenu(QMenu):
             action = QAction(action_text, self)
             action.triggered.connect(lambda checked, text=action_text: self.event_handler(option_text, text))
             secondary_menu.addAction(action)
-        
+
         main_menu_position = self.geometry().topRight()
-        secondary_menu_position = main_menu_position + QPoint(0, index * self.actionGeometry(self.actions()[index]).height())
+        secondary_menu_position = main_menu_position + QPoint(0, index * self.actionGeometry(
+            self.actions()[index]).height())
         secondary_menu.popup(secondary_menu_position)
 
+
 class ControlPanel(QWidget):
-    # this is the control panel that appears on the top right of the GUI. It holds an instance of imageWorkspace 
+    # this is the control panel that appears on the top right of the GUI. It holds an instance of imageWorkspace
     # so you can access functions from there for each control option
     def __init__(self, imgWorkspace, parent=None):
         super(ControlPanel, self).__init__(parent)
         self.imgWorkspace = imgWorkspace
         self.tabsDock = QDockWidget("Tabs", self)
         self.tabWidget = QTabWidget()
-        
+
         # Define secondary menu options and initialize dropdown menus with event handler
         # Add any new control options or setting options here, and update the handle_menu_action function
         self.dropdown_menus = {
             "Controls": DropdownMenu(
-                {"ROI Options": ["Poly ROI", "Save ROI", "Load ROI"], "Option 2": ["Action 2-1", "Action 2-2"], "Option 3": ["Action 3-1", "Action 3-2"]},
+                {"ROI Options": ["Poly ROI", "Save ROI", "Load ROI"], "Option 2": ["Action 2-1", "Action 2-2"],
+                 "Option 3": ["Action 3-1", "Action 3-2"]},
                 self.handle_menu_action, self
             ),
             "Adjust Settings": DropdownMenu(
@@ -54,7 +58,7 @@ class ControlPanel(QWidget):
                 self.handle_menu_action, self
             ),
         }
-        
+
         # Add tabs with empty content; dropdown menu will trigger on tab clicks
         self.tabWidget.addTab(QWidget(), "Controls")
         self.tabWidget.addTab(QWidget(), "Adjust Settings")
@@ -63,7 +67,7 @@ class ControlPanel(QWidget):
         # Set up event filter to capture tab clicks
         self.tabWidget.tabBar().installEventFilter(self)
         self.tabsDock.setWidget(self.tabWidget)
-        
+
         # Main layout for ControlPanel
         main_layout = QVBoxLayout()
         main_layout.addWidget(self.tabsDock)
@@ -79,7 +83,8 @@ class ControlPanel(QWidget):
 
     def show_dropdown_menu(self, tab_text):
         menu = self.dropdown_menus[tab_text]
-        tab_position = self.tabWidget.tabBar().mapToGlobal(self.tabWidget.tabBar().tabRect(self.tabWidget.currentIndex()).bottomLeft())
+        tab_position = self.tabWidget.tabBar().mapToGlobal(
+            self.tabWidget.tabBar().tabRect(self.tabWidget.currentIndex()).bottomLeft())
         menu.exec(tab_position)
 
     def handle_menu_action(self, primary_option, secondary_action):
