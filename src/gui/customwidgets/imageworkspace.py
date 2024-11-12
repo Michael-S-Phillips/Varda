@@ -517,7 +517,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
                                      color=Colors[color_keys[len(self.currentROIs)]]))
         self.currentROIs.append(self.currentROI)
         for ROI in self.currentROIs:
-            self.mainImage.addItem(ROI)
+            self.imageViewer.mainView.addItem(ROI)
 
     def roi_in_range(self, roi):
         # checking to see if the roi is fully inside the image. Not sure if this is
@@ -570,7 +570,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
                                   roi.getLocalHandlePositions()]
             cv2.fillPoly(mask, [np.array(polygon_points_int)], 1)
 
-            mean_spec = self.calculate_mean_stats(self.image._data, mask, True)
+            mean_spec = self.calculate_mean_stats(self.image.data, mask, True)
 
             print("plotting spectrum ")
             if self.plot is None:
