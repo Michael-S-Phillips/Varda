@@ -19,6 +19,6 @@ class ImageLoader:
         print(image_type)
         print(Image.subclasses)
         for c in Image.subclasses:
-            if c.image_type == image_type:
+            if image_type in c.image_type:
                 return c(file_path)
         raise ValueError(f"Bad file type {image_type}")

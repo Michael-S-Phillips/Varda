@@ -31,7 +31,7 @@ class HDF5Image(Image):
     def process(self, process):
         self._data = process.execute(image=self._data)
 
-    image_type = ".h5"
+    image_type = (".h5")
 
     @override
     def __init__(self, file_path):

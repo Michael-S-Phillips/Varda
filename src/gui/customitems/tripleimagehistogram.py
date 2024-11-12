@@ -8,6 +8,9 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 import debug
 
 class TripleImageHistogram(pg.HistogramLUTItem):
+    """
+    Allows us to control the levels of three images via a single histogram
+    """
     def __init__(self, mainImage, contextImage, zoomImage, **kwargs):
         super().__init__(mainImage, **kwargs)
         self.contextHistogram = pg.HistogramLUTItem(contextImage, **kwargs)

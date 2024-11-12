@@ -280,11 +280,14 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
     @override
     def dragEnterEvent(self, event, **kwargs):
-        # TODO: Allow other file extensions
         # dont allow user to load image if previous image is still loading
         if (self.isLoadingImage):
             return
-        event.acceptProposedAction()
+        # TODO: Make it so we don't need to hardcode possible file extensions
+        if str(Path(event.mimeData().urls()[0].toLocalFile())).endswith(
+                ('.hdr', '.img', '.h5')):
+            event.acceptProposedAction()
+
 
     @override
     def dropEvent(self, event, **kwargs):

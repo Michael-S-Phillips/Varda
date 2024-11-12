@@ -18,13 +18,14 @@ class ENVIImage(Image):
     def process(self, process):
         self._data = process.execute(image=self._data)
 
-    image_type = ".img"
+    image_type = (".hdr", ".img")
 
     @override
     def __init__(self, file_path):
         print("ENVI subclass Used")
 
-        self._file_path = file_path
+
+        self._file_path = file_path.replace(".hdr", ".img")
         self._meta = None
         self._header_data = None
         self._data = None
@@ -43,6 +44,7 @@ class ENVIImage(Image):
             return
 
         timeStarted = time.time()
+
         with rio.open(self._file_path) as src:
             print("time to open file: ", time.time() - timeStarted)
 
