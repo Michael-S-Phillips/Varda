@@ -16,9 +16,11 @@ class TripleImageHistogram(pg.HistogramLUTItem):
         self.contextHistogram = pg.HistogramLUTItem(contextImage, **kwargs)
         self.zoomHistogram = pg.HistogramLUTItem(zoomImage, **kwargs)
 
-
     @override
     def regionChanging(self):
+        """
+        override of the regionChanging method to update the levels of all three images
+        """
         profile = debug.Profiler()
         super().regionChanging()
         self.contextHistogram.imageItem().setLevels(self.getLevels())
