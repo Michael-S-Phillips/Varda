@@ -40,12 +40,14 @@ class ControlPanel(QWidget):
         self.imgWorkspace = imgWorkspace
         self.tabsDock = QDockWidget("Tabs", self)
         self.tabWidget = QTabWidget()
+        
 
         # Define secondary menu options and initialize dropdown menus with event handler
         # Add any new control options or setting options here, and update the handle_menu_action function
         self.dropdown_menus = {
             "Controls": DropdownMenu(
-                {"ROI Options": ["Poly ROI", "Save ROI", "Load ROI"], "Option 2": ["Action 2-1", "Action 2-2"],
+                {"ROI Options": ["Poly ROI", "Save ROI", "Load ROI"], 
+                 "Plots": ["Pixel Plot", "Avg Strength Plot"],
                  "Option 3": ["Action 3-1", "Action 3-2"]},
                 self.handle_menu_action, self
             ),
@@ -90,10 +92,21 @@ class ControlPanel(QWidget):
     def handle_menu_action(self, primary_option, secondary_action):
         # load actions here for primary / secondary actions. Use methods in self.imgWorkspace
         # to access image data.
-        if primary_option == "ROI Options":
+        if self.imgWorkspace.image is not None and primary_option == "ROI Options":
             if secondary_action == "Poly ROI":
                 self.imgWorkspace.addPolylineROI()
             elif secondary_action == "Save ROI":
                 self.imgWorkspace.saveROI()
             elif secondary_action == "Load ROI":
                 self.imgWorkspace.loadROI()
+        if self.imgWorkspace.image is not None and primary_option == "Plots":
+            if secondary_action == "Pixel Plot":
+                self.imgWorkspace.pixel_plot.show()
+                self.imgWorkspace.plot.hide()
+                self.imgWorkspace.ROIplot.hide()
+            if secondary_action == "Avg Strength Plot":
+                self.imgWorkspace.pixel_plot.hide()
+                self.imgWorkspace.plot.show()
+                self.imgWorkspace.ROIplot.hide()
+        else:
+            pass

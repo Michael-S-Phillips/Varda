@@ -50,7 +50,6 @@ class MainGui(QtWidgets.QMainWindow):
         # tabWidget.addTab(TextWidget("View Logs"), "Logs")
         # self.tabsDock.setWidget(tabWidget)
 
-
         # Spectral Image Workspace as a dockable workspaceTabs
         self.imageViewDock = QtWidgets.QDockWidget("Image Workspace", self)
         self.imageView = SpectralImageWorkspace(self)

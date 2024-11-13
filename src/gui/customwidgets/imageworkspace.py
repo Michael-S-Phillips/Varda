@@ -72,6 +72,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.isLoadingImage = False
         self.image = None
         self.plot = None
+        self.ROIplot = None
         self.redBandSelect = None
         self.greenBandSelect = None
         self.blueBandSelect = None
@@ -142,9 +143,10 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
         # Create pixel spectrum plot
         self.pixel_plot = pg.PlotWidget(title="Pixel Spectrum")
-        self.pixel_plot.resize(600, 400)
+        self.pixel_plot.setMinimumSize(600, 300)
         self.pixel_plot.setLabels(left='Intensity', bottom='Frequency')
         self.mainSplitter.addWidget(self.pixel_plot)
+        self.pixel_plot.hide()
         self.mainSplitter.setStretchFactor(1, 1)
 
         # Connect mouse click event to the spectral plot update
@@ -290,7 +292,13 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
     @override
     def dropEvent(self, event, **kwargs):
+        if self.isLoadingImage:
+            self.cancelCurrentLoad()
+        if self.image is not None:
+            self.resetView()
+            self.image = None
         self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
+        
 
     def loadImage(self, fileName):
         self.isLoadingImage = True
@@ -306,6 +314,10 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
         # execute thread
         self.threadpool.start(worker)
+
+    def cancelCurrentThread(self):
+        self.isLoadingImage = False
+        self.threadpool.clear()
 
     def createImageObject(self, fileName) -> Image:
         return ImageLoader.new_image(fileName)
@@ -433,6 +445,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.plot.addItem(self.redBandSelect)
 
         self.mainSplitter.addWidget(self.plot)
+        self.plot.setMinimumSize(600, 300)
         self.mainSplitter.setStretchFactor(2, 1)
 
     def setImage(self):
@@ -585,18 +598,16 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             mean_spec = self.calculate_mean_stats(self.image.data, mask, True)
 
             print("plotting spectrum ")
-            if self.plot is None:
-                self.plot = pg.plot(x=range(len(mean_spec)), y=mean_spec,
-                                    title="Mean spectrum",
-                                    labels={'left': 'Average Strength',
-                                            'bottom': 'Band'})
-                self.plot.setMouseEnabled(x=False, y=False)
-            else:
-                self.plot.plotItem.clear()
-                self.plot.setWindowTitle("Mean spectrum")
-                self.plot.setLabel('bottom', "Band")
-                self.plot.setLabel('left', "Average Strength")
-                self.plot.plot(range(len(mean_spec)), mean_spec)
+            #if self.plot is None:
+            self.ROIplot = pg.plot(x=range(len(mean_spec)), y=mean_spec,
+                                title="Mean spectrum",
+                                labels={'left': 'Average Strength',
+                                        'bottom': 'Band'})
+            self.ROIplot.setMouseEnabled(x=False, y=False)
+            self.ROIplot.setMinimumSize(600, 300)
+            self.ROIplot.setMaximumSize(1100, 300)
+            self.plot.hide()
+            self.mainSplitter.addWidget(self.ROIplot)
 
     def loadStdPlot(self, roi):
         print("Loading std spectrum plot...")
@@ -615,18 +626,28 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
             print("plotting spectrum (std)")
             bands = self.image._meta.bandcount
-            if self.plot is None:
-                self.plot = pg.plot(x=range(len(std_spec)), y=std_spec,
-                                    title="Mean spectrum",
-                                    labels={'left': 'Average Strength',
-                                            'bottom': 'Band'})
-                self.plot.setMouseEnabled(x=False, y=False)
-            else:
-                self.plot.plotItem.clear()
-                self.plot.setWindowTitle("Mean spectrum")
-                self.plot.setLabel('bottom', "Band")
-                self.plot.setLabel('left', "Average Strength")
-                self.plot.plot(range(len(std_spec)), std_spec)
+            # if self.plot is None:
+            #     self.plot = pg.plot(x=range(len(std_spec)), y=std_spec,
+            #                         title="Mean spectrum",
+            #                         labels={'left': 'Average Strength',
+            #                                 'bottom': 'Band'})
+            #     self.plot.setMouseEnabled(x=False, y=False)
+            # else:
+            #     self.plot.plotItem.clear()
+            #     self.plot.setWindowTitle("Mean spectrum")
+            #     self.plot.setLabel('bottom', "Band")
+            #     self.plot.setLabel('left', "Average Strength")
+            #     self.plot.plot(range(len(std_spec)), std_spec)
+
+            self.ROIplot = pg.plot(x=range(len(std_spec)), y=std_spec,
+                                title="Mean spectrum",
+                                labels={'left': 'Average Strength',
+                                        'bottom': 'Band'})
+            self.ROIplot.setMouseEnabled(x=False, y=False)
+            self.ROIplot.setMinimumSize(600, 300)
+            self.ROIplot.setMaximumSize(1100, 300)
+            self.plot.hide()
+            self.mainSplitter.addWidget(self.ROIplot)
 
 
 """
