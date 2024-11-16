@@ -12,8 +12,8 @@ class TripleImageHistogram(pg.HistogramLUTItem):
     Allows us to control the levels of three images via a single histogram
     """
     def __init__(self, mainImage, contextImage, zoomImage, **kwargs):
-        super().__init__(mainImage, **kwargs)
-        self.contextHistogram = pg.HistogramLUTItem(contextImage, **kwargs)
+        super().__init__(contextImage, **kwargs)
+        self.mainImageHistogram = pg.HistogramLUTItem(mainImage, **kwargs)
         self.zoomHistogram = pg.HistogramLUTItem(zoomImage, **kwargs)
 
     @override
@@ -23,6 +23,6 @@ class TripleImageHistogram(pg.HistogramLUTItem):
         """
         profile = debug.Profiler()
         super().regionChanging()
-        self.contextHistogram.imageItem().setLevels(self.getLevels())
+        self.mainImageHistogram.imageItem().setLevels(self.getLevels())
         self.zoomHistogram.imageItem().setLevels(self.getLevels())
         profile("Time to Update Histogram Levels")

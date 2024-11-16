@@ -53,6 +53,8 @@ class MainGui(QtWidgets.QMainWindow):
         # Spectral Image Workspace as a dockable workspaceTabs
         self.imageViewDock = QtWidgets.QDockWidget("Image Workspace", self)
         self.imageView = SpectralImageWorkspace(self)
+        self.anotherView = SpectralImageWorkspace(self)
+
         self.imageViewDock.setWidget(self.imageView)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
                            self.imageViewDock)
@@ -64,7 +66,8 @@ class MainGui(QtWidgets.QMainWindow):
         # Setup the menu bar
         menuBar = self.menuBar()
         fileMenu = menuBar.addMenu('File')
-        fileMenu.addAction('Open', self.openFile)
+        importMenu = fileMenu.addMenu('Import')
+        importMenu.addAction('Import Image', self.openFile)
         fileMenu.addAction('Save', self.saveFile)
         fileMenu.addAction('Exit', self.exitApp)
 

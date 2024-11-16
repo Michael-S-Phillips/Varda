@@ -10,12 +10,6 @@ class Image(ABC):
     # dictionary of all subclasses of SpectralImage, mapped to their associated keyword
     subclasses = []
 
-    # this forces subclasses to set this value
-    @property
-    @abstractmethod
-    def image_type(self):
-        pass
-
     def __init_subclass__(cls, **kwargs):
         """
         runs whenever a subclass is declared. adds it to the list of available subclasses
@@ -48,6 +42,12 @@ class Image(ABC):
             return self.data[:, :, bands]
         except TypeError:
             raise TypeError("bands must be an iterable object (list, tuple, ndarray)")
+
+    # @property @abstractmethod forces subclasses to create a variable with this name
+    @property
+    @abstractmethod
+    def image_type(self):
+        pass
 
     @property
     @abstractmethod

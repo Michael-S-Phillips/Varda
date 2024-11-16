@@ -76,6 +76,8 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.redBandSelect = None
         self.greenBandSelect = None
         self.blueBandSelect = None
+        self.allBandSelect = None
+        self.displayGreyscale = False
         self.currentROI = None
         self.roiWind = None
         self.sigBandChanged = QtCore.pyqtSignal(int)
@@ -295,10 +297,9 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         if self.isLoadingImage:
             self.cancelCurrentLoad()
         if self.image is not None:
-            self.resetView()
             self.image = None
         self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
-        
+
 
     def loadImage(self, fileName):
         self.isLoadingImage = True
@@ -362,8 +363,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         if self.image.meta.default_bands is not None:
             self.currentBands = self.image.meta.default_bands
         else:
-            self.currentBands = {'r': 0, 'g': 0,
-                                 'b': 0}
+            self.currentBands = {'r': 0, 'g': 0, 'b': 0}
 
         # construct plot
         if self.plot is None:
@@ -375,29 +375,38 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         else:
             self.plot.plotItem.clear()
             self.plot.plotItem.plot(x=wavelength, y=self.image.mean)
-        self.redBandSelect = self.plot.getPlotItem().addLine(
-            x=wavelength[self.currentBands['r']],
-            pen=(pg.mkPen(color='red', width=2)),
-            movable=True,
-            bounds=(minWavelength, maxWavelength)
-        )
-        self.redBandSelect.sigPositionChanged.connect(self.updateImage)
 
-        self.greenBandSelect = self.plot.getPlotItem().addLine(
-            x=wavelength[self.currentBands['g']],
-            pen=(pg.mkPen(color='green', width=2)),
-            movable=True,
-            bounds=(minWavelength, maxWavelength)
-        )
-        self.greenBandSelect.sigPositionChanged.connect(self.updateImage)
+        if self.displayGreyscale:
+            self.allBandSelect = self.plot.getPlotItem().addLine(
+                x=wavelength[self.currentBands['r']],
+                pen=(pg.mkPen(color='white', width=2)),
+                movable=True,
+                bounds=(minWavelength, maxWavelength)
+            )
+        else:
+            self.redBandSelect = self.plot.getPlotItem().addLine(
+                x=wavelength[self.currentBands['r']],
+                pen=(pg.mkPen(color='red', width=2)),
+                movable=True,
+                bounds=(minWavelength, maxWavelength)
+            )
+            self.redBandSelect.sigPositionChanged.connect(self.updateImage)
 
-        self.blueBandSelect = self.plot.getPlotItem().addLine(
-            x=wavelength[self.currentBands['b']],
-            pen=(pg.mkPen(color='blue', width=2)),
-            movable=True,
-            bounds=(minWavelength, maxWavelength)
-        )
-        self.blueBandSelect.sigPositionChanged.connect(self.updateImage)
+            self.greenBandSelect = self.plot.getPlotItem().addLine(
+                x=wavelength[self.currentBands['g']],
+                pen=(pg.mkPen(color='green', width=2)),
+                movable=True,
+                bounds=(minWavelength, maxWavelength)
+            )
+            self.greenBandSelect.sigPositionChanged.connect(self.updateImage)
+
+            self.blueBandSelect = self.plot.getPlotItem().addLine(
+                x=wavelength[self.currentBands['b']],
+                pen=(pg.mkPen(color='blue', width=2)),
+                movable=True,
+                bounds=(minWavelength, maxWavelength)
+            )
+            self.blueBandSelect.sigPositionChanged.connect(self.updateImage)
 
         # construct red band selector
         # if self.redBandSelect is None:
@@ -445,8 +454,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.plot.addItem(self.redBandSelect)
 
         self.mainSplitter.addWidget(self.plot)
-        self.plot.setMinimumSize(600, 300)
-        self.mainSplitter.setStretchFactor(2, 1)
+        self.mainSplitter.setStretchFactor(2, 4)
 
     def setImage(self):
         profile = debug.Profiler()
@@ -455,14 +463,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         axes = {'x': 1, 'y': 0, 'c': 2, 't': None}
         self.imageViewer.setImage(img)
 
-
-        # self.mainImage.setImage(img, autoLevels=False, levels=levels,
-        #                         axes=axes,
-        #                         autoHistogramRange=False, levelMode="rgba")
-        # self.contextImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
-        #                            autoHistogramRange=False, levelMode="rgba")
-        # self.zoomImage.setImage(img, autoLevels=False, levels=levels, axes=axes,
-        #                         autoHistogramRange=False, levelMode="rgba")
         profile("Time to set images")
 
     def updateBands(self):
@@ -475,9 +475,9 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
         self.updateBands()
         img = self.image.data[:, :, list(self.currentBands.values())]
-        self.imageViewer.setMainImage(img.view())
+        self.imageViewer.updateImage(img.view())
 
-        self.updateTimer.start(50)  # Adjust the interval if needed
+        # self.updateTimer.start(50)  # Adjust the interval if needed
 
         profile("time to update main view")
 
