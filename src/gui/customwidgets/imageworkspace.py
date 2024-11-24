@@ -33,40 +33,6 @@ class ImageWorkspace(QtWidgets.QWidget):
     This class represents an entire "workspace" in varda, which is how the user
     interacts with an image.
     """
-    threadpool = QThreadPool()
-
-    class BackgroundWorker(QtCore.QRunnable):
-        """
-        A basic setup to run functions on a separate thread.
-        """
-
-        class Signals(QtCore.QObject):
-            """
-            QRunnable cannot define pyqtSignals because it doesnt inherit from QObject
-            So we create this inner class to define signals
-            """
-            finished = QtCore.pyqtSignal()
-            result = QtCore.pyqtSignal(object)
-
-        def __init__(self, fn, *args, **kwargs):
-            """
-            Initializes the worker with the function it is to execute when being run
-            @param fn: The function we want to run on a seperate thread
-            @param args: any necessary function arguments
-            @param kwargs: any necessary function keyword arguments
-            """
-            super().__init__()
-            self._fn = fn
-            self._args = args
-            self._kwargs = kwargs
-            self.signals = self.Signals()
-
-        @QtCore.pyqtSlot()
-        def run(self):
-            result = self._fn(*self._args, **self._kwargs)
-            self.signals.result.emit(result)
-
-
 
     def __init__(self, parent=None, file=None):
         super(ImageWorkspace, self).__init__(parent)
@@ -213,17 +179,6 @@ class ImageWorkspace(QtWidgets.QWidget):
 
         self.updateImage()
 
-    def dispatchThreadProcess(self, process, onComplete, *args, **kwargs):
-        """
-        General purpose method to dispatch a process to a thread
-        """
-        # initialize BackgroundWorker
-        worker = self.BackgroundWorker(process, *args, **kwargs)
-        # connect signals
-        worker.signals.result.connect(onComplete)
-        # dispatch thread
-        self.threadpool.start(worker)
-
     def updatePixelPlot(self, event):
         print(event.scenePos())
         """
@@ -285,15 +240,7 @@ class ImageWorkspace(QtWidgets.QWidget):
 
         # update status to indicate loading
         self.statusBar.showLoadingMessage()
-
-        # initialize BackgroundWorker
-        worker = self.BackgroundWorker(self.createImageObject, fileName)
-
-        # connect signals
-        worker.signals.result.connect(self.onImageLoaded)
-
-        # execute thread
-        self.threadpool.start(worker)
+        vardathreading.dispatchThreadProcess(self.createImageObject, self.onImageLoaded, fileName)
 
     def cancelCurrentThread(self):
         self.isLoadingImage = False
