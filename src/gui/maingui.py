@@ -1,13 +1,20 @@
-from gui import maingui
-
-from PyQt6 import QtCore, QtGui, QtWidgets
-import pyqtgraph as pg
-from gui.customwidgets import FileExplorer, SpectralImageWorkspace
-from gui.customwidgets.controlpanel import ControlPanel
-from pathlib import Path
-from PyQt6.QtGui import QIcon
+# standard library
 import sys
 import os
+from pathlib import Path
+
+# third party imports
+from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6.QtGui import QIcon
+import pyqtgraph as pg
+
+# local imports
+import vardathreading
+from gui.customwidgets.controlpanel import ControlPanel
+from models import ImageLoader
+from models.imagelistmodel import ImageListModel
+from gui.customwidgets import (FileExplorer, ImageWorkspace, ExpandableWidget,
+                               ImageListView)
 
 '''
 "FYI": maingui.py will initialize window and layout.
@@ -17,7 +24,7 @@ visualization classes accordingly.
 '''
 
 
-class MainGui(QtWidgets.QMainWindow):
+class MainGUI(QtWidgets.QMainWindow):
     """
     Creates the main window and layout for the GUI. Each GUI
     component is initialized (we will probably need to turn each
@@ -27,64 +34,119 @@ class MainGui(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Varda")
-        # set configs
+        # set pyqtgraph configs
         pg.setConfigOptions(imageAxisOrder='row-major')
+
         self.initUI()
 
     def initUI(self):
-        # Create a splitter for the main layout
-        splitter = QtWidgets.QSplitter()
+        # make dock tabs appear on top
+        self.setTabPosition(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas,
+                            QtWidgets.QTabWidget.TabPosition.North)
 
-        # File Explorer as a dockable workspaceTabs
-        self.fileExplorerDock = QtWidgets.QDockWidget("File Explorer", self)
-        self.fileExplorer = FileExplorer()
-        self.fileExplorerDock.setWidget(self.fileExplorer)
+        self.imageListViewDock = QtWidgets.QDockWidget("Image List", self)
+        self.imageListViewDock.setAllowedAreas(
+            QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+
+        self.imageManager = ImageListModel()
+        self.imageListView = ImageListView(self, self.imageManager)
+        self.imageListViewDock.setWidget(self.imageListView)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea,
-                           self.fileExplorerDock)
+                           self.imageListViewDock)
 
-        # Tabs as a dockable workspaceTabs
-        # self.tabsDock = QtWidgets.QDockWidget("Tabs", self)
-        # tabWidget = QtWidgets.QTabWidget()
-        # tabWidget.addTab(TextWidget("Controls and Actions"), "Control Panel")
-        # tabWidget.addTab(TextWidget("Adjust Settings"), "Settings")
-        # tabWidget.addTab(TextWidget("View Logs"), "Logs")
-        # self.tabsDock.setWidget(tabWidget)
-
-        # Spectral Image Workspace as a dockable workspaceTabs
-        self.imageViewDock = QtWidgets.QDockWidget("Image Workspace", self)
-        self.imageView = SpectralImageWorkspace(self)
-        self.anotherView = SpectralImageWorkspace(self)
-
-        self.imageViewDock.setWidget(self.imageView)
+        self.controlPanel = ControlPanel(None)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
-                           self.imageViewDock)
+                           self.controlPanel.tabsDock)
 
-        self.controlPanel = ControlPanel(self.imageView)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.imageViewDock)
+        # set default central widget
+        label = QtWidgets.QLabel("Go to File->import to open your first image!")
+        label.setStyleSheet("font-size: 20px;")
+        label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.setCentralWidget(label)
 
-        # Setup the menu bar
+
+
+        self.initMenuBar()
+
+        # Create a central workspaceTabs
+        self.setWindowIcon(QIcon("./img/logo.svg"))
+
+    def initMenuBar(self):
         menuBar = self.menuBar()
         fileMenu = menuBar.addMenu('File')
+        fileMenu.addAction('Open Project')
+        recentMenu = fileMenu.addMenu('Open Recent')
+        fileMenu.addAction('Save', self.saveFile)
         importMenu = fileMenu.addMenu('Import')
         importMenu.addAction('Import Image', self.openFile)
-        fileMenu.addAction('Save', self.saveFile)
         fileMenu.addAction('Exit', self.exitApp)
-
         helpMenu = menuBar.addMenu('Help')
         helpMenu.addAction('About', self.aboutDialog)
 
-        # Create a central workspaceTabs
-        workspaceTabs = QtWidgets.QTabWidget()
-        splitter.addWidget(self.imageView)
-        workspaceTabs.setLayout(QtWidgets.QVBoxLayout())
-        workspaceTabs.addTab(splitter, "workspace 1")
-        self.setCentralWidget(workspaceTabs)
+    def initSplitter(self):
+        """
+        small test for adding buttons to expand/collapse side of splitter. doesn't
+        work proper yet
+        """
+        splitter = QtWidgets.QSplitter(self)
+        splitter.addWidget(QtWidgets.QTextEdit(self))
+        splitter.addWidget(QtWidgets.QTextEdit(self))
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(splitter)
+        handle = splitter.handle(1)
+        layout = QtWidgets.QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        button = QtWidgets.QToolButton(handle)
+        button.setArrowType(QtCore.Qt.ArrowType.LeftArrow)
+        button.clicked.connect(
+            lambda: self.handleSplitterButton(True))
+        layout.addWidget(button)
+        button = QtWidgets.QToolButton(handle)
+        button.setArrowType(QtCore.Qt.ArrowType.RightArrow)
+        button.clicked.connect(
+            lambda: self.handleSplitterButton(False))
+        layout.addWidget(button)
+        handle.setLayout(layout)
 
-        self.setWindowIcon(QIcon("./img/logo.svg"))
+        return splitter
+
+    def handleSplitterButton(self, left=True):
+        if not all(self.splitter.sizes()):
+            self.splitter.setSizes([1, 1])
+        elif left:
+            self.splitter.setSizes([0, 1])
+        else:
+            self.splitter.setSizes([1, 0])
 
     def openFile(self):
-        print("Open file dialog...")
+        # TODO: automatically determine all file types that are supported
+        fileName = QtWidgets.QFileDialog.getOpenFileName(self,
+                                                          "Open File", "",
+                                                          "image file (*.hdr *.img "
+                                                          "*.h5)")
+        if fileName[0] is False:
+            return
+        vardathreading.dispatchThreadProcess(ImageLoader.new_image,
+                                             self.onImageLoaded, fileName[0])
+
+    def onImageLoaded(self, image):
+        print("Image loaded:", image)
+        self.imageManager.addImage(image)
+
+        imageView = ImageWorkspace(self)
+        imageView.setImageObject(image)
+        # remove initial prompt
+        if self.centralWidget().isHidden() is False:
+            self.centralWidget().hide()
+
+        dock = QtWidgets.QDockWidget("Image" + str(self.imageManager.rowCount()), self)
+        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(imageView)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.show()
+        dock.raise_()
+
+        print("Added to Model:", self.imageManager.images)
 
     def saveFile(self):
         print("Save file functionality...")
@@ -99,7 +161,7 @@ class MainGui(QtWidgets.QMainWindow):
 def startGui():
     app = QtWidgets.QApplication(sys.argv)
     # Remove external stylesheet to revert to default Qt styling
-    window = MainGui()
+    window = MainGUI()
     window.showMaximized()
     window.show()
     app.exec()

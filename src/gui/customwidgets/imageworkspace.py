@@ -8,7 +8,7 @@ NOTE: This is where we'll handle getting the views to interact with each other.
 # standard library
 import time
 from pathlib import Path
-from typing import override
+from typing import override, overload
 
 # Third-party
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -22,13 +22,13 @@ import spectral
 import rasterio as rio
 
 # local imports
-from imagetypes import ImageLoader, Image
+from . import MenuOverlayWidget, ROIWindow, TripleImageViewer
+from models import ImageLoader, AbstractImageModel
 from imageprocessing import ImageProcess
-from gui.customwidgets.roiwindow import ROIWindow
-from gui.customwidgets.imageviewer import ImageViewer
+import vardathreading
 import debug
 
-class SpectralImageWorkspace(QtWidgets.QWidget):
+class ImageWorkspace(QtWidgets.QWidget):
     """
     This class represents an entire "workspace" in varda, which is how the user
     interacts with an image.
@@ -66,8 +66,10 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             result = self._fn(*self._args, **self._kwargs)
             self.signals.result.emit(result)
 
-    def __init__(self, parent=None):
-        super(SpectralImageWorkspace, self).__init__(parent)
+
+
+    def __init__(self, parent=None, file=None):
+        super(ImageWorkspace, self).__init__(parent)
         self.setAcceptDrops(True)
         self.isLoadingImage = False
         self.image = None
@@ -90,33 +92,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.vertices = []
         self.currentROIs = []
 
-        # create main UI elements
-        # self.imageSplitter = QtWidgets.QSplitter(self)
-        # self.mainSplitter = QtWidgets.QSplitter(self)
-        #
-        # self.mainImage = pg.ImageView(parent)
-        # self.mainImage.ui.roiBtn.setVisible(False)
-        # self.mainImage.ui.menuBtn.setVisible(False)
-        # self.contextImage = pg.ImageView(parent)
-        # self.zoomImage = pg.ImageView(parent)
-        # self.contextImage.ui.histogram.hide()
-        # self.contextImage.ui.roiBtn.setVisible(False)
-        # self.contextImage.ui.menuBtn.setVisible(False)
-        # self.zoomImage.ui.histogram.hide()
-        # self.zoomImage.ui.roiBtn.setVisible(False)
-        # self.zoomImage.ui.menuBtn.setVisible(False)
-        # self.contextZoomSplitter = QtWidgets.QSplitter(self)
-
-        # self.imageSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
-        # self.contextZoomSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
-        # self.mainSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
-        # self.contextZoomSplitter.addWidget(self.contextImage)
-        # self.contextZoomSplitter.addWidget(self.zoomImage)
-
-        # self.imageSplitter.addWidget(self.mainImage)
-        # self.imageSplitter.addWidget(self.contextZoomSplitter)
-        # self.mainSplitter.addWidget(self.imageSplitter)
-
         # MenuBar
         self.menuBar = QtWidgets.QMenuBar(self)
         roiMenu = self.menuBar.addMenu("ROI Menu")
@@ -135,7 +110,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         )
 
         # image views
-        self.imageViewer = ImageViewer()
+        self.imageViewer = TripleImageViewer()
 
         self.mainSplitter.addWidget(self.imageViewer)
         self.mainSplitter.setStretchFactor(0, 30)
@@ -162,6 +137,12 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         layout.addWidget(self.statusBar)
         self.setLayout(layout)
 
+        # Load image if file is provided
+        if file:
+            self.loadImage(file)
+    def setImageObject(self, image):
+        self.onImageLoaded(image)
+
     def initializeUpdateImageTimer(self):
         self.updateTimer = QtCore.QTimer(self)
         self.updateTimer.setSingleShot(True)
@@ -169,7 +150,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
 
     def refreshProcessingMenu(self):
         print("refreshing processing menu")
-        print("Image List", Image.subclasses)
+        print("Image List", AbstractImageModel.subclasses)
         print("Processing List", ImageProcess.subclasses)
 
         self.processingMenu.clear()
@@ -225,7 +206,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.statusBar.showLoadingMessage()
         p = process()
         self.appliedProcesses.append(p)
-        self.dispatchThreadProcess(self.image.process, self.onProcessFinished, p)
+        vardathreading.dispatchThreadProcess(self.image.process, self.onProcessFinished, p)
 
     def onProcessFinished(self):
         self.statusBar.loadingFinished()
@@ -291,7 +272,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
                 ('.hdr', '.img', '.h5')):
             event.acceptProposedAction()
 
-
     @override
     def dropEvent(self, event, **kwargs):
         if self.isLoadingImage:
@@ -299,7 +279,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         if self.image is not None:
             self.image = None
         self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
-
 
     def loadImage(self, fileName):
         self.isLoadingImage = True
@@ -320,7 +299,7 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
         self.isLoadingImage = False
         self.threadpool.clear()
 
-    def createImageObject(self, fileName) -> Image:
+    def createImageObject(self, fileName) -> AbstractImageModel:
         return ImageLoader.new_image(fileName)
 
     def onImageLoaded(self, image):
@@ -407,45 +386,6 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
                 bounds=(minWavelength, maxWavelength)
             )
             self.blueBandSelect.sigPositionChanged.connect(self.updateImage)
-
-        # construct red band selector
-        # if self.redBandSelect is None:
-        #     self.redBandSelect = pg.InfiniteLine(
-        #         pos=wavelength[self.image.default_bands['r']],
-        #         pen=(pg.mkPen(color='red', width=2)),
-        #         movable=True,
-        #         bounds=(minWavelength, maxWavelength)
-        #     )
-        #     self.redBandSelect.sigPositionChanged.connect(self.updateImage)
-        # else:
-        #     self.redBandSelect.setBounds((minWavelength, maxWavelength))
-        #     self.redBandSelect.setValue(wavelength[self.image.default_bands['r']])
-        #
-        # # construct green band selector
-        # if self.greenBandSelect is None:
-        #     self.greenBandSelect = pg.InfiniteLine(
-        #         pos=wavelength[self.image.default_bands['g']],
-        #         pen=(pg.mkPen(color='green', width=2)),
-        #         movable=True,
-        #         bounds=(minWavelength, maxWavelength)
-        #     )
-        #     self.greenBandSelect.sigPositionChanged.connect(self.updateImage)
-        # else:
-        #     self.greenBandSelect.setBounds((minWavelength, maxWavelength))
-        #     self.greenBandSelect.setValue(wavelength[self.image.default_bands['g']])
-        #
-        # # construct blue band selector
-        # if self.blueBandSelect is None:
-        #     self.blueBandSelect = pg.InfiniteLine(
-        #         pos=wavelength[self.image.default_bands['b']],
-        #         pen=(pg.mkPen(color='blue', width=2)),
-        #         movable=True,
-        #         bounds=(minWavelength, maxWavelength)
-        #     )
-        #     self.blueBandSelect.sigPositionChanged.connect(self.updateImage)
-        # else:
-        #     self.blueBandSelect.setBounds((minWavelength, maxWavelength))
-        #     self.blueBandSelect.setValue(wavelength[self.image.default_bands['b']])
 
     def onPlotLoaded(self, roi=None):
         # add band selectors to plot
@@ -650,13 +590,11 @@ class SpectralImageWorkspace(QtWidgets.QWidget):
             self.mainSplitter.addWidget(self.ROIplot)
 
 
-"""
-A custom widget for the statusbar. 
-Lets us create more complex status messages or animations without cluttering the ImageWorkspace class
-"""
-
-
 class WorkspaceStatusBar(QtWidgets.QStatusBar):
+    """
+    A custom widget for the statusbar.
+    Lets us create more complex status messages or animations without cluttering the ImageWorkspace class
+    """
     def __init__(self, parent=None):
         super(WorkspaceStatusBar, self).__init__(parent)
         self.animationTimer = QtCore.QTimer(self)
@@ -674,6 +612,8 @@ class WorkspaceStatusBar(QtWidgets.QStatusBar):
         self.animationIndex = (self.animationIndex + 1) % len(animationChars)
 
     def loadingFinished(self):
+        if self.animationIndex is None:
+            return
         self.timeElapsed = time.time() - self.timeStarted
         self.animationTimer.stop()
         self.animationTimer.timeout.disconnect(self.updateLoadingMessage)

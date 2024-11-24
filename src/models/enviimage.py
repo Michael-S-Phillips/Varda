@@ -7,21 +7,26 @@ import numpy as np
 import rasterio as rio
 
 # local imports
-from imagetypes.image import Image
-from imagetypes.metadata import Metadata
+from models.abstractimagemodel import AbstractImageModel
+from models.metadata import Metadata
 import debug
 
 
-class ENVIImage(Image):
+class ENVIImage(AbstractImageModel):
+
+    @property
+    def bands(self):
+        return self.default_bands
 
     @override
     def process(self, process):
         self._data = process.execute(image=self._data)
 
-    image_type = (".hdr", ".img")
+    imageType = (".hdr", ".img")
 
     @override
     def __init__(self, file_path):
+        super(ENVIImage, self).__init__()
         print("ENVI subclass Used")
 
 
@@ -138,6 +143,10 @@ class ENVIImage(Image):
     @property
     def meta(self):
         return self._meta
+
+    @property
+    def stretch(self):
+        pass
 
     @property
     def normalized_data(self):

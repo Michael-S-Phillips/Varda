@@ -8,10 +8,10 @@ import pyqtgraph as pg
 from gui.customitems import TripleImageHistogram
 
 
-class ImageViewer(QtWidgets.QWidget):
+class TripleImageViewer(QtWidgets.QWidget):
     """
-        A custom widget that displays a view of an image in varda.
-        has various signals and slots for linking this view with other views
+        A custom widget that displays an image with three views and a histogram.
+        Provides main view, context, and zoom views of the image.
 
         Attributes:
             mainImageItem (pg.ImageItem): The main image item.
@@ -28,11 +28,27 @@ class ImageViewer(QtWidgets.QWidget):
         Initializes the three views, the histogram, and ROI controls
         """
         super().__init__()
-        self.imageItem = pg.ImageItem(axisOrder='row-major',
+
+        self.mainImageItem = pg.ImageItem(axisOrder='row-major',
                                           autoLevels=False,
                                           levels=(0, 1))
-        self.view = self._initView("Main View", self.imageItem, False)
+        self.mainView = self._initView("Main View",
+                                       self.mainImageItem,
+                                       False)
 
+        self.contextImageItem = pg.ImageItem(axisOrder='row-major',
+                                             autoLevels=False,
+                                             levels=(0, 1))
+        self.contextView = self._initView("Context View",
+                                          self.contextImageItem,
+                                          False)
+
+        self.zoomImageItem = pg.ImageItem(axisOrder='row-major',
+                                          autoLevels=False,
+                                          levels=(0, 1))
+        self.zoomView = self._initView("Zoom View",
+                                       self.zoomImageItem,
+                                       False)
 
         self.tripleHistogram = TripleImageHistogram(self.mainImageItem,
                                                     self.contextImageItem,

@@ -8,12 +8,12 @@ import rasterio as rio
 import h5py
 
 # local imports
-from imagetypes.image import Image
-from imagetypes.metadata import Metadata
+from models.abstractimagemodel import AbstractImageModel
+from models.metadata import Metadata
 import debug
 
 
-class HDF5Image(Image):
+class HDF5Image(AbstractImageModel):
 
     @property
     def data(self):
@@ -24,6 +24,10 @@ class HDF5Image(Image):
         return self._meta
 
     @property
+    def stretch(self):
+        pass
+
+    @property
     def uint8_data(self):
         pass
 
@@ -31,10 +35,15 @@ class HDF5Image(Image):
     def process(self, process):
         self._data = process.execute(image=self._data)
 
-    image_type = (".h5")
+    @property
+    def bands(self):
+        return self.default_bands
+
+    imageType = (".h5")
 
     @override
     def __init__(self, file_path):
+        super(HDF5Image, self).__init__()
         print("NEON subclass Used")
 
         self._file_path = file_path

@@ -1,2 +1,2 @@
 # __init__.py
-from .maingui import MainGui
+from .maingui import MainGUI
