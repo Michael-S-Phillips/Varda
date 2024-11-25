@@ -1,7 +1,9 @@
 # standard library
+import datetime
+from pathlib import Path
+import logging
 import sys
 import os
-from pathlib import Path
 
 # third party imports
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -22,7 +24,8 @@ It will only interact with widget classes (in customwidgets) to maintain
 low cohesion. Widget classes will interact with processing / 
 visualization classes accordingly. 
 '''
-
+# Create a "logs" directory if it doesn't exist
+logger = logging.getLogger(__name__)
 
 class MainGUI(QtWidgets.QMainWindow):
     """
@@ -37,7 +40,10 @@ class MainGUI(QtWidgets.QMainWindow):
         # set pyqtgraph configs
         pg.setConfigOptions(imageAxisOrder='row-major')
 
+
+        logger.info("Started")
         self.initUI()
+        logger.info("UI Initialized")
 
     def initUI(self):
         # make dock tabs appear on top

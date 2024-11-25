@@ -9,6 +9,7 @@ NOTE: This is where we'll handle getting the views to interact with each other.
 import time
 from pathlib import Path
 from typing import override, overload
+import logging
 
 # Third-party
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -27,6 +28,8 @@ from models import ImageLoader, AbstractImageModel
 from imageprocessing import ImageProcess
 import vardathreading
 import debug
+
+logger = logging.getLogger(__name__)
 
 class ImageWorkspace(QtWidgets.QWidget):
     """
@@ -351,11 +354,14 @@ class ImageWorkspace(QtWidgets.QWidget):
         self.imageViewer.setImage(img)
 
         profile("Time to set images")
+        logger.info("Workspace Image set")
 
     def updateBands(self):
         self.currentBands['r'] = self.bandIndex(self.redBandSelect)
         self.currentBands['g'] = self.bandIndex(self.greenBandSelect)
         self.currentBands['b'] = self.bandIndex(self.blueBandSelect)
+        logger.info("Bands updated: " + str(self.currentBands))
+
 
     def updateImage(self):
         profile = debug.Profiler()

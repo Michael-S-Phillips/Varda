@@ -1,5 +1,6 @@
 
-# standard imports
+# standard library
+from pathlib import Path
 
 # third-party imports
 from PyQt6 import QtCore, QtWidgets, QtGui
@@ -49,3 +50,15 @@ class ImageListModel(QtCore.QAbstractListModel):
         self.beginRemoveRows(QtCore.QModelIndex(), row, row)
         self.images.pop(row)
         self.endRemoveRows()
+
+    def newImage(self, file_path):
+        # TODO: possibly need more complex system to determine file type? right now its just based on the file extension
+        imageType = str(Path(file_path).suffix.strip())
+        print(imageType)
+        print(AbstractImageModel.subclasses)
+        for c in AbstractImageModel.subclasses:
+            if imageType in c.imageType:
+                img = c(file_path)
+                self.addImage(img)
+                return c(file_path)
+        raise ValueError(f"Bad file type {imageType}")
