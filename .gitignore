@@ -22,3 +22,4 @@ venv/
 src/testImages/*
 .idea
 .DS_Store
+src/logs/*
