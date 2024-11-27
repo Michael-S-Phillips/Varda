@@ -12,7 +12,7 @@ import cv2
 from gui.customitems import TripleImageHistogram
 
 
-class ImageData(Enum):
+class VardaImageData(Enum):
     """
     Enum for the different types of image data
     """
@@ -59,7 +59,7 @@ class TESTAbstractImageModel(QAbstractItemModel,
         super().__init_subclass__(**kwargs)
         AbstractImageModel.subclasses.append(cls)
 
-    def __init__(self):
+    def __init__(self, imageLoader=None):
         super().__init__()
 
         bands = {"mono": {'r': 0, 'g': 0, 'b': 0},
@@ -74,6 +74,7 @@ class TESTAbstractImageModel(QAbstractItemModel,
 
         histogram = pg.HistogramLUTItem()
         self._dataParams = {"Image": self.data,
+                            "Metadata": self.meta,
                             "Bands": bands,
                             "Stretch": stretch,
                             "ROI": roi,
@@ -104,6 +105,15 @@ class TESTAbstractImageModel(QAbstractItemModel,
 
         # Top-level category names
         if not index.parent().isValid():
+            if role == VardaImageData.RASTER_DATA:
+                return self._dataParams["Image"]
+            if role == VardaImageData.METADATA:
+                return self._dataParams["Metadata"]
+            if role == VardaImageData.BANDS:
+                return self._dataParams["Bands"]
+            if role == VardaImageData.STRETCH:
+                return self._dataParams["Stretch"]
+
             category_name, _ = self._dataParams[index.row()]
             if role == Qt.ItemDataRole.DisplayRole:
                 return category_name
@@ -111,6 +121,9 @@ class TESTAbstractImageModel(QAbstractItemModel,
 
         # Child rows: parameter key-value pairs
         category_data = index.parent().internalPointer()
+
+    def setData(self, index, value, role = ...):
+
 
     @QtCore.pyqtSlot()
     @abstractmethod

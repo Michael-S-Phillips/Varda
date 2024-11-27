@@ -13,7 +13,7 @@ import cv2
 from models import AbstractImageModel
 
 
-class ImageListModel(QtCore.QAbstractListModel):
+class ImageManager(QtCore.QAbstractListModel):
 
     def __init__(self, images=None, parent=None):
         super().__init__(parent)

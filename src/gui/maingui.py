@@ -14,7 +14,7 @@ import pyqtgraph as pg
 import vardathreading
 from gui.customwidgets.controlpanel import ControlPanel
 from models import ImageLoader
-from models.imagelistmodel import ImageListModel
+from models.imagemanager import ImageManager
 from gui.customwidgets import (FileExplorer, ImageWorkspace, ExpandableWidget,
                                ImageListView)
 
@@ -54,7 +54,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.imageListViewDock.setAllowedAreas(
             QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
 
-        self.imageManager = ImageListModel()
+        self.imageManager = ImageManager()
         self.imageListView = ImageListView(self, self.imageManager)
         self.imageListViewDock.setWidget(self.imageListView)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea,

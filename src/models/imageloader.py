@@ -7,18 +7,35 @@ from pathlib import Path
 from models.abstractimagemodel import AbstractImageModel
 
 
-class ImageLoader:
+class AbstractImageLoader:
     """
-    determines which subclass is needed and returns a new instance of it
+    Class to load images from a file path. To be inherited by specific image types.
     """
 
-    @classmethod
-    def new_image(cls, file_path):
-        # TODO: possibly need more complex system to determine file type? right now its just based on the file extension
-        imageType = str(Path(file_path).suffix.strip())
-        print(imageType)
-        print(AbstractImageModel.subclasses)
-        for c in AbstractImageModel.subclasses:
-            if imageType in c.imageType:
-                return c(file_path)
-        raise ValueError(f"Bad file type {imageType}")
+    def __init__(self, filePath=None):
+        self.filePath = filePath
+        if self.filePath is None:
+            return
+        self.load()
+
+    def load(self, filePath=None):
+        if filePath:
+            self.filePath = filePath
+        if self.filePath is None:
+            return
+        self._loadImage()
+        self._loadMetadata()
+
+    def _loadImage(self, filePath=None):
+        if filePath:
+            self.filePath = filePath
+        if self.filePath is None:
+            return
+        pass
+
+    def _loadMetadata(self, filePath=None):
+        if filePath:
+            self.filePath = filePath
+        if self.filePath is None:
+            return
+        pass

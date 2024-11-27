@@ -3,4 +3,4 @@ from .abstractimagemodel import AbstractImageModel
 from .enviimage import ENVIImage
 from .hdf5image import HDF5Image
 from .metadata import Metadata
-from .imagelistmodel import ImageListModel
+from .imagemanager import ImageManager
