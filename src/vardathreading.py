@@ -1,9 +1,13 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 from PyQt6 import QtCore
 
 threadpool = QtCore.QThreadPool()
 
 
-def dispatchThreadProcess(process, onComplete, *args, **kwargs):
+def dispatchThreadProcess(onComplete, process, *args, **kwargs):
     """
     General purpose method to dispatch a process to a thread
     """
@@ -32,6 +36,7 @@ class BackgroundWorker(QtCore.QRunnable):
         """
         Initializes the worker with the function it is to execute when being run
         @param fn: The function we want to run on a seperate thread
+        @param obj: The object that the function belongs to
         @param args: any necessary function arguments
         @param kwargs: any necessary function keyword arguments
         """
@@ -43,5 +48,12 @@ class BackgroundWorker(QtCore.QRunnable):
 
     @QtCore.pyqtSlot()
     def run(self):
+        logger.info(
+            "run(): calling function " + self._fn.__name__ +
+            " on thread.\n"
+            "  args: " + str(*self._args) + "\n"
+            "  kwargs: " + str(**self._kwargs)
+        )
+
         result = self._fn(*self._args, **self._kwargs)
         self.signals.result.emit(result)

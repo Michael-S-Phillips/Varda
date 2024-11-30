@@ -2,6 +2,7 @@ from pathlib import Path
 from gui import maingui
 from datetime import datetime
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 
 
@@ -18,11 +19,12 @@ def initLogging():
       logger.warning("This is a warning message")
       logger.error("This is an error message")
     """
+
     logFolder = "logs"
     os.makedirs(logFolder, exist_ok=True)
     logTime = datetime.now().strftime('%Y-%m-%d_%I-%M-%S-%p')
-    logging.basicConfig(filename=Path(f"{logFolder}/VardaLog_{logTime}.log"),
-                        level=logging.DEBUG)
+    logName = Path(f"{logFolder}/Varda.log.{logTime}")
+    logging.basicConfig(filename=logName, level=logging.DEBUG)
 
 
 if __name__ == "__main__":

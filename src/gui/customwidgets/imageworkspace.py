@@ -23,8 +23,7 @@ import spectral
 import rasterio as rio
 
 # local imports
-from . import MenuOverlayWidget, ROIWindow, TripleImageViewer
-from models import ImageLoader, AbstractImageModel
+from . import MenuOverlayWidget, ROIWindow
 from imageprocessing import ImageProcess
 import vardathreading
 import debug
@@ -109,6 +108,7 @@ class ImageWorkspace(QtWidgets.QWidget):
         # Load image if file is provided
         if file:
             self.loadImage(file)
+
     def setImageObject(self, image):
         self.onImageLoaded(image)
 
@@ -128,10 +128,6 @@ class ImageWorkspace(QtWidgets.QWidget):
             self.processingMenu.addAction(process.__name__,
                                           lambda p=process: self.openProcessControlMenu(
                                               p))
-
-    class parameterWidget(QtWidgets.QWidget):
-        def __init__(self, process, parent=None):
-            super().__init__(parent)
 
     def openProcessControlMenu(self, process):
         dialog = QtWidgets.QDialog()
@@ -195,17 +191,17 @@ class ImageWorkspace(QtWidgets.QWidget):
         x, y = int(pos.x()), int(pos.y())
 
         # Check if click is within image bounds
-        if (0 <= x < self.image.data.shape[1] and
-                0 <= y < self.image.data.shape[0]):
+        if (0 <= x < self.image.rasterData.shape[1] and
+                0 <= y < self.image.rasterData.shape[0]):
 
             # Get spectral data for the clicked pixel
-            spectral_data = self.image.data[y, x, :]
+            spectral_data = self.image.rasterData[y, x, :]
 
             # Get wavelength data
             if self.image.meta.wavelength is not None:
                 wavelength = self.image.meta.wavelength
             else:
-                wavelength = np.arange(self.image.data.shape[2])
+                wavelength = np.arange(self.image.rasterData.shape[2])
 
             # Clear previous plot and create new one
             self.pixel_plot.clear()
@@ -249,7 +245,7 @@ class ImageWorkspace(QtWidgets.QWidget):
         self.isLoadingImage = False
         self.threadpool.clear()
 
-    def createImageObject(self, fileName) -> AbstractImageModel:
+    def createImageObject(self, fileName):
         return ImageLoader.new_image(fileName)
 
     def onImageLoaded(self, image):
@@ -263,7 +259,7 @@ class ImageWorkspace(QtWidgets.QWidget):
             self.currentBands = self.image.meta.default_bands
 
         if debug.DEBUG:
-            print("image data shape: " + str(self.image.data.shape))
+            print("image data shape: " + str(self.image.rasterData.shape))
 
         self.initializePlot()
 
@@ -284,8 +280,8 @@ class ImageWorkspace(QtWidgets.QWidget):
         else:
             if debug.DEBUG:
                 print("using data shape for plot")
-                print("data shape: ", self.image.data.shape)
-            wavelength = np.arange(self.image.data.shape[2])
+                print("data shape: ", self.image.rasterData.shape)
+            wavelength = np.arange(self.image.rasterData.shape[2])
         minWavelength = min(wavelength)
         maxWavelength = max(wavelength)
 
@@ -348,7 +344,7 @@ class ImageWorkspace(QtWidgets.QWidget):
 
     def setImage(self):
         profile = debug.Profiler()
-        img = self.image.data[:, :, list(self.currentBands.values())]
+        img = self.image.rasterData[:, :, list(self.currentBands.values())]
         levels = (0, 1)
         axes = {'x': 1, 'y': 0, 'c': 2, 't': None}
         self.imageViewer.setImage(img)
@@ -367,7 +363,7 @@ class ImageWorkspace(QtWidgets.QWidget):
         profile = debug.Profiler()
 
         self.updateBands()
-        img = self.image.data[:, :, list(self.currentBands.values())]
+        img = self.image.rasterData[:, :, list(self.currentBands.values())]
         self.imageViewer.updateImage(img.view())
 
         # self.updateTimer.start(50)  # Adjust the interval if needed
@@ -377,7 +373,7 @@ class ImageWorkspace(QtWidgets.QWidget):
     def updateContextAndZoom(self):
         profile = debug.Profiler()
 
-        img = self.image.data[:, :, list(self.currentBands.values())]
+        img = self.image.rasterData[:, :, list(self.currentBands.values())]
         self.imageViewer.setContextAndZoomImage(img.view())
 
         profile("time to update context and zoom views")
@@ -488,7 +484,7 @@ class ImageWorkspace(QtWidgets.QWidget):
                                   roi.getLocalHandlePositions()]
             cv2.fillPoly(mask, [np.array(polygon_points_int)], 1)
 
-            mean_spec = self.calculate_mean_stats(self.image.data, mask, True)
+            mean_spec = self.calculate_mean_stats(self.image.rasterData, mask, True)
 
             print("plotting spectrum ")
             #if self.plot is None:

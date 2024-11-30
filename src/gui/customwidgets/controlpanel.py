@@ -35,9 +35,9 @@ class DropdownMenu(QMenu):
 class ControlPanel(QWidget):
     # this is the control panel that appears on the top right of the GUI. It holds an instance of imageWorkspace
     # so you can access functions from there for each control option
-    def __init__(self, imgWorkspace, parent=None):
+    def __init__(self, imageIndex, parent=None):
         super(ControlPanel, self).__init__(parent)
-        self.imgWorkspace = imgWorkspace
+        self.imageIndex = imageIndex
         self.tabsDock = QDockWidget("Tabs", self)
         self.tabWidget = QTabWidget()
         

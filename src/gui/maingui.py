@@ -11,12 +11,12 @@ from PyQt6.QtGui import QIcon
 import pyqtgraph as pg
 
 # local imports
-import vardathreading
-from gui.customwidgets.controlpanel import ControlPanel
-from models import ImageLoader
-from models.imagemanager import ImageManager
 from gui.customwidgets import (FileExplorer, ImageWorkspace, ExpandableWidget,
-                               ImageListView)
+                               ImageListView, ControlPanel, ImageViewer)
+from models import ImageManager
+
+
+import vardathreading
 
 '''
 "FYI": maingui.py will initialize window and layout.
@@ -26,6 +26,7 @@ visualization classes accordingly.
 '''
 # Create a "logs" directory if it doesn't exist
 logger = logging.getLogger(__name__)
+
 
 class MainGUI(QtWidgets.QMainWindow):
     """
@@ -39,7 +40,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.setWindowTitle("Varda")
         # set pyqtgraph configs
         pg.setConfigOptions(imageAxisOrder='row-major')
-
 
         logger.info("Started")
         self.initUI()
@@ -69,8 +69,6 @@ class MainGUI(QtWidgets.QMainWindow):
         label.setStyleSheet("font-size: 20px;")
         label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(label)
-
-
 
         self.initMenuBar()
 
@@ -127,20 +125,22 @@ class MainGUI(QtWidgets.QMainWindow):
     def openFile(self):
         # TODO: automatically determine all file types that are supported
         fileName = QtWidgets.QFileDialog.getOpenFileName(self,
-                                                          "Open File", "",
-                                                          "image file (*.hdr *.img "
-                                                          "*.h5)")
+                                                         "Open File", "",
+                                                         "image file (*.hdr *.img "
+                                                         "*.h5)")
         if fileName[0] is False:
             return
-        vardathreading.dispatchThreadProcess(ImageLoader.new_image,
-                                             self.onImageLoaded, fileName[0])
+        print("Opening file:", fileName[0])
+        vardathreading.dispatchThreadProcess(self.onImageLoaded,
+                                             self.imageManager.newImage, fileName[0])
 
-    def onImageLoaded(self, image):
-        print("Image loaded:", image)
-        self.imageManager.addImage(image)
-
-        imageView = ImageWorkspace(self)
-        imageView.setImageObject(image)
+    def onImageLoaded(self, imageIndex):
+        if imageIndex is None:
+            logger.error("Image failed to load")
+            return
+        image = imageIndex.internalPointer()
+        logger.info("Image loaded: " + str(image))
+        imageView = ImageViewer(image)
         # remove initial prompt
         if self.centralWidget().isHidden() is False:
             self.centralWidget().hide()
@@ -152,7 +152,7 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.show()
         dock.raise_()
 
-        print("Added to Model:", self.imageManager.images)
+        print("Added to Model:", image)
 
     def saveFile(self):
         print("Save file functionality...")

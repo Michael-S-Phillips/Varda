@@ -8,9 +8,6 @@ import pyqtgraph as pg
 # local imports
 
 
-
-
-
 class ImageListView(QListView):
     def __init__(self, parent=None, model=None):
         super(ImageListView, self).__init__(parent)
