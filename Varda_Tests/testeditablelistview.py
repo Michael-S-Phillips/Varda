@@ -5,7 +5,7 @@ from PyQt6 import QtWidgets
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt, QModelIndex
 from src.models.listmodel import ListModel
-from src.gui.customwidgets.editablelistview import EditableListView
+from src.gui.customwidgets.parameditor import EditableListView
 
 
 class TestEditableListView(unittest.TestCase):

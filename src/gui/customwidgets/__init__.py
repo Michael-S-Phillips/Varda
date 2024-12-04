@@ -4,9 +4,8 @@ from .roiwindow import ROIWindow
 from .imageworkspace import ImageWorkspace
 from .fileexplorer import FileExplorer
 from .textwidget import TextWidget
-from .expandablewidget import ExpandableWidget
 from .imagelistview import ImageListView
 from .controlpanel import ControlPanel
-from .imageviewer import ImageViewer
-from .imageviewer import ImageViewer
-from .editablelistview import EditableListView
+from .imagerasterdataviewer import ImageRasterDataViewer
+from .parameditor import ParamEditor
+from .vstatusbar import VStatusBar

@@ -91,7 +91,9 @@ class ImageManager(QtCore.QAbstractListModel):
             if imageType in c.imageType:
                 # load() returns a tuple, so we unpack it (*) to pass to ImageModel
                 img = ImageModel(*c(filepath).load())
-                return self.appendImage(img)  # return the index of the new image
+                self.appendImage(img)
+                logger.info("Loaded image - " + str(img))
+                return img  # return the new image
 
         # if no image type is found, raise an error
         error = ValueError(f"Bad file type {imageType}")
@@ -149,7 +151,7 @@ class ImageManager(QtCore.QAbstractListModel):
 
         if role == Qt.ItemDataRole.DisplayRole:
             # eventually the image metadata should probably contain a custom name
-            return self.__images[index.row()].__class__.__name__
+            return self.__images[index.row()].metadata.driver
 
         if role == Qt.ItemDataRole.UserRole:
             return self.__images[index.row()]

@@ -18,7 +18,7 @@ import affine
 from models import ImageManager
 # from imageloaders.enviimageloader import ENVIImageLoader
 # from imageloaders.hdf5imageloader import HDF5ImageLoader
-from gui.customwidgets.imageviewer import ImageViewer
+from gui.customwidgets.imagerasterdataviewer import ImageRasterDataViewer
 from models.imagemodel import ImageModel
 from models.imagemodel import TableModel
 from models.metadata import Metadata

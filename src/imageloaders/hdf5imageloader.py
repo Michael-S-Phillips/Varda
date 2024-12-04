@@ -8,7 +8,7 @@ import rasterio as rio
 import h5py
 
 # local imports
-from imageloaders.abstractimageloader import AbstractImageLoader
+from .abstractimageloader import AbstractImageLoader
 from models.metadata import Metadata
 
 import debug

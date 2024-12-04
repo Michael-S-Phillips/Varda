@@ -7,7 +7,7 @@ import numpy as np
 import rasterio as rio
 
 # local imports
-from imageloaders.abstractimageloader import AbstractImageLoader
+from .abstractimageloader import AbstractImageLoader
 from models.metadata import Metadata
 import debug
 

@@ -33,7 +33,8 @@ class ImageItemDelegate(QtWidgets.QStyledItemDelegate):
     def paint(self, painter, option, index):
         # Get the data from the model
         data = index.data(QtCore.Qt.ItemDataRole.DecorationRole)
-        icon = pg.ImageItem(data, levels=(0, 1))
+        icon = pg.ImageItem(data, levels=list(index.data(
+            QtCore.Qt.ItemDataRole.UserRole).stretch))
         icon.setRect(self.iconSize)
 
         label = index.data(QtCore.Qt.ItemDataRole.DisplayRole)

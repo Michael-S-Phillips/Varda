@@ -7,11 +7,14 @@ from PyQt6.QtCore import QModelIndex
 import pyqtgraph as pg
 
 # local imports
-from gui.customitems import TripleImageHistogram
+from src.gui.customitems.tripleimagehistogram import TripleImageHistogram
+from src.models.parametermodel import ParameterModel
 from src.models.imagemodel import ImageModel
+from src.gui.customwidgets.parameditor import ParamEditor
+from src.gui.customwidgets.BaseImageView import BaseImageView
 
 
-class ImageViewer(QtWidgets.QWidget):
+class ImageRasterDataViewer(BaseImageView):
     """
         A custom widget that displays a view of an image in varda.
         has various signals and slots for linking this view with other views
@@ -66,18 +69,18 @@ class ImageViewer(QtWidgets.QWidget):
                                                     orientation='horizontal'
                                                     )
 
-        self.stretchSelector = QtWidgets.QComboBox()
-        self.stretchTableView = QtWidgets.QTableView()
-        self.stretchSelector.setView(self.stretchTableView)
-
         self.contextROI = None
         self.mainROI = None
 
         self._initUI()
 
         self.imageModel = None
+
+        self.stretchIndex = 0
         if imageModel:
             self.setImage(imageModel)
+
+        self.tripleHistogram.sigLevelsChanged.connect(self._updateModelStretch)
 
     def _initView(self, name, imageItem, enableMouse):
         """
@@ -111,7 +114,6 @@ class ImageViewer(QtWidgets.QWidget):
         self.verticalSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
         self.verticalSplitter.addWidget(self.contextGraphicsView)
         self.verticalSplitter.addWidget(self.zoomGraphicsView)
-        self.verticalSplitter.addWidget(self.stretchSelector)
 
         self.horizontalSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
         self.horizontalSplitter.addWidget(self.mainGraphicsView)
@@ -129,24 +131,18 @@ class ImageViewer(QtWidgets.QWidget):
 
     def setImage(self, image):
         self.imageModel = image
-        image.imageChanged.connect(self.updateView)
+        self.imageModel.stretchChanged.connect(self._modelStretchChanged)
+        self.imageModel.bandChanged.connect(self._modelBandChanged)
+
         self.contextImageItem.setImage(self.imageModel.imageSlice)
+
         self._initROIS()
 
-        self.stretchTableView.setModel(self.imageModel.stretchTable)
-        self.stretchSelector.currentIndexChanged.connect(self.updateStretch)
+    def updateView(self):
 
-    def updateView(self, image):
-
-        self.contextImageItem.setImage(image)
+        self.contextImageItem.setImage(self.imageModel.imageSlice)
         self._updateMainView()
-        self.resetLevels()
-
-    def resetLevels(self):
-        """
-        Resets the levels of the images to their original values
-        """
-        self.tripleHistogram.regionChanging()
+        self._modelStretchChanged()
 
     def _initROIS(self):
         """
@@ -218,6 +214,7 @@ class ImageViewer(QtWidgets.QWidget):
         )
         if self.mainROI is not None:
             self.mainROI.maxBounds = self.mainImageItem.boundingRect()
+
         self._updateZoomView()
 
     def _updateZoomView(self):
@@ -232,15 +229,25 @@ class ImageViewer(QtWidgets.QWidget):
                                         self.mainImageItem),
             levels=(0, 1), autoLevels=False
         )
+        self._modelStretchChanged()  # kinda hacky workaround to prevent the image
+        # from losing its stretch settings
 
-    def updateStretch(self, stretchIndex: QModelIndex):
+    def _modelStretchChanged(self):
+        self.tripleHistogram.setLevels(rgba=self.imageModel.stretch)
+
+        self.mainImageItem.setLevels(self.imageModel.stretch)
+        self.contextImageItem.setLevels(self.imageModel.stretch)
+        self.zoomImageItem.setLevels(self.imageModel.stretch)
+
+    def _updateModelStretch(self):
         """
-        Updates the stretch of the image
-        @param stretch:
-        @param stretchIndex:
-        @return:
+        Updates the model stretch based on the histogram region
         """
-        stretch = stretchIndex.internalPointer()
-        self.mainImageItem.setLevels(stretch)
-        self.contextImageItem.setLevels(stretch)
-        self.zoomImageItem.setLevels(stretch)
+        levels = self.tripleHistogram.getLevels()
+        self.imageModel.stretch = levels
+
+    def _modelBandChanged(self):
+        """
+        Updates the model band based on the band editor
+        """
+        self.updateView()
