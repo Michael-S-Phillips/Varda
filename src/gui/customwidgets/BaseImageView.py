@@ -1,8 +1,8 @@
 # standard library
 
 # third-party imports
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
-from PyQt6.QtCore import pyqtSignal, pyqtSlot
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QComboBox
+from PyQt6.QtCore import pyqtSignal, pyqtSlot, Qt
 import numpy as np
 
 
@@ -49,7 +49,8 @@ class BaseImageView(QWidget):
         bandChanged():
             Slot called when the band selection changes. Should be overridden by subclasses.
         stretchChanged():
-            Slot called when the stretch selection changes. Should be overridden by subclasses.    """
+            Slot called when the stretch selection changes. Should be overridden by subclasses.
+    """
 
     def __init__(self, imageModel: ImageModel=None, parent=None):
         """
@@ -61,7 +62,9 @@ class BaseImageView(QWidget):
         """
         super().__init__(parent)
         self.__layout = None
-        self.__subclassUI = None
+        self.__viewControls = None
+        self.__bandComboBox = None
+        self.__stretchComboBox = None
         self.__initUI()
 
         self._imageModel = None
@@ -77,10 +80,41 @@ class BaseImageView(QWidget):
         """
         self.__layout = QVBoxLayout()
         self.__layout.setContentsMargins(0, 0, 0, 0)  # Set margins to 0
+        self.__viewControls = QHBoxLayout()
+        self.__bandComboBox = QComboBox()
+        self.__stretchComboBox = QComboBox()
 
-        self.__subclassUI = QWidget()
-        # self.__layout.addWidget(self.__subclassUI)
+        self.__viewControls.addWidget(self.__bandComboBox)
+        self.__viewControls.addWidget(self.__stretchComboBox)
+        self.__layout.addLayout(self.__viewControls)
+
+
         self.setLayout(self.__layout)
+
+    def __populateBandComboBox(self):
+        """
+        Populates the band combo box with the available bands from the image model.
+        """
+        self.__bandComboBox.clear()
+        for band in self._selectionModel.allBands():
+            self.__bandComboBox.addItem(band.name)
+        self.__bandComboBox.setCurrentIndex(self._selectionModel._bandIndex)
+        self.__bandComboBox.currentIndexChanged.connect(
+            self._selectionModel.selectBand)
+        self.__viewControls.addWidget(self.__bandComboBox)
+
+
+    def __populateStretchComboBox(self):
+        """
+        Populates the stretch combo box with the available stretches from the image model.
+        """
+        self.__stretchComboBox.clear()
+        for stretch in self._selectionModel.allStretches():
+            self.__stretchComboBox.addItem(stretch.name)
+        self.__stretchComboBox.setCurrentIndex(self._selectionModel._stretchIndex)
+        self.__stretchComboBox.currentIndexChanged.connect(
+            self._selectionModel.selectStretch)
+        self.__viewControls.addWidget(self.__stretchComboBox)
 
     def setViewLayout(self, layout):
         """
@@ -90,7 +124,6 @@ class BaseImageView(QWidget):
             layout (QVBoxLayout): The layout to set for the view.
         """
         self.__layout.addLayout(layout)
-        # self.__subclassUI.setLayout(layout)
 
     def setImageModel(self, imageModel):
         """
@@ -113,6 +146,9 @@ class BaseImageView(QWidget):
 
         self._selectionModel.sigBandChanged.connect(self.bandChanged)
         self._selectionModel.sigStretchChanged.connect(self.stretchChanged)
+
+        self.__populateBandComboBox()
+        self.__populateStretchComboBox()
 
     def getBand(self) -> ImageModel.Band:
         """

@@ -61,11 +61,12 @@ class ImageModel(QObject):
 
     class Band(QObject):
         sigBandChanged = pyqtSignal()
-        def __init__(self, r: int, g: int, b: int):
+        def __init__(self, r: int, g: int, b: int, name: str):
             super().__init__()
             self.r = r
             self.g = g
             self.b = b
+            self.name = name
 
         def set(self, r, g, b):
             self.r = r
@@ -82,7 +83,9 @@ class ImageModel(QObject):
 
         def __init__(self, minR: int, maxR: int,
                            minG: int, maxG: int,
-                           minB: int, maxB: int):
+                           minB: int, maxB: int,
+                           name: str
+                           ):
             super().__init__()
             self.minR = minR
             self.maxR = maxR
@@ -90,6 +93,7 @@ class ImageModel(QObject):
             self.maxG = maxG
             self.minB = minB
             self.maxB = maxB
+            self.name = name
 
         def set(self, minR, maxR, minG, maxG, minB, maxB):
             self.minR = minR
@@ -135,10 +139,11 @@ class ImageModel(QObject):
         # self._ROITable = None
         # self.initInnerModels(defaults)
 
-        self._band = [self.Band(0, 0, 0), self.Band(0, 1, 2), self.Band(10, 20, 30)]
+        self._band = [self.Band(0, 0, 0, "mono"), self.Band(0, 1, 2, "rgb"),
+                      self.Band(10,20, 30, "custom1")]
 
-        self._stretch = [self.Stretch(0, 1, 0, 1, 0, 1),
-                         self.Stretch(0, 255, 0, 255, 0, 255)]
+        self._stretch = [self.Stretch(0, 1, 0, 1, 0, 1, "0-1"),
+                         self.Stretch(0, 255, 0, 255, 0, 255, "0-255")]
 
         self.connectSignals()
 
@@ -193,7 +198,7 @@ class ImageModel(QObject):
         Get the bands of the image.
 
         Returns:
-            dict: The bands of the image.
+            list: The bands of the image.
         """
         return self._band
 

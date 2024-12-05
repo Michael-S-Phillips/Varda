@@ -16,10 +16,10 @@ class ImageViewSelectionModel(QObject):
         sigStretchChanged (pyqtSignal): Signal emitted when the stretch selection changes.
 
     Methods:
-        selectBand(index): Selects a new band by index and updates the signals.
-        selectStretch(index): Selects a new stretch by index and updates the signals.
         currentBand(): Gets the currently selected band.
         currentStretch(): Gets the currently selected stretch.
+        selectBand(index): Selects a new band by index and updates the signals.
+        selectStretch(index): Selects a new stretch by index and updates the signals.
         setBand(r, g, b): Sets the values of the currently selected band.
         setStretch(minR, maxR, minG, maxG, minB, maxB): Sets the values of the
         currently selected stretch.
@@ -63,6 +63,38 @@ class ImageViewSelectionModel(QObject):
         """Unlinks the signals of the current stretch from the model's signals."""
         QObject.disconnect(self._stretchSignalConnection)
 
+    def allBands(self):
+        """Returns all bands in the image model.
+
+        Returns:
+            list: List of all bands in the image model.
+        """
+        return self._imageModel.band
+
+    def allStretches(self):
+        """Returns all stretches in the image model.
+
+        Returns:
+            list: List of all stretches in the image model.
+        """
+        return self._imageModel.stretch
+
+    def currentBand(self) -> ImageModel.Band:
+        """Gets the currently selected band.
+
+        Returns:
+            Band: The currently selected band.
+        """
+        return self._imageModel.band[self._bandIndex]
+
+    def currentStretch(self) -> ImageModel.Stretch:
+        """Gets the currently selected stretch.
+
+        Returns:
+            Stretch: The currently selected stretch.
+        """
+        return self._imageModel.stretch[self._stretchIndex]
+
     def selectBand(self, index):
         """Selects a new band by index and updates the signals.
 
@@ -84,22 +116,6 @@ class ImageViewSelectionModel(QObject):
         self._stretchIndex = index
         self._linkStretchSignal()
         self.sigStretchChanged.emit()
-
-    def currentBand(self) -> ImageModel.Band:
-        """Gets the currently selected band.
-
-        Returns:
-            Band: The currently selected band.
-        """
-        return self._imageModel.band[self._bandIndex]
-
-    def currentStretch(self) -> ImageModel.Stretch:
-        """Gets the currently selected stretch.
-
-        Returns:
-            Stretch: The currently selected stretch.
-        """
-        return self._imageModel.stretch[self._stretchIndex]
 
     def setBandValues(self, r, g, b):
         """Sets the values of the currently selected band.
