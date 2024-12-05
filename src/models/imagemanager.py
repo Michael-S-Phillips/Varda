@@ -1,4 +1,10 @@
+"""
+This module contains the `ImageManager` class, which manages a collection of images.
+It provides methods to add, remove, and link images, and integrates with Qt's model/view framework.
 
+Classes:
+    ImageManager: Manages a collection of `ImageModel` instances.
+"""
 # standard library
 from pathlib import Path
 import logging
@@ -50,7 +56,7 @@ class ImageManager(QtCore.QAbstractListModel):
             Links two images together.
 
         imageChangedReceiver(imageModel):
-            Handles the imageChanged signal and updates linked images.
+            Handles the imageChanged signal and updates linked images
     """
 
     def __init__(self, images=None, parent=None):
@@ -204,7 +210,7 @@ class ImageManager(QtCore.QAbstractListModel):
         self.__images.append(imageModel)
         self.endInsertRows()
 
-        imageModel.imageChanged.connect(self.imageChangedReceiver)
+        imageModel.sigImageChanged.connect(self.imageChangedReceiver)
 
         return self.index(self.rowCount() - 1)
 

@@ -15,6 +15,14 @@ class ListModel(QAbstractListModel):
         self._data = data if data else []
 
     def rowCount(self, parent=QModelIndex()):
+        """
+
+        Args:
+            parent:
+
+        Returns:
+
+        """
         return len(self._data)
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):

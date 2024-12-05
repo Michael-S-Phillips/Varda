@@ -131,8 +131,8 @@ class ImageRasterDataViewer(BaseImageView):
 
     def setImage(self, image):
         self.imageModel = image
-        self.imageModel.stretchChanged.connect(self._modelStretchChanged)
-        self.imageModel.bandChanged.connect(self._modelBandChanged)
+        self.imageModel.sigStretchChanged.connect(self._modelStretchChanged)
+        self.imageModel.sigBandChanged.connect(self._modelBandChanged)
 
         self.contextImageItem.setImage(self.imageModel.imageSlice)
 

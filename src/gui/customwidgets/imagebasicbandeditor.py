@@ -1,19 +1,24 @@
+
+# standard library
 from typing import override
 
+# third-party imports
 import pyqtgraph as pg
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QHBoxLayout
 from PyQt6.QtCore import Qt, pyqtSignal
 
+# local imports
+from gui.customwidgets.BaseImageView import BaseImageView
 
-class ImageBasicBandEditor(QWidget):
+
+class ImageBasicBandEditor(BaseImageView):
 
     widgetHeight = 152
 
-    def __init__(self, image=None, parent=None):
-        super().__init__(parent)
+    def __init__(self, imageModel=None, parent=None):
+        super().__init__(imageModel, parent)
         self.setWindowTitle("Band Editor")
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint)
-        self.imageModel = image
         self.vbox = None
         self.axis = None
         self.graphics = None

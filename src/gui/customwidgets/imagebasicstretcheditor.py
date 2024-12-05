@@ -1,9 +1,20 @@
+"""
+This module contains the ImageBasicStretchEditor class,
+which is a custom widget that allows the user to edit the stretch.
+"""
+
+# standard library
+
+# third party imports
 import pyqtgraph as pg
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QHBoxLayout
 from PyQt6.QtCore import Qt, pyqtSignal
 
+# local imports
+from gui.customwidgets.BaseImageView import BaseImageView
 
-class ImageBasicStretchEditor(QWidget):
+
+class ImageBasicStretchEditor(BaseImageView):
     def __init__(self, imageModel, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setWindowTitle("Stretch Editor")
@@ -53,7 +64,7 @@ class ImageBasicStretchEditor(QWidget):
         layout.addLayout(self.bLayout)
         self.setLayout(layout)
 
-        self.imageModel.stretchChanged.connect(self.updateView)
+        self.imageModel.sigStretchChanged.connect(self.updateView)
         
         self.show()
 

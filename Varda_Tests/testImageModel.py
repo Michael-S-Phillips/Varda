@@ -268,5 +268,5 @@ class TestImageManager(unittest.TestCase):
     def test_imageChanged(self):
         model = self.manager.newImage(os.path.abspath(
             "../src/testImages/HySpex/220724_VNIR_Reflectance.img"))
-        model.imageChanged.emit()
-        self.assertEqual(model.imageChanged, model.imageChanged)
+        model.sigImageChanged.emit()
+        self.assertEqual(model.sigImageChanged, model.sigImageChanged)

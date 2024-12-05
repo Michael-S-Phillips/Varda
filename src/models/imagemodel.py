@@ -1,3 +1,11 @@
+"""
+This module defines the ImageModel class, which serves as the base model for images in the Varda application.
+It provides a consistent interface for image data and includes signals and slots for communication between the image model and other components.
+
+Classes:
+    ImageModel: Represents an image model with attributes for raster data, metadata, and various image properties.
+"""
+
 # standard library
 import logging
 
@@ -8,11 +16,11 @@ import pyqtgraph as pg
 import numpy as np
 
 # local imports
-from models.parametermodel import ParameterModel
-from .tablemodel import TableModel
-from .metadata import Metadata
-from .observablelist import ObservableList
-from .parametermodel import ParameterModel
+from src.models.parametermodel import ParameterModel
+from src.models.tablemodel import TableModel
+from src.models.metadata import Metadata
+from src.models.observablelist import ObservableList
+from src.models.parametermodel import ParameterModel
 
 logger = logging.getLogger(__name__)
 
@@ -24,19 +32,37 @@ class ImageModel(QObject):
     slots for information exchange between the image and other views.
 
     Attributes:
-        _rasterData (np.ndarray): The raster data of the image.
-        _metadata (Metadata): The metadata of the image.
-        _metadataTable (TableModel): Table model for metadata.
-        _bandTable (TableModel): Table model for band adjustments.
-        _stretchTable (TableModel): Table model for stretch adjustments.
-        _ROITable (TableModel): Table model for ROI adjustments.
+        sigRoiChanged (pyqtSignal): Signal when ROI changes.
+        sigBandChanged (pyqtSignal): Signal when band adjustments change.
+        sigStretchChanged (pyqtSignal): Signal when the stretch changes.
+        sigImageChanged (pyqtSignal): Signal when anything about the image changes.
+        sigImageDestroyed (pyqtSignal): Signal when the image is destroyed.
+        rasterData (np.ndarray): The raw image data.
+        metadata (Metadata): Metadata associated with the image.
+        stretch (tuple): The levels of the image.
+        band (dict): The bands of the image.
+        wavelength (list): The wavelengths of the image.
+        bandCount (int): The number of bands in the image.
+        imageSlice (np.ndarray): The image slice.
+        imageType (str): The type of the image.
+        normalized_data (np.ndarray): The normalized data of the image.
+    Properties:
+
+    Public Methods:
+        __init__(self, rasterData, metadata, defaults=None)
+        connectSignals(self)
+        imageItem(self)
+        process(self, process)
+        __str__(self)
+        __repr__(self)
+        __del__(self)
     """
 
-    roiChanged = pyqtSignal()  # Signal when ROI changes
-    bandChanged = pyqtSignal()  # Signal when band adjustments change
-    stretchChanged = pyqtSignal()  # Signal when the stretch changes
-    imageChanged = pyqtSignal()  # Signal when anything about the image changes
-    imageDestroyed = pyqtSignal()  # Signal when the image is destroyed
+    sigRoiChanged = pyqtSignal()  # Signal when ROI changes
+    sigBandChanged = pyqtSignal()  # Signal when band adjustments change
+    sigStretchChanged = pyqtSignal()  # Signal when the stretch changes
+    sigImageChanged = pyqtSignal()  # Signal when anything about the image changes
+    sigImageDestroyed = pyqtSignal()  # Signal when the image is destroyed
 
     def __init__(self, rasterData, metadata, defaults=None):
         """
@@ -71,9 +97,9 @@ class ImageModel(QObject):
         """
         Connect signals to slots for the image model.
         """
-        self.bandChanged.connect(self.imageChanged.emit)
-        self.stretchChanged.connect(self.imageChanged.emit)
-        self.roiChanged.connect(self.imageChanged.emit)
+        self.sigBandChanged.connect(self.sigImageChanged.emit)
+        self.sigStretchChanged.connect(self.sigImageChanged.emit)
+        self.sigRoiChanged.connect(self.sigImageChanged.emit)
 
     @property
     def rasterData(self) -> np.ndarray:
@@ -111,7 +137,7 @@ class ImageModel(QObject):
             levels (tuple): The levels of the image.
         """
         self._stretch = stretch
-        self.stretchChanged.emit()
+        self.sigStretchChanged.emit()
         logger.info(f"Stretch changed to {stretch}")
 
     @property
@@ -138,8 +164,22 @@ class ImageModel(QObject):
         band = {key: int(value) for key, value in band.items()}
 
         self._band = band
-        self.bandChanged.emit()
+        self.sigBandChanged.emit()
         logger.info(f"Band changed to {band}")
+
+    @property
+    def wavelength(self):
+        """
+        Get the name/values of all wavelengths in the image.
+        If the metadata doesn't have a wavelength, return the range of
+        bandCount
+
+        Returns:
+            list: (int | float | str) The wavelengths of the image.
+        """
+        if self.metadata.wavelength:
+            return self.metadata.wavelength
+        return [i for i in range(self.bandCount)]
 
     @property
     def bandCount(self) -> int:
@@ -166,23 +206,22 @@ class ImageModel(QObject):
             logger.exception(msg)
             raise TypeError
 
-    # @property
-    # def imageSlice(self) -> np.ndarray:
-    #     """
-    #     Get a slice of the image data based on the band settings.
-    #
-    #     Returns:
-    #         np.ndarray: The image slice.
-    #     """
-    #     try:
-    #         # hardcoded to get the first band for now
-    #         index = self._bandTable.index(0, 0)
-    #         bandData = self._bandTable.getRow(index)
-    #         return self.rasterData[:, :, bandData]
-    #     except TypeError:
-    #         msg = "Error getting imageSlice"
-    #         logger.exception(msg)
-    #         raise None
+    @property
+    def imageType(self) -> str:
+        """
+        Get the type of the image (mono, rgba, spectral).
+
+        Returns:
+            str: The type of the image.
+        """
+        if self.bandCount == 1:
+            return "mono"
+        if self.bandCount == 3 or self.bandCount == 4:
+            return "rgba"
+        if self.bandCount > 4:
+            return "spectral"
+        return "unknown"
+
 
     # ignore everything below here for now. too complicated lmao
 
@@ -339,4 +378,4 @@ class ImageModel(QObject):
         Emit the imageDestroyed signal when the object is deleted. So any views
         dependent on this can clean up.
         """
-        self.imageDestroyed.emit()
+        self.sigImageDestroyed.emit()
