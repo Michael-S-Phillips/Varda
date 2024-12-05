@@ -2,7 +2,8 @@ import unittest
 
 import os
 from pathlib import Path
-from imagetypes import *
+from models import ImageManager
+from gui.customwidgets import ImageWorkspace
 
 
 class TestBackend(unittest.TestCase):
@@ -31,6 +32,14 @@ class TestBackend(unittest.TestCase):
         self.assertEqual(620, image.meta.height)
         self.assertEqual(200, image.meta.bandcount)
 
+
+    def testENVIImageLoading(self):
+        manager = ImageManager()
+        image = manager.newImage(str(os.path.abspath(
+            "../src/testImages/HySpex/220724_VNIR_Reflectance.img")))
+        workspace = ImageWorkspace()
+        workspace.show()
+        pass
 
 if __name__ == '__main__':
     unittest.main()

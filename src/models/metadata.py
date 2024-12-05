@@ -1,14 +1,22 @@
 # standard library
-from typing import Optional
+from typing import Any
 
 # third-party imports
-import numpy as np
+from PyQt6.QtCore import QAbstractListModel, QModelIndex, Qt
 from affine import Affine
+import numpy as np
+from dataclasses import dataclass
+
 
 # local imports
 
+@dataclass
+class MetaDataValue:
+    name: str
+    value: Any
 
-class Metadata():
+
+class Metadata:
     """
     A standardized set of metadata for images. driver, dtype, dataignore, width,
     height, bandcount, and transform, are expected to be provided by every image.
@@ -29,6 +37,8 @@ class Metadata():
                  transform: Affine,
                  wavelength: np.ndarray,
                  **kwargs):
+        super().__init__()
+
         # set base args
         self.driver = driver
         self.dtype = dtype

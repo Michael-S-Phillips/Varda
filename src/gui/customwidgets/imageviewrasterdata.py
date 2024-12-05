@@ -1,17 +1,26 @@
 # standard library
+from typing import Optional
+import logging
 
 # third party imports
 from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6.QtCore import QModelIndex
 import pyqtgraph as pg
 
 # local imports
-from gui.customitems.tripleimagehistogram import TripleImageHistogram
+from src.gui.customitems.tripleimagehistogram import TripleImageHistogram
+from src.models.parametermodel import ParameterModel
+from src.models.imagemodel import ImageModel
+from src.gui.customwidgets.parameditor import ParamEditor
+from src.gui.customwidgets.BaseImageView import BaseImageView
+
+logger = logging.getLogger(__name__)
 
 
-class ImageViewer(QtWidgets.QWidget):
+class ImageViewRasterData(BaseImageView):
     """
-        A custom widget that displays an image with three views and a histogram.
-        Provides main view, context, and zoom views of the image.
+        A custom widget that displays a view of an image in varda.
+        has various signals and slots for linking this view with other views
 
         Attributes:
             mainImageItem (pg.ImageItem): The main image item.
@@ -23,47 +32,35 @@ class ImageViewer(QtWidgets.QWidget):
             tripleHistogram (TripleImageHistogram): The histogram for the image.
     """
 
-    def __init__(self):
+    def __init__(self, imageModel=Optional[ImageModel] | None):
         """
         Initializes the three views, the histogram, and ROI controls
         """
         super().__init__()
 
-        self.mainImageItem = pg.ImageItem(axisOrder='row-major',
-                                          autoLevels=False,
-                                          levels=(0, 1))
-        self.mainView = self._initView("Main View",
-                                       self.mainImageItem,
-                                       False)
+        self.mainView:    pg.ViewBox | None = None
+        self.contextView: pg.ViewBox | None = None
+        self.zoomView:    pg.RectROI | None = None
 
-        self.contextImageItem = pg.ImageItem(axisOrder='row-major',
-                                             autoLevels=False,
-                                             levels=(0, 1))
-        self.contextView = self._initView("Context View",
-                                          self.contextImageItem,
-                                          False)
+        self.mainImageItem: pg.ImageItem | None = None
+        self.contextImageItem: pg.ImageItem | None = None
+        self.zoomImageItem: pg.ImageItem | None = None
 
-        self.zoomImageItem = pg.ImageItem(axisOrder='row-major',
-                                          autoLevels=False,
-                                          levels=(0, 1))
-        self.zoomView = self._initView("Zoom View",
-                                       self.zoomImageItem,
-                                       False)
+        self.tripleHistogram: TripleImageHistogram | None = None
 
-        self.tripleHistogram = TripleImageHistogram(self.mainImageItem,
-                                                    self.contextImageItem,
-                                                    self.zoomImageItem,
-                                                    levelMode='rgba',
-                                                    gradientPosition='bottom',
-                                                    orientation='horizontal'
-                                                    )
-
-        self.contextROI = None
-        self.mainROI = None
+        self.contextROI: pg.RectROI | None = None
+        self.mainROI: pg.RectROI | None = None
 
         self._initUI()
 
-    def _initView(self, name, imageItem, enableMouse):
+        self.imageModel = imageModel
+
+        if imageModel:
+            self.setImageModel(imageModel)
+
+        self.tripleHistogram.sigLevelsChanged.connect(self.updateModel)
+
+    def _initViewBox(self, name, imageItem, enableMouse):
         """
         Helper function to initialize an image item view
         @param name: The name of the view
@@ -80,6 +77,36 @@ class ImageViewer(QtWidgets.QWidget):
         return viewBox
 
     def _initUI(self):
+
+        self.mainImageItem = pg.ImageItem(axisOrder='row-major',
+                                          autoLevels=False,
+                                          levels=(0, 1))
+        self.mainView = self._initViewBox("Main View",
+                                          self.mainImageItem,
+                                          False)
+
+        self.contextImageItem = pg.ImageItem(axisOrder='row-major',
+                                             autoLevels=False,
+                                             levels=(0, 1))
+        self.contextView = self._initViewBox("Context View",
+                                             self.contextImageItem,
+                                             False)
+
+        self.zoomImageItem = pg.ImageItem(axisOrder='row-major',
+                                          autoLevels=False,
+                                          levels=(0, 1))
+        self.zoomView = self._initViewBox("Zoom View",
+                                          self.zoomImageItem,
+                                          False)
+
+        self.tripleHistogram = TripleImageHistogram(self.mainImageItem,
+                                                    self.contextImageItem,
+                                                    self.zoomImageItem,
+                                                    levelMode='rgba',
+                                                    gradientPosition='bottom',
+                                                    orientation='horizontal'
+                                                    )
+
         self.mainGraphicsView = pg.GraphicsView()
         self.mainGraphicsView.setCentralItem(self.mainView)
 
@@ -105,24 +132,21 @@ class ImageViewer(QtWidgets.QWidget):
         self.mainSplitter.addWidget(self.histogramView)
         self.mainSplitter.setStretchFactor(0, 10)
         self.mainSplitter.setStretchFactor(1, 1)
+
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.mainSplitter)
-        self.setLayout(layout)
+        self.setViewLayout(layout)
 
-    def setImage(self, image):
-        self.contextImageItem.setImage(image)
+    def setImageModel(self, image):
+        super().setImageModel(image)
+
+        self.contextImageItem.setImage(self.getRasterDataSlice())
         self._initROIS()
 
-    def updateImage(self, image):
-        self.contextImageItem.setImage(image)
+    def updateView(self):
+        self.contextImageItem.setImage(self.getRasterDataSlice())
         self._updateMainView()
-        self.resetLevels()
-
-    def resetLevels(self):
-        """
-        Resets the levels of the images to their original values
-        """
-        self.tripleHistogram.regionChanging()
+        self.stretchChanged()
 
     def _initROIS(self):
         """
@@ -150,9 +174,9 @@ class ImageViewer(QtWidgets.QWidget):
         startSize = (imgRect.width() / 4, imgRect.height() / 4)
 
         self.mainROI = pg.RectROI(center,
-                                     startSize,
-                                     pen=(0, 9),
-                                     maxBounds=imgRect)
+                                  startSize,
+                                  pen=(0, 9),
+                                  maxBounds=imgRect)
 
         self.mainView.addItem(self.mainROI)
         self.mainROI.sigRegionChanged.connect(self._updateZoomView)
@@ -170,14 +194,14 @@ class ImageViewer(QtWidgets.QWidget):
         Ensures the ROI shape is always square
         """
         size = roi.size()
-        min_dim = min(size.x(), size.y())
+        minDim = min(size.x(), size.y())
 
         # Adjust the size to be square
-        roi.setSize([min_dim, min_dim], update=False)
+        roi.setSize([minDim, minDim], update=False)
 
         # Reposition the scale handle
         handle = roi.handles[0]['item']
-        handle.setPos(min_dim, min_dim)
+        handle.setPos(minDim, minDim)
 
     def _updateMainView(self):
         """
@@ -194,6 +218,7 @@ class ImageViewer(QtWidgets.QWidget):
         )
         if self.mainROI is not None:
             self.mainROI.maxBounds = self.mainImageItem.boundingRect()
+
         self._updateZoomView()
 
     def _updateZoomView(self):
@@ -205,6 +230,33 @@ class ImageViewer(QtWidgets.QWidget):
         self._keepSquareROI(self.mainROI)
         self.zoomImageItem.setImage(
             self.mainROI.getArrayRegion(self.mainImageItem.image,
-                                           self.mainImageItem),
+                                        self.mainImageItem),
             levels=(0, 1), autoLevels=False
         )
+        self.stretchChanged()  # kinda hacky workaround to prevent the image
+        # from losing its stretch settings
+
+    def updateModel(self):
+        """
+        Updates the model stretch based on the histogram region
+        """
+        levels = self.tripleHistogram.getLevels()
+        levels = [level for row in levels for level in row]
+        self.setStretch(*levels)
+
+    def stretchChanged(self):
+        """
+        Updates the image levels based on the model stretch
+        """
+        levels = self.getStretch().values
+        self.tripleHistogram.setLevels(rgba=levels)
+
+        self.mainImageItem.setLevels(levels)
+        self.contextImageItem.setLevels(levels)
+        self.zoomImageItem.setLevels(levels)
+
+    def bandChanged(self):
+        """
+        Updates the model band based on the band editor
+        """
+        self.updateView()
