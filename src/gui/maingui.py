@@ -14,10 +14,10 @@ import pyqtgraph as pg
 
 # local imports
 from gui.imageloadingmanager import ImageLoadingManager
-from .customwidgets.imagebasicstretcheditor import ImageBasicStretchEditor
-from .customwidgets.imagebasicbandeditor import ImageBasicBandEditor
+from .customwidgets.imageviewstretcheditor import ImageViewStretchEditor
+from .customwidgets.imageviewbandeditor import ImageViewBandEditor
 from .customwidgets.imagelistview import ImageListView
-from .customwidgets.imagerasterdataviewer import ImageRasterDataViewer
+from .customwidgets.imageviewrasterdata import ImageViewRasterData
 from .customwidgets.controlpanel import ControlPanel
 from .customwidgets.vstatusbar import VStatusBar
 from .customwidgets.mainmenubar import MainMenuBar
@@ -102,10 +102,10 @@ class MainGUI(QtWidgets.QMainWindow):
         if image is None:
             return
 
-        imageView = ImageRasterDataViewer(image)
+        imageView = ImageViewRasterData(image)
         
-        self.basicStretchEditor = ImageBasicStretchEditor(image)
-        self.basicBandEditor = ImageBasicBandEditor(image)
+        self.basicStretchEditor = ImageViewStretchEditor(image)
+        self.basicBandEditor = ImageViewBandEditor(image)
         
         # remove initial prompt
         if self.centralWidget().isHidden() is False:

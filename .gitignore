@@ -23,4 +23,6 @@ src/testImages/*
 .idea
 .DS_Store
 Varda.log.*
+UnitTest.log.*
+
 .vscode

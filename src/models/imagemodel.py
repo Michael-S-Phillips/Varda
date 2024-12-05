@@ -7,6 +7,7 @@ Classes:
 """
 
 # standard library
+from dataclasses import dataclass
 import logging
 
 # third party imports
@@ -58,6 +59,52 @@ class ImageModel(QObject):
         __del__(self)
     """
 
+    class Band(QObject):
+        sigBandChanged = pyqtSignal()
+        def __init__(self, r: int, g: int, b: int):
+            super().__init__()
+            self.r = r
+            self.g = g
+            self.b = b
+
+        def set(self, r, g, b):
+            self.r = r
+            self.g = g
+            self.b = b
+            self.sigBandChanged.emit()
+
+        @property
+        def values(self):
+            return self.r, self.g, self.b
+
+    class Stretch(QObject):
+        sigStretchChanged = pyqtSignal()
+
+        def __init__(self, minR: int, maxR: int,
+                           minG: int, maxG: int,
+                           minB: int, maxB: int):
+            super().__init__()
+            self.minR = minR
+            self.maxR = maxR
+            self.minG = minG
+            self.maxG = maxG
+            self.minB = minB
+            self.maxB = maxB
+
+        def set(self, minR, maxR, minG, maxG, minB, maxB):
+            self.minR = minR
+            self.maxR = maxR
+            self.minG = minG
+            self.maxG = maxG
+            self.minB = minB
+            self.maxB = maxB
+            self.sigStretchChanged.emit()
+
+        @property
+        def values(self):
+            return (self.minR, self.maxR), (self.minG, self.maxG), (self.minB, self.maxB)
+
+
     sigRoiChanged = pyqtSignal()  # Signal when ROI changes
     sigBandChanged = pyqtSignal()  # Signal when band adjustments change
     sigStretchChanged = pyqtSignal()  # Signal when the stretch changes
@@ -88,8 +135,10 @@ class ImageModel(QObject):
         # self._ROITable = None
         # self.initInnerModels(defaults)
 
-        self.stretch = [(0, 1), (0, 1), (0, 1)]
-        self.band = {"r": 0, "g": 1, "b": 2}
+        self._band = [self.Band(0, 0, 0), self.Band(0, 1, 2), self.Band(10, 20, 30)]
+
+        self._stretch = [self.Stretch(0, 1, 0, 1, 0, 1),
+                         self.Stretch(0, 255, 0, 255, 0, 255)]
 
         self.connectSignals()
 
@@ -128,17 +177,15 @@ class ImageModel(QObject):
         """
         return self._stretch
 
-    @stretch.setter
-    def stretch(self, stretch):
+    @property
+    def defaultStretch(self):
         """
-        Set the levels of the image.
+        Get the default stretch of the image.
 
-        Args:
-            levels (tuple): The levels of the image.
+        Returns:
+            Stretch: The default stretch of the image.
         """
-        self._stretch = stretch
-        self.sigStretchChanged.emit()
-        logger.info(f"Stretch changed to {stretch}")
+        return self._stretch[0]
 
     @property
     def band(self):
@@ -150,22 +197,15 @@ class ImageModel(QObject):
         """
         return self._band
 
-    @band.setter
-    def band(self, band):
+    @property
+    def defaultBand(self):
         """
-        Set the bands of the image.
+        Get the default bands of the image.
 
-        Args:
-            bands (dict): The bands of the image.
+        Returns:
+            Band: The default bands of the image.
         """
-        if isinstance(band, list):
-            logger.warning("Band should be a dict, not a list")
-            band = {"r": band[0], "g": band[1], "b": band[2]}
-        band = {key: int(value) for key, value in band.items()}
-
-        self._band = band
-        self.sigBandChanged.emit()
-        logger.info(f"Band changed to {band}")
+        return self._band[0]
 
     @property
     def wavelength(self):
@@ -192,21 +232,6 @@ class ImageModel(QObject):
         return self.rasterData.shape[2]
 
     @property
-    def imageSlice(self) -> np.ndarray:
-        """
-        Get a slice of the image data based on the band settings.
-
-        Returns:
-            np.ndarray: The image slice.
-        """
-        try:
-            return self.rasterData[:, :, list(self.band.values())]
-        except TypeError:
-            msg = "Error getting imageSlice"
-            logger.exception(msg)
-            raise TypeError
-
-    @property
     def imageType(self) -> str:
         """
         Get the type of the image (mono, rgba, spectral).
@@ -222,127 +247,41 @@ class ImageModel(QObject):
             return "spectral"
         return "unknown"
 
-
-    # ignore everything below here for now. too complicated lmao
-
-    # def initInnerModels(self, defaults=None):
-    #     """
-    #     Initialize inner models for band, stretch, metadata, and ROI tables.
-    #
-    #     Args:
-    #         defaults (dict, optional): Default settings for band, stretch, and other
-    #         tables. Primarily used for testing.
-    #     """
-    #     if defaults is None:
-    #         defaults = {}
-    #
-    #     bandData = {"mono": {"r": 0, "g": 0, "b": 0},
-    #                 "rgb": {"r": 0, "g": 1, "b": 2},
-    #                 "custom1": {"r": 10, "g": 20, "b": 30}}
-    #     self._bandParameters = ParameterModel(bandData)
-    #
-    #     stretchData = defaults["band"] if defaults.get("band") else \
-    #         {"defaultfloat": {"minR": 0, "maxR": 0,
-    #                           "minG": 0, "maxG": 0,
-    #                           "minB": 0, "maxB": 0},
-    #          "defaultuint8": {"minR": 0, "maxR": 255,
-    #                           "minG": 0, "maxG": 255,
-    #                           "minB": 0, "maxB": 255}
-    #          }
-    #     self._stretchParameters = ParameterModel(stretchData)
-    #
-    #     metadataParamData = {"metadata": {key: [value] for key, value in
-    #                                       self._metadata.__dict__.items()}}
-    #     self._metadataParameters = ParameterModel(metadataParamData)
-    #
-    #     self._ROITable = TableModel()
-    #
-    # """
-    # Properties:
-    #     rasterData (np.ndarray): The raw image data.
-    #     metadataTable (TableModel): Table model for metadata.
-    #     metadata (Metadata): Metadata associated with the image.
-    #     bandTable (TableModel): Table model for band adjustments.
-    #     stretchTable (TableModel): Table model for stretch adjustments.
-    #     ROITable (TableModel): Table model for ROI adjustments.
-    #     imageSlice (np.ndarray): The image slice for the first band.
-    #     normalized_data (np.ndarray): The normalized
-    # """
-    #
-    #
-    # @property
-    # def metadataTable(self) -> TableModel:
-    #     """
-    #     Get the metadata table model.
-    #
-    #     Returns:
-    #         TableModel: The metadata.
-    #     """
-    #     return self._metadataTable
-    #
-    # @property
-    # def bandParameters(self) -> ParameterModel:
-    #     """
-    #     Get the band parameters.
-    #
-    #     Returns:
-    #         ParameterModel: The band parameters.
-    #     """
-    #     return self._bandParameters
-    #
-    # @property
-    # def bandTable(self) -> TableModel:
-    #     """
-    #     Get the band table model.
-    #
-    #     Returns:
-    #         TableModel: The band table model.
-    #     """
-    #     return self._bandTable
-    #
-    # @property
-    # def stretchTable(self) -> TableModel:
-    #     """
-    #     Get the stretch table model.
-    #
-    #     Returns:
-    #         TableModel: The stretch table model.
-    #     """
-    #     return self._stretchTable
-    #
-    # @property
-    # def ROITable(self) -> TableModel:
-    #     """
-    #     Get the ROI table model.
-    #
-    #     Returns:
-    #         TableModel: The ROI table model.
-    #     """
-    #     return self._ROITable
-
-    def imageItem(self):
+    def getRasterDataSlice(self, bandIndex) -> np.ndarray:
         """
-        Get a pyqtgraph ImageItem for the image slice.
+        Returns a 3 band image slice using the specified band index.
+
+        Args:
+            bandIndex: The band index.
 
         Returns:
-            pg.ImageItem: The ImageItem.
+            np.ndarray: The image slice.
         """
-        return pg.ImageItem(self.imageSlice, levels=(0, 1))
+        if any(isinstance(item, float) for item in bandIndex):
+            logger.warning("Band index contains a float. Converting to int.")
+            bandIndex = [int(item) for item in bandIndex]
 
-    @property
-    def normalized_data(self):
-        """
-        Get the normalized data of the image.
+        try:
+            return self.rasterData[:, :, bandIndex]
+        except TypeError:
+            msg = "Error getting imageSlice"
+            logger.exception(msg)
+            raise TypeError
 
-        Returns:
-            np.ndarray: The normalized data.
-        """
-        if self._normalized_data is not None:
-            return self._normalized_data
-
-        self._normalized_data = ((self.rasterData - np.min(self.rasterData)) /
-                                 (np.max(self.rasterData) - np.min(self.rasterData)))
-        return self._normalized_data
+    # @property
+    # def normalized_data(self):
+    #     """
+    #     Get the normalized data of the image.
+    #
+    #     Returns:
+    #         np.ndarray: The normalized data.
+    #     """
+    #     if self._normalized_data is not None:
+    #         return self._normalized_data
+    #
+    #     self._normalized_data = ((self.rasterData - np.min(self.rasterData)) /
+    #                              (np.max(self.rasterData) - np.min(self.rasterData)))
+    #     return self._normalized_data
 
     @pyqtSlot()
     def process(self, process):

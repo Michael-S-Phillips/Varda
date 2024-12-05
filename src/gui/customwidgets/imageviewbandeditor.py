@@ -5,18 +5,19 @@ from typing import override
 # third-party imports
 import pyqtgraph as pg
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QHBoxLayout
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
 # local imports
 from gui.customwidgets.BaseImageView import BaseImageView
 
 
-class ImageBasicBandEditor(BaseImageView):
+class ImageViewBandEditor(BaseImageView):
 
     widgetHeight = 152
+    updateInterval = 20
 
     def __init__(self, imageModel=None, parent=None):
-        super().__init__(imageModel, parent)
+        super().__init__(parent)
         self.setWindowTitle("Band Editor")
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint)
         self.vbox = None
@@ -30,16 +31,20 @@ class ImageBasicBandEditor(BaseImageView):
         self.bBandLabel = None
 
         self.initUI()
-
+        self.setImageModel(imageModel)
         self.setMaximumHeight(self.widgetHeight)
-        
+
+        self.updateTimer = QTimer()
+        self.updateTimer.setSingleShot(True)
+        self.updateTimer.timeout.connect(self.updateModel)
+        self.isDragging = False
+
         self.show()
 
-    def setModel(self, image):
-        self.imageModel = image
-        self.imageModel.bandsChanged.connect(self.updateView)
-        self.vbox.setRange(xRange=(0, self.imageModel.bandCount - 1))
-        self.updateView()
+    def setImageModel(self, image):
+        super().setImageModel(image)
+        self.vbox.setRange(xRange=(0, self._imageModel.bandCount - 1))
+        self.bandChanged()
 
     def initUI(self):
         # Create GraphicsLayout
@@ -77,9 +82,9 @@ class ImageBasicBandEditor(BaseImageView):
         self.gBandSlider = pg.InfiniteLine(movable=True, angle=90, pen='g')
         self.bBandSlider = pg.InfiniteLine(movable=True, angle=90, pen='b')
 
-        self.rBandSlider.sigPositionChanged.connect(self.updateModel)
-        self.gBandSlider.sigPositionChanged.connect(self.updateModel)
-        self.bBandSlider.sigPositionChanged.connect(self.updateModel)
+        self.rBandSlider.sigPositionChanged.connect(self.onSliderMoved)
+        self.gBandSlider.sigPositionChanged.connect(self.onSliderMoved)
+        self.bBandSlider.sigPositionChanged.connect(self.onSliderMoved)
 
         self.rBandLabel = self.MyInfLineLabel(self.rBandSlider, text="{value}",
                                           position=0.5,
@@ -99,24 +104,33 @@ class ImageBasicBandEditor(BaseImageView):
         # Layout setup
         layout = QVBoxLayout()
         layout.addWidget(self.view)
-        self.setLayout(layout)
+        self.setViewLayout(layout)
 
-        # Initial positions for sliders
-        self.rBandSlider.setValue(25)
-        self.gBandSlider.setValue(50)
-        self.bBandSlider.setValue(75)
+    def bandChanged(self):
+        currentBand = self.getBand()
+        self.rBandSlider.setValue(currentBand.r)
+        self.gBandSlider.setValue(currentBand.g)
+        self.bBandSlider.setValue(currentBand.b)
 
-    def updateView(self):
-        self.rBandSlider.setValue(self.imageModel.band['r'])
-        self.gBandSlider.setValue(self.imageModel.band['g'])
-        self.bBandSlider.setValue(self.imageModel.band['b'])
+    def onSliderMoved(self):
+        if not self.isDragging:
+            self.isDragging = True
+            self.updateTimer.start(self.updateInterval)  # Update interval in milliseconds
 
     def updateModel(self):
-        self.imageModel.band = {'r': self.rBandSlider.value(),
-                                'g': self.gBandSlider.value(),
-                                'b': self.bBandSlider.value()}
+        self.setBand(int(self.rBandSlider.value()),
+                     int(self.gBandSlider.value()),
+                     int(self.bBandSlider.value())
+                     )
+        if self.isDragging:
+            self.updateTimer.start(self.updateInterval)  # Restart the timer for continuous updates
+        self.isDragging = False
 
     class MyInfLineLabel(pg.InfLineLabel):
+        """
+        Custom label for InfiniteLine, just so we can round the displayed value to an
+        integer
+        """
         @override
         def valueChanged(self):
             if not self.isVisible():

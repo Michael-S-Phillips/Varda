@@ -31,7 +31,6 @@ class ParamEditor(QWidget):
                 paramEditingLayout.addWidget(paramEdit)
 
             self.formLayout.addRow(paramEditingLayout)
-            self.formLayout.addRow(QLabel(param.name), )
 
     def updateModel(self, param, key, lineEdit):
         param.values[key] = lineEdit.text()

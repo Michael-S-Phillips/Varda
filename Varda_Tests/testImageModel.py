@@ -7,6 +7,9 @@ inner models.
 import unittest
 import sys
 import os
+import logging
+from datetime import datetime
+from pathlib import Path
 
 # third party imports
 from PyQt6.QtWidgets import QApplication, QTreeView, QTableView
@@ -15,27 +18,48 @@ import numpy as np
 import affine
 
 # local imports
-from models import ImageManager
-# from imageloaders.enviimageloader import ENVIImageLoader
-# from imageloaders.hdf5imageloader import HDF5ImageLoader
-from gui.customwidgets.imagerasterdataviewer import ImageRasterDataViewer
-from models.imagemodel import ImageModel
-from models.imagemodel import TableModel
-from models.metadata import Metadata
+from src.models import ImageManager
+from src.gui.customwidgets.imageviewrasterdata import ImageViewRasterData
+from src.models.imagemodel import ImageModel
+from src.models.imagemodel import TableModel
+from src.models.metadata import Metadata
 
+
+def initLogging():
+    """
+    Setup logging. Logs will be saved in the "logs" directory. with a unique timestamp
+
+    Usage: create a logger object in any file and use it to log messages, e.g.
+
+      import logging
+      logger = logging.getLogger(__name__)
+      logger.debug("This is a debug message")
+      logger.info("This is an info message")
+      logger.warning("This is a warning message")
+      logger.error("This is an error message")
+    """
+
+    logFolder = "UnitTestLogs"
+    os.makedirs(logFolder, exist_ok=True)
+    logTime = datetime.now().strftime('%Y-%m-%d_%I-%M-%S-%p')
+    logName = Path(f"{logFolder}/UnitTest.log.{logTime}")
+    logging.basicConfig(filename=logName, level=logging.DEBUG)
+
+initLogging()
+
+def initDummyImageData():
+    dummyRasterData = np.random.rand(100, 100, 100)
+    dummyMetadata = Metadata("ENVI", "float32", 1.1, 100, 100, 100,
+                             {"r": 0, "g": 1, "b": 2}, affine.identity,
+                             np.arange(100))
+    return dummyRasterData, dummyMetadata
 
 class TestImageModel(unittest.TestCase):
     """
     Thank copilot for writing these long tests
     """
     def setUp(self):
-        # self.enviLoader = ENVIImageLoader()
-        # self.hdf5Loader = HDF5ImageLoader()
-
-        dummyMetadata = Metadata("ENVI", "float32", 1.1, 100, 100, 100,
-                                 {"r": 0, "g": 1, "b": 2}, affine.identity,
-                                 np.arange(100))
-        self.dummyImageData = (np.random.rand(100, 100, 100), dummyMetadata)
+        self.dummyImageData = initDummyImageData()
 
     def test_initTableModel1(self):
         tableModel = TableModel(["r", "g", "b"], {"mono": [0, 0, 0],
@@ -221,10 +245,7 @@ class TestImageModel(unittest.TestCase):
 
 class TestImageManager(unittest.TestCase):
     def setUp(self):
-        dummyMetadata = Metadata("ENVI", "float32", 1.1, 100, 100, 100,
-                                 {"r": 0, "g": 1, "b": 2}, affine.identity,
-                                 np.arange(100))
-        self.dummyImageData = (np.random.rand(100, 100, 100), dummyMetadata)
+        self.dummyImageData = initDummyImageData()
 
     def test_newENVIImage(self):
         manager = ImageManager()
@@ -270,3 +291,57 @@ class TestImageManager(unittest.TestCase):
             "../src/testImages/HySpex/220724_VNIR_Reflectance.img"))
         model.sigImageChanged.emit()
         self.assertEqual(model.sigImageChanged, model.sigImageChanged)
+
+
+from src.models.imagemodel import ImageModel
+from src.models.imageviewselectionmodel import ImageViewSelectionModel
+
+class TestImageViewSelectionModel(unittest.TestCase):
+
+    def setUp(self):
+        self.dummyImageData = initDummyImageData()
+        self.imageModel = ImageModel(*self.dummyImageData)
+        self.selectionModel = ImageViewSelectionModel(self.imageModel)
+
+    def test_initial_band(self):
+        self.assertEqual(self.selectionModel.currentBand().r, 0)
+        self.assertEqual(self.selectionModel.currentBand().g, 0)
+        self.assertEqual(self.selectionModel.currentBand().b, 0)
+
+    def test_initial_stretch(self):
+        self.assertEqual(self.selectionModel.currentStretch().minR, 0)
+        self.assertEqual(self.selectionModel.currentStretch().maxR, 1)
+        self.assertEqual(self.selectionModel.currentStretch().minG, 0)
+        self.assertEqual(self.selectionModel.currentStretch().maxG, 1)
+        self.assertEqual(self.selectionModel.currentStretch().minB, 0)
+        self.assertEqual(self.selectionModel.currentStretch().maxB, 1)
+
+    def test_select_band(self):
+        self.selectionModel.selectBand(1)
+        self.assertEqual(self.selectionModel.currentBand().r, 0)
+        self.assertEqual(self.selectionModel.currentBand().g, 1)
+        self.assertEqual(self.selectionModel.currentBand().b, 2)
+
+    def test_select_stretch(self):
+        self.selectionModel.selectStretch(1)
+        self.assertEqual(self.selectionModel.currentStretch().minR, 0)
+        self.assertEqual(self.selectionModel.currentStretch().maxR, 255)
+        self.assertEqual(self.selectionModel.currentStretch().minG, 0)
+        self.assertEqual(self.selectionModel.currentStretch().maxG, 255)
+        self.assertEqual(self.selectionModel.currentStretch().minB, 0)
+        self.assertEqual(self.selectionModel.currentStretch().maxB, 255)
+
+    def test_set_band(self):
+        self.selectionModel.setBandValues(5, 10, 15)
+        self.assertEqual(self.selectionModel.currentBand().r, 5)
+        self.assertEqual(self.selectionModel.currentBand().g, 10)
+        self.assertEqual(self.selectionModel.currentBand().b, 15)
+
+    def test_set_stretch(self):
+        self.selectionModel.setStretchValues(10, 20, 30, 40, 50, 60)
+        self.assertEqual(self.selectionModel.currentStretch().minR, 10)
+        self.assertEqual(self.selectionModel.currentStretch().maxR, 20)
+        self.assertEqual(self.selectionModel.currentStretch().minG, 30)
+        self.assertEqual(self.selectionModel.currentStretch().maxG, 40)
+        self.assertEqual(self.selectionModel.currentStretch().minB, 50)
+        self.assertEqual(self.selectionModel.currentStretch().maxB, 60)

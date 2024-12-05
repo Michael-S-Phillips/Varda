@@ -158,14 +158,13 @@ class ImageManager(QtCore.QAbstractListModel):
         if role == Qt.ItemDataRole.DisplayRole:
             # eventually the image metadata should probably contain a custom name
             return self.__images[index.row()].metadata.driver
-
+        if role == Qt.ItemDataRole.DecorationRole:
+            # return a small preview of the image
+            return self.__images[index.row()].getRasterDataSlice(
+                self.__images[index.row()].defaultBand.values
+            )
         if role == Qt.ItemDataRole.UserRole:
             return self.__images[index.row()]
-
-        if role == Qt.ItemDataRole.DecorationRole:
-            # NOTE: This returns a numpy array
-            # instead of the standard convention of QPixmap, QIcon, or QColor
-            return self.__images[index.row()].imageSlice
 
         if role == ImageDataType.RASTER_DATA:
             return self.__images[index.row()].rasterData

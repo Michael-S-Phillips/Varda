@@ -14,12 +14,29 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from gui.customwidgets.BaseImageView import BaseImageView
 
 
-class ImageBasicStretchEditor(BaseImageView):
+class ImageViewStretchEditor(BaseImageView):
+
     def __init__(self, imageModel, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.rLabel: QLabel | None = None
+        self.rMinInput: QLineEdit | None = None
+        self.rMaxInput: QLineEdit | None = None
+
+        self.gLabel: QLabel | None = None
+        self.gMinInput: QLineEdit | None = None
+        self.gMaxInput: QLineEdit | None = None
+
+        self.bLabel: QLabel | None = None
+        self.bMinInput: QLineEdit | None = None
+
+        self.initUI()
+        self.setImageModel(imageModel)
+        self.show()
+
+    def initUI(self):
         self.setWindowTitle("Stretch Editor")
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint)
-        self.imageModel = imageModel
 
         layout = QVBoxLayout()
 
@@ -34,7 +51,6 @@ class ImageBasicStretchEditor(BaseImageView):
         self.rLayout.addWidget(self.rMinInput)
         self.rLayout.addWidget(self.rMaxInput)
 
-
         self.gLabel = QLabel("Green min/max")
         self.gMinInput = QLineEdit("0")
         self.gMinInput.editingFinished.connect(self.updateModel)
@@ -45,7 +61,6 @@ class ImageBasicStretchEditor(BaseImageView):
         self.gLayout.addWidget(self.gLabel)
         self.gLayout.addWidget(self.gMinInput)
         self.gLayout.addWidget(self.gMaxInput)
-
 
         self.bLabel = QLabel("Blue min/max")
         self.bMinInput = QLineEdit("0")
@@ -58,23 +73,24 @@ class ImageBasicStretchEditor(BaseImageView):
         self.bLayout.addWidget(self.bMinInput)
         self.bLayout.addWidget(self.bMaxInput)
 
-
         layout.addLayout(self.rLayout)
         layout.addLayout(self.gLayout)
         layout.addLayout(self.bLayout)
-        self.setLayout(layout)
 
-        self.imageModel.sigStretchChanged.connect(self.updateView)
-        
-        self.show()
+        self.setViewLayout(layout)
+
+    def setImageModel(self, image):
+        super().setImageModel(image)
+        self.stretchChanged()
 
     def updateModel(self):
-        self.imageModel.stretch = [[float(self.rMinInput.text()), float(self.rMaxInput.text())],
-                                   [float(self.gMinInput.text()), float(self.gMaxInput.text())],
-                                   [float(self.bMinInput.text()), float(self.bMaxInput.text())]]
+        self.setStretch(float(self.rMinInput.text()), float(self.rMaxInput.text()),
+                        float(self.gMinInput.text()), float(self.gMaxInput.text()),
+                        float(self.bMinInput.text()), float(self.bMaxInput.text())
+                        )
 
-    def updateView(self):
-        levels = self.imageModel.stretch
+    def stretchChanged(self):
+        levels = self.getStretch().values
         self.rMinInput.setText(str(levels[0][0]))
         self.rMaxInput.setText(str(levels[0][1]))
         self.gMinInput.setText(str(levels[1][0]))

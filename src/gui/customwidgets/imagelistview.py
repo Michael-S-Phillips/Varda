@@ -5,6 +5,9 @@ from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtWidgets import QListView
 import pyqtgraph as pg
 
+from models.imagedatatype import ImageDataType
+
+
 # local imports
 
 
@@ -33,8 +36,8 @@ class ImageItemDelegate(QtWidgets.QStyledItemDelegate):
     def paint(self, painter, option, index):
         # Get the data from the model
         data = index.data(QtCore.Qt.ItemDataRole.DecorationRole)
-        icon = pg.ImageItem(data, levels=list(index.data(
-            QtCore.Qt.ItemDataRole.UserRole).stretch))
+        image = index.data(QtCore.Qt.ItemDataRole.UserRole)
+        icon = pg.ImageItem(data, levels=image.defaultStretch.values)
         icon.setRect(self.iconSize)
 
         label = index.data(QtCore.Qt.ItemDataRole.DisplayRole)

@@ -1,5 +1,6 @@
 # standard library
 from typing import Optional
+import logging
 
 # third party imports
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -13,8 +14,10 @@ from src.models.imagemodel import ImageModel
 from src.gui.customwidgets.parameditor import ParamEditor
 from src.gui.customwidgets.BaseImageView import BaseImageView
 
+logger = logging.getLogger(__name__)
 
-class ImageRasterDataViewer(BaseImageView):
+
+class ImageViewRasterData(BaseImageView):
     """
         A custom widget that displays a view of an image in varda.
         has various signals and slots for linking this view with other views
@@ -35,54 +38,29 @@ class ImageRasterDataViewer(BaseImageView):
         """
         super().__init__()
 
-        self.mainImageItem = pg.ImageItem(axisOrder='row-major',
-                                          autoLevels=False,
-                                          levels=(0, 1))
-        self.mainView = self._initView("Main View",
-                                       self.mainImageItem,
-                                       False)
+        self.mainView:    pg.ViewBox | None = None
+        self.contextView: pg.ViewBox | None = None
+        self.zoomView:    pg.RectROI | None = None
 
-        self.contextImageItem = pg.ImageItem(axisOrder='row-major',
-                                             autoLevels=False,
-                                             levels=(0, 1))
-        self.contextView = self._initView("Context View",
-                                          self.contextImageItem,
-                                          False)
+        self.mainImageItem: pg.ImageItem | None = None
+        self.contextImageItem: pg.ImageItem | None = None
+        self.zoomImageItem: pg.ImageItem | None = None
 
-        self.zoomImageItem = pg.ImageItem(axisOrder='row-major',
-                                          autoLevels=False,
-                                          levels=(0, 1))
-        self.zoomView = self._initView("Zoom View",
-                                       self.zoomImageItem,
-                                       False)
+        self.tripleHistogram: TripleImageHistogram | None = None
 
-        self.imageItem = pg.ImageItem(axisOrder='row-major',
-                                      autoLevels=False,
-                                      levels=(0, 1))
-        self.view = self._initView("Main View", self.imageItem, False)
-
-        self.tripleHistogram = TripleImageHistogram(self.mainImageItem,
-                                                    self.contextImageItem,
-                                                    self.zoomImageItem,
-                                                    levelMode='rgba',
-                                                    gradientPosition='bottom',
-                                                    orientation='horizontal'
-                                                    )
-
-        self.contextROI = None
-        self.mainROI = None
+        self.contextROI: pg.RectROI | None = None
+        self.mainROI: pg.RectROI | None = None
 
         self._initUI()
 
-        self.imageModel = None
+        self.imageModel = imageModel
 
-        self.stretchIndex = 0
         if imageModel:
-            self.setImage(imageModel)
+            self.setImageModel(imageModel)
 
-        self.tripleHistogram.sigLevelsChanged.connect(self._updateModelStretch)
+        self.tripleHistogram.sigLevelsChanged.connect(self.updateModel)
 
-    def _initView(self, name, imageItem, enableMouse):
+    def _initViewBox(self, name, imageItem, enableMouse):
         """
         Helper function to initialize an image item view
         @param name: The name of the view
@@ -99,6 +77,36 @@ class ImageRasterDataViewer(BaseImageView):
         return viewBox
 
     def _initUI(self):
+
+        self.mainImageItem = pg.ImageItem(axisOrder='row-major',
+                                          autoLevels=False,
+                                          levels=(0, 1))
+        self.mainView = self._initViewBox("Main View",
+                                          self.mainImageItem,
+                                          False)
+
+        self.contextImageItem = pg.ImageItem(axisOrder='row-major',
+                                             autoLevels=False,
+                                             levels=(0, 1))
+        self.contextView = self._initViewBox("Context View",
+                                             self.contextImageItem,
+                                             False)
+
+        self.zoomImageItem = pg.ImageItem(axisOrder='row-major',
+                                          autoLevels=False,
+                                          levels=(0, 1))
+        self.zoomView = self._initViewBox("Zoom View",
+                                          self.zoomImageItem,
+                                          False)
+
+        self.tripleHistogram = TripleImageHistogram(self.mainImageItem,
+                                                    self.contextImageItem,
+                                                    self.zoomImageItem,
+                                                    levelMode='rgba',
+                                                    gradientPosition='bottom',
+                                                    orientation='horizontal'
+                                                    )
+
         self.mainGraphicsView = pg.GraphicsView()
         self.mainGraphicsView.setCentralItem(self.mainView)
 
@@ -127,22 +135,18 @@ class ImageRasterDataViewer(BaseImageView):
 
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.mainSplitter)
-        self.setLayout(layout)
+        self.setViewLayout(layout)
 
-    def setImage(self, image):
-        self.imageModel = image
-        self.imageModel.sigStretchChanged.connect(self._modelStretchChanged)
-        self.imageModel.sigBandChanged.connect(self._modelBandChanged)
+    def setImageModel(self, image):
+        super().setImageModel(image)
 
-        self.contextImageItem.setImage(self.imageModel.imageSlice)
-
+        self.contextImageItem.setImage(self.getRasterDataSlice())
         self._initROIS()
 
     def updateView(self):
-
-        self.contextImageItem.setImage(self.imageModel.imageSlice)
+        self.contextImageItem.setImage(self.getRasterDataSlice())
         self._updateMainView()
-        self._modelStretchChanged()
+        self.stretchChanged()
 
     def _initROIS(self):
         """
@@ -190,14 +194,14 @@ class ImageRasterDataViewer(BaseImageView):
         Ensures the ROI shape is always square
         """
         size = roi.size()
-        min_dim = min(size.x(), size.y())
+        minDim = min(size.x(), size.y())
 
         # Adjust the size to be square
-        roi.setSize([min_dim, min_dim], update=False)
+        roi.setSize([minDim, minDim], update=False)
 
         # Reposition the scale handle
         handle = roi.handles[0]['item']
-        handle.setPos(min_dim, min_dim)
+        handle.setPos(minDim, minDim)
 
     def _updateMainView(self):
         """
@@ -229,24 +233,29 @@ class ImageRasterDataViewer(BaseImageView):
                                         self.mainImageItem),
             levels=(0, 1), autoLevels=False
         )
-        self._modelStretchChanged()  # kinda hacky workaround to prevent the image
+        self.stretchChanged()  # kinda hacky workaround to prevent the image
         # from losing its stretch settings
 
-    def _modelStretchChanged(self):
-        self.tripleHistogram.setLevels(rgba=self.imageModel.stretch)
-
-        self.mainImageItem.setLevels(self.imageModel.stretch)
-        self.contextImageItem.setLevels(self.imageModel.stretch)
-        self.zoomImageItem.setLevels(self.imageModel.stretch)
-
-    def _updateModelStretch(self):
+    def updateModel(self):
         """
         Updates the model stretch based on the histogram region
         """
         levels = self.tripleHistogram.getLevels()
-        self.imageModel.stretch = levels
+        levels = [level for row in levels for level in row]
+        self.setStretch(*levels)
 
-    def _modelBandChanged(self):
+    def stretchChanged(self):
+        """
+        Updates the image levels based on the model stretch
+        """
+        levels = self.getStretch().values
+        self.tripleHistogram.setLevels(rgba=levels)
+
+        self.mainImageItem.setLevels(levels)
+        self.contextImageItem.setLevels(levels)
+        self.zoomImageItem.setLevels(levels)
+
+    def bandChanged(self):
         """
         Updates the model band based on the band editor
         """

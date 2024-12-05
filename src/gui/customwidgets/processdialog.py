@@ -2,7 +2,8 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtWidgets import QWidget, QDialog
 
-from src import vardathreading
+import vardathreading
+
 
 class ProcessDialog(QDialog):
     
@@ -25,14 +26,14 @@ class ProcessDialog(QDialog):
             paramName.setToolTip(details["description"])
 
             if details["type"] == float:
-                input = QtWidgets.QLineEdit()
-                input.setText(str(details["default"]))
-                input.setValidator(QtGui.QDoubleValidator())
-                layout.addRow(paramName, input)
+                lineEdit = QtWidgets.QLineEdit()
+                lineEdit.setText(str(details["default"]))
+                lineEdit.setValidator(QtGui.QDoubleValidator())
+                layout.addRow(paramName, lineEdit)
             elif details["type"] == bool:
-                input = QtWidgets.QCheckBox()
-                input.setChecked(details["default"])
-                layout.addRow(paramName, input)
+                lineEdit = QtWidgets.QCheckBox()
+                lineEdit.setChecked(details["default"])
+                layout.addRow(paramName, lineEdit)
 
 
 

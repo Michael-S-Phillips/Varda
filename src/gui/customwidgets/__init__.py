@@ -6,6 +6,6 @@ from .fileexplorer import FileExplorer
 from .textwidget import TextWidget
 from .imagelistview import ImageListView
 from .controlpanel import ControlPanel
-from .imagerasterdataviewer import ImageRasterDataViewer
+from .imageviewrasterdata import ImageViewRasterData
 from .parameditor import ParamEditor
 from .vstatusbar import VStatusBar
