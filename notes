@@ -1,0 +1,28 @@
+- put titles on context / zoom views
+- main view name?? main / standard
+- context -> main -> zoom. What should be in the zoom should be in the main view
+- match aspect ratios of context / zoom
+- move context  / zoom around individually
+- stretch data that is in the current view of the main image
+- set of histograms for whole image, and a set of histograms that are in the zoomed in view
+- save session vs save workspace
+
+
+- for january
+    - creating multiple workspaces
+    - different ways of adding images (menu to open an image)
+    - linking images (one image = data reduction (band parameters), the other one = original )
+    - extracting from same spacial location
+    - open several images at a Time 
+    - image processing
+        - create a new workspace for new process done on an image
+        
+
+    - create several new images for one workspace?
+    - workspaces are self contained
+
+
+1) working with multiple images
+2) ROI functionality (free hand draw roi, roi tracking, freehand drawing roi, drawing on and drawing off).
+   make geopandas roi object, create roi subclass for freehand roi
+3) improve histograms (put histogram in control panel?)
