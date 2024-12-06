@@ -3,7 +3,7 @@ import unittest
 import os
 from pathlib import Path
 from models import ImageManager
-from gui.customwidgets import ImageWorkspace
+from gui.widgets import ImageWorkspace
 
 
 class TestBackend(unittest.TestCase):

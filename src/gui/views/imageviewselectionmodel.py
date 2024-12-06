@@ -3,7 +3,7 @@ import logging
 from PyQt6.QtCore import QObject, pyqtSignal
 
 
-from src.models.imagemodel import ImageModel
+from models import ImageModel
 logger = logging.getLogger(__name__)
 
 

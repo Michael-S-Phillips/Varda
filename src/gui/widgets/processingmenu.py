@@ -7,8 +7,8 @@ from PyQt6.QtWidgets import QWidget, QMenuBar, QMenu
 from PyQt6.QtCore import QObject
 
 # local imports
-from src.imageprocessing.imageprocess import ImageProcess
-from src.gui.customwidgets.processdialog import ProcessDialog
+from imageprocessing.imageprocess import ImageProcess
+from src.gui.widgets.processdialog import ProcessDialog
 
 logger = logging.getLogger(__name__)
 
@@ -29,4 +29,3 @@ class ProcessingMenu(QMenu):
                                           lambda p=process: self.openProcessControlMenu(
                                               p))
             
-    

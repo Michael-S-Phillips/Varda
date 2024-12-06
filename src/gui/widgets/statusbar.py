@@ -3,13 +3,13 @@ import time
 from PyQt6 import QtWidgets, QtCore
 
 
-class VStatusBar(QtWidgets.QStatusBar):
+class StatusBar(QtWidgets.QStatusBar):
     """
     A custom widget for the statusbar.
     Lets us create more complex status messages or animations without cluttering the ImageWorkspace class
     """
     def __init__(self, parent=None):
-        super(VStatusBar, self).__init__(parent)
+        super(StatusBar, self).__init__(parent)
         self.animationTimer = QtCore.QTimer(self)
         self.animationIndex = None
 

@@ -3,7 +3,7 @@ import logging
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import QObject
 
-from src.models.imagemodel import ImageModel
+from models import ImageModel
 import vardathreading
 
 logger = logging.getLogger(__name__)

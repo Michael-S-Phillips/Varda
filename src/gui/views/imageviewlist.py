@@ -11,9 +11,9 @@ from models.imagedatatype import ImageDataType
 # local imports
 
 
-class ImageListView(QListView):
+class ImageViewList(QListView):
     def __init__(self, parent=None, model=None):
-        super(ImageListView, self).__init__(parent)
+        super().__init__(parent)
         if model:
             print("Model set to: ", model)
             self.setModel(model)

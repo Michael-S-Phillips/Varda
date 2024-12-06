@@ -17,11 +17,7 @@ import pyqtgraph as pg
 import numpy as np
 
 # local imports
-from src.models.parametermodel import ParameterModel
-from src.models.tablemodel import TableModel
-from src.models.metadata import Metadata
-from src.models.observablelist import ObservableList
-from src.models.parametermodel import ParameterModel
+from models.metadata import Metadata
 
 logger = logging.getLogger(__name__)
 
