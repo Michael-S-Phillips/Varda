@@ -9,7 +9,7 @@ import pyqtgraph as pg
 # local imports
 from gui.items import TripleImageHistogram
 from models import ImageModel
-from .baseimageview import BaseImageView
+from gui.views.baseimageview import BaseImageView
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +143,7 @@ class ImageViewRasterData(BaseImageView):
     def updateView(self):
         self.contextImageItem.setImage(self.getRasterDataSlice())
         self._updateMainView()
-        self.stretchChanged()
+        self.onStretchChanged()
 
     def _initROIS(self):
         """
@@ -230,7 +230,7 @@ class ImageViewRasterData(BaseImageView):
                                         self.mainImageItem),
             levels=(0, 1), autoLevels=False
         )
-        self.stretchChanged()  # kinda hacky workaround to prevent the image
+        self.onStretchChanged()  # kinda hacky workaround to prevent the image
         # from losing its stretch settings
 
     def updateModel(self):
@@ -239,9 +239,9 @@ class ImageViewRasterData(BaseImageView):
         """
         levels = self.tripleHistogram.getLevels()
         levels = [level for row in levels for level in row]
-        self.setStretch(*levels)
+        self.setStretchValues(*levels)
 
-    def stretchChanged(self):
+    def onStretchChanged(self):
         """
         Updates the image levels based on the model stretch
         """
@@ -252,7 +252,7 @@ class ImageViewRasterData(BaseImageView):
         self.contextImageItem.setLevels(levels)
         self.zoomImageItem.setLevels(levels)
 
-    def bandChanged(self):
+    def onBandChanged(self):
         """
         Updates the model band based on the band editor
         """

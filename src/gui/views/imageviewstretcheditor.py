@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QVBoxLayout, QLabel, QLineEdit, QHBoxLayout
 from PyQt6.QtCore import Qt
 
 # local imports
-from .baseimageview import BaseImageView
+from gui.views.baseimageview import BaseImageView
 
 
 class ImageViewStretchEditor(BaseImageView):
@@ -80,15 +80,15 @@ class ImageViewStretchEditor(BaseImageView):
 
     def setImageModel(self, image):
         super().setImageModel(image)
-        self.stretchChanged()
+        self.onStretchChanged()
 
     def updateModel(self):
-        self.setStretch(float(self.rMinInput.text()), float(self.rMaxInput.text()),
-                        float(self.gMinInput.text()), float(self.gMaxInput.text()),
-                        float(self.bMinInput.text()), float(self.bMaxInput.text())
-                        )
+        self.setStretchValues(float(self.rMinInput.text()), float(self.rMaxInput.text()),
+                              float(self.gMinInput.text()), float(self.gMaxInput.text()),
+                              float(self.bMinInput.text()), float(self.bMaxInput.text())
+                              )
 
-    def stretchChanged(self):
+    def onStretchChanged(self):
         levels = self.getStretch().values
         self.rMinInput.setText(str(levels[0][0]))
         self.rMaxInput.setText(str(levels[0][1]))

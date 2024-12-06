@@ -289,55 +289,55 @@ class TestImageManager(unittest.TestCase):
         self.assertEqual(model.sigImageChanged, model.sigImageChanged)
 
 
-from src.models.imagemodel import ImageModel
-from gui.views.imageviewselectionmodel import ImageViewSelectionModel
+from models.imagemodel import ImageModel
+from gui.views.baseimageviewmodel import BaseImageViewModel
 
 class TestImageViewSelectionModel(unittest.TestCase):
 
     def setUp(self):
         self.dummyImageData = initDummyImageData()
         self.imageModel = ImageModel(*self.dummyImageData)
-        self.selectionModel = ImageViewSelectionModel(self.imageModel)
+        self.selectionModel = BaseImageViewModel(self.imageModel)
 
     def test_initial_band(self):
-        self.assertEqual(self.selectionModel.currentBand().r, 0)
-        self.assertEqual(self.selectionModel.currentBand().g, 0)
-        self.assertEqual(self.selectionModel.currentBand().b, 0)
+        self.assertEqual(self.selectionModel.getCurrentBand().r, 0)
+        self.assertEqual(self.selectionModel.getCurrentBand().g, 0)
+        self.assertEqual(self.selectionModel.getCurrentBand().b, 0)
 
     def test_initial_stretch(self):
-        self.assertEqual(self.selectionModel.currentStretch().minR, 0)
-        self.assertEqual(self.selectionModel.currentStretch().maxR, 1)
-        self.assertEqual(self.selectionModel.currentStretch().minG, 0)
-        self.assertEqual(self.selectionModel.currentStretch().maxG, 1)
-        self.assertEqual(self.selectionModel.currentStretch().minB, 0)
-        self.assertEqual(self.selectionModel.currentStretch().maxB, 1)
+        self.assertEqual(self.selectionModel.getCurrentStretch().minR, 0)
+        self.assertEqual(self.selectionModel.getCurrentStretch().maxR, 1)
+        self.assertEqual(self.selectionModel.getCurrentStretch().minG, 0)
+        self.assertEqual(self.selectionModel.getCurrentStretch().maxG, 1)
+        self.assertEqual(self.selectionModel.getCurrentStretch().minB, 0)
+        self.assertEqual(self.selectionModel.getCurrentStretch().maxB, 1)
 
     def test_select_band(self):
         self.selectionModel.selectBand(1)
-        self.assertEqual(self.selectionModel.currentBand().r, 0)
-        self.assertEqual(self.selectionModel.currentBand().g, 1)
-        self.assertEqual(self.selectionModel.currentBand().b, 2)
+        self.assertEqual(self.selectionModel.getCurrentBand().r, 0)
+        self.assertEqual(self.selectionModel.getCurrentBand().g, 1)
+        self.assertEqual(self.selectionModel.getCurrentBand().b, 2)
 
     def test_select_stretch(self):
         self.selectionModel.selectStretch(1)
-        self.assertEqual(self.selectionModel.currentStretch().minR, 0)
-        self.assertEqual(self.selectionModel.currentStretch().maxR, 255)
-        self.assertEqual(self.selectionModel.currentStretch().minG, 0)
-        self.assertEqual(self.selectionModel.currentStretch().maxG, 255)
-        self.assertEqual(self.selectionModel.currentStretch().minB, 0)
-        self.assertEqual(self.selectionModel.currentStretch().maxB, 255)
+        self.assertEqual(self.selectionModel.getCurrentStretch().minR, 0)
+        self.assertEqual(self.selectionModel.getCurrentStretch().maxR, 255)
+        self.assertEqual(self.selectionModel.getCurrentStretch().minG, 0)
+        self.assertEqual(self.selectionModel.getCurrentStretch().maxG, 255)
+        self.assertEqual(self.selectionModel.getCurrentStretch().minB, 0)
+        self.assertEqual(self.selectionModel.getCurrentStretch().maxB, 255)
 
     def test_set_band(self):
         self.selectionModel.setBandValues(5, 10, 15)
-        self.assertEqual(self.selectionModel.currentBand().r, 5)
-        self.assertEqual(self.selectionModel.currentBand().g, 10)
-        self.assertEqual(self.selectionModel.currentBand().b, 15)
+        self.assertEqual(self.selectionModel.getCurrentBand().r, 5)
+        self.assertEqual(self.selectionModel.getCurrentBand().g, 10)
+        self.assertEqual(self.selectionModel.getCurrentBand().b, 15)
 
     def test_set_stretch(self):
         self.selectionModel.setStretchValues(10, 20, 30, 40, 50, 60)
-        self.assertEqual(self.selectionModel.currentStretch().minR, 10)
-        self.assertEqual(self.selectionModel.currentStretch().maxR, 20)
-        self.assertEqual(self.selectionModel.currentStretch().minG, 30)
-        self.assertEqual(self.selectionModel.currentStretch().maxG, 40)
-        self.assertEqual(self.selectionModel.currentStretch().minB, 50)
-        self.assertEqual(self.selectionModel.currentStretch().maxB, 60)
+        self.assertEqual(self.selectionModel.getCurrentStretch().minR, 10)
+        self.assertEqual(self.selectionModel.getCurrentStretch().maxR, 20)
+        self.assertEqual(self.selectionModel.getCurrentStretch().minG, 30)
+        self.assertEqual(self.selectionModel.getCurrentStretch().maxG, 40)
+        self.assertEqual(self.selectionModel.getCurrentStretch().minB, 50)
+        self.assertEqual(self.selectionModel.getCurrentStretch().maxB, 60)

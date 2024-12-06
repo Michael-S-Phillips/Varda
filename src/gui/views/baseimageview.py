@@ -8,7 +8,7 @@ import numpy as np
 
 # local imports
 from models import ImageModel
-from gui.views.imageviewselectionmodel import ImageViewSelectionModel
+from gui.views.baseimageviewmodel import BaseImageViewModel
 
 
 class BaseImageView(QWidget):
@@ -26,7 +26,7 @@ class BaseImageView(QWidget):
 
     Methods:
         setViewLayout(layout: QVBoxLayout):
-            Sets the layout for the view.
+            Used by subclasses to add their UI layout to the view.
         setImageModel(imageModel: ImageModel):
             Sets the image model for the view and links the necessary signals.
         getBand() -> ImageModel.Band:
@@ -68,7 +68,7 @@ class BaseImageView(QWidget):
         self.__initUI()
 
         self._imageModel = None
-        self._selectionModel = None
+        self._imageViewModel = None
         if imageModel:
             self.setImageModel(imageModel)
 
@@ -79,7 +79,7 @@ class BaseImageView(QWidget):
             such as a way to select the active band and stretch.
         """
         self.__layout = QVBoxLayout()
-        self.__layout.setContentsMargins(0, 0, 0, 0)  # Set margins to 0
+        self.__layout.setContentsMargins(0, 0, 0, 0)
         self.__viewControls = QHBoxLayout()
         self.__bandComboBox = QComboBox()
         self.__stretchComboBox = QComboBox()
@@ -96,24 +96,23 @@ class BaseImageView(QWidget):
         Populates the band combo box with the available bands from the image model.
         """
         self.__bandComboBox.clear()
-        for band in self._selectionModel.allBands():
+        for band in self._imageViewModel.getAllBands():
             self.__bandComboBox.addItem(band.name)
-        self.__bandComboBox.setCurrentIndex(self._selectionModel._bandIndex)
+        self.__bandComboBox.setCurrentIndex(self._imageViewModel.getBandIndex())
         self.__bandComboBox.currentIndexChanged.connect(
-            self._selectionModel.selectBand)
+            self._imageViewModel.setBandIndex)
         self.__viewControls.addWidget(self.__bandComboBox)
-
 
     def __populateStretchComboBox(self):
         """
         Populates the stretch combo box with the available stretches from the image model.
         """
         self.__stretchComboBox.clear()
-        for stretch in self._selectionModel.allStretches():
+        for stretch in self._imageViewModel.getAllStretches():
             self.__stretchComboBox.addItem(stretch.name)
-        self.__stretchComboBox.setCurrentIndex(self._selectionModel._stretchIndex)
+        self.__stretchComboBox.setCurrentIndex(self._imageViewModel.getStretchIndex())
         self.__stretchComboBox.currentIndexChanged.connect(
-            self._selectionModel.selectStretch)
+            self._imageViewModel.setStretchIndex)
         self.__viewControls.addWidget(self.__stretchComboBox)
 
     def setViewLayout(self, layout):
@@ -133,19 +132,18 @@ class BaseImageView(QWidget):
             imageModel (ImageModel): The image model to associate with this view.
         """
         self._imageModel = imageModel
-        self._selectionModel = ImageViewSelectionModel(self._imageModel)
+        self._imageViewModel = BaseImageViewModel(self._imageModel)
         self._linkSignals()
 
-        self.imageChanged()
+        self.onImageChanged()
 
     def _linkSignals(self):
         """
         Links the signals from the image model and selection model to the view's slots.
         """
-        self._imageModel.sigImageChanged.connect(self.imageChanged)
-
-        self._selectionModel.sigBandChanged.connect(self.bandChanged)
-        self._selectionModel.sigStretchChanged.connect(self.stretchChanged)
+        self._imageModel.sigImageChanged.connect(self.onImageChanged)
+        self._imageViewModel.sigBandChanged.connect(self.onBandChanged)
+        self._imageViewModel.sigStretchChanged.connect(self.onStretchChanged)
 
         self.__populateBandComboBox()
         self.__populateStretchComboBox()
@@ -157,7 +155,7 @@ class BaseImageView(QWidget):
         Returns:
             ImageModel.Band: The currently selected band.
         """
-        return self._selectionModel.currentBand()
+        return self._imageViewModel.getCurrentBand()
 
     def getStretch(self):
         """
@@ -166,9 +164,9 @@ class BaseImageView(QWidget):
         Returns:
             ImageModel.Stretch: The currently selected stretch.
         """
-        return self._selectionModel.currentStretch()
+        return self._imageViewModel.getCurrentStretch()
 
-    def setBand(self, r, g, b):
+    def setBandValues(self, r, g, b):
         """
         Sets the values of the currently selected band in the selection model.
 
@@ -177,9 +175,9 @@ class BaseImageView(QWidget):
             g (int): The green band value.
             b (int): The blue band value.
         """
-        self._selectionModel.setBandValues(r, g, b)
+        self._imageViewModel.setBandValues(r, g, b)
 
-    def setStretch(self, minR, maxR, minG, maxG, minB, maxB):
+    def setStretchValues(self, minR, maxR, minG, maxG, minB, maxB):
         """
         Sets the values of the currently selected stretch in the selection model.
 
@@ -191,7 +189,7 @@ class BaseImageView(QWidget):
             minB (int | float): The minimum blue stretch value.
             maxB (int | float): The maximum blue stretch value.
         """
-        self._selectionModel.setStretchValues(minR, maxR, minG, maxG, minB, maxB)
+        self._imageViewModel.setStretchValues(minR, maxR, minG, maxG, minB, maxB)
 
     def getRasterData(self):
         """
@@ -200,7 +198,7 @@ class BaseImageView(QWidget):
         Returns:
             np.ndarray: The raw image data.
         """
-        return self._imageModel.rasterData
+        return self._imageViewModel.getRasterData()
 
     def getRasterDataSlice(self):
         """
@@ -210,7 +208,7 @@ class BaseImageView(QWidget):
         Returns:
             np.ndarray: The raster data slice.
         """
-        return self._imageModel.getRasterDataSlice(self.getBand().values)
+        return self._imageViewModel.getRasterDataSlice()
 
     def getMetadata(self):
         """
@@ -219,10 +217,10 @@ class BaseImageView(QWidget):
         Returns:
             Metadata: The metadata for the image model.
         """
-        return self._imageModel.metadata
+        return self._imageViewModel.getMetadata()
 
     @pyqtSlot()
-    def imageChanged(self):
+    def onImageChanged(self):
         """
         Convenience method for subclasses to override.
             This method is called when anything about the image model changes
@@ -230,7 +228,7 @@ class BaseImageView(QWidget):
         pass
 
     @pyqtSlot()
-    def bandChanged(self):
+    def onBandChanged(self):
         """
         Convenience method for subclasses to override.
             This method is called when either the selected band data changes,
@@ -239,7 +237,7 @@ class BaseImageView(QWidget):
         pass
 
     @pyqtSlot()
-    def stretchChanged(self):
+    def onStretchChanged(self):
         """
         Convenience method for subclasses to override.
             This method is called when either the selected stretch data changes,

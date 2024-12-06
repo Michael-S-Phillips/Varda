@@ -8,7 +8,7 @@ from PyQt6.QtCore import QObject
 
 # local imports
 from imageprocessing.imageprocess import ImageProcess
-from src.gui.widgets.processdialog import ProcessDialog
+from gui.widgets.processdialog import ProcessDialog
 
 logger = logging.getLogger(__name__)
 

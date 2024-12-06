@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import QVBoxLayout
 from PyQt6.QtCore import Qt, QTimer
 
 # local imports
-from .baseimageview import BaseImageView
+from gui.views.baseimageview import BaseImageView
 
 
 class ImageViewBandEditor(BaseImageView):
@@ -44,7 +44,7 @@ class ImageViewBandEditor(BaseImageView):
     def setImageModel(self, image):
         super().setImageModel(image)
         self.vbox.setRange(xRange=(0, self._imageModel.bandCount - 1))
-        self.bandChanged()
+        self.onBandChanged()
 
     def initUI(self):
         # Create GraphicsLayout
@@ -106,7 +106,7 @@ class ImageViewBandEditor(BaseImageView):
         layout.addWidget(self.view)
         self.setViewLayout(layout)
 
-    def bandChanged(self):
+    def onBandChanged(self):
         currentBand = self.getBand()
         self.rBandSlider.setValue(currentBand.r)
         self.gBandSlider.setValue(currentBand.g)
@@ -118,10 +118,10 @@ class ImageViewBandEditor(BaseImageView):
             self.updateTimer.start(self.updateInterval)  # Update interval in milliseconds
 
     def updateModel(self):
-        self.setBand(int(self.rBandSlider.value()),
-                     int(self.gBandSlider.value()),
-                     int(self.bBandSlider.value())
-                     )
+        self.setBandValues(int(self.rBandSlider.value()),
+                           int(self.gBandSlider.value()),
+                           int(self.bBandSlider.value())
+                           )
         if self.isDragging:
             self.updateTimer.start(self.updateInterval)  # Restart the timer for continuous updates
         self.isDragging = False

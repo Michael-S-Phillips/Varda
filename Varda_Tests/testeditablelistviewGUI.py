@@ -2,7 +2,7 @@ import sys
 
 from PyQt6 import QtWidgets
 
-from src.models.listmodel import ListModel
+from models.listmodel import ListModel
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)

@@ -4,7 +4,7 @@ import unittest
 from PyQt6 import QtWidgets
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt, QModelIndex
-from src.models.listmodel import ListModel
+from models.listmodel import ListModel
 
 
 class TestEditableListView(unittest.TestCase):

@@ -17,9 +17,9 @@ from gui.views import (ImageViewStretchEditor, ImageViewBandEditor,
 
 from gui.widgets import ControlPanel, StatusBar, MainMenuBar
 
-from gui.imageloadingmanager import ImageLoadingManager
 from models.imagemanager import ImageManager
-# Create a "logs" directory if it doesn't exist
+import vardathreading
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,12 +38,11 @@ class MainGUI(QtWidgets.QMainWindow):
         
 
         self.imageManager = ImageManager()
-        self.imageLoadingManager = ImageLoadingManager(self.imageManager)
-        self.imageLoadingManager.sigImageLoaded.connect(self.onImageLoaded)
-        
+
         self.initUI()
         
         logger.info("UI Initialized")
+
     def initUI(self):
         self.setupMenuBar()
         self.setStatusBar(StatusBar())
@@ -78,7 +77,7 @@ class MainGUI(QtWidgets.QMainWindow):
     def setupMenuBar(self):
         menubar = MainMenuBar()
         self.setMenuBar(menubar)
-        menubar.sigImportFile.connect(self.imageLoadingManager.openFileDialog)
+        menubar.sigImportFile.connect(self.openFileDialog)
         menubar.sigExitApp.connect(self.exitApp)
 
     @override
@@ -88,7 +87,23 @@ class MainGUI(QtWidgets.QMainWindow):
     @override
     def dropEvent(self, event, **kwargs):
         self.statusBar().showLoadingMessage()
-        self.imageLoadingManager.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
+        self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
+
+    def openFileDialog(self):
+        # TODO: automatically determine all file types that are supported
+        fileName = QtWidgets.QFileDialog.getOpenFileName(None,
+                                                         "Open File", "",
+                                                         "image file (*.hdr *.img "
+                                                         "*.h5)")
+        if fileName[0] is False:
+            return
+
+        self.loadImage(fileName[0])
+
+    def loadImage(self, fileName):
+        logger.info("Loading image: " + fileName)
+        vardathreading.dispatchThreadProcess(self.onImageLoaded,
+                                             self.imageManager.newImage, fileName)
 
     def onImageLoaded(self, image):
         self.statusBar().loadingFinished()
@@ -112,6 +127,7 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.raise_()
 
         print("Added to Model:", image)
+
 
     def saveFile(self):
         print("Save file functionality...")
