@@ -95,9 +95,9 @@ class ControlPanel(QWidget):
         if self.imgWorkspace.image is not None and primary_option == "ROI Options":
             if secondary_action == "Poly ROI":
                 self.imgWorkspace.addPolylineROI()
-            elif secondary_action == "Save ROI":
+            if secondary_action == "Save ROI":
                 self.imgWorkspace.saveROI()
-            elif secondary_action == "Load ROI":
+            if secondary_action == "Load ROI":
                 self.imgWorkspace.loadROI()
         if self.imgWorkspace.image is not None and primary_option == "Plots":
             if secondary_action == "Pixel Plot":

@@ -6,6 +6,11 @@ Including a main image display, context image, and zoom image.
 NOTE: This is where we'll handle getting the views to interact with each other.
 """
 # standard library
+
+# roi to do:
+# fix mutiple plot windows showing up 
+# only 1 roi window popping up (done)
+# free hand drawing roi
 import time
 import logging
 
@@ -146,8 +151,11 @@ class ImageWorkspace(QtWidgets.QWidget):
     def loadROI(self):
         if self.roiWind:
             self.roiWind.updateROIs(self.savedROIs)
-        self.roiWind = ROIWindow(self, self.savedROIs)
-        self.roiWind.show()
+        if self.roiWind is None:
+            self.roiWind = ROIWindow(self, self.savedROIs)
+            self.roiWind.show()
+        
+            
 
     def showProcessingMenu(self):
         self.processingMenu.exec(
@@ -231,15 +239,23 @@ class ImageWorkspace(QtWidgets.QWidget):
 
             print("plotting spectrum ")
             #if self.plot is None:
-            self.ROIplot = pg.plot(x=range(len(mean_spec)), y=mean_spec,
-                                title="Mean spectrum",
-                                labels={'left': 'Average Strength',
-                                        'bottom': 'Band'})
-            self.ROIplot.setMouseEnabled(x=False, y=False)
-            self.ROIplot.setMinimumSize(600, 300)
-            self.ROIplot.setMaximumSize(1100, 300)
-            self.plot.hide()
-            self.mainSplitter.addWidget(self.ROIplot)
+            if self.ROIplot is None:
+                self.ROIplot = pg.plot(x=range(len(mean_spec)), y=mean_spec,
+                                    title="Mean spectrum",
+                                    labels={'left': 'Average Strength',
+                                            'bottom': 'Band'})
+                self.ROIplot.setMouseEnabled(x=False, y=False)
+                self.ROIplot.setMinimumSize(600, 300)
+                self.ROIplot.setMaximumSize(1100, 300)
+                self.plot.hide()
+                self.pixel_plot.hide()
+                self.mainSplitter.addWidget(self.ROIplot)
+            else:
+                self.mainSplitter.removeItem(self.ROIplot)
+                self.ROIplot = pg.plot(x=range(len(mean_spec)), y=mean_spec,
+                                    title="Mean spectrum",
+                                    labels={'left': 'Average Strength',
+                                            'bottom': 'Band'})
 
     def loadStdPlot(self, roi):
         print("Loading std spectrum plot...")
@@ -270,7 +286,9 @@ class ImageWorkspace(QtWidgets.QWidget):
             #     self.plot.setLabel('bottom', "Band")
             #     self.plot.setLabel('left', "Average Strength")
             #     self.plot.plot(range(len(std_spec)), std_spec)
-
+            isNone = False
+            if self.ROIplot is None:
+                isNone = True
             self.ROIplot = pg.plot(x=range(len(std_spec)), y=std_spec,
                                 title="Mean spectrum",
                                 labels={'left': 'Average Strength',
@@ -279,4 +297,40 @@ class ImageWorkspace(QtWidgets.QWidget):
             self.ROIplot.setMinimumSize(600, 300)
             self.ROIplot.setMaximumSize(1100, 300)
             self.plot.hide()
-            self.mainSplitter.addWidget(self.ROIplot)
+            self.pixel_plot.hide()
+            if isNone:
+                self.mainSplitter.addWidget(self.ROIplot)
+
+
+"""
+A custom widget for the statusbar. 
+Lets us create more complex status messages or animations without cluttering the ImageWorkspace class
+"""
+
+
+class WorkspaceStatusBar(QtWidgets.QStatusBar):
+    def __init__(self, parent=None):
+        super(WorkspaceStatusBar, self).__init__(parent)
+        self.animationTimer = QtCore.QTimer(self)
+        self.animationIndex = None
+
+    def showLoadingMessage(self):
+        self.timeStarted = time.time()
+        self.animationIndex = 0
+        self.animationTimer.timeout.connect(self.updateLoadingMessage)
+        self.animationTimer.start(100)  # Update every 100ms
+
+    def updateLoadingMessage(self):
+        animationChars = ['-', '\\', '|', '/']
+        self.showMessage(f"Loading... {animationChars[self.animationIndex]}")
+        self.animationIndex = (self.animationIndex + 1) % len(animationChars)
+
+    def loadingFinished(self):
+        self.timeElapsed = time.time() - self.timeStarted
+        self.animationTimer.stop()
+        self.animationTimer.timeout.disconnect(self.updateLoadingMessage)
+        self.clearMessage()
+        # temporary status message
+        self.showMessage(self.tr(
+            "Image loaded in " + str(round(self.timeElapsed, 2))
+            + " seconds"), msecs=5000)
