@@ -1,31 +1,24 @@
 # standard library
-import datetime
 from pathlib import Path
 import logging
 import sys
-import os
 from typing import override
 
 # third party imports
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QIcon
 import pyqtgraph as pg
 
 
 # local imports
-from gui.imageloadingmanager import ImageLoadingManager
-from .customwidgets.imageviewstretcheditor import ImageViewStretchEditor
-from .customwidgets.imageviewbandeditor import ImageViewBandEditor
-from .customwidgets.imagelistview import ImageListView
-from .customwidgets.imageviewrasterdata import ImageViewRasterData
-from .customwidgets.controlpanel import ControlPanel
-from .customwidgets.vstatusbar import VStatusBar
-from .customwidgets.mainmenubar import MainMenuBar
-from models.parametermodel import ParameterModel
-from gui.imageloadingmanager import ImageLoadingManager
-from models import ImageManager
-import vardathreading
+import gui.views as views
+from gui.views import (ImageViewStretchEditor, ImageViewBandEditor,
+                       ImageViewList, ImageViewRasterData)
 
+from gui.widgets import ControlPanel, StatusBar, MainMenuBar
+
+from gui.imageloadingmanager import ImageLoadingManager
+from models.imagemanager import ImageManager
 # Create a "logs" directory if it doesn't exist
 logger = logging.getLogger(__name__)
 
@@ -53,7 +46,7 @@ class MainGUI(QtWidgets.QMainWindow):
         logger.info("UI Initialized")
     def initUI(self):
         self.setupMenuBar()
-        self.setStatusBar(VStatusBar())
+        self.setStatusBar(StatusBar())
         # make dock tabs appear on top
         self.setTabPosition(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas,
                             QtWidgets.QTabWidget.TabPosition.North)
@@ -63,7 +56,7 @@ class MainGUI(QtWidgets.QMainWindow):
             QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
 
 
-        self.imageListView = ImageListView(self, self.imageManager)
+        self.imageListView = ImageViewList(self, self.imageManager)
         self.imageListViewDock.setWidget(self.imageListView)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea,
                            self.imageListViewDock)

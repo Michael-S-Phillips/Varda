@@ -27,7 +27,7 @@ from . import ROIWindow
 from imageprocessing import ImageProcess
 import vardathreading
 import debug
-from .vstatusbar import VStatusBar
+from .statusbar import StatusBar
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ class ImageWorkspace(QtWidgets.QWidget):
         self.mainSplitter.setStretchFactor(0, 30)
 
         # status bar at bottom
-        self.statusBar = VStatusBar(self)
+        self.statusBar = StatusBar(self)
 
         # Create pixel spectrum plot
         self.pixel_plot = pg.PlotWidget(title="Pixel Spectrum")

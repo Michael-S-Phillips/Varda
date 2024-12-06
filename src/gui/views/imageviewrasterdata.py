@@ -3,16 +3,13 @@ from typing import Optional
 import logging
 
 # third party imports
-from PyQt6 import QtCore, QtGui, QtWidgets
-from PyQt6.QtCore import QModelIndex
+from PyQt6 import QtCore, QtWidgets
 import pyqtgraph as pg
 
 # local imports
-from src.gui.customitems.tripleimagehistogram import TripleImageHistogram
-from src.models.parametermodel import ParameterModel
-from src.models.imagemodel import ImageModel
-from src.gui.customwidgets.parameditor import ParamEditor
-from src.gui.customwidgets.BaseImageView import BaseImageView
+from gui.items import TripleImageHistogram
+from models import ImageModel
+from .baseimageview import BaseImageView
 
 logger = logging.getLogger(__name__)
 

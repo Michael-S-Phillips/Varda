@@ -6,12 +6,11 @@ which is a custom widget that allows the user to edit the stretch.
 # standard library
 
 # third party imports
-import pyqtgraph as pg
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QHBoxLayout
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import QVBoxLayout, QLabel, QLineEdit, QHBoxLayout
+from PyQt6.QtCore import Qt
 
 # local imports
-from gui.customwidgets.BaseImageView import BaseImageView
+from .baseimageview import BaseImageView
 
 
 class ImageViewStretchEditor(BaseImageView):

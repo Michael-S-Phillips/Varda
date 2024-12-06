@@ -2,7 +2,6 @@ import sys
 
 from PyQt6 import QtWidgets
 
-from src.gui.customwidgets.parameditor import EditableListView
 from src.models.listmodel import ListModel
 
 if __name__ == "__main__":

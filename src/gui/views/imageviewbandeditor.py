@@ -4,11 +4,11 @@ from typing import override
 
 # third-party imports
 import pyqtgraph as pg
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QHBoxLayout
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtWidgets import QVBoxLayout
+from PyQt6.QtCore import Qt, QTimer
 
 # local imports
-from gui.customwidgets.BaseImageView import BaseImageView
+from .baseimageview import BaseImageView
 
 
 class ImageViewBandEditor(BaseImageView):

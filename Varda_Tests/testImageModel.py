@@ -5,24 +5,20 @@ inner models.
 """
 # standard library
 import unittest
-import sys
 import os
 import logging
 from datetime import datetime
 from pathlib import Path
 
 # third party imports
-from PyQt6.QtWidgets import QApplication, QTreeView, QTableView
 from PyQt6.QtCore import Qt
 import numpy as np
 import affine
 
 # local imports
-from src.models import ImageManager
-from src.gui.customwidgets.imageviewrasterdata import ImageViewRasterData
-from src.models.imagemodel import ImageModel
-from src.models.imagemodel import TableModel
-from src.models.metadata import Metadata
+from models import ImageManager
+from models.imagemodel import TableModel
+from models.metadata import Metadata
 
 
 def initLogging():
@@ -294,7 +290,7 @@ class TestImageManager(unittest.TestCase):
 
 
 from src.models.imagemodel import ImageModel
-from src.models.imageviewselectionmodel import ImageViewSelectionModel
+from gui.views.imageviewselectionmodel import ImageViewSelectionModel
 
 class TestImageViewSelectionModel(unittest.TestCase):
 

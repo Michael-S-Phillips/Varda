@@ -7,6 +7,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 # local imports
 import debug
 
+
 class TripleImageHistogram(pg.HistogramLUTItem):
     """
     Allows us to control the levels of three images via a single histogram

@@ -1,9 +1,16 @@
+"""
+Main entry point for the application. This file is responsible for setting up logging and starting the GUI.
+"""
+
+# standard library
 from pathlib import Path
-from gui import maingui
 from datetime import datetime
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+
+# local imports
+import gui.maingui as gui
 
 
 def initLogging():
@@ -29,5 +36,4 @@ def initLogging():
 
 if __name__ == "__main__":
     initLogging()
-    maingui.startGui()
-
+    gui.startGui()

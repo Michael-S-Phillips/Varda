@@ -7,7 +7,7 @@ import logging
 import numpy as np
 
 # local imports
-from src.models.metadata import Metadata
+from models.metadata import Metadata
 
 logger = logging.getLogger(__name__)
 

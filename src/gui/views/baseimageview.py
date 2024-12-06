@@ -7,8 +7,8 @@ import numpy as np
 
 
 # local imports
-from src.models.imagemodel import ImageModel
-from src.models.imageviewselectionmodel import ImageViewSelectionModel
+from models import ImageModel
+from gui.views.imageviewselectionmodel import ImageViewSelectionModel
 
 
 class BaseImageView(QWidget):
@@ -52,7 +52,7 @@ class BaseImageView(QWidget):
             Slot called when the stretch selection changes. Should be overridden by subclasses.
     """
 
-    def __init__(self, imageModel: ImageModel=None, parent=None):
+    def __init__(self, imageModel=None, parent=None):
         """
         Initializes the BaseImageView with an optional image model and parent.
 
@@ -159,7 +159,7 @@ class BaseImageView(QWidget):
         """
         return self._selectionModel.currentBand()
 
-    def getStretch(self) -> ImageModel.Stretch:
+    def getStretch(self):
         """
         Returns the currently selected stretch from the selection model.
 

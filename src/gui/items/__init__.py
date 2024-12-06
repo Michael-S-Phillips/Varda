@@ -1,2 +1,1 @@
 from .tripleimagehistogram import TripleImageHistogram
-from .bandchangeimageitem import BandChangeImageItem

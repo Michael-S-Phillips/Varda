@@ -10,11 +10,11 @@ from pathlib import Path
 import logging
 
 # third-party imports
-from PyQt6 import QtCore, QtWidgets, QtGui
+from PyQt6 import QtCore
 from PyQt6.QtCore import Qt
 
 # local imports
-from src.imageloaders.abstractimageloader import AbstractImageLoader
+from models.imageloaders import AbstractImageLoader
 from models.imagemodel import ImageModel
 from models.imagedatatype import ImageDataType
 
