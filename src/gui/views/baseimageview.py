@@ -7,10 +7,8 @@ import numpy as np
 
 
 # local imports
-# from typing import TYPE_CHECKING
-# if TYPE_CHECKING:
-#     from models import ImageModel
-from .imageviewselectionmodel import ImageViewSelectionModel
+from models import ImageModel
+from gui.views.imageviewselectionmodel import ImageViewSelectionModel
 
 
 class BaseImageView(QWidget):
