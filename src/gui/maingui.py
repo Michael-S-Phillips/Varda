@@ -9,16 +9,13 @@ from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QIcon
 import pyqtgraph as pg
 
-
 # local imports
-import gui.views as views
 from gui.views import (ImageViewStretchEditor, ImageViewBandEditor,
                        ImageViewList, ImageViewRasterData)
-
 from gui.widgets import ControlPanel, StatusBar, MainMenuBar
 
 from models.imagemanager import ImageManager
-import vardathreading
+from utilities import vardathreading, savesystem
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +32,14 @@ class MainGUI(QtWidgets.QMainWindow):
         self.setWindowTitle("Varda")
         pg.setConfigOptions(imageAxisOrder='row-major')
         logger.info("Started")
-        
 
         self.imageManager = ImageManager()
 
         self.initUI()
-        
+
+        self.connectSignals()
+
+        self.viewWindows = []
         logger.info("UI Initialized")
 
     def initUI(self):
@@ -53,7 +52,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.imageListViewDock = QtWidgets.QDockWidget("Image List", self)
         self.imageListViewDock.setAllowedAreas(
             QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
-
 
         self.imageListView = ImageViewList(self, self.imageManager)
         self.imageListViewDock.setWidget(self.imageListView)
@@ -70,24 +68,45 @@ class MainGUI(QtWidgets.QMainWindow):
         label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.setCentralWidget(label)
 
-
         # Create a central workspaceTabs
         self.setWindowIcon(QIcon("./img/logo.svg"))
-        
+
     def setupMenuBar(self):
         menubar = MainMenuBar()
         self.setMenuBar(menubar)
         menubar.sigImportFile.connect(self.openFileDialog)
         menubar.sigExitApp.connect(self.exitApp)
+        menubar.sigSaveProject.connect(self.saveProject)
+        menubar.sigOpenProject.connect(self.loadProject)
 
-    @override
-    def dragEnterEvent(self, event, **kwargs):
-        event.acceptProposedAction()
+    def connectSignals(self):
+        self.imageListView.sigOpenRasterView.connect(self.openRasterView)
+        self.imageListView.sigOpenStretchView.connect(self.openStretchView)
+        self.imageListView.sigOpenBandView.connect(self.openBandView)
 
-    @override
-    def dropEvent(self, event, **kwargs):
-        self.statusBar().showLoadingMessage()
-        self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
+    def openRasterView(self, imageModel):
+        view = ImageViewRasterData(imageModel)
+        dock = QtWidgets.QDockWidget("Raster Editor", parent=self)
+        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(view)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.setFloating(True)
+
+    def openStretchView(self, imageModel):
+        view = ImageViewStretchEditor(imageModel)
+        dock = QtWidgets.QDockWidget("Stretch Editor", parent=self)
+        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(view)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.setFloating(True)
+
+    def openBandView(self, imageModel):
+        view = ImageViewBandEditor(imageModel)
+        dock = QtWidgets.QDockWidget(parent=self)
+        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(view)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.setFloating(True)
 
     def openFileDialog(self):
         # TODO: automatically determine all file types that are supported
@@ -111,10 +130,7 @@ class MainGUI(QtWidgets.QMainWindow):
             return
 
         imageView = ImageViewRasterData(image)
-        
-        self.basicStretchEditor = ImageViewStretchEditor(image)
-        self.basicBandEditor = ImageViewBandEditor(image)
-        
+
         # remove initial prompt
         if self.centralWidget().isHidden() is False:
             self.centralWidget().hide()
@@ -126,17 +142,35 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.show()
         dock.raise_()
 
-        print("Added to Model:", image)
+    def saveProject(self):
+        fileName = QtWidgets.QFileDialog.getSaveFileName(None,
+                                                         "Save File", "",
+                                                         "Varda project file ("
+                                                         "*.varda)")
+        if not fileName[0]:
+            return
+        savesystem.saveProject(self.imageManager, fileName[0])
 
-
-    def saveFile(self):
-        print("Save file functionality...")
+    def loadProject(self):
+        fileName = QtWidgets.QFileDialog.getOpenFileName(None,
+                                                         "Open File", "",
+                                                         "Varda project file ("
+                                                         "*.varda)")
+        if not fileName[0]:
+            return
+        savesystem.loadProject(self.imageManager, fileName[0])
 
     def exitApp(self):
         self.close()
 
-    def aboutDialog(self):
-        print("Show about dialog...")
+    @override
+    def dragEnterEvent(self, event, **kwargs):
+        event.acceptProposedAction()
+
+    @override
+    def dropEvent(self, event, **kwargs):
+        self.statusBar().showLoadingMessage()
+        self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
 
 
 def startGui():

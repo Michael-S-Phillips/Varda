@@ -8,3 +8,7 @@ class-attribute-naming-style=camelCase
 argument-naming-style=camelCase
 inlinevar-naming-style=camelCase
 method-naming-style=camelCase
+
+[DESIGN]
+max-args=8
+max-positional-arguments=8

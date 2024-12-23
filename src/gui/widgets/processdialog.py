@@ -1,8 +1,8 @@
 
 from PyQt6 import QtWidgets, QtCore, QtGui
-from PyQt6.QtWidgets import QWidget, QDialog
+from PyQt6.QtWidgets import QDialog
 
-import vardathreading
+from utilities import vardathreading
 
 
 class ProcessDialog(QDialog):

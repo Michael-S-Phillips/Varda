@@ -1,10 +1,11 @@
 # standard library
 import time
-from typing import override
+import logging
 
 # third party imports
 import numpy as np
 import rasterio as rio
+logging.getLogger('rasterio').setLevel(logging.CRITICAL)
 
 # local imports
 from models.imageloaders.abstractimageloader import AbstractImageLoader
@@ -105,58 +106,3 @@ class ENVIImageLoader(AbstractImageLoader):
                         band_names=band_names,
                         geospatial_info=geospatial_info
                         )
-
-    @property
-    def bands(self):
-        return self.default_bands
-
-    @override
-    def process(self, process):
-        self._data = process.execute(image=self._data)
-
-    # @override
-    # def __init__(self, file_path):
-    #     super(ENVIImage, self).__init__(file_path)
-    #     print("ENVI subclass Used")
-    #
-    #
-    #     self._file_path = file_path.replace(".hdr", ".img")
-    #     self._meta = None
-    #     self._header_data = None
-    #     self._data = None
-    #     self._normalized_data = None
-    #     self._uint8_data = None
-    #     self.default_bands = {'r': 29, 'g': 19, 'b': 9}  # Example default bands
-    #     # self._load_data()
-    #     # self.mean = np.mean(self._data, axis=(0, 1))
-    #
-    #     # dict mapping value types to indexes (t is the spectral data)
-    #     self.axes = {'x': 0, 'y': 1, 't': 2}
-
-    @override
-    def request_rgb_data(self, bands):
-        redBand = bands['r']
-        greenBand = bands['g']
-        blueBand = bands['b']
-
-    @property
-    def data(self):
-        return self._data.rasterData
-
-    @property
-    def meta(self):
-        return self._meta
-
-    @property
-    def stretch(self):
-        pass
-
-    @property
-    def normalized_data(self):
-        if self._normalized_data is None:
-            self._normalized_data = (self._data - np.min(self._data)) / (np.max(self._data) - np.min(self._data))
-        return self._normalized_data
-
-    @property
-    def uint8_data(self):
-        return self._uint8_data.rasterData

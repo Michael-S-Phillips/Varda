@@ -107,10 +107,10 @@ class ImageViewBandEditor(BaseImageView):
         self.setViewLayout(layout)
 
     def onBandChanged(self):
-        currentBand = self.getBand()
-        self.rBandSlider.setValue(currentBand.r)
-        self.gBandSlider.setValue(currentBand.g)
-        self.bBandSlider.setValue(currentBand.b)
+        values = self.getBand().values
+        self.rBandSlider.setValue(values[0])
+        self.gBandSlider.setValue(values[1])
+        self.bBandSlider.setValue(values[2])
 
     def onSliderMoved(self):
         if not self.isDragging:

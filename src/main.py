@@ -6,9 +6,8 @@ Main entry point for the application. This file is responsible for setting up lo
 from pathlib import Path
 from datetime import datetime
 import logging
-from logging.handlers import RotatingFileHandler
+import sys
 import os
-
 # local imports
 import gui.maingui as gui
 
@@ -31,7 +30,10 @@ def initLogging():
     os.makedirs(logFolder, exist_ok=True)
     logTime = datetime.now().strftime('%Y-%m-%d_%I-%M-%S-%p')
     logName = Path(f"{logFolder}/Varda.log.{logTime}")
-    logging.basicConfig(filename=logName, level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG,
+                        handlers=[logging.FileHandler(logName),
+                                  logging.StreamHandler(sys.stdout)]
+                        )
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ import time
 import logging
 
 # Third-party
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtWidgets
 import pyqtgraph as pg
 import numpy as np
 from pyqtgraph.functions import mkPen, Colors
@@ -24,9 +24,6 @@ import spectral
 
 # local imports
 from . import ROIWindow
-from imageprocessing import ImageProcess
-import vardathreading
-import debug
 from .statusbar import StatusBar
 
 logger = logging.getLogger(__name__)

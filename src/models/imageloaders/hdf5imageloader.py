@@ -1,10 +1,11 @@
 # standard library
 import time
 from typing import override
-
+import logging
 # third party imports
 import numpy as np
 import rasterio as rio
+
 import h5py
 
 # local imports
@@ -49,17 +50,21 @@ class HDF5ImageLoader(AbstractImageLoader):
     def _loadMetadata(self, image=None, filePath=None):
         with h5py.File(filePath, 'r') as hdf:
             metadata = hdf["SERC/Reflectance/Metadata"]
-            spectral_data = metadata["Spectral_Data"]
+            spectralData = metadata["Spectral_Data"]
 
             if image is not None:
                 dtype = type(image)
                 width = image.shape[0]
                 height = image.shape[1]
                 bandcount = image.shape[2]
+            else:
+                dtype = None
+                width = None
+                height = None
+                bandcount = None
+            wavelength = spectralData["Wavelength"][:]
 
-            wavelength = spectral_data["Wavelength"][:]
-
-        return Metadata(driver=None,
+        return Metadata(driver="HDF5",
                         dtype=dtype,
                         dataignore=None,
                         width=width,
@@ -67,48 +72,5 @@ class HDF5ImageLoader(AbstractImageLoader):
                         bandcount=bandcount,
                         default_bands=None,
                         transform=None,
-                        wavelength=wavelength,
-                        description=None,
-                        wavelength_units=None,
-                        band_names=None,
-                        geospatial_info=None
+                        wavelength=wavelength
                         )
-
-    @property
-    def data(self):
-        return self._data
-
-    @property
-    def meta(self):
-        return self._meta
-
-    @property
-    def stretch(self):
-        pass
-
-    @property
-    def uint8_data(self):
-        pass
-
-    @override
-    def process(self, process):
-        self._data = process.execute(image=self._data)
-
-    @property
-    def bands(self):
-        return self.default_bands
-
-    # @override
-    # def __init__(self, file_path):
-    #     super(HDF5Image, self).__init__(file_path)
-    #     print("NEON subclass Used")
-    #
-    #     self._file_path = file_path
-    #     self._meta = None
-    #     self._header_data = None
-    #     self._data = None
-    #     self.default_bands = {'r': 29, 'g': 19, 'b': 9}  # Example default bands
-    #     # self._load_data()
-    #     # self.mean = np.mean(self._data, axis=(0, 1))
-    #     # dict mapping value types to indexes (t is the spectral data)
-    #     self.axes = {'x': 0, 'y': 1, 't': 2}

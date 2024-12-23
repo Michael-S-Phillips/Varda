@@ -6,7 +6,7 @@ which is a custom widget that allows the user to edit the stretch.
 # standard library
 
 # third party imports
-from PyQt6.QtWidgets import QVBoxLayout, QLabel, QLineEdit, QHBoxLayout
+from PyQt6.QtWidgets import QVBoxLayout, QLabel, QLineEdit, QHBoxLayout, QSpinBox
 from PyQt6.QtCore import Qt
 
 # local imports

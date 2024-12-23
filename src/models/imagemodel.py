@@ -1,24 +1,19 @@
 """
-This module defines the ImageModel class, which serves as the base model for images in the Varda application.
-It provides a consistent interface for image data and includes signals and slots for communication between the image model and other components.
-
-Classes:
-    ImageModel: Represents an image model with attributes for raster data, metadata, and various image properties.
+This module defines the ImageModel class, which serves as the base model for images
+in the Varda application.
+It provides a consistent interface for image data and includes signals and slots
+for communication between the image model and other components.
 """
 
 # standard library
-from dataclasses import dataclass
 import logging
 
 # third party imports
-# pylint: disable=no-name-in-module
-from PyQt6.QtCore import QObject, pyqtSignal, Qt, pyqtSlot
-import pyqtgraph as pg
+from PyQt6.QtCore import QObject, pyqtSignal
 import numpy as np
 
 # local imports
 from models.metadata import Metadata
-
 logger = logging.getLogger(__name__)
 
 
@@ -34,6 +29,8 @@ class ImageModel(QObject):
         sigStretchChanged (pyqtSignal): Signal when the stretch changes.
         sigImageChanged (pyqtSignal): Signal when anything about the image changes.
         sigImageDestroyed (pyqtSignal): Signal when the image is destroyed.
+
+    Properties:
         rasterData (np.ndarray): The raw image data.
         metadata (Metadata): Metadata associated with the image.
         stretch (tuple): The levels of the image.
@@ -42,171 +39,144 @@ class ImageModel(QObject):
         bandCount (int): The number of bands in the image.
         imageSlice (np.ndarray): The image slice.
         imageType (str): The type of the image.
-        normalized_data (np.ndarray): The normalized data of the image.
-    Properties:
-
-    Public Methods:
-        __init__(self, rasterData, metadata, defaults=None)
-        connectSignals(self)
-        imageItem(self)
-        process(self, process)
-        __str__(self)
-        __repr__(self)
-        __del__(self)
     """
 
     class Band(QObject):
+        """
+        Basic class to represents a band configuration.
+        Use set() to modify, so it can emit a signal when changed
+        """
         sigBandChanged = pyqtSignal()
+
         def __init__(self, r: int, g: int, b: int, name: str):
             super().__init__()
-            self.r = r
-            self.g = g
-            self.b = b
+            self.values = (r, g, b)
             self.name = name
 
         def set(self, r, g, b):
-            self.r = r
-            self.g = g
-            self.b = b
+            """Set the band values. Emits signal"""
+            self.values = (r, g, b)
             self.sigBandChanged.emit()
 
-        @property
-        def values(self):
-            return self.r, self.g, self.b
+        def save(self, outStream):
+            """Save to the given DataStream."""
+            for value in self.values:
+                outStream.writeInt32(value)
+            outStream.writeString(self.name)
+
+        @classmethod
+        def load(cls, inStream):
+            """Read from the given DataStream, and construct a Band object."""
+            r = inStream.readInt32()
+            g = inStream.readInt32()
+            b = inStream.readInt32()
+            name = inStream.readString()
+            return cls(r, g, b, name)
 
     class Stretch(QObject):
+        """
+        represents a stretch configuration.
+        Use set() to modify, so it can emit a signal when changed
+        """
         sigStretchChanged = pyqtSignal()
 
         def __init__(self, minR: int, maxR: int,
                            minG: int, maxG: int,
                            minB: int, maxB: int,
                            name: str
-                           ):
+                     ):
             super().__init__()
-            self.minR = minR
-            self.maxR = maxR
-            self.minG = minG
-            self.maxG = maxG
-            self.minB = minB
-            self.maxB = maxB
+            self.values = (minR, maxR), (minG, maxG), (minB, maxB)
             self.name = name
 
         def set(self, minR, maxR, minG, maxG, minB, maxB):
-            self.minR = minR
-            self.maxR = maxR
-            self.minG = minG
-            self.maxG = maxG
-            self.minB = minB
-            self.maxB = maxB
+            """Set the stretch values. Emits signal"""
+            self.values = (minR, maxR), (minG, maxG), (minB, maxB)
             self.sigStretchChanged.emit()
 
-        @property
-        def values(self):
-            return (self.minR, self.maxR), (self.minG, self.maxG), (self.minB, self.maxB)
+        def save(self, outStream):
+            """Save to the given DataStream."""
+            for valuePair in self.values:
+                outStream.writeInt32(valuePair[0])
+                outStream.writeInt32(valuePair[1])
+            outStream.writeString(self.name)
 
+        @classmethod
+        def load(cls, inStream):
+            """Read from the given DataStream, and construct a Stretch object."""
+            values = (inStream.readInt32(), inStream.readInt32()), \
+                     (inStream.readInt32(), inStream.readInt32()), \
+                     (inStream.readInt32(), inStream.readInt32())
+            name = inStream.readString()
+            return cls(*values, name)
 
-    sigRoiChanged = pyqtSignal()  # Signal when ROI changes
-    sigBandChanged = pyqtSignal()  # Signal when band adjustments change
+    sigRoiChanged = pyqtSignal()      # Signal when ROI changes
+    sigBandChanged = pyqtSignal()     # Signal when band adjustments change
     sigStretchChanged = pyqtSignal()  # Signal when the stretch changes
-    sigImageChanged = pyqtSignal()  # Signal when anything about the image changes
+    sigImageChanged = pyqtSignal()    # Signal when anything about the image changes
     sigImageDestroyed = pyqtSignal()  # Signal when the image is destroyed
 
-    def __init__(self, rasterData, metadata, defaults=None):
+    def __init__(self, rasterData, metadata):
         """
-        Initialize the ImageModel with raster data, metadata, and optional defaults.
+        Initialize the ImageModel with raster data and metadata
 
         Args:
             rasterData (np.ndarray): The raw image data.
             metadata (Metadata): Metadata associated with the image.
-            defaults (dict, optional): Default settings for band, stretch, and other
-            tables. Primarily used for testing.
         """
         super().__init__()
-
-        # probably won't keep this
-        self._normalized_data = None
 
         self._rasterData = rasterData
         self._metadata = metadata
 
-        # self._metadataTable = None
-        # self._bandTable = None
-        # self._stretchTable = None
-        # self._ROITable = None
-        # self.initInnerModels(defaults)
-
         self._band = [self.Band(0, 0, 0, "mono"), self.Band(0, 1, 2, "rgb"),
-                      self.Band(10,20, 30, "custom1")]
+                      self.Band(10, 20, 30, "custom1")]
 
         self._stretch = [self.Stretch(0, 1, 0, 1, 0, 1, "0-1"),
                          self.Stretch(0, 255, 0, 255, 0, 255, "0-255")]
 
-        self.connectSignals()
+        self._connectSignals()
 
-    def connectSignals(self):
-        """
-        Connect signals to slots for the image model.
-        """
+    def _connectSignals(self):
+        """Make all signals trigger the imageChanged signal."""
         self.sigBandChanged.connect(self.sigImageChanged.emit)
         self.sigStretchChanged.connect(self.sigImageChanged.emit)
         self.sigRoiChanged.connect(self.sigImageChanged.emit)
 
     @property
     def rasterData(self) -> np.ndarray:
-        """
-        Get the raster data of the image.
-        """
+        """Get the raster data of the image."""
         return self._rasterData
 
     @property
-    def metadata(self) -> Metadata:
-        """
-        Get the metadata of the image.
-
-        Returns:
-            Metadata: The metadata.
-        """
+    def metadata(self):
+        """Get the metadata of the image."""
         return self._metadata
 
     @property
     def stretch(self):
-        """
-        Get the levels of the image.
-
-        Returns:
-            tuple: The levels of the image.
-        """
+        """Get the levels of the image."""
         return self._stretch
 
     @property
     def defaultStretch(self):
-        """
-        Get the default stretch of the image.
-
-        Returns:
-            Stretch: The default stretch of the image.
-        """
+        """Get the default stretch of the image."""
         return self._stretch[0]
 
     @property
     def band(self):
-        """
-        Get the bands of the image.
-
-        Returns:
-            list: The bands of the image.
-        """
+        """Get the bands of the image."""
         return self._band
 
     @property
     def defaultBand(self):
-        """
-        Get the default bands of the image.
-
-        Returns:
-            Band: The default bands of the image.
-        """
+        """Get the default bands of the image."""
         return self._band[0]
+
+    @property
+    def bandCount(self) -> int:
+        """Get the number of bands in the image."""
+        return self.rasterData.shape[2]
 
     @property
     def wavelength(self):
@@ -220,29 +190,14 @@ class ImageModel(QObject):
         """
         if self.metadata.wavelength:
             return self.metadata.wavelength
-        return [i for i in range(self.bandCount)]
-
-    @property
-    def bandCount(self) -> int:
-        """
-        Get the number of bands in the image.
-
-        Returns:
-            int: The number of bands.
-        """
-        return self.rasterData.shape[2]
+        return list(range(self.bandCount))
 
     @property
     def imageType(self) -> str:
-        """
-        Get the type of the image (mono, rgba, spectral).
-
-        Returns:
-            str: The type of the image.
-        """
+        """Get the type of the image (mono, rgba, spectral)."""
         if self.bandCount == 1:
             return "mono"
-        if self.bandCount == 3 or self.bandCount == 4:
+        if self.bandCount in {3, 4}:
             return "rgba"
         if self.bandCount > 4:
             return "spectral"
@@ -264,58 +219,44 @@ class ImageModel(QObject):
 
         try:
             return self.rasterData[:, :, bandIndex]
-        except TypeError:
+        except TypeError as exc:
             msg = "Error getting imageSlice"
             logger.exception(msg)
-            raise TypeError
+            raise TypeError from exc
 
-    # @property
-    # def normalized_data(self):
-    #     """
-    #     Get the normalized data of the image.
-    #
-    #     Returns:
-    #         np.ndarray: The normalized data.
-    #     """
-    #     if self._normalized_data is not None:
-    #         return self._normalized_data
-    #
-    #     self._normalized_data = ((self.rasterData - np.min(self.rasterData)) /
-    #                              (np.max(self.rasterData) - np.min(self.rasterData)))
-    #     return self._normalized_data
-
-    @pyqtSlot()
-    def process(self, process):
+    def save(self, out):
         """
-        Execute a process on the image.
+        Save the image data to an output stream.
 
         Args:
-            process: The process to execute.
+            out (QDataStream): The output stream.
         """
-        pass
+        self.metadata.save(out)
+        for band in self.band:
+            band.save(out)
+        for stretch in self.stretch:
+            stretch.save(out)
 
-    def __str__(self):
+    def load(cls, inStream):
         """
-        Get the string representation of the class.
+        Load session data for this image model from an input stream.
+        This includes metadata, bands, and stretches.
+        The raster data should be loaded from the original file.
+
+        Args:
+            inStream (QDataStream): The input stream.
 
         Returns:
-            str: The string representation of the class.
+            ImageModel: The loaded image model.
         """
+        metadata = Metadata.load(inStream)
+        bands = [cls.Band.load(inStream) for _ in range(3)]
+        stretches = [cls.Stretch.load(inStream) for _ in range(2)]
+
+        return cls(None, metadata)
+
+    def __str__(self):
         return "name: " + self.__class__.__name__
 
     def __repr__(self):
-        """
-        Get the string representation of the class for debugging.
-        (for now just the same as __str__)
-
-        Returns:
-            str: The string representation of the class for debugging.
-        """
         return self.__str__()
-
-    def __del__(self):
-        """
-        Emit the imageDestroyed signal when the object is deleted. So any views
-        dependent on this can clean up.
-        """
-        self.sigImageDestroyed.emit()

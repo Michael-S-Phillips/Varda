@@ -12,7 +12,7 @@ import logging
 # third-party imports
 from PyQt6 import QtCore
 from PyQt6.QtCore import Qt
-
+from PyQt6.QtCore import QStringConverter
 # local imports
 from models.imageloaders import AbstractImageLoader
 from models.imagemodel import ImageModel
@@ -27,7 +27,7 @@ class ImageManager(QtCore.QAbstractListModel):
     Inherits from QAbstractListModel to integrate with Qt's model/view framework.
 
     Attributes:
-        __images (list): List of ImageModel instances managed by this class.
+        _images (list): List of ImageModel instances managed by this class.
         links (list): List of tuples representing linked images.
 
     Methods:
@@ -68,8 +68,8 @@ class ImageManager(QtCore.QAbstractListModel):
             parent (QObject, optional): Parent object. Defaults to None.
         """
         super().__init__(parent)
-        self.__images = images if images else []
-
+        self._images = images if images else []
+        self._imagePaths = []
         self.links = []
 
     def newImage(self, filepath):
@@ -85,19 +85,19 @@ class ImageManager(QtCore.QAbstractListModel):
         Raises:
             ValueError: If the file type is not supported.
         """
-        # TODO: possibly need more complex system to determine file type.
-        #  right now its just based on the file extension
         if filepath is None:
             logger.error("No file path provided")
             return None
-
+        # TODO: possibly need more complex system to determine file type?
+        #  right now its just based on the file extension
         imageType = str(Path(filepath).suffix.strip())
 
         for c in AbstractImageLoader.subclasses:
             if imageType in c.imageType:
                 # load() returns a tuple, so we unpack it (*) to pass to ImageModel
                 img = ImageModel(*c(filepath).load())
-                self.appendImage(img)
+                self._appendImage(img)
+                self._imagePaths.append(filepath)
                 logger.info("Loaded image - " + str(img))
                 return img  # return the new image
 
@@ -111,12 +111,12 @@ class ImageManager(QtCore.QAbstractListModel):
         Returns the number of images managed by this class.
 
         Args:
-            parent (QModelIndex, optional): Parent index. Defaults to QModelIndex().
+            parent: Unused. But required by the method signature. Defaults to QModelIndex()
 
         Returns:
             int: Number of images.
         """
-        return len(self.__images)
+        return len(self._images)
 
     def index(self, row, column=0, parent=QtCore.QModelIndex()):
         """
@@ -129,7 +129,7 @@ class ImageManager(QtCore.QAbstractListModel):
         Returns:
             QModelIndex: Index of the image.
         """
-        return self.createIndex(row, column, self.__images[row])
+        return self.createIndex(row, column, self._images[row])
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         """
@@ -148,42 +148,41 @@ class ImageManager(QtCore.QAbstractListModel):
                  - STRETCH: Stretch for the item (list)
                  - HISTOGRAM: Histogram for the item (HistogramLUTItem)
 
-
         Returns:
             Any: Data for the specified role and index.
         """
-        if not index.isValid() or index.row() not in range(len(self.__images)):
+        if not index.isValid() or index.row() not in range(len(self._images)):
             return None
 
         if role == Qt.ItemDataRole.DisplayRole:
             # eventually the image metadata should probably contain a custom name
-            return self.__images[index.row()].metadata.driver
+            return self._images[index.row()].metadata.driver
         if role == Qt.ItemDataRole.DecorationRole:
             # return a small preview of the image
-            return self.__images[index.row()].getRasterDataSlice(
-                self.__images[index.row()].defaultBand.values
+            return self._images[index.row()].getRasterDataSlice(
+                self._images[index.row()].defaultBand.values
             )
         if role == Qt.ItemDataRole.UserRole:
-            return self.__images[index.row()]
+            return self._images[index.row()]
 
         if role == ImageDataType.RASTER_DATA:
-            return self.__images[index.row()].rasterData
+            return self._images[index.row()].rasterData
 
         if role == ImageDataType.METADATA:
-            return self.__images[index.row()].metadata
+            return self._images[index.row()].metadata
 
         if role == ImageDataType.BANDS:
-            return self.__images[index.row()].bands
+            return self._images[index.row()].bands
 
         if role == ImageDataType.STRETCH:
-            return self.__images[index.row()].stretch
+            return self._images[index.row()].stretch
 
         if role == ImageDataType.HISTOGRAM:
-            return self.__images[index.row()].histogram
+            return self._images[index.row()].histogram
 
         return None
 
-    def appendImage(self, imageModel):
+    def _appendImage(self, imageModel):
         """
         Appends a new ImageModel to the manager. Primarily for internal use.
         Creating/adding a new image should be done through newImage().
@@ -201,12 +200,12 @@ class ImageManager(QtCore.QAbstractListModel):
             raise TypeError("ImageModel must be a subclass of AbstractImageModel. "
                             "ImageModel Type: ", type(imageModel))
 
-        if imageModel in self.__images:
+        if imageModel in self._images:
             logger.warning(f"Image {imageModel} already exists in ImageManager.")
-            return self.index(self.__images.index(imageModel))
+            return self.index(self._images.index(imageModel))
 
         self.beginInsertRows(QtCore.QModelIndex(), self.rowCount(), self.rowCount())
-        self.__images.append(imageModel)
+        self._images.append(imageModel)
         self.endInsertRows()
 
         imageModel.sigImageChanged.connect(self.imageChangedReceiver)
@@ -221,48 +220,52 @@ class ImageManager(QtCore.QAbstractListModel):
             row (int): Row number of the image to remove.
         """
         self.beginRemoveRows(QtCore.QModelIndex(), row, row)
-        self.__images.pop(row)
+        self._images.pop(row)
         self.endRemoveRows()
 
-    def linkImages(self, image1, image2):
+    def save(self, outStream):
         """
-        Links two images together.
+        Serializes the ImageManager to a QDataStream.
 
         Args:
-            image1 (ImageModel): First image to link.
-            image2 (ImageModel): Second image to link.
+            outStream (QDataStream): QDataStream instance to write to.
         """
+        outStream.writeInt32(len(self._imagePaths))
+        for path in self._imagePaths:
+            logger.info("Saving image path: %s", path)
+            outStream.writeQString(path)
+        logger.info("Saving Complete!")
 
-        if image1 not in self.__images and image2 not in self.__images:
-            logger.error(f"Link Error: Neither Image not in ImageManager.  ({image1}, {image2})")
-            return
+    def load(self, inStream):
+        """
+        Deserializes the ImageManager from a QDataStream.
 
-        if image1 not in self.__images:
-            logger.error(f"Link Error: Image 1 not in ImageManager. ({image1})")
-            return
+        Args:
+            inStream (QDataStream): QDataStream instance to read from.
+        """
+        self._resetModel()
+        count = inStream.readInt32()
+        for _ in range(count):
+            path = inStream.readQString()
+            logger.info("Loading image path: " + path)
+            self.newImage(path)
+        logger.info("Loading Complete!")
 
-        if image2 not in self.__images:
-            logger.error(f"Link Error: Image 2 not in ImageManager.  ({image2})")
-            return
 
-        if image1 == image2:
-            logger.error(f"Link Error: Cannot link an image to itself. ({image1})")
-            return
-
-        self.links.append((image1, image2))
+    def _resetModel(self):
+        """
+        Resets the model by removing all images.
+        """
+        self.beginResetModel()
+        self._images.clear()
+        self._imagePaths.clear()
+        self.endResetModel()
 
     def imageChangedReceiver(self, imageModel):
         """
-        Handles the imageChanged signal and updates linked images.
+        Handles the imageChanged signal
 
         Args:
             imageModel (ImageModel): ImageModel instance that changed.
         """
-        linkedImages = [link for link in self.links if imageModel in link]
-        for link in linkedImages:
-            if link[0] == imageModel:
-                self.dataChanged.emit(self.index(self.__images.index(link[1])))
-            else:
-                self.dataChanged.emit(self.index(self.__images.index(link[0])))
-
-        self.dataChanged.emit(self.index(self.__images.index(imageModel)))
+        self.dataChanged.emit(self.index(self._images.index(imageModel)))
