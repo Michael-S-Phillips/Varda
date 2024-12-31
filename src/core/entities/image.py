@@ -8,24 +8,23 @@ for communication between the image model and other components.
 # standard library
 import logging
 from dataclasses import dataclass, field
-from typing import Any, List
+from typing import List
 
 # third party imports
 import numpy as np
 
 # local imports
-from core.entities import Metadata, Stretch, Band
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class Image:
-    _index: int
     _raster: np.ndarray
     _metadata: Metadata
     _stretch: List[Stretch] = field(default_factory=list)
     _band: List[Band] = field(default_factory=list)
+    _index: int = -1
 
     @property
     def raster(self):

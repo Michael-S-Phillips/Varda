@@ -4,7 +4,7 @@ import importlib
 import pkgutil
 
 from features.image_load.abstractimageloader import AbstractImageLoader
-from core.entities.image import ImageModel
+from core.entities import Image
 
 logger = logging.getLogger(__name__)
 
@@ -22,22 +22,23 @@ def loadNewImage(filepath):
     Raises:
         ValueError: If the file type is not supported.
     """
-    if filepath is None:
-        logger.error("No file path provided")
-        return None
-    imageType = str(Path(filepath).suffix.strip())
+    filepath = Path(filepath)
+    imageType = getImageType(filepath)
 
-    for cls in AbstractImageLoader.subclasses:
-        if imageType in cls.imageType:
+    for loader in AbstractImageLoader.subclasses:
+        if imageType in loader.imageType:
             # load() returns a tuple, so we unpack it (*) to pass to ImageModel
-            img = ImageModel(*cls(filepath).deserialize())
-            logger.info("Loaded image - " + str(img))
+            img = Image(*loader(filepath).load())
+            logger.info(f"Loaded image - {img}")
             return img  # return the new image
 
     # if no image type is found, raise an error
     error = ValueError(f"Bad file type {imageType}")
     logger.error(error)
     raise error
+
+def getImageType(path):
+    return path.suffix.strip()
 
 # TODO: complete improved system for image loading. I think we can skip the
 #  AbstractImageLoader stuff and just iterate through the modules

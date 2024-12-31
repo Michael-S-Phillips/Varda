@@ -18,7 +18,7 @@ venv
 venv/
 
 
-# Other
+# Othertefda
 testImages/*
 .idea
 .DS_Store
@@ -26,3 +26,4 @@ Varda.log.*
 UnitTest.log.*
 
 .vscode
+/testImages/
