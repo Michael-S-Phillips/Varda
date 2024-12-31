@@ -19,7 +19,7 @@ venv/
 
 
 # Other
-src/testImages/*
+testImages/*
 .idea
 .DS_Store
 Varda.log.*

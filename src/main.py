@@ -9,7 +9,7 @@ import logging
 import sys
 import os
 # local imports
-import gui.maingui as gui
+from gui import maingui as gui
 
 
 def initLogging():
@@ -26,7 +26,7 @@ def initLogging():
       logger.error("This is an error message")
     """
 
-    logFolder = "logs"
+    logFolder = "../logs"
     os.makedirs(logFolder, exist_ok=True)
     logTime = datetime.now().strftime('%Y-%m-%d_%I-%M-%S-%p')
     logName = Path(f"{logFolder}/Varda.log.{logTime}")

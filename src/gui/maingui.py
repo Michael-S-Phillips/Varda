@@ -9,13 +9,15 @@ from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QIcon
 import pyqtgraph as pg
 
+from core.data.projectcontext import ProjectContext
 # local imports
-from gui.views import (ImageViewStretchEditor, ImageViewBandEditor,
-                       ImageViewList, ImageViewRasterData)
-from gui.widgets import ControlPanel, StatusBar, MainMenuBar
-
-from models.imagemanager import ImageManager
-from utilities import vardathreading, savesystem
+from features.image_view_data import (ImageViewStretchEditor, ImageViewBandEditor,
+                                      ImageViewRaster)
+from widgets import ControlPanel, StatusBar, MainMenuBar
+from features.app_view_imagelist.imagelistviewmodel import ImageListViewModel
+from features.app_persistence import savesystem
+from features.app_view_imagelist import ImageViewList
+import core.utilities as utils
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +35,9 @@ class MainGUI(QtWidgets.QMainWindow):
         pg.setConfigOptions(imageAxisOrder='row-major')
         logger.info("Started")
 
-        self.imageManager = ImageManager()
+        proj = ProjectContext()
 
+        self.imageManager = ImageListViewModel()
         self.initUI()
 
         self.connectSignals()
@@ -69,7 +72,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.setCentralWidget(label)
 
         # Create a central workspaceTabs
-        self.setWindowIcon(QIcon("./img/logo.svg"))
+        self.setWindowIcon(QIcon("../img/logo.svg"))
 
     def setupMenuBar(self):
         menubar = MainMenuBar()
@@ -85,7 +88,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.imageListView.sigOpenBandView.connect(self.openBandView)
 
     def openRasterView(self, imageModel):
-        view = ImageViewRasterData(imageModel)
+        view = ImageViewRaster(imageModel)
         dock = QtWidgets.QDockWidget("Raster Editor", parent=self)
         dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
         dock.setWidget(view)
@@ -121,15 +124,15 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def loadImage(self, fileName):
         logger.info("Loading image: " + fileName)
-        vardathreading.dispatchThreadProcess(self.onImageLoaded,
-                                             self.imageManager.newImage, fileName)
+        utils.threading_helper.dispatchThreadProcess(self.onImageLoaded,
+                                    self.imageManager.newImage, fileName)
 
     def onImageLoaded(self, image):
         self.statusBar().loadingFinished()
         if image is None:
             return
 
-        imageView = ImageViewRasterData(image)
+        imageView = ImageViewRaster(image)
 
         # remove initial prompt
         if self.centralWidget().isHidden() is False:

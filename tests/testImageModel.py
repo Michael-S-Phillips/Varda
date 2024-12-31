@@ -17,8 +17,8 @@ import affine
 
 # local imports
 from models import ImageManager
-from models.imagemodel import TableModel
-from models.metadata import Metadata
+from core.entities.image import TableModel
+from core.entities.metadata import Metadata
 
 
 def initLogging():
@@ -247,7 +247,7 @@ class TestImageManager(unittest.TestCase):
         manager = ImageManager()
         for i in range(3):
             model = manager.newImage(os.path.abspath(
-                "../src/testImages/HySpex/220724_VNIR_Reflectance.img"))
+                "../testImages/HySpex/220724_VNIR_Reflectance.img"))
             self.assertIsInstance(model.internalPointer(), ImageModel)
             self.assertEqual(manager.rowCount(), i + 1)
             self.assertEqual(model, manager.index(
@@ -257,7 +257,7 @@ class TestImageManager(unittest.TestCase):
         manager = ImageManager()
         for i in range(3):
             model = manager.newImage(os.path.abspath(
-                "../src/testImages/NEON/NEON_D02_SERC_DP3_368000_4306000_reflectance.h5"))
+                "../testImages/NEON/NEON_D02_SERC_DP3_368000_4306000_reflectance.h5"))
             self.assertIsInstance(model.internalPointer(), ImageModel)
             self.assertEqual(manager.rowCount(), i + 1)
             self.assertEqual(model, manager.index(
@@ -268,7 +268,7 @@ class TestImageManager(unittest.TestCase):
         numImages = 3
         for i in range(numImages):
             model = manager.newImage(os.path.abspath(
-                "../src/testImages/HySpex/220724_VNIR_Reflectance.img"))
+                "../testImages/HySpex/220724_VNIR_Reflectance.img"))
             self.assertEqual(manager.rowCount(), i + 1)
         for i in range(numImages):
             manager.removeImage(0)
@@ -276,28 +276,28 @@ class TestImageManager(unittest.TestCase):
 
     def test_linkImages(self):
         model1 = self.manager.newImage(os.path.abspath(
-            "../src/testImages/HySpex/220724_VNIR_Reflectance.img"))
+            "../testImages/HySpex/220724_VNIR_Reflectance.img"))
         model2 = self.manager.newImage(os.path.abspath(
-            "../src/testImages/HySpex/220724_VNIR_Reflectance.img"))
+            "../testImages/HySpex/220724_VNIR_Reflectance.img"))
         self.manager.linkImages(model1, model2)
         self.assertEqual(len(self.manager.links), 1)
 
     def test_imageChanged(self):
         model = self.manager.newImage(os.path.abspath(
-            "../src/testImages/HySpex/220724_VNIR_Reflectance.img"))
+            "../testImages/HySpex/220724_VNIR_Reflectance.img"))
         model.sigImageChanged.emit()
         self.assertEqual(model.sigImageChanged, model.sigImageChanged)
 
 
-from models.imagemodel import ImageModel
-from gui.views.baseimageviewmodel import BaseImageViewModel
+from core.entities.image import ImageModel
+from features.image_view_data.viewmodels.image_viewmodel import ImageViewModel
 
 class TestImageViewSelectionModel(unittest.TestCase):
 
     def setUp(self):
         self.dummyImageData = initDummyImageData()
         self.imageModel = ImageModel(*self.dummyImageData)
-        self.selectionModel = BaseImageViewModel(self.imageModel)
+        self.selectionModel = ImageViewModel(self.imageModel)
 
     def test_initial_band(self):
         self.assertEqual(self.selectionModel.getCurrentBand().r, 0)

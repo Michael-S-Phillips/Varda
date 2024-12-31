@@ -12,49 +12,37 @@ logger = logging.getLogger(__name__)
 
 
 class MainMenuBar(QMenuBar):
-    
     sigSaveProject = QtCore.pyqtSignal()
     sigOpenProject = QtCore.pyqtSignal()
-
     sigImportFile = QtCore.pyqtSignal()
     sigExitApp = QtCore.pyqtSignal()
     sigAboutDialog = QtCore.pyqtSignal()
-    
-    def __init__(self, imageManager=None, parent=None):
-        super(MainMenuBar, self).__init__(parent)
-        self.imageManager = imageManager
-        self.initMenuBar()
-        
-    def initMenuBar(self):
-        self.initFileMenu()
-        self.initHelpmenu()
-        
-        
-    def initFileMenu(self):
-        fileMenu = self.addMenu('File')
-        if fileMenu is None:
-            logger.error("failed to create file menu")
-            return
-        
-        fileMenu.addAction('Open Project', self.sigOpenProject)
-        recentMenu = fileMenu.addMenu('Open Recent')
 
+    def __init__(self, imageManager=None, parent=None):
+        super().__init__(parent)
+        self.imageManager = imageManager
+        self.initUI()
+
+    def initUI(self):
+        self.addMenu(self.initFileMenu())
+        self.addMenu(self.initHelpmenu())
+
+    # Note: adding "self" as the parent of the QMenu is important, to keep it from
+    # being garbage collected immediately
+    def initFileMenu(self):
+        fileMenu = QMenu("File", self)
+        fileMenu.addMenu(self.initImportMenu())
+        fileMenu.addAction('Open Project', self.sigOpenProject)
         fileMenu.addAction('Save', self.sigSaveProject)
-        importMenu = fileMenu.addMenu('Import')
-        
-        if importMenu is None:
-            logger.error("failed to create import menu")
-            return
-            
-        importMenu.addAction('Import Image', self.sigImportFile)
         fileMenu.addAction('Exit', self.sigExitApp)
-    
-    def initRecentMenu(self):
-        pass
-        
+        return fileMenu
+
+    def initImportMenu(self):
+        importMenu = QMenu('Import', self)
+        importMenu.addAction('Import Image', self.sigImportFile)
+        return importMenu
+
     def initHelpmenu(self):
-        helpMenu = self.addMenu('Help')
-        if helpMenu is None:
-            logger.error("failed to create help menu")
-            return
+        helpMenu = QMenu('Help', self)
         helpMenu.addAction('About', self.sigAboutDialog)
+        return helpMenu
