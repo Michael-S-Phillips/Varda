@@ -21,6 +21,11 @@ venv/
 # Othertefda
 testImages/*
 .idea
+
+# exclude .vscode generally, but keep the launch.json
+.vscode/*
+!.vscode/launch.json
+
 .DS_Store
 Varda.log.*
 UnitTest.log.*
