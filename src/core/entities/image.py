@@ -1,8 +1,6 @@
 """
-This module defines the ImageModel class, which serves as the base model for images
-in the Varda application.
-It provides a consistent interface for image data and includes signals and slots
-for communication between the image model and other components.
+image.py
+A core entity representing an image in varda.
 """
 
 # standard library
@@ -14,8 +12,9 @@ from typing import List
 import numpy as np
 
 # local imports
-
-logger = logging.getLogger(__name__)
+from .band import Band
+from .stretch import Stretch
+from .metadata import Metadata
 
 
 @dataclass(frozen=True)

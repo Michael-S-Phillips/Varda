@@ -9,10 +9,14 @@ from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QIcon
 import pyqtgraph as pg
 
-from core.data.projectcontext import ProjectContext
+from core.data.project_context import ProjectContext
+
 # local imports
-from features.image_view_data import (ImageViewStretchEditor, ImageViewBandEditor,
-                                      ImageViewRaster)
+from features.image_view_data import (
+    ImageViewStretchEditor,
+    ImageViewBandEditor,
+    ImageViewRaster,
+)
 from widgets import ControlPanel, StatusBar, MainMenuBar
 from features.app_view_imagelist.imagelistviewmodel import ImageListViewModel
 from features.app_persistence import savesystem
@@ -32,7 +36,7 @@ class MainGUI(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Varda")
-        pg.setConfigOptions(imageAxisOrder='row-major')
+        pg.setConfigOptions(imageAxisOrder="row-major")
         logger.info("Started")
 
         proj = ProjectContext()
@@ -49,21 +53,26 @@ class MainGUI(QtWidgets.QMainWindow):
         self.setupMenuBar()
         self.setStatusBar(StatusBar())
         # make dock tabs appear on top
-        self.setTabPosition(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas,
-                            QtWidgets.QTabWidget.TabPosition.North)
+        self.setTabPosition(
+            QtCore.Qt.DockWidgetArea.AllDockWidgetAreas,
+            QtWidgets.QTabWidget.TabPosition.North,
+        )
 
         self.imageListViewDock = QtWidgets.QDockWidget("Image List", self)
         self.imageListViewDock.setAllowedAreas(
-            QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+            QtCore.Qt.DockWidgetArea.AllDockWidgetAreas
+        )
 
         self.imageListView = ImageViewList(self, self.imageManager)
         self.imageListViewDock.setWidget(self.imageListView)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea,
-                           self.imageListViewDock)
+        self.addDockWidget(
+            QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.imageListViewDock
+        )
 
         self.controlPanel = ControlPanel(None)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
-                           self.controlPanel.tabsDock)
+        self.addDockWidget(
+            QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock
+        )
 
         # set default central widget
         label = QtWidgets.QLabel("Go to File->import to open your first image!")
@@ -113,10 +122,9 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def openFileDialog(self):
         # TODO: automatically determine all file types that are supported
-        fileName = QtWidgets.QFileDialog.getOpenFileName(None,
-                                                         "Open File", "",
-                                                         "image file (*.hdr *.img "
-                                                         "*.h5)")
+        fileName = QtWidgets.QFileDialog.getOpenFileName(
+            None, "Open File", "", "image file (*.hdr *.img " "*.h5)"
+        )
         if fileName[0] is False:
             return
 
@@ -124,8 +132,9 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def loadImage(self, fileName):
         logger.info("Loading image: " + fileName)
-        utils.threading_helper.dispatchThreadProcess(self.onImageLoaded,
-                                    self.imageManager.newImage, fileName)
+        utils.threading_helper.dispatchThreadProcess(
+            self.onImageLoaded, self.imageManager.newImage, fileName
+        )
 
     def onImageLoaded(self, image):
         self.statusBar().loadingFinished()
@@ -146,19 +155,17 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.raise_()
 
     def saveProject(self):
-        fileName = QtWidgets.QFileDialog.getSaveFileName(None,
-                                                         "Save File", "",
-                                                         "Varda project file ("
-                                                         "*.varda)")
+        fileName = QtWidgets.QFileDialog.getSaveFileName(
+            None, "Save File", "", "Varda project file (" "*.varda)"
+        )
         if not fileName[0]:
             return
         savesystem.saveProject(self.imageManager, fileName[0])
 
     def loadProject(self):
-        fileName = QtWidgets.QFileDialog.getOpenFileName(None,
-                                                         "Open File", "",
-                                                         "Varda project file ("
-                                                         "*.varda)")
+        fileName = QtWidgets.QFileDialog.getOpenFileName(
+            None, "Open File", "", "Varda project file (" "*.varda)"
+        )
         if not fileName[0]:
             return
         savesystem.loadProject(self.imageManager, fileName[0])

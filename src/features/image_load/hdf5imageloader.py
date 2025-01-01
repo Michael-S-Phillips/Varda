@@ -1,6 +1,7 @@
 # standard library
 import time
 from typing import override
+
 # third party imports
 
 import h5py
@@ -13,7 +14,7 @@ from core.utilities import debug
 
 
 class HDF5ImageLoader(AbstractImageLoader):
-    imageType = (".h5")
+    imageType = ".h5"
 
     @override
     def _loadRasterData(self, filePath=None):
@@ -22,7 +23,7 @@ class HDF5ImageLoader(AbstractImageLoader):
 
         timeStarted = time.time()
 
-        with h5py.File(filePath, 'r') as hdf:
+        with h5py.File(filePath, "r") as hdf:
             if debug.DEBUG:
                 print("time to open file: ", time.time() - timeStarted)
 
@@ -45,7 +46,7 @@ class HDF5ImageLoader(AbstractImageLoader):
 
     @override
     def _loadMetadata(self, image=None, filePath=None):
-        with h5py.File(filePath, 'r') as hdf:
+        with h5py.File(filePath, "r") as hdf:
             metadata = hdf["SERC/Reflectance/Metadata"]
             spectralData = metadata["Spectral_Data"]
 
@@ -53,21 +54,19 @@ class HDF5ImageLoader(AbstractImageLoader):
                 dtype = type(image)
                 width = image.shape[0]
                 height = image.shape[1]
-                bandcount = image.shape[2]
+                bandCount = image.shape[2]
             else:
                 dtype = None
                 width = None
                 height = None
-                bandcount = None
+                bandCount = None
             wavelength = spectralData["Wavelength"][:]
 
-        return Metadata(driver="HDF5",
-                        dtype=dtype,
-                        dataignore=None,
-                        width=width,
-                        height=height,
-                        bandcount=bandcount,
-                        default_bands=None,
-                        transform=None,
-                        wavelength=wavelength
-                        )
+        return Metadata(
+            _driver="HDF5",
+            _width=width,
+            _height=height,
+            _dtype=dtype,
+            _bandCount=bandCount,
+            _wavelength=wavelength,
+        )

@@ -8,7 +8,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 import numpy as np
 
 # local imports
-from core.entities import Image, Stretch, Band
+from core.entities import Image, Metadata, Band, Stretch
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,6 @@ class ProjectContext(QObject):
         BAND = "band"
         STRETCH = "stretch"
         METADATA = "metadata"
-        RASTER = "raster"
 
     # signal that emits when something writes to the projectContext.
     # int argument is the index of the item that was changed.
@@ -31,11 +30,11 @@ class ProjectContext(QObject):
         self._images = []
 
     # Image Access
-    def getImage(self, index: int) -> Image:
+    def getImage(self, index: int) -> "Image":
         """Retrieve an image by index."""
         return self._images[index]
 
-    def addImage(self, image: Image):
+    def addImage(self, image: "Image"):
         """Add a new image to the context."""
         self._images.append(image)
         self.emitChange(len(self._images) - 1, self.ChangeType.IMAGE)
@@ -49,12 +48,6 @@ class ProjectContext(QObject):
         """Retrieve a list of all the images in the project"""
         return self._images
 
-    # Raster Data
-    def updateRasterData(self, index: int, new_raster: np.ndarray):
-        """Update the raster data of an image."""
-        self._images[index]._raster = new_raster
-        self.emitChange(index, self.ChangeType.RASTER)
-
     # Metadata
     def updateMetadata(self, index: int, key: str, value: Any):
         """Update a metadata field."""
@@ -66,7 +59,7 @@ class ProjectContext(QObject):
         self.emitChange(index, self.ChangeType.METADATA)
 
     # Stretch Management
-    def addStretch(self, index: int, stretch: Stretch):
+    def addStretch(self, index: int, stretch: "Stretch"):
         """Add a stretch to an image."""
         self._images[index].stretch.append(stretch)
         self.emitChange(index, self.ChangeType.STRETCH)
@@ -76,7 +69,7 @@ class ProjectContext(QObject):
         self._images[index].stretch.pop(stretchIndex)
         self.emitChange(index, self.ChangeType.STRETCH)
 
-    def updateStretch(self, index: int, stretchIndex: int, newStretch: Stretch):
+    def updateStretch(self, index: int, stretchIndex: int, newStretch: "Stretch"):
         """Update a specific stretch."""
         self._images[index].stretch[stretchIndex] = newStretch
         self.emitChange(index, self.ChangeType.STRETCH)
@@ -92,7 +85,7 @@ class ProjectContext(QObject):
         self._images[index].band.pop(bandIndex)
         self.emitChange(index, self.ChangeType.BAND)
 
-    def updateBand(self, index: int, bandIndex: int, newBand: Band):
+    def updateBand(self, index: int, bandIndex: int, newBand: "Band"):
         """Update a specific band."""
         self._images[index].band[bandIndex] = newBand
         self.emitChange(index, self.ChangeType.BAND)

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 
 # local imports
+from .band import Band
 
 
 @dataclass
@@ -19,8 +20,8 @@ class Metadata:
     _dtype: str = ""
     _dataIgnore: float = 0
     _bandCount: int = 0
-    _defaultBands: Dict[str, int] = field(default_factory=dict)
-    _wavelength: np.ndarray = np.zeros((1, 0))
+    _defaultBand: Band = field(default_factory=Band.createDefault)
+    _wavelength: np.ndarray = field(default_factory=lambda: np.zeros(0))
     _extraMetadata: Dict[str, Any] = field(default_factory=dict)
 
     # Read-only properties for core metadata
@@ -49,8 +50,8 @@ class Metadata:
         return self._bandCount
 
     @property
-    def defaultBands(self):
-        return self._defaultBands
+    def defaultBand(self):
+        return self._defaultBand
 
     @property
     def wavelength(self):
@@ -61,7 +62,7 @@ class Metadata:
         return self._extraMetadata
 
     # other methods
-    def to_dict(self):
+    def toDict(self):
         coreMetadata = {
             key: value for key, value in self.__dict__.items() if key != "extraMetadata"
         }
@@ -69,74 +70,77 @@ class Metadata:
 
     # magic methods to add the ability to iterate through the items
     def __iter__(self):
-        items = self.to_dict()
+        items = self.toDict()
         for attr, value in items:
             yield attr, value
 
     def __repr__(self):
-        items = self.to_dict()
+        allItems = self.toDict()
         out = "Metadata:\n"
-        for key, value in items:
+        for key, value in allItems.items():
             out += "    " + f"{key}: {value}" + "\n"
         return out
 
+    def __getitem__(self, item):
+        return self.toDict().get(item)
 
-class Metadata:
-    """
-    A standardized set of metadata for images. driver, dtype, dataignore, width,
-    height, bandcount, and transform, are expected to be provided by every image.
-    **kwargs lets you add additional metadata properties for displaying and editing.
 
-    individual sections of metadata can be accessed using dot-notation.
-    the entire metadata object can also be iterated through as if it were a dictionary
-    """
-
-    def __init__(
-        self,
-        driver: str,
-        dtype: str,
-        dataignore: float,
-        width: int,
-        height: int,
-        bandcount: int,
-        default_bands: dict,
-        transform: Affine,
-        wavelength: np.ndarray,
-        **kwargs,
-    ):
-        super().__init__()
-
-        if default_bands is None:
-            default_bands = {}
-        if transform is None:
-            transform = Affine.identity()
-        if wavelength is None:
-            wavelength = np.array([])
-
-        # set base args
-        self.driver = driver
-        self.dtype = dtype
-        self.dataignore = dataignore
-        self.width = width
-        self.height = height
-        self.bandcount = bandcount
-        self.default_bands = default_bands
-
-        self.transform = transform
-        self.wavelength = wavelength
-
-        # add additional args
-        for key, value in kwargs.items():
-            if not hasattr(self, key):
-                setattr(self, key, value)
-        self.numExtraArgs = len(kwargs)
-
-    def __iter__(self):
-        for attr, value in self.__dict__.items():
-            yield attr, value
-
-    def __repr__(self):
-        out = "Metadata:\n"
-        for key, value in self:
-            out += "    " + f"{key}: {value}" + "\n"
-        return out
+# class Metadata:
+#     """
+#     A standardized set of metadata for images. driver, dtype, dataignore, width,
+#     height, bandcount, and transform, are expected to be provided by every image.
+#     **kwargs lets you add additional metadata properties for displaying and editing.
+#
+#     individual sections of metadata can be accessed using dot-notation.
+#     the entire metadata object can also be iterated through as if it were a dictionary
+#     """
+#
+#     def __init__(
+#         self,
+#         driver: str,
+#         dtype: str,
+#         dataignore: float,
+#         width: int,
+#         height: int,
+#         bandcount: int,
+#         default_bands: dict,
+#         transform: Affine,
+#         wavelength: np.ndarray,
+#         **kwargs,
+#     ):
+#         super().__init__()
+#
+#         if default_bands is None:
+#             default_bands = {}
+#         if transform is None:
+#             transform = Affine.identity()
+#         if wavelength is None:
+#             wavelength = np.array([])
+#
+#         # set base args
+#         self.driver = driver
+#         self.dtype = dtype
+#         self.dataignore = dataignore
+#         self.width = width
+#         self.height = height
+#         self.bandcount = bandcount
+#         self.default_bands = default_bands
+#
+#         self.transform = transform
+#         self.wavelength = wavelength
+#
+#         # add additional args
+#         for key, value in kwargs.items():
+#             if not hasattr(self, key):
+#                 setattr(self, key, value)
+#         self.numExtraArgs = len(kwargs)
+#
+#     def __iter__(self):
+#         for attr, value in self.__dict__.items():
+#             yield attr, value
+#
+#     def __repr__(self):
+#         out = "Metadata:\n"
+#         for key, value in self:
+#             out += "    " + f"{key}: {value}" + "\n"
+#         return out

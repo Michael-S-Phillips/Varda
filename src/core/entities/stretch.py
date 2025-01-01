@@ -12,3 +12,7 @@ class Stretch:
     maxG: int
     minB: int
     maxB: int
+
+    @classmethod
+    def createDefault(cls):
+        return Stretch("default", 0, 1, 0, 1, 0, 1)

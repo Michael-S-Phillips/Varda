@@ -9,3 +9,7 @@ class Band:
     r: int
     g: int
     b: int
+
+    @classmethod
+    def createDefault(cls):
+        return Band("default", 0, 0, 0)

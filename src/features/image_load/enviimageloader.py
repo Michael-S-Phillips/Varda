@@ -1,11 +1,13 @@
 # standard library
 import time
 import logging
+from pathlib import Path
 
 # third party imports
 import numpy as np
 import rasterio as rio
-logging.getLogger('rasterio').setLevel(logging.CRITICAL)
+
+logging.getLogger("rasterio").setLevel(logging.CRITICAL)
 
 # local imports
 from features.image_load.abstractimageloader import AbstractImageLoader
@@ -68,41 +70,64 @@ class ENVIImageLoader(AbstractImageLoader):
             if debug.DEBUG:
                 print("Raw Metadata:", envi_data)
 
-            description = envi_data["description"].strip(
-                "{}") if "description" in envi_data else None
+            description = (
+                envi_data["description"].strip("{}")
+                if "description" in envi_data
+                else None
+            )
 
-            default_bands = envi_data[
-                "default_bands"] if "default_bands" in envi_data else None
+            default_bands = (
+                envi_data["default_bands"] if "default_bands" in envi_data else None
+            )
             if default_bands:
-                default_bands = [int(band) for band in
-                                 envi_data["default_bands"].strip("{}").split(',')]
-                default_bands = {'r': default_bands[0], 'g': default_bands[1],
-                                 'b': default_bands[2]}
+                default_bands = [
+                    int(band)
+                    for band in envi_data["default_bands"].strip("{}").split(",")
+                ]
+                default_bands = {
+                    "r": default_bands[0],
+                    "g": default_bands[1],
+                    "b": default_bands[2],
+                }
 
-            wavelength_units = envi_data[
-                "wavelength_units"] if "wavelength_units" in envi_data else None
-            band_names = np.asarray(envi_data["band_names"].strip("{}").split(
-                ',')) if "band_names" in envi_data else None
+            wavelength_units = (
+                envi_data["wavelength_units"]
+                if "wavelength_units" in envi_data
+                else None
+            )
+            band_names = (
+                np.asarray(envi_data["band_names"].strip("{}").split(","))
+                if "band_names" in envi_data
+                else None
+            )
 
             wavelength = envi_data["wavelength"] if "wavelength" in envi_data else None
             if wavelength is not None:
                 wavelength = np.asarray(
-                    [float(wavelength) for wavelength in wavelength.strip("{}").split(',')])
+                    [
+                        float(wavelength)
+                        for wavelength in wavelength.strip("{}").split(",")
+                    ]
+                )
 
-            geospatial_info = envi_data[
-                "geospatial_info"] if "geospatial_info" in envi_data else None
+            geospatial_info = (
+                envi_data["geospatial_info"] if "geospatial_info" in envi_data else None
+            )
 
-        return Metadata(driver=driver,
-                        dtype=dtype,
-                        dataignore=dataignore,
-                        width=width,
-                        height=height,
-                        bandcount=bandcount,
-                        default_bands=default_bands,
-                        transform=transform,
-                        wavelength=wavelength,
-                        description=description,
-                        wavelength_units=wavelength_units,
-                        band_names=band_names,
-                        geospatial_info=geospatial_info
-                        )
+        return Metadata(
+            driver,
+            width,
+            height,
+            dtype,
+            dataignore,
+            bandcount,
+            default_bands,
+            wavelength,
+            _extraMetadata={
+                "transform": transform,
+                "description": description,
+                "wavelength_units": wavelength_units,
+                "band_names": band_names,
+                "geospatial_info": geospatial_info,
+            },
+        )

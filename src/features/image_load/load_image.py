@@ -22,7 +22,6 @@ def loadNewImage(filepath):
     Raises:
         ValueError: If the file type is not supported.
     """
-    filepath = Path(filepath)
     imageType = getImageType(filepath)
 
     for loader in AbstractImageLoader.subclasses:
@@ -37,8 +36,10 @@ def loadNewImage(filepath):
     logger.error(error)
     raise error
 
+
 def getImageType(path):
-    return path.suffix.strip()
+    return Path(path).suffix.strip()
+
 
 # TODO: complete improved system for image loading. I think we can skip the
 #  AbstractImageLoader stuff and just iterate through the modules
