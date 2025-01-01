@@ -5,7 +5,12 @@ from core.entities import Image, Metadata
 import numpy as np
 
 
-def test_load_image_envi():
+def test_load_image():
+    if not Path("../../testImage").exists():
+        print("Test image directory doesnt exist!")
+        assert False
+
+    # test ENVI Image Loading
     assert (
         image_loader.loadNewImage(
             get_abs_path("../../testImages/HySpex/220724_VNIR_Reflectance.hdr")
@@ -21,8 +26,7 @@ def test_load_image_envi():
     assert isinstance(image.raster, np.ndarray)
     assert isinstance(image.metadata, Metadata)
 
-
-def test_load_image_hdf5():
+    # test HDF5 Image Loading
     assert (
         image_loader.loadNewImage(
             get_abs_path(
