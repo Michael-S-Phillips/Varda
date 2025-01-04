@@ -32,17 +32,17 @@ class MainMenuBar(QMenuBar):
     def initFileMenu(self):
         fileMenu = QMenu("File", self)
         fileMenu.addMenu(self.initImportMenu())
-        fileMenu.addAction('Open Project', self.sigOpenProject)
-        fileMenu.addAction('Save', self.sigSaveProject)
-        fileMenu.addAction('Exit', self.sigExitApp)
+        fileMenu.addAction("Open Project", self.sigOpenProject)
+        fileMenu.addAction("Save", self.sigSaveProject)
+        fileMenu.addAction("Exit", self.sigExitApp)
         return fileMenu
 
     def initImportMenu(self):
-        importMenu = QMenu('Import', self)
-        importMenu.addAction('Import Image', self.sigImportFile)
+        importMenu = QMenu("Import", self)
+        importMenu.addAction("Import Image", self.sigImportFile)
         return importMenu
 
     def initHelpmenu(self):
-        helpMenu = QMenu('Help', self)
-        helpMenu.addAction('About', self.sigAboutDialog)
+        helpMenu = QMenu("Help", self)
+        helpMenu.addAction("About", self.sigAboutDialog)
         return helpMenu

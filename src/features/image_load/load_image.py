@@ -1,40 +1,50 @@
 from pathlib import Path
 import logging
-import importlib
-import pkgutil
 
+import asyncio
+from PyQt6.QtWidgets import QFileDialog
+
+from core.data import ProjectContext
 from features.image_load.abstractimageloader import AbstractImageLoader
-from core.entities import Image
+
 
 logger = logging.getLogger(__name__)
 
 
-def loadNewImage(filepath):
-    """
-    Creates a new ImageModel from the given file path and appends it to the manager.
-
-    Args:
-        filepath (str): Path to the image file.
+async def loadNewImage(proj: ProjectContext):
+    """Queries the user for a filePath and Loads the image. adds it to project
 
     Returns:
-        QModelIndex: Index of the newly added image.
-
-    Raises:
-        ValueError: If the file type is not supported.
+        int: Index of the newly added image.
     """
-    imageType = getImageType(filepath)
+    filePath = requestFilePath()
+    if filePath is False:
+        return
+    raster, metadata = beginLoader(filePath)
+    index = proj.createImage(raster, metadata)
+    return index
 
+
+def requestFilePath():
+    # TODO: automatically determine all file types that are supported
+    fileName = QFileDialog.getOpenFileName(
+        None,
+        "Open File",
+        "",
+        "image file (*.hdr *.img " "*.h5)",  # pylint: disable=implicit-str-concat
+    )
+    return fileName[0]
+
+
+def beginLoader(filePath):
+    imageType = getImageType(filePath)
     for loader in AbstractImageLoader.subclasses:
         if imageType in loader.imageType:
             # load() returns a tuple, so we unpack it (*) to pass to ImageModel
-            img = Image(*loader(filepath).load())
-            logger.info(f"Loaded image - {img}")
-            return img  # return the new image
+            return loader(filePath).load()
 
     # if no image type is found, raise an error
-    error = ValueError(f"Bad file type {imageType}")
-    logger.error(error)
-    raise error
+    raise ValueError(f"Bad file type {imageType}")
 
 
 def getImageType(path):

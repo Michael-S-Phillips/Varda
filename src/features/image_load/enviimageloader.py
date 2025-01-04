@@ -1,13 +1,10 @@
 # standard library
 import time
 import logging
-from pathlib import Path
 
 # third party imports
 import numpy as np
 import rasterio as rio
-
-logging.getLogger("rasterio").setLevel(logging.CRITICAL)
 
 # local imports
 from features.image_load.abstractimageloader import AbstractImageLoader
@@ -15,12 +12,15 @@ from core.entities.metadata import Metadata
 from core.utilities import debug
 
 
+logging.getLogger("rasterio").setLevel(logging.CRITICAL)
+
+
 class ENVIImageLoader(AbstractImageLoader):
 
     imageType = (".hdr", ".img")
 
     @staticmethod
-    def _loadRasterData(filePath=None):
+    def _loadRasterData(filePath):
         if filePath is None:
             return
         path = filePath.replace(".hdr", ".img")
@@ -39,9 +39,7 @@ class ENVIImageLoader(AbstractImageLoader):
         return data
 
     @staticmethod
-    def _loadMetadata(image=None, filePath=None):
-        if filePath is None:
-            return
+    def _loadMetadata(image, filePath):  # pylint: disable=too-many-locals
 
         path = filePath.replace(".hdr", ".img")
         with rio.open(path) as src:
@@ -57,51 +55,49 @@ class ENVIImageLoader(AbstractImageLoader):
                 dtype = None
                 print("no dtype")
 
-            dataignore = src.nodata
+            dataIgnore = src.nodata
             width = src.width
             height = src.height
-            bandcount = src.count
+            bandCount = src.count
             resolution = src.res
             crs = src.crs
             transform = src.transform
 
             # get envi metadata
-            envi_data = src.tags(ns="ENVI")
+            enviData = src.tags(ns="ENVI")
             if debug.DEBUG:
-                print("Raw Metadata:", envi_data)
+                print("Raw Metadata:", enviData)
 
             description = (
-                envi_data["description"].strip("{}")
-                if "description" in envi_data
+                enviData["description"].strip("{}")
+                if "description" in enviData
                 else None
             )
 
-            default_bands = (
-                envi_data["default_bands"] if "default_bands" in envi_data else None
+            defaultBands = (
+                enviData["default_bands"] if "default_bands" in enviData else None
             )
-            if default_bands:
-                default_bands = [
+            if defaultBands:
+                defaultBands = [
                     int(band)
-                    for band in envi_data["default_bands"].strip("{}").split(",")
+                    for band in enviData["default_bands"].strip("{}").split(",")
                 ]
-                default_bands = {
-                    "r": default_bands[0],
-                    "g": default_bands[1],
-                    "b": default_bands[2],
+                defaultBands = {
+                    "r": defaultBands[0],
+                    "g": defaultBands[1],
+                    "b": defaultBands[2],
                 }
 
-            wavelength_units = (
-                envi_data["wavelength_units"]
-                if "wavelength_units" in envi_data
-                else None
+            wavelengthUnits = (
+                enviData["wavelength_units"] if "wavelength_units" in enviData else None
             )
-            band_names = (
-                np.asarray(envi_data["band_names"].strip("{}").split(","))
-                if "band_names" in envi_data
+            bandNames = (
+                np.asarray(enviData["band_names"].strip("{}").split(","))
+                if "band_names" in enviData
                 else None
             )
 
-            wavelength = envi_data["wavelength"] if "wavelength" in envi_data else None
+            wavelength = enviData["wavelength"] if "wavelength" in enviData else None
             if wavelength is not None:
                 wavelength = np.asarray(
                     [
@@ -110,8 +106,8 @@ class ENVIImageLoader(AbstractImageLoader):
                     ]
                 )
 
-            geospatial_info = (
-                envi_data["geospatial_info"] if "geospatial_info" in envi_data else None
+            geospatialInfo = (
+                enviData["geospatial_info"] if "geospatial_info" in enviData else None
             )
 
         return Metadata(
@@ -119,15 +115,15 @@ class ENVIImageLoader(AbstractImageLoader):
             width,
             height,
             dtype,
-            dataignore,
-            bandcount,
-            default_bands,
+            dataIgnore,
+            bandCount,
+            defaultBands,
             wavelength,
             _extraMetadata={
                 "transform": transform,
                 "description": description,
-                "wavelength_units": wavelength_units,
-                "band_names": band_names,
-                "geospatial_info": geospatial_info,
+                "wavelength_units": wavelengthUnits,
+                "band_names": bandNames,
+                "geospatial_info": geospatialInfo,
             },
         )

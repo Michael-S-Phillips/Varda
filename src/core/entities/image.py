@@ -4,8 +4,7 @@ A core entity representing an image in varda.
 """
 
 # standard library
-import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List
 
 # third party imports
@@ -19,24 +18,13 @@ from .metadata import Metadata
 
 @dataclass(frozen=True)
 class Image:
-    _raster: np.ndarray
-    _metadata: Metadata
-    _stretch: List[Stretch] = field(default_factory=list)
-    _band: List[Band] = field(default_factory=list)
-    _index: int = -1
+    """Data container representing an Image object in Varda"""
 
-    @property
-    def raster(self):
-        return self._raster
+    raster: np.ndarray
+    metadata: Metadata
+    stretch: List[Stretch]
+    band: List[Band]
+    index: int
 
-    @property
-    def metadata(self):
-        return self._metadata
-
-    @property
-    def stretch(self):
-        return self._stretch
-
-    @property
-    def band(self):
-        return self._band
+    def __eq__(self, other):
+        return self.index == other.index

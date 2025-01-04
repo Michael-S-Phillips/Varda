@@ -3,9 +3,7 @@ from typing import Any, Dict
 from dataclasses import dataclass, field
 
 # third-party imports
-from affine import Affine
 import numpy as np
-from dataclasses import dataclass
 
 
 # local imports
@@ -24,45 +22,54 @@ class Metadata:
     _wavelength: np.ndarray = field(default_factory=lambda: np.zeros(0))
     _extraMetadata: Dict[str, Any] = field(default_factory=dict)
 
-    # Read-only properties for core metadata
     @property
     def driver(self):
+        """read-only property for driver"""
         return self._driver
 
     @property
     def width(self):
+        """read-only property for width"""
         return self._width
 
     @property
     def height(self):
+        """read-only property for height"""
         return self._height
 
     @property
     def dtype(self):
+        """read-only property for dtype"""
         return self._dtype
 
     @property
     def dataIgnore(self):
+        """read-only property for dataIgnore"""
         return self._dataIgnore
 
     @property
     def bandCount(self):
+        """read-only property for bandCount"""
         return self._bandCount
 
     @property
     def defaultBand(self):
+        """read-only property for defaultBand"""
         return self._defaultBand
 
     @property
     def wavelength(self):
+        """read-only property for wavelength"""
         return self._wavelength
 
     @property
     def extraMetadata(self):
+        """read-only property for extraMetadata"""
         return self._extraMetadata
 
     # other methods
     def toDict(self):
+        """generate a flat dict containing all the metadata and extra metadata"""
         coreMetadata = {
             key: value for key, value in self.__dict__.items() if key != "extraMetadata"
         }
@@ -83,64 +90,3 @@ class Metadata:
 
     def __getitem__(self, item):
         return self.toDict().get(item)
-
-
-# class Metadata:
-#     """
-#     A standardized set of metadata for images. driver, dtype, dataignore, width,
-#     height, bandcount, and transform, are expected to be provided by every image.
-#     **kwargs lets you add additional metadata properties for displaying and editing.
-#
-#     individual sections of metadata can be accessed using dot-notation.
-#     the entire metadata object can also be iterated through as if it were a dictionary
-#     """
-#
-#     def __init__(
-#         self,
-#         driver: str,
-#         dtype: str,
-#         dataignore: float,
-#         width: int,
-#         height: int,
-#         bandcount: int,
-#         default_bands: dict,
-#         transform: Affine,
-#         wavelength: np.ndarray,
-#         **kwargs,
-#     ):
-#         super().__init__()
-#
-#         if default_bands is None:
-#             default_bands = {}
-#         if transform is None:
-#             transform = Affine.identity()
-#         if wavelength is None:
-#             wavelength = np.array([])
-#
-#         # set base args
-#         self.driver = driver
-#         self.dtype = dtype
-#         self.dataignore = dataignore
-#         self.width = width
-#         self.height = height
-#         self.bandcount = bandcount
-#         self.default_bands = default_bands
-#
-#         self.transform = transform
-#         self.wavelength = wavelength
-#
-#         # add additional args
-#         for key, value in kwargs.items():
-#             if not hasattr(self, key):
-#                 setattr(self, key, value)
-#         self.numExtraArgs = len(kwargs)
-#
-#     def __iter__(self):
-#         for attr, value in self.__dict__.items():
-#             yield attr, value
-#
-#     def __repr__(self):
-#         out = "Metadata:\n"
-#         for key, value in self:
-#             out += "    " + f"{key}: {value}" + "\n"
-#         return out

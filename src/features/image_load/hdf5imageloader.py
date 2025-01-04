@@ -16,10 +16,9 @@ from core.utilities import debug
 class HDF5ImageLoader(AbstractImageLoader):
     imageType = ".h5"
 
+    @staticmethod
     @override
-    def _loadRasterData(self, filePath=None):
-        if filePath is None:
-            return
+    def _loadRasterData(filePath):
 
         timeStarted = time.time()
 
@@ -44,8 +43,9 @@ class HDF5ImageLoader(AbstractImageLoader):
 
         return data
 
+    @staticmethod
     @override
-    def _loadMetadata(self, image=None, filePath=None):
+    def _loadMetadata(image, filePath):
         with h5py.File(filePath, "r") as hdf:
             metadata = hdf["SERC/Reflectance/Metadata"]
             spectralData = metadata["Spectral_Data"]
