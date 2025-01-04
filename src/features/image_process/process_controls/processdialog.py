@@ -1,13 +1,18 @@
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtWidgets import QDialog
 
+import core.utilities as utils
+
 
 class ProcessDialog(QDialog):
+    """Dialog box that can dynamically generate parameter controls for an image
+    process.
+    """
 
     sigProcessFinished = QtCore.pyqtSignal()
 
     def __init__(self, image=None):
-        super(ProcessDialog, self).__init__()
+        super().__init__()
         self.image = image
 
     def openProcessControlMenu(self, process):
@@ -57,6 +62,6 @@ class ProcessDialog(QDialog):
         if self.image is None:
             return
         p = process()
-        vardathreading.dispatchThreadProcess(
+        utils.threading_helper.dispatchThreadProcess(
             self.image.process, self.sigProcessFinished, p
         )

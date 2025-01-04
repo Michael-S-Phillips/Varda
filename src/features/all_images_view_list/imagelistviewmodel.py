@@ -7,7 +7,6 @@ Classes:
 """
 
 # standard library
-from pathlib import Path
 import logging
 
 # third-party imports
@@ -16,11 +15,12 @@ from PyQt6.QtCore import Qt
 
 # local imports
 from core.data import ProjectContext
-from core.entities import Image
+
 
 logger = logging.getLogger(__name__)
 
 
+# pylint: disable=unused-argument
 class ImageListViewModel(QtCore.QAbstractListModel):
     """A super basic implementation of the
 

@@ -58,6 +58,6 @@ def test_metadata_custom():
 def test_image_creation():
     raster = np.zeros((10, 10))
     metadata = Metadata()
-    image = Image(_raster=raster, _metadata=metadata)
+    image = Image(raster, metadata, [], [], 0)
     assert (image.raster == raster).all()
     assert image.metadata == metadata

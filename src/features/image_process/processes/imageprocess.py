@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 
 
 class ImageProcess(ABC):
+    """Base class for processes"""
+
     subclasses = []
 
     def __init_subclass__(cls, **kwargs):

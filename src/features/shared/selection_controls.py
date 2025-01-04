@@ -9,15 +9,24 @@ class BandSelector(QComboBox):
         self.proj = proj
         self.imageIndex = imageIndex
 
-        self.populateComboBox()
+        self._populateComboBox()
 
-    def populateComboBox(self):
+    def _populateComboBox(self):
         self.clear()
         self.addItems([band.name for band in self.proj.getImage(self.imageIndex).band])
 
     def setImageIndex(self, imageIndex):
+        """updates selector to use a new image.
+
+        this changes which image the selector reads from. it will refresh its
+        contents to match the new data.
+
+        Args:
+            imageIndex: the index of the new image to use.
+
+        """
         self.imageIndex = imageIndex
-        self.populateComboBox()
+        self._populateComboBox()
 
 
 class StretchSelector(QComboBox):
@@ -26,14 +35,22 @@ class StretchSelector(QComboBox):
         self.proj = proj
         self.imageIndex = imageIndex
 
-        self.populateComboBox()
+        self._populateComboBox()
 
-    def populateComboBox(self):
+    def _populateComboBox(self):
         self.clear()
         self.addItems(
             [stretch.name for stretch in self.proj.getImage(self.imageIndex).stretch]
         )
 
     def setImageIndex(self, imageIndex):
+        """updates selector to use a new image.
+
+        this changes which image the selector reads from. it will refresh its
+        contents to match the new data.
+
+        Args:
+            imageIndex: the index of the new image to use.
+        """
         self.imageIndex = imageIndex
-        self.populateComboBox()
+        self._populateComboBox()

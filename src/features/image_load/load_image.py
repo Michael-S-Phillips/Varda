@@ -1,7 +1,6 @@
 from pathlib import Path
 import logging
 
-import asyncio
 from PyQt6.QtWidgets import QFileDialog
 
 from core.data import ProjectContext
@@ -11,22 +10,23 @@ from features.image_load.abstractimageloader import AbstractImageLoader
 logger = logging.getLogger(__name__)
 
 
-async def loadNewImage(proj: ProjectContext):
+async def loadNewImage(proj: ProjectContext, filePath=None):
     """Queries the user for a filePath and Loads the image. adds it to project
 
     Returns:
         int: Index of the newly added image.
     """
-    filePath = requestFilePath()
-    if filePath is False:
-        return
-    raster, metadata = beginLoader(filePath)
+    if filePath is None:
+        filePath = _requestFilePath()
+    if filePath is None:
+        return -1
+
+    raster, metadata = _beginLoader(filePath)
     index = proj.createImage(raster, metadata)
     return index
 
 
-def requestFilePath():
-    # TODO: automatically determine all file types that are supported
+def _requestFilePath():
     fileName = QFileDialog.getOpenFileName(
         None,
         "Open File",
@@ -36,18 +36,18 @@ def requestFilePath():
     return fileName[0]
 
 
-def beginLoader(filePath):
-    imageType = getImageType(filePath)
+def _beginLoader(filePath):
+    imageType = _getImageType(filePath)
     for loader in AbstractImageLoader.subclasses:
         if imageType in loader.imageType:
             # load() returns a tuple, so we unpack it (*) to pass to ImageModel
-            return loader(filePath).load()
+            return loader().load(filePath)
 
     # if no image type is found, raise an error
     raise ValueError(f"Bad file type {imageType}")
 
 
-def getImageType(path):
+def _getImageType(path):
     return Path(path).suffix.strip()
 
 

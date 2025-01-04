@@ -10,6 +10,10 @@ from core.data import ProjectContext
 
 
 class StretchViewModel(QObject):
+    """Simple ViewModel for the stretch view/editor. This handles all the business
+    logic and interaction with the ProjectContext.
+    """
+
     sigStretchChanged = pyqtSignal()
 
     def __init__(self, proj: ProjectContext, imageIndex, parent=None):
@@ -31,7 +35,7 @@ class StretchViewModel(QObject):
 
     def updateStretch(self, minR, maxR, minG, maxG, minB, maxB):
         self.proj.updateStretch(
-            self.index, self.stretchIndex, minR, maxR, minG, maxG, minB, maxB
+            self.index, self.stretchIndex, None, minR, maxR, minG, maxG, minB, maxB
         )
 
     def _handleDataChanged(self, index, changeType):

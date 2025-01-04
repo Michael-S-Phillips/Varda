@@ -4,57 +4,56 @@ from core.entities import Image, Metadata, Band, Stretch
 
 
 def test_project_context_add_image():
-    pc = ProjectContext()
+    proj = ProjectContext()
     raster = np.zeros((10, 10))
     metadata = Metadata()
-    image = Image(_raster=raster, _metadata=metadata)
-
-    pc.addImage(image)
-    assert len(pc.getAllImages()) == 1
-    assert pc.getImage(0) == image
+    index = proj.createImage(raster, metadata)
+    image = proj.getImage(index)
+    assert len(proj.getAllImages()) == 1
+    assert proj.getImage(0) is image
 
 
 def test_project_context_remove_image():
-    pc = ProjectContext()
+    proj = ProjectContext()
     raster = np.zeros((10, 10))
     metadata = Metadata()
-    image = Image(_raster=raster, _metadata=metadata)
-    pc.addImage(image)
+    index = proj.createImage(raster, metadata)
+    image = proj.getImage(index)
 
-    pc.removeImage(0)
-    assert len(pc.getAllImages()) == 0
+    assert image.raster is raster
+    assert image.metadata is metadata
+
+    proj.removeImage(0)
+
+    assert len(proj.getAllImages()) == 0
 
 
 def test_project_context_update_metadata():
-    pc = ProjectContext()
+    proj = ProjectContext()
     raster = np.zeros((10, 10))
     metadata = Metadata(_driver="OldDriver")
-    image = Image(_raster=raster, _metadata=metadata)
-
-    pc.addImage(image)
-    pc.updateMetadata(0, "driver", "NewDriver")
-    assert pc.getImage(0).metadata.driver == "NewDriver"
+    index = proj.createImage(raster, metadata)
+    proj.updateMetadata(0, "driver", "NewDriver")
+    assert proj.getImage(0).metadata.driver == "NewDriver"
 
 
 def test_project_context_add_band():
-    pc = ProjectContext()
+    proj = ProjectContext()
     raster = np.zeros((10, 10))
     metadata = Metadata()
     band = Band.createDefault()
-    image = Image(_raster=raster, _metadata=metadata)
+    index = proj.createImage(raster, metadata)
 
-    pc.addImage(image)
-    pc.addBand(0, band)
-    assert pc.getImage(0).band == [band]
+    bandIndex = proj.addBand(index, band)
+    assert proj.getImage(index).band[bandIndex] is band
 
 
 def test_project_context_add_stretch():
-    pc = ProjectContext()
+    proj = ProjectContext()
     raster = np.zeros((10, 10))
     metadata = Metadata()
     stretch = Stretch.createDefault()
-    image = Image(_raster=raster, _metadata=metadata)
+    index = proj.createImage(raster, metadata)
 
-    pc.addImage(image)
-    pc.addStretch(0, stretch)
-    assert pc.getImage(0).stretch == [stretch]
+    stretchIndex = proj.addStretch(index, stretch)
+    assert proj.getImage(index).stretch[stretchIndex] is stretch

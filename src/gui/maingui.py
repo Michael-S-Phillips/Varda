@@ -188,14 +188,14 @@ class MainGUI(QtWidgets.QMainWindow):
     def exitApp(self):
         self.close()
 
-    @override
-    def dragEnterEvent(self, event, **kwargs):
-        event.acceptProposedAction()
-
-    @override
-    def dropEvent(self, event, **kwargs):
-        self.statusBar().showLoadingMessage()
-        self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
+    # @override
+    # def dragEnterEvent(self, event, **kwargs):
+    #     event.acceptProposedAction()
+    #
+    # @override
+    # def dropEvent(self, event, **kwargs):
+    #     self.statusBar().showLoadingMessage()
+    #     self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
 
 
 def startGui(proj: ProjectContext):
@@ -211,7 +211,3 @@ def startGui(proj: ProjectContext):
     with eventLoop:  # Ensures the loop runs and stops properly
         eventLoop.run_forever()
     # app.exec()
-
-
-if __name__ == "__main__":
-    startGui()

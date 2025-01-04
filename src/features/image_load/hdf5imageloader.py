@@ -13,7 +13,9 @@ from core.entities.metadata import Metadata
 from core.utilities import debug
 
 
-class HDF5ImageLoader(AbstractImageLoader):
+class HDF5ImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-methods
+    """Implementation of AbstractImageLoader for HDF5 Images"""
+
     imageType = ".h5"
 
     @staticmethod

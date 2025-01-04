@@ -8,6 +8,7 @@ from features.image_process.processes.imageprocess import ImageProcess
 
 
 class AnotherProcess(ImageProcess):
+    """Test Process"""
 
     name = "Another Process"
 

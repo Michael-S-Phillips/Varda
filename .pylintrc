@@ -1,3 +1,5 @@
+[MASTER]
+source-root = src/
 
 [MAIN]
 extension-pkg-allow-list=PyQt6

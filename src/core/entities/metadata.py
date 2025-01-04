@@ -10,8 +10,15 @@ import numpy as np
 from .band import Band
 
 
+# pylint: disable=too-many-instance-attributes
 @dataclass
 class Metadata:
+    """Data container representing the metadata of an image
+
+    This ensures that every image contains a standard base set of metadata, but allows
+    for adding extra metadata items via _extraMetadata
+    """
+
     _driver: str = ""
     _width: int = 0
     _height: int = 0
@@ -73,7 +80,7 @@ class Metadata:
         coreMetadata = {
             key: value for key, value in self.__dict__.items() if key != "extraMetadata"
         }
-        return dict(**coreMetadata, **self.extraMetadata)
+        return {**coreMetadata, **self.extraMetadata}
 
     # magic methods to add the ability to iterate through the items
     def __iter__(self):

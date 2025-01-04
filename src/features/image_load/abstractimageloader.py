@@ -12,7 +12,7 @@ from core.entities.metadata import Metadata
 logger = logging.getLogger(__name__)
 
 
-class AbstractImageLoader(ABC):
+class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
     """
     Class to load images from a file path. To be inherited by specific image types.
     Usage:
@@ -31,26 +31,27 @@ class AbstractImageLoader(ABC):
         logger.info(f"Adding {cls.__name__} to subclasses")
         AbstractImageLoader.subclasses.append(cls)
 
-    def __init__(self, filepath=None):
-        self._filePath = filepath
-        if self._filePath is None:
-            logger.warning("No file path provided")
+    def __init__(self):
+        self._filePath = None
         self._rasterData = None
         self._imageMetadata = None
 
-    def load(self, filepath=None) -> Tuple[np.ndarray, Metadata] | None:
-        if filepath:
-            self._filePath = filepath
-        if self._filePath is None:
-            logger.error("No file path provided")
-            return None
+    def load(self, filepath: str) -> Tuple[np.ndarray, Metadata]:
+        """Loads the image data and metadata from the file path.
+
+        Args:
+            filepath: The file path to the image.
+
+        Returns:
+            Tuple[np.ndarray, Metadata]: A tuple with the image raster data and metadata
+        """
+        self._filePath = filepath
 
         if self._rasterData is None:
             self._rasterData = self._loadRasterData(self._filePath)
 
         if self._imageMetadata is None:
             self._imageMetadata = self._loadMetadata(self._rasterData, self._filePath)
-
         return self._rasterData, self._imageMetadata
 
     @staticmethod

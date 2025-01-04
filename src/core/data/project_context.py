@@ -91,9 +91,10 @@ class ProjectContext(QObject):
 
     # Stretch Management
     def addStretch(self, index, stretch: Stretch):
-        """Add a stretch to an image."""
+        """Add a stretch to an image. Returns the index of the new stretch"""
         self._images[index].stretch.append(stretch)
         self._emitChange(index, self.ChangeType.STRETCH)
+        return len(self._images[index].stretch) - 1
 
     def removeStretch(self, index, stretchIndex):
         """Remove a stretch by index from an image."""
@@ -104,6 +105,7 @@ class ProjectContext(QObject):
         self,
         imageIndex: int,
         stretchIndex: int,
+        name: str = None,
         minR: int = None,
         maxR: int = None,
         minG: int = None,
@@ -111,18 +113,23 @@ class ProjectContext(QObject):
         minB: int = None,
         maxB: int = None,
     ):
+        """Update the stretch parameters for a specific image and stretch index.
+
+        When calling this method, only include the arguments you want to change. The
+        rest will maintain their current values
+        """
         image = self.getImage(imageIndex)
         oldStretch = image.stretch[stretchIndex]
 
         # Create the updated Stretch using existing values as fallbacks
         newStretch = Stretch(
-            name=oldStretch.name,  # Name stays the same
-            minR=minR if minR is not None else oldStretch.minR,
-            maxR=maxR if maxR is not None else oldStretch.maxR,
-            minG=minG if minG is not None else oldStretch.minG,
-            maxG=maxG if maxG is not None else oldStretch.maxG,
-            minB=minB if minB is not None else oldStretch.minB,
-            maxB=maxB if maxB is not None else oldStretch.maxB,
+            name=name if name else oldStretch.name,
+            minR=minR if minR else oldStretch.minR,
+            maxR=maxR if maxR else oldStretch.maxR,
+            minG=minG if minG else oldStretch.minG,
+            maxG=maxG if maxG else oldStretch.maxG,
+            minB=minB if minB else oldStretch.minB,
+            maxB=maxB if maxB else oldStretch.maxB,
         )
         # replace the Stretch
         self._images[imageIndex].stretch[stretchIndex] = newStretch
@@ -135,9 +142,10 @@ class ProjectContext(QObject):
 
     # Band Management
     def addBand(self, index, band: Any):
-        """Add a band to an image."""
+        """Add a band to an image. Returns the index of the new band"""
         self._images[index].band.append(band)
         self._emitChange(index, self.ChangeType.BAND)
+        return len(self._images[index].band) - 1
 
     def removeBand(self, index, bandIndex):
         """Remove a band by index from an image."""
@@ -153,6 +161,11 @@ class ProjectContext(QObject):
         g: int = None,
         b: int = None,
     ):
+        """Update the band parameters for a specific image and band index.
+
+        When calling this method, only include the arguments you want to change. The
+        rest will maintain their current values
+        """
         image = self.getImage(index)
         oldBand = image.band[bandIndex]
         newBand = Band(

@@ -9,6 +9,7 @@ from features.image_process.processes.imageprocess import ImageProcess
 
 
 class Normalize(ImageProcess):
+    """Test Process"""
 
     name = "Normalize"
 

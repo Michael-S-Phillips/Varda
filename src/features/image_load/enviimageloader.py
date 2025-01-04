@@ -15,14 +15,13 @@ from core.utilities import debug
 logging.getLogger("rasterio").setLevel(logging.CRITICAL)
 
 
-class ENVIImageLoader(AbstractImageLoader):
+class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-methods
+    """Implementation of AbstractImageLoader for ENVI Images"""
 
     imageType = (".hdr", ".img")
 
     @staticmethod
     def _loadRasterData(filePath):
-        if filePath is None:
-            return
         path = filePath.replace(".hdr", ".img")
         timeStarted = time.time()
 
@@ -40,7 +39,6 @@ class ENVIImageLoader(AbstractImageLoader):
 
     @staticmethod
     def _loadMetadata(image, filePath):  # pylint: disable=too-many-locals
-
         path = filePath.replace(".hdr", ".img")
         with rio.open(path) as src:
             # get rasterio metadata

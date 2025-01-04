@@ -25,7 +25,7 @@ def dispatchThreadProcess(onComplete, process, *args, **kwargs):
     threadpool.start(worker)
 
 
-class BackgroundWorker(QtCore.QRunnable):
+class BackgroundWorker(QtCore.QRunnable):  # pylint: disable=too-few-public-methods
     """A basic setup to run functions on a separate thread."""
 
     class Signals(QtCore.QObject):
@@ -54,9 +54,9 @@ class BackgroundWorker(QtCore.QRunnable):
     def run(self):
         """Runs the function on a separate thread and emits the result signal."""
         logger.info(
-            "run(): calling function " + self._fn.__name__ + " on thread.\n"
-            "  args: " + str(*self._args) + "\n"
-            "  kwargs: " + str(**self._kwargs)
+            f"run(): calling function {self._fn.__name__} on thread.\n"
+            f"  args: {self._args}) \n"
+            f"  kwargs: {self._kwargs}"
         )
 
         result = self._fn(*self._args, **self._kwargs)

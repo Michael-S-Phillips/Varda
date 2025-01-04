@@ -10,51 +10,16 @@ import pyqtgraph as pg
 
 # local imports
 from core.data import ProjectContext
-from core.entities import Image
-
-
-class ImageViewList(QListView):
-
-    sigOpenRasterView = QtCore.pyqtSignal(Image)
-    sigOpenStretchView = QtCore.pyqtSignal(Image)
-    sigOpenBandView = QtCore.pyqtSignal(Image)
-
-    def __init__(self, parent=None, viewmodel=None):
-        super().__init__(parent)
-        if viewmodel:
-            self.setModel(viewmodel)
-
-        self.setViewMode(QListView.ViewMode.IconMode)  # Show as icons (grid layout)
-        self.setResizeMode(QListView.ResizeMode.Adjust)
-        self.setIconSize(QtCore.QSize(256, 256))  # Set icon size
-        self.setSpacing(10)  # Add spacing between items
-        self.setUniformItemSizes(True)  # Optimize layout performance
-        self.delegate = ImageItemDelegate(self)
-        self.setItemDelegate(self.delegate)
-
-    # def contextMenuEvent(self, event):
-    #     # Check if the right click happened on an item
-    #     index = self.indexAt(event.pos())
-    #     if index.isValid():
-    #         contextMenu = self.createContextMenu(index)
-    #         contextMenu.exec(event.globalPos())
-    #     else:
-    #         print("No item selected")
-    #
-    # def createContextMenu(self, index):
-    #     indexVal = index.row() + index.column()
-    #     contextMenu = QtWidgets.QMenu(self)
-    #     openView = contextMenu.addMenu("Open View")
-    #     rasterView = openView.addAction("RasterData View")
-    #     bandView = openView.addAction("Band View")
-    #     stretchView = openView.addAction("Stretch View")
-    #     rasterView.triggered.connect(lambda: self.sigOpenRasterView.emit(indexVal))
-    #     bandView.triggered.connect(lambda: self.sigOpenBandView.emit(indexVal))
-    #     stretchView.triggered.connect(lambda: self.sigOpenStretchView.emit(indexVal))
-    #     return contextMenu
 
 
 class ImageListWidget(QListWidget):
+    """Widget for displaying all the images of a project.
+
+    This class gives users a way to see previews of all the images in the project.
+    Users can also select images, which other classes can use to provide context
+    actions based on which image is selected.
+    """
+
     def __init__(self, proj: ProjectContext, parent=None):
         super().__init__(parent)
         self.setViewMode(QListWidget.ViewMode.IconMode)
@@ -65,10 +30,10 @@ class ImageListWidget(QListWidget):
         delegate = ImageItemDelegate(self)
         self.setItemDelegate(delegate)
 
-        self.updateItems()
-        self.proj.sigDataChanged.connect(self.updateItems)
+        self._updateItems()
+        self.proj.sigDataChanged.connect(self._updateItems)
 
-    def updateItems(self):
+    def _updateItems(self):
         self.clear()
         for image in self.proj.getAllImages():
             item = QListWidgetItem()
@@ -79,18 +44,6 @@ class ImageListWidget(QListWidget):
             item.setIcon(QIcon(pixmap))
             self.addItem(item)
         self.update()
-
-    # def createContextMenu(self, index):
-    #     contextMenu = QtWidgets.QMenu(self)
-    #     openView = contextMenu.addMenu("Open View")
-    #     rasterView = openView.addAction("RasterData View")
-    #     bandView = openView.addAction("Band View")
-    #     stretchView = openView.addAction("Stretch View")
-    #     image = index.data(QtCore.Qt.ItemDataRole.UserRole)
-    #     rasterView.triggered.connect(lambda: self.sigOpenRasterView.emit(image))
-    #     bandView.triggered.connect(lambda: self.sigOpenBandView.emit(image))
-    #     stretchView.triggered.connect(lambda: self.sigOpenStretchView.emit(image))
-    #     return contextMenu
 
 
 class ImageItemDelegate(QtWidgets.QStyledItemDelegate):
@@ -103,8 +56,9 @@ class ImageItemDelegate(QtWidgets.QStyledItemDelegate):
         super().__init__(parent)
 
     def paint(self, painter, option, index):
-        # Get the data from the model
+        """Renders an Image."""
 
+        # Get the data from the model
         image = index.data(QtCore.Qt.ItemDataRole.UserRole)
         # for now use the first band
         data = image.raster[:, :, [image.band[0].r, image.band[0].g, image.band[0].b]]

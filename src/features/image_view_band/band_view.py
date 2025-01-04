@@ -6,40 +6,39 @@ import pyqtgraph as pg
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
 from PyQt6.QtCore import Qt, QTimer
 
+from core.data import ProjectContext
+
 # local imports
 from features.shared.selection_controls import StretchSelector
 from .band_viewmodel import BandViewModel
 
 
 class BandView(QWidget):
+    """A basic view for editing band configurations of an image. Cannot create new
+    parameters at the moment. only edit existing ones.
+    """
+
     viewModel: BandViewModel
     rBandSlider: pg.InfiniteLine
     gBandSlider: pg.InfiniteLine
     bBandSlider: pg.InfiniteLine
     bandSelector: StretchSelector
     widgetHeight = 152
-    updateInterval = 20
+    updateTimer: QTimer
 
     def __init__(self, viewModel=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Band Editor")
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint)
-
+        self.setMaximumHeight(self.widgetHeight)
         self.viewModel = viewModel
 
-        self.initUI()
-        self.connectSignals()
-
-        self.setMaximumHeight(self.widgetHeight)
-
-        self.updateTimer = QTimer()
-        self.updateTimer.setSingleShot(True)
-        self.updateTimer.timeout.connect(self.updateBand)
-        self.isDragging = False
+        self._initUI()
+        self._connectSignals()
         self.show()
 
-    def initUI(self):
-        bounds = [0, self.viewModel.getBandRange()]
+    def _initUI(self):
+        bounds = [0, self.viewModel.getBandCount()]
 
         # Create GraphicsLayout
         graphicsLayout = pg.GraphicsLayout()
@@ -48,7 +47,6 @@ class BandView(QWidget):
 
         # ViewBox setup
         vbox = pg.ViewBox()
-
         vbox.setRange(xRange=bounds, yRange=(-1, 1))
         vbox.setMaximumHeight(self.widgetHeight)
         vbox.setMinimumHeight(45)
@@ -61,31 +59,15 @@ class BandView(QWidget):
         axis.linkToView(vbox)
         graphicsLayout.addItem(axis, row=1, col=0)
 
-        # GraphicsView setup
-        view = pg.GraphicsView(parent=self)
-        view.setCentralItem(graphicsLayout)
-
         # Sliders setup
-        self.rBandSlider = pg.InfiniteLine(
-            movable=True, angle=90, pen="r", bounds=bounds
-        )
-        self.gBandSlider = pg.InfiniteLine(
-            movable=True, angle=90, pen="g", bounds=bounds
-        )
-        self.bBandSlider = pg.InfiniteLine(
-            movable=True, angle=90, pen="b", bounds=bounds
-        )
+        self.rBandSlider = pg.InfiniteLine(0, 90, "r", True, bounds)
+        self.gBandSlider = pg.InfiniteLine(0, 90, "g", True, bounds)
+        self.bBandSlider = pg.InfiniteLine(0, 90, "b", True, bounds)
 
         # initialize labels for each slider
-        self.MyInfLineLabel(
-            self.rBandSlider, text="{value}", position=0.5, anchor=(0, 0.5)
-        )
-        self.MyInfLineLabel(
-            self.gBandSlider, text="{value}", position=0.5, anchor=(0, 0.5)
-        )
-        self.MyInfLineLabel(
-            self.bBandSlider, text="{value}", position=0.5, anchor=(0, 0.5)
-        )
+        self.MyInfLineLabel(self.rBandSlider, "{value}", False, 0.5, [(0, 0.5)])
+        self.MyInfLineLabel(self.gBandSlider, "{value}", False, 0.5, [(0, 0.5)])
+        self.MyInfLineLabel(self.bBandSlider, "{value}", False, 0.5, [(0, 0.5)])
 
         # Add sliders to the ViewBox
         vbox.addItem(self.rBandSlider)
@@ -93,8 +75,13 @@ class BandView(QWidget):
         vbox.addItem(self.bBandSlider)
 
         # setup Band selector
-        # directly accessing these attributes is cheating a little bit but its fine lol
-        self.bandSelector = StretchSelector(self.viewModel.proj, self.viewModel.index)
+        self.bandSelector = StretchSelector(
+            self.viewModel.proj, self.viewModel.imageIndex
+        )
+
+        # GraphicsView setup
+        view = pg.GraphicsView(parent=self)
+        view.setCentralItem(graphicsLayout)
 
         # Layout setup
         layout = QVBoxLayout()
@@ -102,37 +89,26 @@ class BandView(QWidget):
         layout.addWidget(view)
         self.setLayout(layout)
 
-    def connectSignals(self):
-        self.viewModel.sigBandChanged.connect(self.onBandChanged)
+    def _connectSignals(self):
+        self.viewModel.sigBandChanged.connect(self._onBandChanged)
         self.bandSelector.currentIndexChanged.connect(self.viewModel.selectBand)
-        self.rBandSlider.sigPositionChanged.connect(self.onSliderMoved)
-        self.gBandSlider.sigPositionChanged.connect(self.onSliderMoved)
-        self.bBandSlider.sigPositionChanged.connect(self.onSliderMoved)
+        self.rBandSlider.sigPositionChanged.connect(
+            lambda: self.viewModel.updateBand(r=self.rBandSlider.value())
+        )
+        self.gBandSlider.sigPositionChanged.connect(
+            lambda: self.viewModel.updateBand(g=self.gBandSlider.value())
+        )
+        self.bBandSlider.sigPositionChanged.connect(
+            lambda: self.viewModel.updateBand(b=self.bBandSlider.value())
+        )
 
-    def onBandChanged(self):
+    def _onBandChanged(self):
         band = self.viewModel.getSelectedBand()
         self.rBandSlider.setValue(band.r)
         self.gBandSlider.setValue(band.g)
         self.bBandSlider.setValue(band.b)
 
-    def onSliderMoved(self):
-        if not self.isDragging:
-            self.isDragging = True
-            self.updateTimer.start(
-                self.updateInterval
-            )  # Update interval in milliseconds
-
-    def updateBand(self):
-        self.viewModel.updateBand(
-            self.rBandSlider.value(), self.gBandSlider.value(), self.bBandSlider.value()
-        )
-
-        if self.isDragging:
-            self.updateTimer.start(
-                self.updateInterval
-            )  # Restart the timer for continuous updates
-        self.isDragging = False
-
+    # pylint: disable=abstract-method
     class MyInfLineLabel(pg.InfLineLabel):
         """Custom label for InfiniteLine, just so we can round the displayed value to an
         integer"""

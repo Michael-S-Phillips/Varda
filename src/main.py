@@ -19,8 +19,7 @@ from core.data import ProjectContext
 
 
 def initLogging():
-    """
-    Setup logging. Logs will be saved in the "logs" directory. with a unique timestamp
+    """Setup logging. Logs will be saved in the "logs" directory. with a unique timestamp
 
     Usage: create a logger object in any file and use it to log messages, e.g.
 
@@ -43,6 +42,7 @@ def initLogging():
 
 
 def setupConfig():
+    """Any configuration settings that need to be applied before starting the program goes here"""
     pg.setConfigOptions(imageAxisOrder="row-major")
 
 

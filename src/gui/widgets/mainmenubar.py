@@ -2,16 +2,20 @@
 import logging
 
 # third party imports
-from PyQt6 import QtWidgets, QtCore, QtGui
-from PyQt6.QtWidgets import QWidget, QMenuBar, QMenu
-from PyQt6.QtCore import QObject
+from PyQt6 import QtCore
+from PyQt6.QtWidgets import QMenuBar, QMenu
 
 # local imports
+
 
 logger = logging.getLogger(__name__)
 
 
 class MainMenuBar(QMenuBar):
+    """Menubar widget. This is mainly to move all the code constructing the menubar
+    to its own class, to keep mainGUI clean.
+    """
+
     sigSaveProject = QtCore.pyqtSignal()
     sigOpenProject = QtCore.pyqtSignal()
     sigImportFile = QtCore.pyqtSignal()
