@@ -16,14 +16,13 @@ from PyQt6.QtCore import Qt
 
 # local imports
 from core.data import ProjectContext
-from core.entities import ImageModel
+from core.entities import Image
 
 logger = logging.getLogger(__name__)
 
 
 class ImageListViewModel(QtCore.QAbstractListModel):
-    """Manages a collection of images, providing an interface for adding, removing, and linking images.
-    Inherits from QAbstractListModel to integrate with Qt's model/view framework.
+    """A super basic implementation of the
 
     Attributes:
         _images (list): List of ImageModel instances managed by this class.
@@ -46,25 +45,19 @@ class ImageListViewModel(QtCore.QAbstractListModel):
     """
 
     def __init__(self, proj: ProjectContext, parent=None):
-        """
-        Initializes the ImageManager using the data from the given ProjectContext
-
-        Args:
-            images (list, optional): List of ImageModel instances. Defaults to None.
-            parent (QObject, optional): Parent object. Defaults to None.
-        """
         super().__init__(parent)
         self._images = []
         for image in proj.getAllImages():
             self._appendImage(image)
 
     def rowCount(self, parent=QtCore.QModelIndex()):
-        """Returns the number of images managed by this class."""
+        """Get the number of rows in the model."""
         return len(self._images)
 
     def index(self, row, column=0, parent=QtCore.QModelIndex()):
         """Returns the index of the image at the specified row and column.
-        Note that column isn't used. but it's required by the method signature"""
+        Note that column isn't used. but it's required by the method signature
+        """
         return self.createIndex(row, column, self._images[row])
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
@@ -77,11 +70,6 @@ class ImageListViewModel(QtCore.QAbstractListModel):
                  - DisplayRole: Text representation of the item for display. (str)
                  - UserRole: The entire image instance (ImageModel)
                  - DecorationRole: image preview data (subset of raster data)
-                 - RASTER_DATA: Raw image raster data. (numpy array)
-                 - METADATA: Metadata for the item (Metadata instance)
-                 - BANDS: Bands for the item (list)
-                 - STRETCH: Stretch for the item (list)
-                 - HISTOGRAM: Histogram for the item (HistogramLUTItem)
 
         Returns:
             Any: Data for the specified role and index.
@@ -106,14 +94,8 @@ class ImageListViewModel(QtCore.QAbstractListModel):
         """Appends a new Image to the manager. Primarily for internal use.
         Creating/adding a new image should be done through newImage().
 
-        Args:
-            image (ImageModel): ImageModel instance to append.
-
         Returns:
             QModelIndex: Index of the newly added image.
-
-        Raises:
-            TypeError: If the imageModel is not a subclass of ImageModel.
         """
 
         if image in self._images:
@@ -135,9 +117,5 @@ class ImageListViewModel(QtCore.QAbstractListModel):
         self.endRemoveRows()
 
     def _imageChangedReceiver(self, imageModel):
-        """Handles the imageChanged signal
-
-        Args:
-            imageModel (ImageModel): ImageModel instance that changed.
-        """
+        """Handles the imageChanged signal"""
         self.dataChanged.emit(self.index(self._images.index(imageModel)))

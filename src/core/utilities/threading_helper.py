@@ -1,44 +1,48 @@
+# standard library
 import logging
+
+# third party imports
+from PyQt6 import QtCore
+
 
 logger = logging.getLogger(__name__)
 
-from PyQt6 import QtCore
 
 threadpool = QtCore.QThreadPool()
 
 
 def dispatchThreadProcess(onComplete, process, *args, **kwargs):
+    """General purpose method to dispatch a process to a thread.
+
+    Args:
+        onComplete (callable): The function to call when the process is complete.
+        process (callable): The function to run in the background thread.
+        *args: Variable length argument list for the process function.
+        **kwargs: keyword arguments for the process function.
     """
-    General purpose method to dispatch a process to a thread
-    """
-    # initialize BackgroundWorker
     worker = BackgroundWorker(process, *args, **kwargs)
-    # connect signals
     worker.signals.result.connect(onComplete)
-    # dispatch thread
     threadpool.start(worker)
 
 
 class BackgroundWorker(QtCore.QRunnable):
-    """
-    A basic setup to run functions on a separate thread.
-    """
+    """A basic setup to run functions on a separate thread."""
 
     class Signals(QtCore.QObject):
+        """QRunnable cannot define pyqtSignals because it doesn't inherit from QObject
+        So we create this inner class to define signals.
         """
-        QRunnable cannot define pyqtSignals because it doesn't inherit from QObject
-        So we create this inner class to define signals
-        """
+
         finished = QtCore.pyqtSignal()
         result = QtCore.pyqtSignal(object)
 
     def __init__(self, fn, *args, **kwargs):
-        """
-        Initializes the worker with the function it is to execute when being run
-        @param fn: The function we want to run on a seperate thread
-        @param obj: The object that the function belongs to
-        @param args: any necessary function arguments
-        @param kwargs: any necessary function keyword arguments
+        """Initializes the worker.
+
+        Args:
+            fn (callable): The function to run on a separate thread.
+            *args: Variable length argument list for the function.
+            **kwargs: keyword arguments for the function.
         """
         super().__init__()
         self._fn = fn
@@ -48,9 +52,9 @@ class BackgroundWorker(QtCore.QRunnable):
 
     @QtCore.pyqtSlot()
     def run(self):
+        """Runs the function on a separate thread and emits the result signal."""
         logger.info(
-            "run(): calling function " + self._fn.__name__ +
-            " on thread.\n"
+            "run(): calling function " + self._fn.__name__ + " on thread.\n"
             "  args: " + str(*self._args) + "\n"
             "  kwargs: " + str(**self._kwargs)
         )

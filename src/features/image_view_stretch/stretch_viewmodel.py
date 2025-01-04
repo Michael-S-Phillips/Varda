@@ -1,0 +1,42 @@
+"""
+
+"""
+
+# third party imports
+from PyQt6.QtCore import QObject, pyqtSignal
+from core.data import ProjectContext
+
+# local imports
+
+
+class StretchViewModel(QObject):
+    sigStretchChanged = pyqtSignal()
+
+    def __init__(self, proj: ProjectContext, imageIndex, parent=None):
+        super().__init__(parent)
+        self.proj = proj
+        self.index = imageIndex
+        self.stretchIndex = 0
+        self._connectSignals()
+
+    def _connectSignals(self):
+        self.proj.sigDataChanged.connect(self._handleDataChanged)
+
+    def selectStretch(self, stretchIndex):
+        self.stretchIndex = stretchIndex
+        self.sigStretchChanged.emit()
+
+    def getSelectedStretch(self):
+        return self.proj.getImage(self.index).stretch[self.stretchIndex]
+
+    def updateStretch(self, minR, maxR, minG, maxG, minB, maxB):
+        self.proj.updateStretch(
+            self.index, self.stretchIndex, minR, maxR, minG, maxG, minB, maxB
+        )
+
+    def _handleDataChanged(self, index, changeType):
+        if index != self.index:
+            return
+        if changeType != ProjectContext.ChangeType.STRETCH:
+            return
+        self.sigStretchChanged.emit()

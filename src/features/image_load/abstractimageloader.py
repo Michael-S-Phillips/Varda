@@ -38,9 +38,6 @@ class AbstractImageLoader(ABC):
         self._rasterData = None
         self._imageMetadata = None
 
-    def new(self, filepath: str):
-        pass
-
     def load(self, filepath=None) -> Tuple[np.ndarray, Metadata] | None:
         if filepath:
             self._filePath = filepath
@@ -58,10 +55,10 @@ class AbstractImageLoader(ABC):
 
     @staticmethod
     @abstractmethod
-    def _loadRasterData(filePath=None) -> np.ndarray:
+    def _loadRasterData(filePath) -> np.ndarray:
         pass
 
     @staticmethod
     @abstractmethod
-    def _loadMetadata(image=None, filePath=None) -> Metadata:
+    def _loadMetadata(image, filePath) -> Metadata:
         pass

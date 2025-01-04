@@ -1,5 +1,14 @@
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QMenu, QMessageBox, QDockWidget, QTabWidget, QLabel
+from PyQt6.QtWidgets import (
+    QApplication,
+    QWidget,
+    QVBoxLayout,
+    QMenu,
+    QMessageBox,
+    QDockWidget,
+    QTabWidget,
+    QLabel,
+)
 from PyQt6.QtCore import Qt, QPoint, QEvent
 import sys
 
@@ -16,19 +25,26 @@ class DropdownMenu(QMenu):
     def create_menu(self):
         for index, item in enumerate(self.options.keys()):
             action = QAction(item, self)
-            action.hovered.connect(lambda checked=False, idx=index, text=item: self.show_secondary_menu(idx, text))
+            action.hovered.connect(
+                lambda checked=False, idx=index, text=item: self.show_secondary_menu(
+                    idx, text
+                )
+            )
             self.addAction(action)
 
     def show_secondary_menu(self, index, option_text):
         secondary_menu = QMenu(self)
         for action_text in self.options[option_text]:
             action = QAction(action_text, self)
-            action.triggered.connect(lambda checked, text=action_text: self.event_handler(option_text, text))
+            action.triggered.connect(
+                lambda checked, text=action_text: self.event_handler(option_text, text)
+            )
             secondary_menu.addAction(action)
 
         main_menu_position = self.geometry().topRight()
-        secondary_menu_position = main_menu_position + QPoint(0, index * self.actionGeometry(
-            self.actions()[index]).height())
+        secondary_menu_position = main_menu_position + QPoint(
+            0, index * self.actionGeometry(self.actions()[index]).height()
+        )
         secondary_menu.popup(secondary_menu_position)
 
 
@@ -40,24 +56,31 @@ class ControlPanel(QWidget):
         self.imageIndex = imageIndex
         self.tabsDock = QDockWidget("Tabs", self)
         self.tabWidget = QTabWidget()
-        
 
         # Define secondary menu options and initialize dropdown menus with event handler
         # Add any new control options or setting options here, and update the handle_menu_action function
         self.dropdown_menus = {
             "Controls": DropdownMenu(
-                {"ROI Options": ["Poly ROI", "Save ROI", "Load ROI"], 
-                 "Plots": ["Pixel Plot", "Avg Strength Plot"],
-                 "Option 3": ["Action 3-1", "Action 3-2"]},
-                self.handle_menu_action, self
+                {
+                    "ROI Options": ["Poly ROI", "Save ROI", "Load ROI"],
+                    "Plots": ["Pixel Plot", "Avg Strength Plot"],
+                    "Option 3": ["Action 3-1", "Action 3-2"],
+                },
+                self.handle_menu_action,
+                self,
             ),
             "Adjust Settings": DropdownMenu(
-                {"Setting A": ["Sub-action A1", "Sub-action A2"], "Setting B": ["Sub-action B1", "Sub-action B2"]},
-                self.handle_menu_action, self
+                {
+                    "Setting A": ["Sub-action A1", "Sub-action A2"],
+                    "Setting B": ["Sub-action B1", "Sub-action B2"],
+                },
+                self.handle_menu_action,
+                self,
             ),
             "View Logs": DropdownMenu(
                 {"Log 1": ["Detail 1", "Detail 2"], "Log 2": ["Detail 3", "Detail 4"]},
-                self.handle_menu_action, self
+                self.handle_menu_action,
+                self,
             ),
         }
 
@@ -76,7 +99,10 @@ class ControlPanel(QWidget):
         self.setLayout(main_layout)
 
     def eventFilter(self, source, event):
-        if source == self.tabWidget.tabBar() and event.type() == QEvent.Type.MouseButtonPress:
+        if (
+            source == self.tabWidget.tabBar()
+            and event.type() == QEvent.Type.MouseButtonPress
+        ):
             tab_index = self.tabWidget.tabBar().tabAt(event.pos())
             tab_text = self.tabWidget.tabText(tab_index)
             if tab_text in self.dropdown_menus:
@@ -86,7 +112,8 @@ class ControlPanel(QWidget):
     def show_dropdown_menu(self, tab_text):
         menu = self.dropdown_menus[tab_text]
         tab_position = self.tabWidget.tabBar().mapToGlobal(
-            self.tabWidget.tabBar().tabRect(self.tabWidget.currentIndex()).bottomLeft())
+            self.tabWidget.tabBar().tabRect(self.tabWidget.currentIndex()).bottomLeft()
+        )
         menu.exec(tab_position)
 
     def handle_menu_action(self, primary_option, secondary_action):

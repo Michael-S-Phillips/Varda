@@ -6,7 +6,12 @@ from .hdf5imageloader import HDF5ImageLoader
 from .load_image import loadNewImage
 
 # This dynamically imports all the modules in this package. ty StackOverflow
-__all__ = [basename(f)[:-3] for f in listdir(dirname(__file__)) if f[-3:] == ".py"
-           and not f.endswith("__init__.py") and not f.endswith("abstractimageloader.py")]
+__all__ = [
+    basename(f)[:-3]
+    for f in listdir(dirname(__file__))
+    if f[-3:] == ".py"
+    and not f.endswith("__init__.py")
+    and not f.endswith("abstractimageloader.py")
+]
 
 print("imageloaders __init__.py: ", __all__)

@@ -3,7 +3,7 @@ import time
 DEBUG = True
 
 
-class Profiler:
+class Profiler:  # pylint: disable=too-few-public-methods
     """
     A simple profiler to measure the time elapsed between two points in the code.
 
@@ -14,7 +14,9 @@ class Profiler:
         # More code to be profiled
         profiler("Part 2 time elapsed") # Output - Part 2 time elapsed: 0.1234 ms
     """
-    DISABLE = False  # Set this flag to True to disable the profiler
+
+    # Set this flag to True to disable the profiler
+    DISABLE = False  # pylint: disable=invalid-name
 
     def __init__(self):
         """
@@ -35,9 +37,9 @@ class Profiler:
         """
         if self.DISABLE:
             return
-        time_elapsed = (time.perf_counter() - self.timeStarted) * 1000
+        timeElapsed = (time.perf_counter() - self.timeStarted) * 1000
         if len(args) > 0:
-            print(f"{args[0]}: {time_elapsed: 0.4f} ms")
+            print(f"{args[0]}: {timeElapsed: 0.4f} ms")
         else:
-            print(f"Time elapsed: {time_elapsed: 0.4f} ms")
+            print(f"Time elapsed: {timeElapsed: 0.4f} ms")
         self.timeStarted = time.perf_counter()

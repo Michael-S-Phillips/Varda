@@ -16,9 +16,12 @@ class Normalize(ImageProcess):
     path = "Basic Processing/Normalize"
 
     parameters = {
-        'threshold': {'type': float, 'default': 0.0,
-                      'description': 'Threshold value to be added to the minimum and '
-                                     'subtracted from the maximum value of the image.'},
+        "threshold": {
+            "type": float,
+            "default": 0.0,
+            "description": "Threshold value to be added to the minimum and "
+            "subtracted from the maximum value of the image.",
+        },
     }
 
     def __init__(self):
@@ -30,4 +33,4 @@ class Normalize(ImageProcess):
         min_val = np.min(image) + threshold
         max_val = np.max(image) - threshold
 
-        return np.clip((image - min_val) /  (max_val - min_val), 0, 1)
+        return np.clip((image - min_val) / (max_val - min_val), 0, 1)

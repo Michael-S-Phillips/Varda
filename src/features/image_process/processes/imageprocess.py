@@ -32,7 +32,6 @@ class ImageProcess(ABC):
     def execute(self, image):
         pass
 
-
     @classmethod
     def __str__(cls):
         return "name: " + cls.__name__

@@ -8,6 +8,7 @@ class StatusBar(QtWidgets.QStatusBar):
     A custom widget for the statusbar.
     Lets us create more complex status messages or animations without cluttering the ImageWorkspace class
     """
+
     def __init__(self, parent=None):
         super(StatusBar, self).__init__(parent)
         self.animationTimer = QtCore.QTimer(self)
@@ -20,7 +21,7 @@ class StatusBar(QtWidgets.QStatusBar):
         self.animationTimer.start(100)  # Update every 100ms
 
     def updateLoadingMessage(self):
-        animationChars = ['-', '\\', '|', '/']
+        animationChars = ["-", "\\", "|", "/"]
         self.showMessage(f"Loading... {animationChars[self.animationIndex]}")
         self.animationIndex = (self.animationIndex + 1) % len(animationChars)
 
@@ -32,6 +33,7 @@ class StatusBar(QtWidgets.QStatusBar):
         self.animationTimer.timeout.disconnect(self.updateLoadingMessage)
         self.clearMessage()
         # temporary status message
-        self.showMessage(self.tr(
-            "Image loaded in " + str(round(self.timeElapsed, 2))
-            + " seconds"), msecs=5000)
+        self.showMessage(
+            self.tr("Image loaded in " + str(round(self.timeElapsed, 2)) + " seconds"),
+            msecs=5000,
+        )

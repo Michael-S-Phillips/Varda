@@ -1,5 +1,6 @@
 """
-Main entry point for the application. This file is responsible for setting up logging and starting the GUI.
+Main entry point for the application.
+This file is responsible for setting up logging and starting the GUI.
 """
 
 # standard library
@@ -8,8 +9,13 @@ from datetime import datetime
 import logging
 import sys
 import os
+
+# third party imports
+import pyqtgraph as pg
+
 # local imports
-from gui import maingui as gui
+from gui import maingui
+from core.data import ProjectContext
 
 
 def initLogging():
@@ -28,14 +34,21 @@ def initLogging():
 
     logFolder = "../logs"
     os.makedirs(logFolder, exist_ok=True)
-    logTime = datetime.now().strftime('%Y-%m-%d_%I-%M-%S-%p')
+    logTime = datetime.now().strftime("%Y-%m-%d_%I-%M-%S-%p")
     logName = Path(f"{logFolder}/Varda.log.{logTime}")
-    logging.basicConfig(level=logging.DEBUG,
-                        handlers=[logging.FileHandler(logName),
-                                  logging.StreamHandler(sys.stdout)]
-                        )
+    logging.basicConfig(
+        level=logging.DEBUG,
+        handlers=[logging.FileHandler(logName), logging.StreamHandler(sys.stdout)],
+    )
+
+
+def setupConfig():
+    pg.setConfigOptions(imageAxisOrder="row-major")
 
 
 if __name__ == "__main__":
     initLogging()
-    gui.startGui()
+    setupConfig()
+    proj = ProjectContext()
+
+    maingui.startGui(proj)
