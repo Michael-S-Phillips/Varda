@@ -6,8 +6,8 @@ Usage example:
     band_view = getBandView(proj, index, parent)
 """
 
-from features.image_view_band.band_viewmodel import BandViewModel
-from features.image_view_band.band_view import BandView
+from .band_viewmodel import BandViewModel
+from .band_view import BandView
 
 
 def getBandView(proj, index, parent):

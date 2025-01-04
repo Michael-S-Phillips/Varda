@@ -1,10 +1,8 @@
 # third party imports
-from typing import Tuple
-
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
-from core.data import ProjectContext
 
 # local imports
+from core.data import ProjectContext
 
 
 class BandViewModel(QObject):

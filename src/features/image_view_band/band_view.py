@@ -102,11 +102,10 @@ class BandView(QWidget):
             lambda: self.viewModel.updateBand(b=self.bBandSlider.value())
         )
 
-    def _onBandChanged(self):
-        band = self.viewModel.getSelectedBand()
-        self.rBandSlider.setValue(band.r)
-        self.gBandSlider.setValue(band.g)
-        self.bBandSlider.setValue(band.b)
+    def _onBandChanged(self, r, g, b):
+        self.rBandSlider.setValue(r)
+        self.gBandSlider.setValue(g)
+        self.bBandSlider.setValue(b)
 
     # pylint: disable=abstract-method
     class MyInfLineLabel(pg.InfLineLabel):
