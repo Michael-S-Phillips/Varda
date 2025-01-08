@@ -27,13 +27,16 @@ class StretchViewModel(QObject):
         self.proj.sigDataChanged.connect(self._handleDataChanged)
 
     def selectStretch(self, stretchIndex):
+        """selects a new stretch from the image."""
         self.stretchIndex = stretchIndex
         self.sigStretchChanged.emit()
 
     def getSelectedStretch(self):
+        """requests the stretch corresponding to stretchIndex, and returns it."""
         return self.proj.getImage(self.index).stretch[self.stretchIndex]
 
     def updateStretch(self, minR, maxR, minG, maxG, minB, maxB):
+        """tells the project to update the stretch configuration with new values."""
         self.proj.updateStretch(
             self.index, self.stretchIndex, None, minR, maxR, minG, maxG, minB, maxB
         )

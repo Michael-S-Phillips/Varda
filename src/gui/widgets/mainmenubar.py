@@ -25,28 +25,28 @@ class MainMenuBar(QMenuBar):
     def __init__(self, imageManager=None, parent=None):
         super().__init__(parent)
         self.imageManager = imageManager
-        self.initUI()
+        self._initUI()
 
-    def initUI(self):
-        self.addMenu(self.initFileMenu())
-        self.addMenu(self.initHelpmenu())
+    def _initUI(self):
+        self.addMenu(self._initFileMenu())
+        self.addMenu(self._initHelpmenu())
 
     # Note: adding "self" as the parent of the QMenu is important, to keep it from
     # being garbage collected immediately
-    def initFileMenu(self):
+    def _initFileMenu(self):
         fileMenu = QMenu("File", self)
-        fileMenu.addMenu(self.initImportMenu())
+        fileMenu.addMenu(self._initImportMenu())
         fileMenu.addAction("Open Project", self.sigOpenProject)
         fileMenu.addAction("Save", self.sigSaveProject)
         fileMenu.addAction("Exit", self.sigExitApp)
         return fileMenu
 
-    def initImportMenu(self):
+    def _initImportMenu(self):
         importMenu = QMenu("Import", self)
         importMenu.addAction("Import Image", self.sigImportFile)
         return importMenu
 
-    def initHelpmenu(self):
+    def _initHelpmenu(self):
         helpMenu = QMenu("Help", self)
         helpMenu.addAction("About", self.sigAboutDialog)
         return helpMenu

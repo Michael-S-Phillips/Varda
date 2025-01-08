@@ -6,8 +6,6 @@ import pyqtgraph as pg
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
 from PyQt6.QtCore import Qt, QTimer
 
-from core.data import ProjectContext
-
 # local imports
 from features.shared.selection_controls import StretchSelector
 from .band_viewmodel import BandViewModel

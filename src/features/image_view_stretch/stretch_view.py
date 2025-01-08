@@ -22,6 +22,12 @@ from ..shared.selection_controls import StretchSelector
 
 
 class StretchView(QWidget):
+    """A custom widget that allows the user to view and edit stretch configurations.
+
+    I'm going to skip having detailed documentation here because this will probably be
+    replaced with a histogram tool very soon.
+    """
+
     minRInput: QDoubleSpinBox
     maxRInput: QDoubleSpinBox
     minGInput: QDoubleSpinBox

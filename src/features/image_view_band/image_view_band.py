@@ -11,6 +11,7 @@ from .band_view import BandView
 
 
 def getBandView(proj, index, parent):
+    """Sets up and returns an instance of BandView."""
     viewModel = BandViewModel(proj, index, parent)
     view = BandView(viewModel, parent)
     return view
