@@ -4,6 +4,13 @@ from core.data import ProjectContext
 
 
 class BandSelector(QComboBox):
+    """Basic utility widget for listing the band configurations of an image and
+    selecting one.
+
+    Connect to the currentIndexChanged signal to be notified when the user changes
+    their selection.
+    """
+
     def __init__(self, proj: ProjectContext, imageIndex, parent=None):
         super().__init__(parent)
         self.proj = proj
@@ -16,20 +23,23 @@ class BandSelector(QComboBox):
         self.addItems([band.name for band in self.proj.getImage(self.imageIndex).band])
 
     def setImageIndex(self, imageIndex):
-        """updates selector to use a new image.
-
-        this changes which image the selector reads from. it will refresh its
-        contents to match the new data.
+        """Updates selector to use a new image. Refreshes contents to match new data.
 
         Args:
             imageIndex: the index of the new image to use.
-
         """
         self.imageIndex = imageIndex
         self._populateComboBox()
 
 
 class StretchSelector(QComboBox):
+    """Basic utility widget for listing the stretch configurations of an image and
+    selecting one.
+
+    Connect to the currentIndexChanged signal to be notified when the user changes
+    their selection.
+    """
+
     def __init__(self, proj: ProjectContext, imageIndex, parent=None):
         super().__init__(parent)
         self.proj = proj
@@ -44,10 +54,7 @@ class StretchSelector(QComboBox):
         )
 
     def setImageIndex(self, imageIndex):
-        """updates selector to use a new image.
-
-        this changes which image the selector reads from. it will refresh its
-        contents to match the new data.
+        """Updates selector to use a new image. Refreshes contents to match new data.
 
         Args:
             imageIndex: the index of the new image to use.

@@ -199,6 +199,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
 
 def startGui(proj: ProjectContext):
+    """Main entrypoint for the GUI."""
     app = QApplication(sys.argv)
 
     eventLoop = QEventLoop(app)

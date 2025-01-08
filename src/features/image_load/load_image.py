@@ -10,6 +10,14 @@ from features.image_load.abstractimageloader import AbstractImageLoader
 logger = logging.getLogger(__name__)
 
 
+# TODO: switch from async back to multithrading. Turns out async still freezes
+#  the program.
+
+
+# TODO: create improved system for image loading. I think we can skip the
+#  AbstractImageLoader stuff and just iterate through the modules. This would
+#  probably be a lot simpler to understand and work with.
+
 async def loadNewImage(proj: ProjectContext, filePath=None):
     """Queries the user for a filePath and Loads the image. adds it to project
 
@@ -50,9 +58,6 @@ def _beginLoader(filePath):
 def _getImageType(path):
     return Path(path).suffix.strip()
 
-
-# TODO: complete improved system for image loading. I think we can skip the
-#  AbstractImageLoader stuff and just iterate through the modules
 
 # def loadNewImage(filepath):
 #     """

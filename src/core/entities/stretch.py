@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Stretch:
-    """Data container representing a Stretch configuration for an image."""
+    """Immutable data container representing a Stretch configuration for an image."""
 
     name: str
     minR: int

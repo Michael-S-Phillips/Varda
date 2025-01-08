@@ -18,7 +18,15 @@ from .metadata import Metadata
 
 @dataclass(frozen=True)
 class Image:
-    """Data container representing an Image object in Varda"""
+    """Immutable data container representing an Image object in Varda
+
+    Attributes:
+        raster (np.ndarray): a 3d array storing the raster (pixel) data of an image.
+        metadata: The metadata associated with an image (See Metadata for details).
+        stretch: A list of Stretch configurations for an image.
+        band: A list of Band configurations for an image.
+        index: A unique identifier for the image. Mainly to be used for comparisons.
+    """
 
     raster: np.ndarray
     metadata: Metadata

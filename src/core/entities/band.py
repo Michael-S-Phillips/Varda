@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Band:
-    """Data container representing a Band configuration for an image."""
+    """Immutable data container representing a Band configuration for an image."""
 
     name: str
     r: int

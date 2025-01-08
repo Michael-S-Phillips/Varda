@@ -13,10 +13,13 @@ from .band import Band
 # pylint: disable=too-many-instance-attributes
 @dataclass
 class Metadata:
-    """Data container representing the metadata of an image
+    """Data container representing the metadata of an image.
 
-    This ensures that every image contains a standard base set of metadata, but allows
-    for adding extra metadata items via _extraMetadata
+    This ensures that every image contains a standard base set of metadata,
+    but allows for adding extra metadata items via _extraMetadata.
+
+    Note that this data container is mutable, But do not directly modify its contents.
+    use ProjectContext to edit it so that the program knows when it's changed.
     """
 
     _driver: str = ""
