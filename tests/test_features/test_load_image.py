@@ -15,7 +15,7 @@ def test_load_image():
         print(os.getcwd())
         print("Test image directory doesnt exist! Cannot test.")
         assert True
-        return True
+        return
 
     proj = ProjectContext()
     # test ENVI Image Loading
