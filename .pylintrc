@@ -1,3 +1,6 @@
+[MASTER]
+source-root = src/
+
 [MAIN]
 extension-pkg-allow-list=PyQt6
 
@@ -8,3 +11,10 @@ class-attribute-naming-style=camelCase
 argument-naming-style=camelCase
 inlinevar-naming-style=camelCase
 method-naming-style=camelCase
+function-naming-style=camelCase
+disable=logging-fstring-interpolation,missing-module-docstring
+
+[DESIGN]
+max-args=10
+max-positional-arguments=10
+

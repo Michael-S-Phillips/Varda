@@ -1,21 +1,25 @@
 """
-Main entry point for the application. This file is responsible for setting up logging and starting the GUI.
+Main entry point for the application.
+This file is responsible for setting up logging and starting the GUI.
 """
 
 # standard library
 from pathlib import Path
 from datetime import datetime
 import logging
-from logging.handlers import RotatingFileHandler
+import sys
 import os
 
+# third party imports
+import pyqtgraph as pg
+
 # local imports
-import gui.maingui as gui
+from gui import maingui
+from core.data import ProjectContext
 
 
 def initLogging():
-    """
-    Setup logging. Logs will be saved in the "logs" directory. with a unique timestamp
+    """Setup logging. Logs will be saved in the "logs" directory. with a unique timestamp
 
     Usage: create a logger object in any file and use it to log messages, e.g.
 
@@ -27,13 +31,24 @@ def initLogging():
       logger.error("This is an error message")
     """
 
-    logFolder = "logs"
+    logFolder = "../logs"
     os.makedirs(logFolder, exist_ok=True)
-    logTime = datetime.now().strftime('%Y-%m-%d_%I-%M-%S-%p')
+    logTime = datetime.now().strftime("%Y-%m-%d_%I-%M-%S-%p")
     logName = Path(f"{logFolder}/Varda.log.{logTime}")
-    logging.basicConfig(filename=logName, level=logging.DEBUG)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        handlers=[logging.FileHandler(logName), logging.StreamHandler(sys.stdout)],
+    )
+
+
+def setupConfig():
+    """Any configuration settings that need to be applied before starting the program goes here"""
+    pg.setConfigOptions(imageAxisOrder="row-major")
 
 
 if __name__ == "__main__":
     initLogging()
-    gui.startGui()
+    setupConfig()
+    proj = ProjectContext()
+
+    maingui.startGui(proj)

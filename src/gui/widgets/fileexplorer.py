@@ -1,7 +1,9 @@
 """
 fileexplorer.py
 """
+
 from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6.QtWidgets import QFileDialog
 import sys
 
 
@@ -23,13 +25,15 @@ class FileExplorer(QtWidgets.QWidget):
 
         # button = QPushButton("Open File", self)
         # button.clicked.connect(self.open_file_dialog)
-        #filePath = filedialog.askopenfilename(filetypes=[("ENVI Files", "*.hdr")])
+        # filePath = filedialog.askopenfilename(filetypes=[("ENVI Files", "*.hdr")])
 
     def openFileDialog(self):
-        #upon clicking a file, send chosen image to spectral data viewer
-        #overload _init_ to take the name of a file and display it
+        # upon clicking a file, send chosen image to spectral data viewer
+        # overload _init_ to take the name of a file and display it
         options = QFileDialog()
-        fileName, _ = QFileDialog.getOpenFileName(self, "Open File", "", "All Files (*);;Text Files (*.txt)")
+        fileName, _ = QFileDialog.getOpenFileName(
+            self, "Open File", "", "All Files (*);;Text Files (*.txt)"
+        )
         if fileName:
             print(fileName)
             self.setFileName(fileName)

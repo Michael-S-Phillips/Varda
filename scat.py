@@ -441,7 +441,7 @@ class SpectralCubeAnalysisTool:
             file_path = filedialog.askopenfilename(filetypes=[("ENVI Files", "*.hdr")])
         if file_path:
             self.left_data = spectral.io.envi.open(file_path)
-            self.ld = self.left_data.load()
+            self.ld = self.left_data.deserialize()
             self.img_base_name = self.left_data.filename.split('/')[-1].split('.')[0]
             rio_path = file_path.replace("hdr", "img")
             self.left_rio = rio.open(rio_path)
@@ -459,7 +459,7 @@ class SpectralCubeAnalysisTool:
             file_path = filedialog.askopenfilename(filetypes=[("ENVI Files", "*.hdr")])
         if file_path:
             self.right_data = spectral.io.envi.open(file_path)
-            self.rd = self.right_data.load()
+            self.rd = self.right_data.deserialize()
             self.populate_right_wavelength_menus()
             self.create_right_canvas()
             self.display_right_data(self.default_parameter_bands)

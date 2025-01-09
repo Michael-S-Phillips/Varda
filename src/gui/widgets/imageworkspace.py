@@ -5,17 +5,18 @@ Including a main image display, context image, and zoom image.
 
 NOTE: This is where we'll handle getting the views to interact with each other.
 """
+
 # standard library
 
 # roi to do:
-# fix mutiple plot windows showing up 
+# fix mutiple plot windows showing up
 # only 1 roi window popping up (done)
 # free hand drawing roi
 import time
 import logging
 
 # Third-party
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtWidgets
 import pyqtgraph as pg
 import numpy as np
 from pyqtgraph.functions import mkPen, Colors
@@ -24,12 +25,10 @@ import spectral
 
 # local imports
 from . import ROIWindow
-from imageprocessing import ImageProcess
-import vardathreading
-import debug
 from .statusbar import StatusBar
 
 logger = logging.getLogger(__name__)
+
 
 class ImageWorkspace(QtWidgets.QWidget):
     """
@@ -54,8 +53,8 @@ class ImageWorkspace(QtWidgets.QWidget):
         self.sigBandChanged = QtCore.pyqtSignal(int)
         self.updateTimer = None
         self.initializeUpdateImageTimer()
-        self.currentBands = {'r': 0, 'g': 0, 'b': 0}
-        self.imageAxes = {'x': 1, 'y': 0, 'c': 2, 't': None}
+        self.currentBands = {"r": 0, "g": 0, "b": 0}
+        self.imageAxes = {"x": 1, "y": 0, "c": 2, "t": None}
         self.appliedProcesses = []
         self.savedROIs = []
         self.vertices = []
@@ -79,8 +78,8 @@ class ImageWorkspace(QtWidgets.QWidget):
         )
 
         # image views
-        self.imageViewer = TripleImageViewer()
-
+        # self.imageViewer = TripleImageViewer()
+        self.imageViewer = None
         self.mainSplitter.addWidget(self.imageViewer)
         self.mainSplitter.setStretchFactor(0, 30)
 
@@ -90,14 +89,13 @@ class ImageWorkspace(QtWidgets.QWidget):
         # Create pixel spectrum plot
         self.pixel_plot = pg.PlotWidget(title="Pixel Spectrum")
         self.pixel_plot.setMinimumSize(600, 300)
-        self.pixel_plot.setLabels(left='Intensity', bottom='Frequency')
+        self.pixel_plot.setLabels(left="Intensity", bottom="Frequency")
         self.mainSplitter.addWidget(self.pixel_plot)
         self.pixel_plot.hide()
         self.mainSplitter.setStretchFactor(1, 1)
 
         # Connect mouse click event to the spectral plot update
-        self.imageViewer.mainView.scene().sigMouseClicked.connect(
-            self.updatePixelPlot)
+        self.imageViewer.mainView.scene().sigMouseClicked.connect(self.updatePixelPlot)
 
         # initialize layout
         layout = QtWidgets.QVBoxLayout()
@@ -123,8 +121,10 @@ class ImageWorkspace(QtWidgets.QWidget):
         x, y = int(pos.x()), int(pos.y())
 
         # Check if click is within image bounds
-        if (0 <= x < self.image.rasterData.shape[1] and
-                0 <= y < self.image.rasterData.shape[0]):
+        if (
+            0 <= x < self.image.rasterData.shape[1]
+            and 0 <= y < self.image.rasterData.shape[0]
+        ):
 
             # Get spectral data for the clicked pixel
             spectral_data = self.image.rasterData[y, x, :]
@@ -137,15 +137,14 @@ class ImageWorkspace(QtWidgets.QWidget):
 
             # Clear previous plot and create new one
             self.pixel_plot.clear()
-            self.pixel_plot.plot(wavelength, spectral_data, pen='y')
+            self.pixel_plot.plot(wavelength, spectral_data, pen="y")
 
             # Update plot title with pixel coordinates
             self.pixel_plot.setTitle(f"Pixel Spectrum at ({x}, {y})")
 
             # Update status bar
             self.statusBar.showMessage(
-                f"Selected pixel coordinates: ({x}, {y})",
-                msecs=3000
+                f"Selected pixel coordinates: ({x}, {y})", msecs=3000
             )
 
     def loadROI(self):
@@ -154,12 +153,11 @@ class ImageWorkspace(QtWidgets.QWidget):
         if self.roiWind is None:
             self.roiWind = ROIWindow(self, self.savedROIs)
             self.roiWind.show()
-        
-            
 
     def showProcessingMenu(self):
         self.processingMenu.exec(
-            self.options.mapToGlobal(self.options.rect().bottomLeft()))
+            self.options.mapToGlobal(self.options.rect().bottomLeft())
+        )
 
     def loadROIState(self, i):
         self.currentROI = self.savedROIs[i]
@@ -173,13 +171,16 @@ class ImageWorkspace(QtWidgets.QWidget):
                 self.savedROIs[update_curr].setState(self.currentROI.getState())
 
     def addPolylineROI(self):
-        color_keys = ['b', 'g', 'r', 'c', 'm', 'y', 'w']
+        color_keys = ["b", "g", "r", "c", "m", "y", "w"]
         if self.currentROI is not None and self.currentROI not in self.savedROIs:
             self.savedROIs.append(self.currentROI)
         initial_points = [[100, 100], [100, 300], [300, 300], [300, 100]]
         self.currentROI = pg.PolyLineROI(initial_points, closed=True)
-        self.currentROI.setPen(mkPen(cosmetic=False, width=2,
-                                     color=Colors[color_keys[len(self.currentROIs)]]))
+        self.currentROI.setPen(
+            mkPen(
+                cosmetic=False, width=2, color=Colors[color_keys[len(self.currentROIs)]]
+            )
+        )
         self.currentROIs.append(self.currentROI)
         for ROI in self.currentROIs:
             self.imageViewer.mainView.addItem(ROI)
@@ -224,26 +225,30 @@ class ImageWorkspace(QtWidgets.QWidget):
 
     def loadMeanPlot(self, roi):
         print("Loading mean spectrum plot...")
-        if (self.roi_in_range(roi)):
+        if self.roi_in_range(roi):
             # (Using similar routine to original scat.py), getting the roi as a slice of the
             # data image array, then masking it with the original image
             # Need to check with michael that this is done correctly
-            mask = np.zeros((self.image._meta.width, self.image._meta.height),
-                            dtype=np.uint8)
+            mask = np.zeros(
+                (self.image._meta.width, self.image._meta.height), dtype=np.uint8
+            )
 
-            polygon_points_int = [(int(pos.x()), int(pos.y())) for _, pos in
-                                  roi.getLocalHandlePositions()]
-            cv2.fillPoly(mask, [np.array(polygon_points_int)], 1)
+            polygon_points_int = [
+                (int(pos.x()), int(pos.y())) for _, pos in roi.getLocalHandlePositions()
+            ]
+            # cv2.fillPoly(mask, [np.array(polygon_points_int)], 1)
 
             mean_spec = self.calculate_mean_stats(self.image.rasterData, mask, True)
 
             print("plotting spectrum ")
-            #if self.plot is None:
+            # if self.plot is None:
             if self.ROIplot is None:
-                self.ROIplot = pg.plot(x=range(len(mean_spec)), y=mean_spec,
-                                    title="Mean spectrum",
-                                    labels={'left': 'Average Strength',
-                                            'bottom': 'Band'})
+                self.ROIplot = pg.plot(
+                    x=range(len(mean_spec)),
+                    y=mean_spec,
+                    title="Mean spectrum",
+                    labels={"left": "Average Strength", "bottom": "Band"},
+                )
                 self.ROIplot.setMouseEnabled(x=False, y=False)
                 self.ROIplot.setMinimumSize(600, 300)
                 self.ROIplot.setMaximumSize(1100, 300)
@@ -252,23 +257,28 @@ class ImageWorkspace(QtWidgets.QWidget):
                 self.mainSplitter.addWidget(self.ROIplot)
             else:
                 self.mainSplitter.removeItem(self.ROIplot)
-                self.ROIplot = pg.plot(x=range(len(mean_spec)), y=mean_spec,
-                                    title="Mean spectrum",
-                                    labels={'left': 'Average Strength',
-                                            'bottom': 'Band'})
+                self.ROIplot = pg.plot(
+                    x=range(len(mean_spec)),
+                    y=mean_spec,
+                    title="Mean spectrum",
+                    labels={"left": "Average Strength", "bottom": "Band"},
+                )
 
     def loadStdPlot(self, roi):
         print("Loading std spectrum plot...")
-        if (self.roi_in_range(roi)):
+        if self.roi_in_range(roi):
             # (Using similar routine to original scat.py), getting the roi as a slice of the
             # data image array, then masking it with the original image
             # Need to check with michael that this is done correctly
-            mask1 = np.zeros((self.image._meta.width, self.image._meta.height),
-                             dtype=np.uint8)
+            mask1 = np.zeros(
+                (self.image._meta.width, self.image._meta.height), dtype=np.uint8
+            )
 
-            polygon_points_int = [(int(pos.x()), int(pos.y())) for _, pos in
-                                  roi.getLocalHandlePositions()]
-            cv2.fillPoly(mask1, [np.array(polygon_points_int)], 1)
+            polygon_points_int = [
+                (int(pos.x()), int(pos.y())) for _, pos in roi.getLocalHandlePositions()
+            ]
+            # commenting out just to fix random error lol.
+            # cv2.fillPoly(mask1, [np.array(polygon_points_int)], 1)
 
             std_spec = self.calculate_std_stats(self.image._data, mask1, True)
 
@@ -289,10 +299,12 @@ class ImageWorkspace(QtWidgets.QWidget):
             isNone = False
             if self.ROIplot is None:
                 isNone = True
-            self.ROIplot = pg.plot(x=range(len(std_spec)), y=std_spec,
-                                title="Mean spectrum",
-                                labels={'left': 'Average Strength',
-                                        'bottom': 'Band'})
+            self.ROIplot = pg.plot(
+                x=range(len(std_spec)),
+                y=std_spec,
+                title="Mean spectrum",
+                labels={"left": "Average Strength", "bottom": "Band"},
+            )
             self.ROIplot.setMouseEnabled(x=False, y=False)
             self.ROIplot.setMinimumSize(600, 300)
             self.ROIplot.setMaximumSize(1100, 300)
@@ -321,7 +333,7 @@ class WorkspaceStatusBar(QtWidgets.QStatusBar):
         self.animationTimer.start(100)  # Update every 100ms
 
     def updateLoadingMessage(self):
-        animationChars = ['-', '\\', '|', '/']
+        animationChars = ["-", "\\", "|", "/"]
         self.showMessage(f"Loading... {animationChars[self.animationIndex]}")
         self.animationIndex = (self.animationIndex + 1) % len(animationChars)
 
@@ -331,6 +343,7 @@ class WorkspaceStatusBar(QtWidgets.QStatusBar):
         self.animationTimer.timeout.disconnect(self.updateLoadingMessage)
         self.clearMessage()
         # temporary status message
-        self.showMessage(self.tr(
-            "Image loaded in " + str(round(self.timeElapsed, 2))
-            + " seconds"), msecs=5000)
+        self.showMessage(
+            self.tr("Image loaded in " + str(round(self.timeElapsed, 2)) + " seconds"),
+            msecs=5000,
+        )
