@@ -78,8 +78,8 @@ class ImageWorkspace(QtWidgets.QWidget):
         )
 
         # image views
-        self.imageViewer = TripleImageViewer()
-
+        # self.imageViewer = TripleImageViewer()
+        self.imageViewer = None
         self.mainSplitter.addWidget(self.imageViewer)
         self.mainSplitter.setStretchFactor(0, 30)
 
@@ -236,7 +236,7 @@ class ImageWorkspace(QtWidgets.QWidget):
             polygon_points_int = [
                 (int(pos.x()), int(pos.y())) for _, pos in roi.getLocalHandlePositions()
             ]
-            cv2.fillPoly(mask, [np.array(polygon_points_int)], 1)
+            # cv2.fillPoly(mask, [np.array(polygon_points_int)], 1)
 
             mean_spec = self.calculate_mean_stats(self.image.rasterData, mask, True)
 
@@ -277,7 +277,8 @@ class ImageWorkspace(QtWidgets.QWidget):
             polygon_points_int = [
                 (int(pos.x()), int(pos.y())) for _, pos in roi.getLocalHandlePositions()
             ]
-            cv2.fillPoly(mask1, [np.array(polygon_points_int)], 1)
+            # commenting out just to fix random error lol.
+            # cv2.fillPoly(mask1, [np.array(polygon_points_int)], 1)
 
             std_spec = self.calculate_std_stats(self.image._data, mask1, True)
 

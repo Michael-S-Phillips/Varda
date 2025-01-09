@@ -1,7 +1,17 @@
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QMenu, QPushButton, QDockWidget, QTabWidget, QLabel
+from PyQt6.QtWidgets import (
+    QApplication,
+    QWidget,
+    QVBoxLayout,
+    QMenu,
+    QPushButton,
+    QDockWidget,
+    QTabWidget,
+    QLabel,
+)
 from PyQt6.QtCore import Qt, QPoint, QEvent
 import sys
+
 
 class ControlPanel(QWidget):
     # this is the control panel that appears on the top right of the GUI. It holds an instance of imageWorkspace
