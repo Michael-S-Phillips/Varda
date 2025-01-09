@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "speclab"
+version = "0.1.0"
+description = ""
+authors = ["Jaysterr <j4ysterr@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+

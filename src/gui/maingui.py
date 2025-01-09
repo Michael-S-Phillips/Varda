@@ -1,106 +1,214 @@
-from gui import maingui
-
-from PyQt6 import QtCore, QtGui, QtWidgets
-import pyqtgraph as pg
-from gui.customwidgets import FileExplorer, SpectralImageWorkspace
-from gui.customwidgets.controlpanel import ControlPanel
+# standard library
 from pathlib import Path
-from PyQt6.QtGui import QIcon
+import logging
 import sys
-import os
+from typing import override
 
-'''
-"FYI": maingui.py will initialize window and layout.
-It will only interact with widget classes (in customwidgets) to maintain
-low cohesion. Widget classes will interact with processing / 
-visualization classes accordingly. 
-'''
+# third party imports
+from PyQt6 import QtCore, QtWidgets
+from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import Qt
+from qasync import QEventLoop, QApplication
+import asyncio
+import pyqtgraph as pg
+
+from core.data.project_context import ProjectContext
+
+# local imports
+from gui.widgets import ControlPanel, StatusBar, MainMenuBar
+from features import (
+    image_view_raster,
+    image_view_stretch,
+    image_view_band,
+    all_images_view_list,
+    image_load,
+)
+import core.utilities as utils
+
+logger = logging.getLogger(__name__)
 
 
-class MainGui(QtWidgets.QMainWindow):
+class MainGUI(QtWidgets.QMainWindow):
     """
     Creates the main window and layout for the GUI. Each GUI
     component is initialized (we will probably need to turn each
     component into a class attribute that is publicly accessible)
     """
 
-    def __init__(self):
+    def __init__(self, proj: ProjectContext):
         super().__init__()
         self.setWindowTitle("Varda")
-        # set configs
-        pg.setConfigOptions(imageAxisOrder='row-major')
+        self.setWindowIcon(QIcon("../img/logo.svg"))
+
+        self.proj = proj
+        self.imageList = None
+        self.selectedImage = None
         self.initUI()
+        self.connectSignals()
+
+        logger.info("MainGUI Initialized")
 
     def initUI(self):
-        # Create a splitter for the main layout
-        splitter = QtWidgets.QSplitter()
+        self.setMenuBar(MainMenuBar())
+        self.setStatusBar(StatusBar())
 
-        # File Explorer as a dockable workspaceTabs
-        self.fileExplorerDock = QtWidgets.QDockWidget("File Explorer", self)
-        self.fileExplorer = FileExplorer()
-        self.fileExplorerDock.setWidget(self.fileExplorer)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea,
-                           self.fileExplorerDock)
+        # make dock tabs appear on top
+        self.setTabPosition(
+            Qt.DockWidgetArea.AllDockWidgetAreas,
+            QtWidgets.QTabWidget.TabPosition.North,
+        )
 
-        # Tabs as a dockable workspaceTabs
-        # self.tabsDock = QtWidgets.QDockWidget("Tabs", self)
-        # tabWidget = QtWidgets.QTabWidget()
-        # tabWidget.addTab(TextWidget("Controls and Actions"), "Control Panel")
-        # tabWidget.addTab(TextWidget("Adjust Settings"), "Settings")
-        # tabWidget.addTab(TextWidget("View Logs"), "Logs")
-        # self.tabsDock.setWidget(tabWidget)
+        self.imageList = all_images_view_list.newList(self.proj, self)
+        self.newDock("Image List", self.imageList, Qt.DockWidgetArea.LeftDockWidgetArea)
 
-        # Spectral Image Workspace as a dockable workspaceTabs
-        self.imageViewDock = QtWidgets.QDockWidget("Image Workspace", self)
-        self.imageView = SpectralImageWorkspace(self)
-        self.imageViewDock.setWidget(self.imageView)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
-                           self.imageViewDock)
+        self.controlPanel = ControlPanel(None)
+        self.addDockWidget(
+            Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock
+        )
 
-        self.controlPanel = ControlPanel(self.imageView)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, self.imageViewDock)
+        # set default central widget
+        self.setCentralWidget(self.getStartingScreenWidget())
 
-        # Setup the menu bar
-        menuBar = self.menuBar()
-        fileMenu = menuBar.addMenu('File')
-        fileMenu.addAction('Open', self.openFile)
-        fileMenu.addAction('Save', self.saveFile)
-        fileMenu.addAction('Exit', self.exitApp)
+    def getStartingScreenWidget(self):
+        label = QtWidgets.QLabel(
+            "Go to File->import to open your first image!", parent=self
+        )
+        label.setStyleSheet("font-size: 20px;")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        return label
 
-        helpMenu = menuBar.addMenu('Help')
-        helpMenu.addAction('About', self.aboutDialog)
+    def newDock(self, title, widget, dockArea):
+        dock = QtWidgets.QDockWidget(title, self)
+        dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(widget)
+        self.addDockWidget(dockArea, dock)
+        return dock
 
-        # Create a central workspaceTabs
-        workspaceTabs = QtWidgets.QTabWidget()
-        splitter.addWidget(self.imageView)
-        workspaceTabs.setLayout(QtWidgets.QVBoxLayout())
-        workspaceTabs.addTab(splitter, "workspace 1")
-        self.setCentralWidget(workspaceTabs)
+    def connectSignals(self):
+        self.menuBar().sigImportFile.connect(
+            lambda: asyncio.create_task(self.loadImage())
+        )
+        self.menuBar().sigExitApp.connect(self.exitApp)
+        # menubar.sigSaveProject.connect(self.saveProject)
+        # menubar.sigOpenProject.connect(self.loadProject)
 
-        self.setWindowIcon(QIcon("./img/logo.svg"))
+        self.imageList.currentItemChanged.connect(self.onSelectedImageChanged)
 
-    def openFile(self):
-        print("Open file dialog...")
+    def onSelectedImageChanged(self, item):
+        if item is None:
+            return
+        print(item.text())
 
-    def saveFile(self):
-        print("Save file functionality...")
+    def contextMenuEvent(self, event):
+        localPos = self.imageList.mapFromGlobal(event.globalPos())
+        item = self.imageList.itemAt(localPos)
+        index = self.imageList.indexFromItem(item)
+        if index.isValid():
+            contextMenu = self.createContextMenu(index)
+            contextMenu.exec(event.globalPos())
+        else:
+            print("No item selected")
+
+    def createContextMenu(self, index):
+        contextMenu = QtWidgets.QMenu(self)
+        openView = contextMenu.addMenu("Open View")
+        rasterView = openView.addAction("RasterData View")
+        bandView = openView.addAction("Band View")
+        stretchView = openView.addAction("Stretch View")
+        image = index.data(QtCore.Qt.ItemDataRole.UserRole)
+        logger.debug(type(image))
+        imageIndex = image.index
+        rasterView.triggered.connect(lambda: self.openRasterView(imageIndex))
+        bandView.triggered.connect(lambda: self.openBandView(imageIndex))
+        stretchView.triggered.connect(lambda: self.openStretchView(imageIndex))
+        return contextMenu
+
+    def openRasterView(self, index):
+        view = image_view_raster.getRasterView(self.proj, index, self)
+        dock = QtWidgets.QDockWidget("Raster Editor", parent=self)
+        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(view)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.setFloating(True)
+
+    def openStretchView(self, index):
+        view = image_view_stretch.getStretchView(self.proj, index, self)
+        dock = QtWidgets.QDockWidget("Stretch Editor", parent=self)
+        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(view)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.setFloating(True)
+
+    def openBandView(self, index):
+        view = image_view_band.getBandView(self.proj, index, self)
+        dock = QtWidgets.QDockWidget(parent=self)
+        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(view)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.setFloating(True)
+
+    async def loadImage(self):
+        await image_load.loadNewImage(self.proj)
+
+    # def onImageLoaded(self, image):
+    #     self.statusBar().loadingFinished()
+    #     if image is None:
+    #         return
+    #
+    #     imageView = ImageViewRaster(image)
+    #
+    #     # remove initial prompt
+    #     if self.centralWidget().isHidden() is False:
+    #         self.centralWidget().hide()
+    #
+    #     dock = QtWidgets.QDockWidget("Image" + str(self.imageManager.rowCount()), self)
+    #     dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+    #     dock.setWidget(imageView)
+    #     self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+    #     dock.show()
+    #     dock.raise_()
+    #
+    def saveProject(self):
+        fileName = QtWidgets.QFileDialog.getSaveFileName(
+            None, "Save File", "", "Varda project file (" "*.varda)"
+        )
+        if not fileName[0]:
+            return
+        # TODO
+
+    def loadProject(self):
+        fileName = QtWidgets.QFileDialog.getOpenFileName(
+            None, "Open File", "", "Varda project file (" "*.varda)"
+        )
+        if not fileName[0]:
+            return
+
+        # TODO
 
     def exitApp(self):
         self.close()
 
-    def aboutDialog(self):
-        print("Show about dialog...")
+    # @override
+    # def dragEnterEvent(self, event, **kwargs):
+    #     event.acceptProposedAction()
+    #
+    # @override
+    # def dropEvent(self, event, **kwargs):
+    #     self.statusBar().showLoadingMessage()
+    #     self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
 
 
-def startGui():
-    app = QtWidgets.QApplication(sys.argv)
+def startGui(proj: ProjectContext):
+    """Main entrypoint for the GUI."""
+    app = QApplication(sys.argv)
+
+    eventLoop = QEventLoop(app)
+    asyncio.set_event_loop(eventLoop)
+
     # Remove external stylesheet to revert to default Qt styling
-    window = MainGui()
+    window = MainGUI(proj)
     window.showMaximized()
     window.show()
-    app.exec()
-
-
-if __name__ == "__main__":
-    startGui()
+    with eventLoop:  # Ensures the loop runs and stops properly
+        eventLoop.run_forever()
+    # app.exec()

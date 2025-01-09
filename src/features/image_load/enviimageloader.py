@@ -1,0 +1,127 @@
+# standard library
+import time
+import logging
+
+# third party imports
+import numpy as np
+import rasterio as rio
+
+# local imports
+from features.image_load.abstractimageloader import AbstractImageLoader
+from core.entities.metadata import Metadata
+from core.utilities import debug
+
+
+logging.getLogger("rasterio").setLevel(logging.CRITICAL)
+
+
+class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-methods
+    """Implementation of AbstractImageLoader for ENVI Images"""
+
+    imageType = (".hdr", ".img")
+
+    @staticmethod
+    def _loadRasterData(filePath):
+        path = filePath.replace(".hdr", ".img")
+        timeStarted = time.time()
+
+        with rio.open(path) as src:
+            print("time to open file: ", time.time() - timeStarted)
+
+            # TODO: we should probably mask the array manually. masked=True makes this
+            #  return a MaskedArray which is much slower
+            timeStarted = time.time()
+            data = src.read(masked=True).transpose(1, 2, 0)
+            print("time to read data: ", time.time() - timeStarted)
+
+        # get default bands
+        return data
+
+    @staticmethod
+    def _loadMetadata(image, filePath):  # pylint: disable=too-many-locals
+        path = filePath.replace(".hdr", ".img")
+        with rio.open(path) as src:
+            # get rasterio metadata
+
+            if debug.DEBUG:
+                print(src.meta)
+            driver = src.driver
+
+            try:
+                dtype = src.dtypes[0]
+            except IndexError:
+                dtype = None
+                print("no dtype")
+
+            dataIgnore = src.nodata
+            width = src.width
+            height = src.height
+            bandCount = src.count
+            resolution = src.res
+            crs = src.crs
+            transform = src.transform
+
+            # get envi metadata
+            enviData = src.tags(ns="ENVI")
+            if debug.DEBUG:
+                print("Raw Metadata:", enviData)
+
+            description = (
+                enviData["description"].strip("{}")
+                if "description" in enviData
+                else None
+            )
+
+            defaultBands = (
+                enviData["default_bands"] if "default_bands" in enviData else None
+            )
+            if defaultBands:
+                defaultBands = [
+                    int(band)
+                    for band in enviData["default_bands"].strip("{}").split(",")
+                ]
+                defaultBands = {
+                    "r": defaultBands[0],
+                    "g": defaultBands[1],
+                    "b": defaultBands[2],
+                }
+
+            wavelengthUnits = (
+                enviData["wavelength_units"] if "wavelength_units" in enviData else None
+            )
+            bandNames = (
+                np.asarray(enviData["band_names"].strip("{}").split(","))
+                if "band_names" in enviData
+                else None
+            )
+
+            wavelength = enviData["wavelength"] if "wavelength" in enviData else None
+            if wavelength is not None:
+                wavelength = np.asarray(
+                    [
+                        float(wavelength)
+                        for wavelength in wavelength.strip("{}").split(",")
+                    ]
+                )
+
+            geospatialInfo = (
+                enviData["geospatial_info"] if "geospatial_info" in enviData else None
+            )
+
+        return Metadata(
+            driver,
+            width,
+            height,
+            dtype,
+            dataIgnore,
+            bandCount,
+            defaultBands,
+            wavelength,
+            _extraMetadata={
+                "transform": transform,
+                "description": description,
+                "wavelength_units": wavelengthUnits,
+                "band_names": bandNames,
+                "geospatial_info": geospatialInfo,
+            },
+        )
