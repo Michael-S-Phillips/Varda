@@ -118,18 +118,17 @@ class ProjectContext(QObject):
         When calling this method, only include the arguments you want to change. The
         rest will maintain their current values
         """
-        image = self.getImage(imageIndex)
-        oldStretch = image.stretch[stretchIndex]
+        oldStretch = self.getImage(imageIndex).stretch[stretchIndex]
 
         # Create the updated Stretch using existing values as fallbacks
         newStretch = Stretch(
-            name=name if name else oldStretch.name,
-            minR=minR if minR else oldStretch.minR,
-            maxR=maxR if maxR else oldStretch.maxR,
-            minG=minG if minG else oldStretch.minG,
-            maxG=maxG if maxG else oldStretch.maxG,
-            minB=minB if minB else oldStretch.minB,
-            maxB=maxB if maxB else oldStretch.maxB,
+            name=name if name is not None else oldStretch.name,
+            minR=minR if minR is not None else oldStretch.minR,
+            maxR=maxR if maxR is not None else oldStretch.maxR,
+            minG=minG if minG is not None else oldStretch.minG,
+            maxG=maxG if maxG is not None else oldStretch.maxG,
+            minB=minB if minB is not None else oldStretch.minB,
+            maxB=maxB if maxB is not None else oldStretch.maxB,
         )
         # replace the Stretch
         self._images[imageIndex].stretch[stretchIndex] = newStretch
@@ -170,9 +169,9 @@ class ProjectContext(QObject):
         oldBand = image.band[bandIndex]
         newBand = Band(
             name=name if name else oldBand.name,
-            r=r if r else oldBand.r,
-            g=g if g else oldBand.g,
-            b=b if b else oldBand.b,
+            r=r if r is not None else oldBand.r,
+            g=g if g is not None else oldBand.g,
+            b=b if b is not None else oldBand.b,
         )
         # Replace the band
         self._images[index].band[bandIndex] = newBand

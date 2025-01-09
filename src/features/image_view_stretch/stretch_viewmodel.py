@@ -38,7 +38,15 @@ class StretchViewModel(QObject):
     def updateStretch(self, minR, maxR, minG, maxG, minB, maxB):
         """tells the project to update the stretch configuration with new values."""
         self.proj.updateStretch(
-            self.index, self.stretchIndex, None, minR, maxR, minG, maxG, minB, maxB
+            self.index,
+            self.stretchIndex,
+            name=None,
+            minR=minR,
+            maxR=maxR,
+            minG=minG,
+            maxG=maxG,
+            minB=minB,
+            maxB=maxB,
         )
 
     def _handleDataChanged(self, index, changeType):
