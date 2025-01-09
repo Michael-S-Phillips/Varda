@@ -75,6 +75,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-qt
           pip install -r requirements.txt
-
+          
+      - name: Set Offscreen Mode
+        run: echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
+        
       - name: Run Pytest (Unit Tests)
         run: pytest
