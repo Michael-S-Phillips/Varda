@@ -1,0 +1,70 @@
+name: Check Linting, Formatting, and Unit Tests
+
+on:
+  pull_request:
+    branches:
+      - development
+      - main
+
+jobs:
+  # Formatting Check with Black
+  black:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black
+
+      - name: Run Black (Code Formatter)
+        run: black --check src/
+
+  # Linting Check with Pylint
+  pylint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint
+          pip install -r requirements.txt
+
+      - name: Run Pylint (Linter)
+        run: pylint --errors-only /src
+
+  # Unit Testing with Pytest
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -r requirements.txt
+
+      - name: Run Pytest (Unit Tests)
+        run: pytest
