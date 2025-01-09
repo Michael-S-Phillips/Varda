@@ -46,7 +46,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Pylint (Linter)
-        run: pylint --errors-only /src
+        run: pylint --errors-only src/
 
   # Unit Testing with Pytest
   pytest:
