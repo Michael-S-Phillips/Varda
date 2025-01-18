@@ -85,12 +85,10 @@ class MainGUI(QtWidgets.QMainWindow):
         return dock
 
     def connectSignals(self):
-        self.menuBar().sigImportFile.connect(
-            lambda: asyncio.create_task(self.loadImage())
-        )
+        self.menuBar().sigImportFile.connect(self.loadImage)
         self.menuBar().sigExitApp.connect(self.exitApp)
-        # menubar.sigSaveProject.connect(self.saveProject)
-        # menubar.sigOpenProject.connect(self.loadProject)
+        # self.menuBar().menubar.sigSaveProject.connect(self.saveProject)
+        # self.menuBar().menubar.sigOpenProject.connect(self.loadProject)
 
         self.imageList.currentItemChanged.connect(self.onSelectedImageChanged)
 
@@ -125,11 +123,13 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def openRasterView(self, index):
         view = image_view_raster.getRasterView(self.proj, index, self)
+        self.setCentralWidget(view)
+        return
         dock = QtWidgets.QDockWidget("Raster Editor", parent=self)
         dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
         dock.setWidget(view)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        dock.setFloating(True)
+        # dock.setFloating(True)
 
     def openStretchView(self, index):
         view = image_view_stretch.getStretchView(self.proj, index, self)
@@ -147,27 +147,16 @@ class MainGUI(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
 
-    async def loadImage(self):
-        await image_load.loadNewImage(self.proj)
+    def loadImage(self, filePath=None):
+        self.statusBar().showLoadingMessage()
+        image_load.loadNewImage(self.proj, filePath, self.onImageLoaded)
 
-    # def onImageLoaded(self, image):
-    #     self.statusBar().loadingFinished()
-    #     if image is None:
-    #         return
-    #
-    #     imageView = ImageViewRaster(image)
-    #
-    #     # remove initial prompt
-    #     if self.centralWidget().isHidden() is False:
-    #         self.centralWidget().hide()
-    #
-    #     dock = QtWidgets.QDockWidget("Image" + str(self.imageManager.rowCount()), self)
-    #     dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
-    #     dock.setWidget(imageView)
-    #     self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-    #     dock.show()
-    #     dock.raise_()
-    #
+    def onImageLoaded(self, index):
+        self.statusBar().loadingFinished()
+        # remove initial prompt
+        # if self.centralWidget().isHidden() is False:
+        #     self.centralWidget().hide()
+
     def saveProject(self):
         fileName = QtWidgets.QFileDialog.getSaveFileName(
             None, "Save File", "", "Varda project file (" "*.varda)"
@@ -182,20 +171,19 @@ class MainGUI(QtWidgets.QMainWindow):
         )
         if not fileName[0]:
             return
-
         # TODO
 
     def exitApp(self):
         self.close()
 
-    # @override
-    # def dragEnterEvent(self, event, **kwargs):
-    #     event.acceptProposedAction()
-    #
-    # @override
-    # def dropEvent(self, event, **kwargs):
-    #     self.statusBar().showLoadingMessage()
-    #     self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
+    @override
+    def dragEnterEvent(self, event, **kwargs):
+        event.acceptProposedAction()
+
+    @override
+    def dropEvent(self, event, **kwargs):
+        self.statusBar().showLoadingMessage()
+        self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
 
 
 def startGui(proj: ProjectContext):
