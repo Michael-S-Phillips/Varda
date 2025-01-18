@@ -179,7 +179,7 @@ class ProjectContext(QObject):
         logger.debug(
             f"Updated Band.\n"
             f"  old: {oldBand.r}, {oldBand.g}, {oldBand.b}\n"
-            f"  new:  {newBand.r}, {newBand.g}, {newBand.b}"
+            f"  new: {newBand.r}, {newBand.g}, {newBand.b}"
         )
 
     # Helper methods
