@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 
 from PyQt6.QtCore import Qt
 import sys
-from src.core.data.project_context import ProjectContext
+from core.data.project_context import ProjectContext
 
 
 class ControlPanel(QMainWindow):
