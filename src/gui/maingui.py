@@ -61,7 +61,8 @@ class MainGUI(QtWidgets.QMainWindow):
         self.imageList = all_images_view_list.newList(self.proj, self)
         self.newDock("Image List", self.imageList, Qt.DockWidgetArea.LeftDockWidgetArea)
 
-        self.controlPanel = ControlPanel(None)
+        # Initialize Control Panel with ProjectContext
+        self.controlPanel = ControlPanel(self.proj)
         self.addDockWidget(
             Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock
         )
@@ -95,9 +96,19 @@ class MainGUI(QtWidgets.QMainWindow):
         self.imageList.currentItemChanged.connect(self.onSelectedImageChanged)
 
     def onSelectedImageChanged(self, item):
+        """
+        Handle the selection of a new image and update the control panel.
+        """
         if item is None:
+            self.selectedImage = None
+            self.controlPanel.updateActiveImage(None)
             return
-        print(item.text())
+
+        # Retrieve the selected image's index
+        index = self.imageList.row(item)
+        self.selectedImage = self.proj.getImage(index)
+        self.controlPanel.updateActiveImage(index)
+        print(f"Selected image updated: {self.selectedImage.metadata.name}")
 
     def contextMenuEvent(self, event):
         localPos = self.imageList.mapFromGlobal(event.globalPos())

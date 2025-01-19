@@ -41,8 +41,9 @@ class ProjectContext(QObject):
 
     def addImage(self, image: Image):
         """Add a new image to the context."""
+        index = len(self._images)
+        image.metadata.name = f"Image {index}"  # Assign a unique name based on the index
         self._images.append(image)
-        index = len(self._images) - 1
         self._emitChange(index, self.ChangeType.IMAGE)
         return index
 
