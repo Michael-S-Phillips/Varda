@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, QTimer
 
 # local imports
 from features.shared.selection_controls import StretchSelector
-from .band_viewmodel import BandViewModel
+from .roi_viewmodel import ROIViewModel
 
 
 class ROIView(QWidget):
