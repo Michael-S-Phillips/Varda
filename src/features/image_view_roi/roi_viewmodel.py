@@ -17,11 +17,12 @@ class ROIViewModel(QObject):
         super().__init__(parent)
         self.proj = proj
         self.imageIndex = imageIndex
+        
         self._connectSignals()
 
 
     def _connectSignals(self):
-        self.proj.sigDataChanged.connect(self._handleDataChanged)
+        pass
 
     # selectROI
 

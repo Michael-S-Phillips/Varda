@@ -198,6 +198,8 @@ class ProjectContext(QObject):
         self._images[index].rois.pop(roiIndex)
         self._emitChange(index, self.ChangeType.ROI)
 
+    def getROIs(self, index):
+        return self._images[index].rois
 
     # Helper methods
     def _emitChange(self, index, changeType):
