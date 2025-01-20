@@ -47,6 +47,8 @@ class RasterView(QWidget):
         self.contextROI: pg.RectROI = None
         self.mainROI: pg.RectROI = None
 
+        self.freehandROI = None
+
         self.stretchSelector: StretchSelector
         self.bandSelector: BandSelector
 
