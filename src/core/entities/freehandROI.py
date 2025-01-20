@@ -9,7 +9,3 @@ class FreeHandROI:
     
     def toList(self):
         return [ x for x in self.points ]
-
-    @classmethod
-    def createDefault(cls):
-        return []

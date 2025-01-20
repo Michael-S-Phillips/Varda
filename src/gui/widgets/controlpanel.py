@@ -16,7 +16,7 @@ import sys
 
 # local imports
 from core.data.project_context import ProjectContext
-from gui.widgets.ROISelector import ROISelector
+from gui.widgets.ROIselector import ROISelector
 from core.entities import FreeHandROI
 
 
@@ -107,10 +107,13 @@ class ControlPanel(QMainWindow):
         # the main raster view
         # roi view folder needs:
         #   - __init__.py: initializes import: done
-        #   - roi_view.py: a widget for viewing ROIs (QWidget): set up 
+        #   - roi_view.py: a widget for viewing ROIs (QWidget): done
         #   - roi_viewmodel.py: will handle the logic and interaction with the project context: set up
+        #       - the raster view will send the created ROI to the project context: done
+        #       - the project context will send a signal that a new ROI has been created
+        #       - the roi_view will update the table with the new ROI added
         #   - image_view_roi.py: returns/updates an instance of roi_view: set up
-        # create option to open an roiWindow from the mainGUI
+        # create option to open an roiWindow from the mainGUI: done
         # saving the roi is done with saveROI in the project context
         # clear the current ROI 
         # load another ROI 

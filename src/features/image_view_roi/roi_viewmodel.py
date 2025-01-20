@@ -1,5 +1,6 @@
 # third party imports
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
+from PyQt6.QtWidgets import QTableWidgetItem
 
 # local imports
 from core.data import ProjectContext
@@ -11,18 +12,49 @@ class ROIViewModel(QObject):
     Handles all the logic/interaction with the ProjectContext.
     """
 
-    #sigBandChanged = pyqtSignal(int, int, int)
-
     def __init__(self, proj: ProjectContext, imageIndex, parent=None):
         super().__init__(parent)
         self.proj = proj
         self.imageIndex = imageIndex
         
+        # Store the ROI table (UI widget)
+        self.roiTable = None  # Assume this will be set externally
         self._connectSignals()
 
-
     def _connectSignals(self):
-        pass
+        """Connect signals from the project context."""
+        self.proj.sigDataChanged.connect(self._onDataChanged)
+
+    def setROITable(self, roiTable):
+        """Associate a table widget with the view model."""
+        self.roiTable = roiTable
+
+    def _onDataChanged(self, index, changeType):
+        """React to changes in the project context."""
+        if changeType == ProjectContext.ChangeType.ROI and index == self.imageIndex:
+            # Update the ROI table for this image
+            self._updateROITable()
+
+    def _updateROITable(self):
+        """Update the ROI table with the current ROIs."""
+        if not self.roiTable:
+            return
+
+        # Get ROIs from the project context
+        rois = self.proj.getROIs(self.imageIndex)
+
+        # Clear the existing table
+        self.roiTable.setRowCount(0)
+
+        # Populate the table with the new ROI data
+        for row_index, roi in enumerate(rois):
+            self.roiTable.insertRow(row_index)
+
+            # Fill the table with ROI data (replace placeholders as needed)
+            self.roiTable.setItem(row_index, 0, QTableWidgetItem(str(row_index)))
+            self.roiTable.setItem(row_index, 1, QTableWidgetItem("Data1"))  # Placeholder
+            self.roiTable.setItem(row_index, 2, QTableWidgetItem("Data2"))  # Placeholder
+            self.roiTable.setItem(row_index, 3, QTableWidgetItem("Data3"))  # Placeholder
 
     # selectROI
 

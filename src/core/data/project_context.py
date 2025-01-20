@@ -65,7 +65,7 @@ class ProjectContext(QObject):
             metadata,
             stretch if stretch else [Stretch.createDefault()],
             band if band else [Band.createDefault()],
-            roi if roi else [FreeHandROI.createDefault()],
+            roi if roi else [],
             len(self._images),
         )
         if len(image.stretch) == 0:

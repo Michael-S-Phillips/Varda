@@ -1,34 +1,30 @@
+from PyQt6.QtCore import pyqtSignal
 import pyqtgraph as pg
 import numpy as np
 
+# Class to handle freehand drawn ROI's with pyqt graphicsobjects
 class ROISelector(pg.GraphicsObject):
-    def __init__(self, raster):
-        super().__init__()
-        self.raster = raster  # The raster data of the image
-        self.image_item = pg.ImageItem(self.raster)
+
+    sigDrawingComplete = pyqtSignal()
+    def __init__(self):
+        pg.GraphicsObject.__init__(self)
+        print("new roi")
         self.pts = None
         self.path = None
 
-    def addToScene(self, scene):
-        """Add the image and ROI drawing to a PyQtGraph scene."""
-        scene.addItem(self.image_item)  # Add the image
-        scene.addItem(self)  # Add this graphics object for ROI
-
+    # Method to handle user drawing
     def draw(self):
-        """Start drawing ROI."""
-        print("here")
-        print(self.scene())
         self.pts = None
         self.path = None
         self.scene().installEventFilter(self)
         self.prepareGeometryChange()
 
+    # Method to handle user initiated events
     def eventFilter(self, obj, ev):
-        """Handle drawing events."""
         if ev.type() == ev.Type.GraphicsSceneMousePress:
             self.addPathPoint(self.mapFromScene(ev.scenePos()))
             ev.accept()
-            return True
+            return True  # prevent scene from receiving this event
         elif ev.type() == ev.Type.GraphicsSceneMouseMove:
             if self.pts is not None:
                 self.addPathPoint(self.mapFromScene(ev.scenePos()))
@@ -37,14 +33,13 @@ class ROISelector(pg.GraphicsObject):
             ev.accept()
             self.path.closeSubpath()
             self.scene().removeEventFilter(self)
+            self.sigDrawingComplete.emit()  
             return True
         else:
             return False
 
+    # Method to add a point to the path drawn by the user
     def addPathPoint(self, pt):
-        """Add a point to the ROI path."""
-        print("here2")
-        print(self.pts)
         if self.pts is None:
             self.pts = [[pt.x()], [pt.y()]]
         else:
@@ -54,21 +49,24 @@ class ROISelector(pg.GraphicsObject):
                                     np.array(self.pts[1]))
         self.prepareGeometryChange()
 
+    # Method to return a bounding rectangle as an ROI if needed.
     def boundingRect(self):
-        """Bounding rectangle for the ROI."""
         if self.path is None:
             return pg.QtCore.QRectF()
         return self.path.boundingRect()
 
+    # Handles graphic parameters for user drawing
     def paint(self, p, *args):
-        """Render the ROI path."""
         if self.path is None:
             return
-        p.setRenderHints(p.renderHints() | p.RenderHint.Antialiasing)
+        p.setRenderHints(p.renderHints() |
+                            p.RenderHint.Antialiasing)
         p.setPen(pg.mkPen('b'))
         p.drawPath(self.path)
         p.fillPath(self.path, pg.mkBrush(0, 0, 255, 100))
 
+    # Returns a list of two lists,
+    # list[0] are all x values, list[1] are all y values
     def getLinePts(self):
-        """Retrieve points of the drawn ROI."""
         return self.pts
+
