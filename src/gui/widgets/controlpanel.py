@@ -110,13 +110,15 @@ class ControlPanel(QMainWindow):
         #   - roi_view.py: a widget for viewing ROIs (QWidget): done
         #   - roi_viewmodel.py: will handle the logic and interaction with the project context: set up
         #       - the raster view will send the created ROI to the project context: done
-        #       - the project context will send a signal that a new ROI has been created
-        #       - the roi_view will update the table with the new ROI added
-        #   - image_view_roi.py: returns/updates an instance of roi_view: set up
+        #       - the project context will send a signal that a new ROI has been created: done
+        #       - the roi_view will update the table with the new ROI added: done
+        #   - image_view_roi.py: returns/updates an instance of roi_view: done
         # create option to open an roiWindow from the mainGUI: done
-        # saving the roi is done with saveROI in the project context
-        # clear the current ROI 
-        # load another ROI 
+        # saving the roi is done with saveROI in the project context: done
+        
+        # to do: add multiple ROIs at a time (each one a different color)
+        # transform into ROI pyqt object to get mean spectrum data
+        # add buttons to table to do so
 
         else:
             self.roiSelector.raster = current_image.raster  # Update raster
