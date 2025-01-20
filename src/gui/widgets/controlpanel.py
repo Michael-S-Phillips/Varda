@@ -16,7 +16,7 @@ import sys
 
 # local imports
 from core.data.project_context import ProjectContext
-from gui.widgets.ROIselector import ROISelector
+from gui.widgets.ROISelector import ROISelector
 from core.entities import FreeHandROI
 
 
@@ -44,7 +44,6 @@ class ControlPanel(QMainWindow):
         self.dock_widget_content = QWidget()
         self.main_layout = QVBoxLayout()
 
-        self.main_layout.addWidget(self.graphicsView)
 
         # Active Image Label
         self.activeImageLabel = QLabel("No image selected")
@@ -103,9 +102,15 @@ class ControlPanel(QMainWindow):
         if self.roiSelector is None:
             self.roiSelector = ROISelector()
 
-        # add to the raster view the roi functionalty (roiExperiment) 
+        # add to the raster view the roi functionalty (roiExperiment): done 
         # make a similar roi view model that will save roi data that was drawn on 
-        # the main view. 
+        # the main raster view
+        # roi view folder needs:
+        #   - __init__.py: initializes import: done
+        #   - roi_view.py: a widget for viewing ROIs (QWidget): set up 
+        #   - roi_viewmodel.py: will handle the logic and interaction with the project context: set up
+        #   - image_view_roi.py: returns/updates an instance of roi_view: set up
+        # create option to open an roiWindow from the mainGUI
         # saving the roi is done with saveROI in the project context
         # clear the current ROI 
         # load another ROI 

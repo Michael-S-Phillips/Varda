@@ -20,6 +20,7 @@ from features import (
     image_view_raster,
     image_view_stretch,
     image_view_band,
+    image_view_roi,
     all_images_view_list,
     image_load,
 )
@@ -125,12 +126,14 @@ class MainGUI(QtWidgets.QMainWindow):
         openView = contextMenu.addMenu("Open View")
         rasterView = openView.addAction("RasterData View")
         bandView = openView.addAction("Band View")
+        roiView = openView.addAction("ROI Table View")
         stretchView = openView.addAction("Stretch View")
         image = index.data(QtCore.Qt.ItemDataRole.UserRole)
         logger.debug(type(image))
         imageIndex = image.index
         rasterView.triggered.connect(lambda: self.openRasterView(imageIndex))
         bandView.triggered.connect(lambda: self.openBandView(imageIndex))
+        roiView.triggered.connect(lambda: self.openROIView(imageIndex))
         stretchView.triggered.connect(lambda: self.openStretchView(imageIndex))
         return contextMenu
 
@@ -152,6 +155,14 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def openBandView(self, index):
         view = image_view_band.getBandView(self.proj, index, self)
+        dock = QtWidgets.QDockWidget(parent=self)
+        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(view)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.setFloating(True)
+
+    def openROIView(self, index):
+        view = image_view_roi.getROIView(self.proj, index, self)
         dock = QtWidgets.QDockWidget(parent=self)
         dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
         dock.setWidget(view)

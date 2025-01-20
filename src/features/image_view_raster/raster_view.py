@@ -3,8 +3,11 @@ import logging
 
 # third party imports
 from PyQt6 import QtCore, QtWidgets
+from PyQt6.QtCore import QEvent
+from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QWidget
 import pyqtgraph as pg
+import numpy as np
 
 # local imports
 from features.shared.selection_controls import StretchSelector, BandSelector
@@ -47,14 +50,15 @@ class RasterView(QWidget):
         self.contextROI: pg.RectROI = None
         self.mainROI: pg.RectROI = None
 
-        self.freehandROI = None
-
         self.stretchSelector: StretchSelector
         self.bandSelector: BandSelector
+
+        self.freehandROI = None
 
         self._initUI()
         self._initROIS()
         self._connectSignals()
+
 
     def _initUI(self):
         self.mainImage = self._initImageItem()
@@ -101,8 +105,14 @@ class RasterView(QWidget):
         selectorLayout.addWidget(self.stretchSelector)
         selectorLayout.addWidget(self.bandSelector)
 
+        self.freehandROI = self.FreehandROI()
+        mainGraphicsView.addItem(self.freehandROI)
+
+        self.draw_roi_button = pg.QtWidgets.QPushButton("Draw ROI")
+
         layout = QtWidgets.QVBoxLayout()
         layout.addLayout(selectorLayout)
+        layout.addWidget(self.draw_roi_button)
         layout.addWidget(mainSplitter)
         self.setLayout(layout)
 
@@ -118,6 +128,8 @@ class RasterView(QWidget):
         # signals for ROI functionality
         self.contextROI.sigRegionChanged.connect(self._updateMainView)
         self.mainROI.sigRegionChanged.connect(self._updateZoomView)
+
+        self.draw_roi_button.clicked.connect(self.freehandROI.draw)
 
     def _initROIS(self):
         # creates new ROIs and inserts them into the views.
@@ -229,3 +241,70 @@ class RasterView(QWidget):
         # Reposition the scale handle
         handle = roi.handles[0]["item"]
         handle.setPos(minDim, minDim)
+
+    # By Brian Kim, July 28, 2019
+    # Freehand ROI Module for use with PyQtGraph
+
+    # Class to handle freehand drawn ROI's with pyqt graphicsobjects
+    class FreehandROI(pg.GraphicsObject):
+        def __init__(self):
+            pg.GraphicsObject.__init__(self)
+            self.pts = None
+            self.path = None
+
+        # Method to handle user drawing
+        def draw(self):
+            self.pts = None
+            self.path = None
+            self.scene().installEventFilter(self)
+            self.prepareGeometryChange()
+
+        # Method to handle user initiated events
+        def eventFilter(self, obj, ev):
+            if ev.type() == ev.Type.GraphicsSceneMousePress:
+                self.addPathPoint(self.mapFromScene(ev.scenePos()))
+                ev.accept()
+                return True  # prevent scene from receiving this event
+            elif ev.type() == ev.Type.GraphicsSceneMouseMove:
+                if self.pts is not None:
+                    self.addPathPoint(self.mapFromScene(ev.scenePos()))
+                return True
+            elif ev.type() == ev.Type.GraphicsSceneMouseRelease:
+                ev.accept()
+                self.path.closeSubpath()
+                self.scene().removeEventFilter(self)
+                return True
+            else:
+                return False
+
+        # Method to add a point to the path drawn by the user
+        def addPathPoint(self, pt):
+            if self.pts is None:
+                self.pts = [[pt.x()], [pt.y()]]
+            else:
+                self.pts[0].append(pt.x())
+                self.pts[1].append(pt.y())
+            self.path = pg.arrayToQPath(np.array(self.pts[0]),
+                                        np.array(self.pts[1]))
+            self.prepareGeometryChange()
+
+        # Method to return a bounding rectangle as an ROI if needed.
+        def boundingRect(self):
+            if self.path is None:
+                return pg.QtCore.QRectF()
+            return self.path.boundingRect()
+
+        # Handles graphic parameters for user drawing
+        def paint(self, p, *args):
+            if self.path is None:
+                return
+            p.setRenderHints(p.renderHints() |
+                             p.RenderHint.Antialiasing)
+            p.setPen(pg.mkPen('b'))
+            p.drawPath(self.path)
+            p.fillPath(self.path, pg.mkBrush(0, 0, 255, 100))
+
+        # Returns a list of two lists,
+        # list[0] are all x values, list[1] are all y values
+        def getLinePts(self):
+            return self.pts
