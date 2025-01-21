@@ -115,6 +115,8 @@ class ControlPanel(QMainWindow):
         #   - image_view_roi.py: returns/updates an instance of roi_view: done
         # create option to open an roiWindow from the mainGUI: done
         # saving the roi is done with saveROI in the project context: done
+
+        # move button to draw roi to the roi table
         
         # to do: add multiple ROIs at a time (each one a different color)
         # transform into ROI pyqt object to get mean spectrum data

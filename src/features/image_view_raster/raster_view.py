@@ -109,11 +109,8 @@ class RasterView(QWidget):
         self.freehandROI = ROISelector()
         mainGraphicsView.addItem(self.freehandROI)
 
-        self.draw_roi_button = pg.QtWidgets.QPushButton("Draw ROI")
-
         layout = QtWidgets.QVBoxLayout()
         layout.addLayout(selectorLayout)
-        layout.addWidget(self.draw_roi_button)
         layout.addWidget(mainSplitter)
         self.setLayout(layout)
 
@@ -130,7 +127,6 @@ class RasterView(QWidget):
         self.contextROI.sigRegionChanged.connect(self._updateMainView)
         self.mainROI.sigRegionChanged.connect(self._updateZoomView)
 
-        self.draw_roi_button.clicked.connect(self.freehandROI.draw)
         self.freehandROI.sigDrawingComplete.connect(self._onROIDrawn)
         
 
@@ -213,6 +209,11 @@ class RasterView(QWidget):
         """Updates the model band based on the band editor"""
         self._updateViews()
   
+    def startDrawingROI(self):
+        """Start the ROI drawing process."""
+        if self.freehandROI:
+            self.freehandROI.draw()
+    
     def _onROIDrawn(self):
         print("roi drawn")
         """Update the project and table when an ROI is drawn."""

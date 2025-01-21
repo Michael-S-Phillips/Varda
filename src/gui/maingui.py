@@ -44,6 +44,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.proj = proj
         self.imageList = None
         self.selectedImage = None
+        self.rasterViewObj = None
         self.initUI()
         self.connectSignals()
 
@@ -139,6 +140,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def openRasterView(self, index):
         view = image_view_raster.getRasterView(self.proj, index, self)
+        self.rasterViewObj = view
         dock = QtWidgets.QDockWidget("Raster Editor", parent=self)
         dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
         dock.setWidget(view)
@@ -163,6 +165,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def openROIView(self, index):
         view = image_view_roi.getROIView(self.proj, index, self)
+        view.viewModel.setRasterView(self.rasterViewObj)
         dock = QtWidgets.QDockWidget(parent=self)
         dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
         dock.setWidget(view)

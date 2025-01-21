@@ -16,6 +16,7 @@ class ROIViewModel(QObject):
         super().__init__(parent)
         self.proj = proj
         self.imageIndex = imageIndex
+        self.rasterView = None
         
         # Store the ROI table (UI widget)
         self.roiTable = None  # Assume this will be set externally
@@ -24,6 +25,15 @@ class ROIViewModel(QObject):
     def _connectSignals(self):
         """Connect signals from the project context."""
         self.proj.sigDataChanged.connect(self._onDataChanged)
+
+    def setRasterView(self, rasterView):
+        """Will associate the place to draw an ROI with rasterView"""
+        self.rasterView = rasterView
+
+    def startDrawingROI(self):
+        """Start the ROI drawing process."""
+        if self.rasterView:
+            self.rasterView.startDrawingROI()
 
     def setROITable(self, roiTable):
         """Associate a table widget with the view model."""
