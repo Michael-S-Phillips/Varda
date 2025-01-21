@@ -33,7 +33,21 @@ class ROIViewModel(QObject):
     def startDrawingROI(self):
         """Start the ROI drawing process."""
         if self.rasterView:
-            self.rasterView.startDrawingROI()
+            self.rasterView.startNewROI()
+
+    def notifyROIAdded(self, color):
+        """Notify that a new ROI has been added."""
+        # The ProjectContext's sigDataChanged signal will handle the table update
+        rois = self.proj.getROIs(self.imageIndex)
+        last_index = len(rois) - 1
+
+        # Update the table
+        if self.roiTable:
+            self.roiTable.insertRow(last_index)
+            self.roiTable.setItem(last_index, 0, QTableWidgetItem(str(last_index)))
+            self.roiTable.setItem(last_index, 1, QTableWidgetItem(f"Color: {rois[0].color}"))  # Color in Data1
+            self.roiTable.setItem(last_index, 2, QTableWidgetItem("Data2"))  # Placeholder
+            self.roiTable.setItem(last_index, 3, QTableWidgetItem("Data3"))  # Placeholder
 
     def setROITable(self, roiTable):
         """Associate a table widget with the view model."""

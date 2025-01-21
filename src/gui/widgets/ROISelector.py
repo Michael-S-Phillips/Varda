@@ -6,11 +6,11 @@ import numpy as np
 class ROISelector(pg.GraphicsObject):
 
     sigDrawingComplete = pyqtSignal()
-    def __init__(self):
+    def __init__(self, color=None):
         pg.GraphicsObject.__init__(self)
-        print("new roi")
         self.pts = None
         self.path = None
+        self.color = color if color else (0, 0, 255, 100)
 
     # Method to handle user drawing
     def draw(self):
@@ -61,9 +61,9 @@ class ROISelector(pg.GraphicsObject):
             return
         p.setRenderHints(p.renderHints() |
                             p.RenderHint.Antialiasing)
-        p.setPen(pg.mkPen('b'))
+        p.setPen(pg.mkPen(self.color[:3]))  # Outline color
         p.drawPath(self.path)
-        p.fillPath(self.path, pg.mkBrush(0, 0, 255, 100))
+        p.fillPath(self.path, pg.mkBrush(*self.color))  # Fill color
 
     # Returns a list of two lists,
     # list[0] are all x values, list[1] are all y values

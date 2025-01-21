@@ -24,8 +24,8 @@ class ROIView(QWidget):
         self.draw_roi_button = QPushButton("Draw ROI", self)
 
         layout = QVBoxLayout()
-        layout.addWidget(self.table)
         layout.addWidget(self.draw_roi_button)
+        layout.addWidget(self.table)
         self.setLayout(layout)
 
         # Associate the table with the view model

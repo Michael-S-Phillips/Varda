@@ -54,7 +54,17 @@ class RasterView(QWidget):
         self.stretchSelector: StretchSelector
         self.bandSelector: BandSelector
 
-        self.freehandROI = None
+        self.freehandROIs = []
+
+        self.roiColors = [
+            (255, 0, 0, 100),  # Red
+            (0, 255, 0, 100),  # Green
+            (0, 0, 255, 100),  # Blue
+            (255, 255, 0, 100),  # Yellow
+            (255, 0, 255, 100),  # Magenta
+            (0, 255, 255, 100),  # Cyan
+        ]
+        self.colorIndex = 0
 
         self._initUI()
         self._initROIS()
@@ -106,8 +116,8 @@ class RasterView(QWidget):
         selectorLayout.addWidget(self.stretchSelector)
         selectorLayout.addWidget(self.bandSelector)
 
-        self.freehandROI = ROISelector()
-        mainGraphicsView.addItem(self.freehandROI)
+        self.freehandROIs.append(ROISelector(None))
+        mainGraphicsView.addItem(self.freehandROIs[0])
 
         layout = QtWidgets.QVBoxLayout()
         layout.addLayout(selectorLayout)
@@ -127,7 +137,7 @@ class RasterView(QWidget):
         self.contextROI.sigRegionChanged.connect(self._updateMainView)
         self.mainROI.sigRegionChanged.connect(self._updateZoomView)
 
-        self.freehandROI.sigDrawingComplete.connect(self._onROIDrawn)
+        self.freehandROIs[-1].sigDrawingComplete.connect(self._onROIDrawn)
         
 
 
@@ -209,16 +219,38 @@ class RasterView(QWidget):
         """Updates the model band based on the band editor"""
         self._updateViews()
   
-    def startDrawingROI(self):
-        """Start the ROI drawing process."""
-        if self.freehandROI:
-            self.freehandROI.draw()
+    # def startDrawingROI(self):
+    #     """Start the ROI drawing process."""
+    #     if self.freehandROI:
+    #         self.freehandROI.draw()
+
+    def startNewROI(self):
+        """Create and start a new FreehandROI."""
+
+        color = self.roiColors[self.colorIndex]
+        self.colorIndex = (self.colorIndex + 1) % len(self.roiColors)
+
+        new_roi = ROISelector(color)
+        self.freehandROIs.append(new_roi)
+        self.mainView.addItem(new_roi)
+
+        # Connect the new ROI's signal
+        new_roi.sigDrawingComplete.connect(self._onROIDrawn)
+
+        # Start drawing
+        new_roi.draw()
     
     def _onROIDrawn(self):
-        print("roi drawn")
-        """Update the project and table when an ROI is drawn."""
+        # print("roi drawn")
+        # """Update the project and table when an ROI is drawn."""
+        # # Add the ROI to the project context
+        # self.viewModel.proj.addROI(self.viewModel.index, self.freehandROI.getLinePts())
+
+        last_roi = self.freehandROIs[-1]
+
         # Add the ROI to the project context
-        self.viewModel.proj.addROI(self.viewModel.index, self.freehandROI.getLinePts())
+        self.viewModel.proj.addROI(self.viewModel.index, last_roi)
+
 
     @staticmethod
     def _initImageItem():
