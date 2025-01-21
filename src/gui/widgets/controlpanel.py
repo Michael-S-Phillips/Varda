@@ -117,10 +117,15 @@ class ControlPanel(QMainWindow):
         # saving the roi is done with saveROI in the project context: done
 
         # move button to draw roi to the roi table: done
-        # add multiple ROIs at a time (each one a different color)
+        # add multiple ROIs at a time (each one a different color): done
+        # store ROISelector object as a pyqt ROI object
         # be able to select an ROI, and have it pop back up on the raster view
         # transform into ROI pyqt object to get mean spectrum data
         # add buttons to table to do so
+
+        # BUGS: 
+        # when draw roi is selected before rasterview exists, cannot draw an roi after raster
+        # view is opened
 
         else:
             self.roiSelector.raster = current_image.raster  # Update raster

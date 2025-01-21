@@ -1,9 +1,11 @@
 # third party imports
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 from PyQt6.QtWidgets import QTableWidgetItem
+import numpy as np
 
 # local imports
 from core.data import ProjectContext
+from core.entities.freehandROI import FreeHandROI
 
 
 class ROIViewModel(QObject):
@@ -36,17 +38,20 @@ class ROIViewModel(QObject):
             self.rasterView.startNewROI()
 
     def notifyROIAdded(self, color):
-        """Notify that a new ROI has been added."""
-        # The ProjectContext's sigDataChanged signal will handle the table update
+        """
+        Notify that a new ROI has been added.
+        Updates the ROI table with the ROI's details, including its color.
+        """
         rois = self.proj.getROIs(self.imageIndex)
-        last_index = len(rois) - 1
+        last_roi = rois[-1]
 
-        # Update the table
+        # Update the ROI table
         if self.roiTable:
+            last_index = len(rois) - 1
             self.roiTable.insertRow(last_index)
             self.roiTable.setItem(last_index, 0, QTableWidgetItem(str(last_index)))
-            self.roiTable.setItem(last_index, 1, QTableWidgetItem(f"Color: {rois[0].color}"))  # Color in Data1
-            self.roiTable.setItem(last_index, 2, QTableWidgetItem("Data2"))  # Placeholder
+            self.roiTable.setItem(last_index, 1, QTableWidgetItem(f"Color: {last_roi.color}"))
+            self.roiTable.setItem(last_index, 2, QTableWidgetItem(f"Slice Shape: {last_roi.arraySlice.shape}"))
             self.roiTable.setItem(last_index, 3, QTableWidgetItem("Data3"))  # Placeholder
 
     def setROITable(self, roiTable):

@@ -11,3 +11,4 @@ affine~=2.4.0
 scipy~=1.14.1
 asyncio~=3.4.3
 qasync~=0.27.1
+scipy~=1.15.1

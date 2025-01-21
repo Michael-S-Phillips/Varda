@@ -11,6 +11,7 @@ class ROISelector(pg.GraphicsObject):
         self.pts = None
         self.path = None
         self.color = color if color else (0, 0, 255, 100)
+        self.imageIndex = None
 
     # Method to handle user drawing
     def draw(self):
@@ -18,6 +19,9 @@ class ROISelector(pg.GraphicsObject):
         self.path = None
         self.scene().installEventFilter(self)
         self.prepareGeometryChange()
+
+    def setImageIndex(self, indx):
+        self.imageIndex = indx
 
     # Method to handle user initiated events
     def eventFilter(self, obj, ev):
