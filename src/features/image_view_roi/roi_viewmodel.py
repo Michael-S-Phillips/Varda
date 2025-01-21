@@ -2,6 +2,7 @@
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 from PyQt6.QtWidgets import QTableWidgetItem
 import numpy as np
+import pyqtgraph as pg
 
 # local imports
 from core.data import ProjectContext
@@ -58,6 +59,34 @@ class ROIViewModel(QObject):
         """Associate a table widget with the view model."""
         self.roiTable = roiTable
 
+    def getROIForRow(self, row):
+        """
+        Retrieve the FreeHandROI object associated with a given table row.
+        """
+        if 0 <= row < len(self.proj.getROIs(self.imageIndex)):
+            print(self.proj.getROIs(self.imageIndex)[row])
+        return None
+    
+    def plotMeanSpectrum(self, roi):
+        """
+        Plot the mean spectrum data for the given ROI.
+
+        Args:
+            roi (FreeHandROI): The ROI object containing the raster slice.
+        """
+        if roi.arraySlice is None:
+            print("No data available for this ROI.")
+            return
+
+        # Compute the mean spectrum from the array slice
+        #mean_spectrum = roi.arraySlice.mean(axis=(0, 1))
+
+        # Plot the mean spectrum (using PyQtGraph or another plotting library)
+
+        plot_window = pg.plot(title=f"Mean Spectrum for ROI {roi.color}")
+        #plot_window.plot(mean_spectrum, pen='b')
+        print(f"Plotted mean spectrum for ROI {roi.color}.")
+
     def _onDataChanged(self, index, changeType):
         """React to changes in the project context."""
         if changeType == ProjectContext.ChangeType.ROI and index == self.imageIndex:
@@ -69,21 +98,23 @@ class ROIViewModel(QObject):
         if not self.roiTable:
             return
 
-        # Get ROIs from the project context
-        rois = self.proj.getROIs(self.imageIndex)
-
         # Clear the existing table
         self.roiTable.setRowCount(0)
+        rois = self.proj.getROIs(self.imageIndex)
+        last_roi = rois[-1]
 
         # Populate the table with the new ROI data
-        for row_index, roi in enumerate(rois):
-            self.roiTable.insertRow(row_index)
+        if self.roiTable:
+            last_index = len(rois) - 1
+            self.roiTable.insertRow(last_index)
+            self.roiTable.setItem(last_index, 0, QTableWidgetItem(str(last_index)))
+            self.roiTable.setItem(last_index, 1, QTableWidgetItem(f"{last_roi.color}"))
 
-            # Fill the table with ROI data (replace placeholders as needed)
-            self.roiTable.setItem(row_index, 0, QTableWidgetItem(str(row_index)))
-            self.roiTable.setItem(row_index, 1, QTableWidgetItem("Data1"))  # Placeholder
-            self.roiTable.setItem(row_index, 2, QTableWidgetItem("Data2"))  # Placeholder
-            self.roiTable.setItem(row_index, 3, QTableWidgetItem("Data3"))  # Placeholder
+            # Add the "Plot mean spectrum" button
+            roi_view = self.roiTable.parentWidget()
+            roi_view._addPlotButtonToTable(last_index, last_roi)
+
+            self.roiTable.setItem(last_index, 3, QTableWidgetItem("Data3")) 
 
     # selectROI
 

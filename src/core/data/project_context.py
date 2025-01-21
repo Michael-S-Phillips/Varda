@@ -192,7 +192,6 @@ class ProjectContext(QObject):
         # call addROI and removeROI in the control panel
         self._images[index].rois.append(roi)
         self._emitChange(index, self.ChangeType.ROI)
-        print(roi.getArraySlice())
         return len(self._images[index].rois) - 1
     
     def removeROI(self, index, roiIndex):

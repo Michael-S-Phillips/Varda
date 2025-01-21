@@ -276,7 +276,6 @@ class RasterView(QWidget):
 
         # Apply the mask to extract the slice
         extracted_slice = raster[mask]
-        print(extracted_slice)
         return extracted_slice
     
     def _onROIDrawn(self):
