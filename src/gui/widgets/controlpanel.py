@@ -16,7 +16,7 @@ import sys
 
 # local imports
 from core.data.project_context import ProjectContext
-from gui.widgets.ROIselector import ROISelector
+from gui.widgets.ROI_selector import ROISelector
 from core.entities import FreeHandROI
 
 

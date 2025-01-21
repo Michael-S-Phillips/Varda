@@ -13,7 +13,7 @@ from skimage.draw import polygon
 
 # local imports
 from features.shared.selection_controls import StretchSelector, BandSelector
-from gui.widgets.ROIselector import ROISelector
+from gui.widgets.ROI_selector import ROISelector
 from core.entities.freehandROI import FreeHandROI
 from .raster_viewmodel import RasterViewModel
 
