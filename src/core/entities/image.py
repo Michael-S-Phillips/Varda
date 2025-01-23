@@ -14,6 +14,7 @@ import numpy as np
 from .band import Band
 from .stretch import Stretch
 from .metadata import Metadata
+from .freehandROI import FreeHandROI
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ class Image:
     metadata: Metadata
     stretch: List[Stretch]
     band: List[Band]
+    rois: List[FreeHandROI]
     index: int
 
     def __eq__(self, other):

@@ -64,7 +64,8 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
             # get envi metadata
             enviData = src.tags(ns="ENVI")
             if debug.DEBUG:
-                print("Raw Metadata:", enviData)
+                #print("Raw Metadata:", enviData)
+                pass
 
             description = (
                 enviData["description"].strip("{}")

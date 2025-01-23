@@ -20,6 +20,7 @@ from features import (
     image_view_raster,
     image_view_stretch,
     image_view_band,
+    image_view_roi,
     all_images_view_list,
     image_load,
 )
@@ -43,6 +44,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.proj = proj
         self.imageList = None
         self.selectedImage = None
+        self.rasterViewObj = None
         self.initUI()
         self.connectSignals()
 
@@ -61,7 +63,8 @@ class MainGUI(QtWidgets.QMainWindow):
         self.imageList = all_images_view_list.newList(self.proj, self)
         self.newDock("Image List", self.imageList, Qt.DockWidgetArea.LeftDockWidgetArea)
 
-        self.controlPanel = ControlPanel(None)
+        # Initialize Control Panel with ProjectContext
+        self.controlPanel = ControlPanel(self.proj)
         self.addDockWidget(
             Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock
         )
@@ -95,9 +98,19 @@ class MainGUI(QtWidgets.QMainWindow):
         self.imageList.currentItemChanged.connect(self.onSelectedImageChanged)
 
     def onSelectedImageChanged(self, item):
+        """
+        Handle the selection of a new image and update the control panel.
+        """
         if item is None:
+            self.selectedImage = None
+            self.controlPanel.updateActiveImage(None)
             return
-        print(item.text())
+
+        # Retrieve the selected image's index
+        index = self.imageList.row(item)
+        self.selectedImage = self.proj.getImage(index)
+        self.controlPanel.updateActiveImage(index)
+        print(f"Selected image updated: {self.selectedImage.metadata.name}")
 
     def contextMenuEvent(self, event):
         localPos = self.imageList.mapFromGlobal(event.globalPos())
@@ -114,17 +127,20 @@ class MainGUI(QtWidgets.QMainWindow):
         openView = contextMenu.addMenu("Open View")
         rasterView = openView.addAction("RasterData View")
         bandView = openView.addAction("Band View")
+        roiView = openView.addAction("ROI Table View")
         stretchView = openView.addAction("Stretch View")
         image = index.data(QtCore.Qt.ItemDataRole.UserRole)
         logger.debug(type(image))
         imageIndex = image.index
         rasterView.triggered.connect(lambda: self.openRasterView(imageIndex))
         bandView.triggered.connect(lambda: self.openBandView(imageIndex))
+        roiView.triggered.connect(lambda: self.openROIView(imageIndex))
         stretchView.triggered.connect(lambda: self.openStretchView(imageIndex))
         return contextMenu
 
     def openRasterView(self, index):
         view = image_view_raster.getRasterView(self.proj, index, self)
+        self.rasterViewObj = view
         dock = QtWidgets.QDockWidget("Raster Editor", parent=self)
         dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
         dock.setWidget(view)
@@ -141,6 +157,15 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def openBandView(self, index):
         view = image_view_band.getBandView(self.proj, index, self)
+        dock = QtWidgets.QDockWidget(parent=self)
+        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(view)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.setFloating(True)
+
+    def openROIView(self, index):
+        view = image_view_roi.getROIView(self.proj, index, self)
+        view.viewModel.setRasterView(self.rasterViewObj)
         dock = QtWidgets.QDockWidget(parent=self)
         dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
         dock.setWidget(view)
