@@ -11,7 +11,7 @@ from .histogram_viewmodel import HistogramViewModel
 
 
 class DualHistogram(QWidget):
-    def __init__(self, parent=None, image=None, color=(255, 255, 255, 50)):
+    def __init__(self, parent=None, image=None, color=(255, 255, 255)):
         super().__init__(parent)
         self.color = color
         self.image = image
@@ -22,9 +22,10 @@ class DualHistogram(QWidget):
         self.histogram = pg.HistogramLUTWidget(
             self, image=self.image, orientation="horizontal"
         )
-        self.histogram.item.regions[0].setBrush(QColor(*self.color))
+        self.histogram.item.regions[0].setBrush(QColor(*(*self.color, 25)))
+        self.histogram.item.regions[0].setHoverBrush(QColor(*(*self.color, 50)))
         self.histogram.item.gradient.hide()
-        self.histogram.item.fillHistogram(True, level=0.0, color=self.color)
+        self.histogram.item.fillHistogram(True, level=0.0, color=(*self.color, 50))
         self.histogramZoomed = pg.HistogramLUTWidget(
             self, image=self.image, orientation="horizontal"
         )
@@ -69,9 +70,9 @@ class HistogramView(QWidget):
         self._connectSignals()
 
     def _initUI(self):
-        self.histogramR = DualHistogram(self, self.imageItem, color=(255, 0, 0, 25))
-        self.histogramG = DualHistogram(self, self.imageItem, color=(0, 255, 0, 25))
-        self.histogramB = DualHistogram(self, self.imageItem, color=(0, 0, 255, 25))
+        self.histogramR = DualHistogram(self, self.imageItem, color=(255, 0, 0))
+        self.histogramG = DualHistogram(self, self.imageItem, color=(0, 255, 0))
+        self.histogramB = DualHistogram(self, self.imageItem, color=(0, 0, 255))
 
         self.bandSelector = BandSelector(
             self.viewModel.proj, self.viewModel.index, self
