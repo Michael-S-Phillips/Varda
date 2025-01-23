@@ -22,6 +22,7 @@ from features import (
     image_view_band,
     all_images_view_list,
     image_load,
+    image_view_histogram,
 )
 import core.utilities as utils
 
@@ -113,13 +114,23 @@ class MainGUI(QtWidgets.QMainWindow):
         rasterView = openView.addAction("RasterData View")
         bandView = openView.addAction("Band View")
         stretchView = openView.addAction("Stretch View")
+        histogramView = openView.addAction("Histogram View")
         image = index.data(QtCore.Qt.ItemDataRole.UserRole)
         logger.debug(type(image))
         imageIndex = image.index
         rasterView.triggered.connect(lambda: self.openRasterView(imageIndex))
         bandView.triggered.connect(lambda: self.openBandView(imageIndex))
         stretchView.triggered.connect(lambda: self.openStretchView(imageIndex))
+        histogramView.triggered.connect(lambda: self.openHistogramView(imageIndex))
         return contextMenu
+
+    def openHistogramView(self, index):
+        view = image_view_histogram.getHistogramView(self.proj, index, self)
+        dock = QtWidgets.QDockWidget("Histogram Editor", parent=self)
+        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(view)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.setFloating(True)
 
     def openRasterView(self, index):
         view = image_view_raster.getRasterView(self.proj, index, self)

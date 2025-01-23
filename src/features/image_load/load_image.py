@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 #  AbstractImageLoader stuff and just iterate through the modules. This would
 #  probably be a lot simpler to understand and work with.
 
+managers = []
+
 
 def loadNewImage(proj: ProjectContext, filePath=None, functionCallback=None):
     """Loads a new image and adds it to project.
@@ -26,6 +28,8 @@ def loadNewImage(proj: ProjectContext, filePath=None, functionCallback=None):
     Returns:
         int: Index of the newly added image. -1 if an error occurred.
     """
+    _cleanupManagerList()
+
     if filePath is None:
         filePath = _requestFilePath()
     if filePath is None:
@@ -35,7 +39,16 @@ def loadNewImage(proj: ProjectContext, filePath=None, functionCallback=None):
     loader = _getLoader(filePath)
 
     loadingManager = ImageLoadingManager(proj, loader, filePath, functionCallback)
+    managers.append(loadingManager)
     loadingManager.load()
+
+
+def _cleanupManagerList():
+    for i in range(len(managers)):
+        if managers[i].isComplete:
+            managers.pop(i)
+            i -= 1
+    # managers = [manager for manager in managers if not manager.isComplete]
 
 
 def _requestFilePath():
@@ -68,6 +81,7 @@ class ImageLoadingManager:
         self.loader = loader
         self.filePath = filePath
         self.functionCallback = functionCallback
+        self.isComplete = False
 
     def load(self):
         """Begins the loading process. This will load the image data in a
@@ -82,6 +96,7 @@ class ImageLoadingManager:
         raster, metadata = loadedData
         index = self.proj.createImage(raster, metadata)
         self.functionCallback(index)
+        self.isComplete = True
 
 
 # def loadNewImage(filepath):
