@@ -6,16 +6,18 @@ from PyQt6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
     QDockWidget,
-    QLabel,  # Add this import
+    QLabel,
     QWidget
 )
-
 from PyQt6.QtCore import Qt
 import pyqtgraph as pg
 import sys
 
-# local imports
+# Local imports
+from features.image_view_raster.PixelPlotWindow import PixelPlotWindow
 from core.data.project_context import ProjectContext
+from features.image_view_raster.raster_view import RasterView
+from features.image_view_raster.raster_viewmodel import RasterViewModel
 from gui.widgets.ROI_selector import ROISelector
 from core.entities import FreeHandROI
 
@@ -28,6 +30,7 @@ class ControlPanel(QMainWindow):
         super(ControlPanel, self).__init__(parent)
         self.project_context = project_context
         self.imageIndex = None
+        self.rasterView = None  # Keep the RasterView instance alive
         self.setWindowTitle("Control Panel")
         self.roiSelector = None
 
@@ -81,7 +84,9 @@ class ControlPanel(QMainWindow):
         self.tabsDock.setWidget(self.dock_widget_content)
 
     def handle_item_click(self, item, column):
-        """Handle clicks on tree widget items."""
+        """
+        Handle clicks on tree widget items.
+        """
         if item.text(0) == "ROI":
             self.handle_draw_roi()
         elif item.text(0) == "Pixel Plot":
@@ -161,20 +166,28 @@ class ControlPanel(QMainWindow):
     def handle_pixel_plot(self):
         """Handle the Show Pixel Plot action."""
         if self.imageIndex is not None:
-            print(f"Showing pixel plot for image index {self.imageIndex}")
+            image = self.project_context.getImage(self.imageIndex)
+
+            # Retrieve raster data and wavelength
+            raster_data = image.raster
+            wavelength = getattr(image.metadata, "wavelength", None)
+
+            # Create and show the Pixel Plot Window
+            self.pixelPlotWindow = PixelPlotWindow(raster_data, wavelength)
+            self.pixelPlotWindow.show()
         else:
             print("No active image selected.")
 
     def updateActiveImage(self, index):
-        """Update the active image index and label based on the selected image."""
+        """
+        Update the active image index and label.
+        """
         self.imageIndex = index
         if index is None:
             self.activeImageLabel.setText("No image selected")
         else:
-            # Dynamically generate the name if it wasn't explicitly set
-            image_name = f"Image {index}" if not hasattr(self.project_context.getImage(index).metadata,
-                                                         "name") else self.project_context.getImage(index).metadata.name
-            self.activeImageLabel.setText(f"Active Image: {image_name}")
+            # Use the image index for the label
+            self.activeImageLabel.setText(f"Active Image: Image {index}")
 
 
 # Example usage

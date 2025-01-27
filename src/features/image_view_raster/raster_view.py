@@ -1,7 +1,5 @@
-# standard library
 import logging
-
-# third party imports
+import numpy as np
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtCore import QEvent
 from PyQt6.QtGui import QPainter
@@ -11,7 +9,6 @@ import numpy as np
 from scipy.spatial import ConvexHull
 from skimage.draw import polygon
 
-# local imports
 from features.shared.selection_controls import StretchSelector, BandSelector
 from gui.widgets.ROI_selector import ROISelector
 from core.entities.freehandROI import FreeHandROI
@@ -19,43 +16,60 @@ from .raster_viewmodel import RasterViewModel
 
 logger = logging.getLogger(__name__)
 
-# TODO: This feature is a little messy and could probably be structured more cleanly.
-#  Maybe by moving more of the functionality and state-tracking the viewModel.
+
+class PixelPlotWindow(QtWidgets.QMainWindow):
+    """Separate window for displaying pixel spectrum plots."""
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Pixel Spectrum")
+        # Set window flags to keep the window on top
+        self.setWindowFlags(
+            QtCore.Qt.WindowType.Window |
+            QtCore.Qt.WindowType.WindowStaysOnTopHint
+        )
+        # Initialize the plot widget
+        self.plot_widget = pg.PlotWidget(title="Pixel Spectrum")
+        self.plot_widget.setMinimumSize(600, 300)
+        self.plot_widget.setLabels(left="Intensity", bottom="Wavelength (nm)")
+        self.plot_widget.addLegend()
+        self.setCentralWidget(self.plot_widget)
+        self.hide()  # Initially hidden
+
+    def update_plot(self, wavelengths, spectral_data, coords):
+        """Update the plot with new spectral data."""
+        self.plot_widget.clear()
+        logger.debug(f"Plotting spectrum for coordinates: {coords}")
+        logger.debug(f"Wavelength range: {wavelengths.min():.2f} - {wavelengths.max():.2f} nm")
+        logger.debug(f"Spectral data range: {spectral_data.min():.2f} - {spectral_data.max():.2f}")
+
+        self.plot_widget.plot(wavelengths, spectral_data, pen='y')
+        self.plot_widget.setTitle(f"Pixel Spectrum at ({coords[0]}, {coords[1]})")
+        if not self.isVisible():
+            self.show()
 
 
 class RasterView(QWidget):
-    """A custom widget that displays a view of an image in varda.
-    has various signals and slots for linking this view with other views
-
-    Attributes:
-        contextImage (pg.ImageItem): Shows the entire image.
-        contextROI (pg.rectROI): adjustable ROI overtop contextImage.
-        contextView (pg.ViewBox): Container for contextImage and its ROI.
-        mainImage (pg.ImageItem): Shows the image region selected by contextROI.
-        mainROI (pg.RectROI): adjustable ROI overtop mainImage.
-        mainView (pg.ViewBox): Container for mainImage and its ROI.
-        zoomImage (pg.ImageItem):  Shows the image region selected by mainROI.
-        zoomView (pg.ViewBox): Container for zoomImage.
-    """
+    """Main widget for displaying and interacting with raster images."""
 
     def __init__(self, viewmodel: RasterViewModel, parent=None):
-        """Initializes the three views, the histogram, and ROI controls"""
         super().__init__(parent=parent)
         self.viewModel = viewmodel
 
-        self.mainView: pg.ViewBox
-        self.contextView: pg.ViewBox
-        self.zoomView: pg.RectROI
+        # Initialize separate window for pixel plot
+        self.pixel_plot_window = PixelPlotWindow()
 
-        self.mainImage: pg.ImageItem
-        self.contextImage: pg.ImageItem
-        self.zoomImage: pg.ImageItem
+        # Initialize image items and views
+        self.mainImage = None
+        self.contextImage = None
+        self.zoomImage = None
 
-        self.contextROI: pg.RectROI = None
-        self.mainROI: pg.RectROI = None
+        self.mainView = None
+        self.contextView = None
+        self.zoomView = None
 
-        self.stretchSelector: StretchSelector
-        self.bandSelector: BandSelector
+        self.contextROI = None
+        self.mainROI = None
 
         self.freehandROIs = []
 
@@ -68,30 +82,64 @@ class RasterView(QWidget):
             (0, 255, 255, 100),  # Cyan
         ]
         self.colorIndex = 0
-
+        
+        # Initialize the UI
         self._initUI()
         self._initROIS()
         self._connectSignals()
+        
+        # Log initial image information
+        self._logImageInfo()
 
+    def _logImageInfo(self):
+        """Log information about the loaded image."""
+        try:
+            image = self.viewModel.proj.getImage(self.viewModel.index)
+            logger.debug(f"Image shape: {image.raster.shape}")
+            logger.debug(f"Metadata wavelength shape: {image.metadata.wavelength.shape}")
+            logger.debug(f"First few wavelengths: {image.metadata.wavelength[:5]}")
+            logger.debug(
+                f"Wavelength range: {image.metadata.wavelength.min():.2f} - {image.metadata.wavelength.max():.2f} nm")
+        except Exception as e:
+            logger.error(f"Error logging image info: {str(e)}")
 
     def _initUI(self):
+        """Initialize the user interface components."""
+        # Initialize Image Items
         self.mainImage = self._initImageItem()
         self.contextImage = self._initImageItem()
         self.zoomImage = self._initImageItem()
-
+        # Initialize view boxes
         self.mainView = self._initViewBox("Main View", self.mainImage)
         self.contextView = self._initViewBox("Context View", self.contextImage)
         self.zoomView = self._initViewBox("Zoom View", self.zoomImage)
 
+        # Configure zoom view
+        self.zoomView.setMouseEnabled(x=True, y=True)
+
+        # Add crosshairs to zoom view
+        self.crosshair_v = pg.InfiniteLine(angle=90, movable=False, pen='r')
+        self.crosshair_h = pg.InfiniteLine(angle=0, movable=False, pen='r')
+        self.zoomView.addItem(self.crosshair_v)
+        self.zoomView.addItem(self.crosshair_h)
+
+        # Connect zoom image click handler
+        self.zoomImage.mouseClickEvent = self.zoomImageClicked
+
+        # Initialize selectors
         self.stretchSelector = StretchSelector(
             self.viewModel.proj, self.viewModel.index, self
         )
         self.bandSelector = BandSelector(
             self.viewModel.proj, self.viewModel.index, self
         )
+
+        # Build the layout
         self._buildLayout()
 
     def _buildLayout(self):
+        """Build the widget layout."""
+        # Create graphics views
         mainGraphicsView = pg.GraphicsView()
         mainGraphicsView.setCentralItem(self.mainView)
 
@@ -101,6 +149,7 @@ class RasterView(QWidget):
         zoomGraphicsView = pg.GraphicsView()
         zoomGraphicsView.setCentralItem(self.zoomView)
 
+        # Create splitters
         verticalSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
         verticalSplitter.addWidget(contextGraphicsView)
         verticalSplitter.addWidget(zoomGraphicsView)
@@ -109,12 +158,7 @@ class RasterView(QWidget):
         horizontalSplitter.addWidget(mainGraphicsView)
         horizontalSplitter.addWidget(verticalSplitter)
 
-        mainSplitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
-        mainSplitter.addWidget(horizontalSplitter)
-        # make the mainView larger than the zoom/context views.
-        mainSplitter.setStretchFactor(0, 10)
-        mainSplitter.setStretchFactor(1, 1)
-
+        # Create selector layout
         selectorLayout = QtWidgets.QHBoxLayout()
         selectorLayout.addWidget(self.stretchSelector)
         selectorLayout.addWidget(self.bandSelector)
@@ -124,60 +168,102 @@ class RasterView(QWidget):
         self.freehandROIs.append(first_roi)
         mainGraphicsView.addItem(self.freehandROIs[0])
 
+        # Create main layout
         layout = QtWidgets.QVBoxLayout()
         layout.addLayout(selectorLayout)
-        layout.addWidget(mainSplitter)
+        layout.addWidget(horizontalSplitter)
         self.setLayout(layout)
 
+    def zoomImageClicked(self, event):
+        """Handle clicks on the zoom image."""
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            try:
+                # Get click position
+                pos = event.pos()
+                x, y = int(pos.x()), int(pos.y())
+
+                # Get image and raster data
+                image = self.viewModel.proj.getImage(self.viewModel.index)
+                raster_data = image.raster
+
+                # Calculate coordinates in original image space
+                main_roi_pos = self.mainROI.pos()
+                context_roi_pos = self.contextROI.pos()
+                final_x = int(context_roi_pos.x() + main_roi_pos.x() + x)
+                final_y = int(context_roi_pos.y() + main_roi_pos.y() + y)
+
+                # Update display if coordinates are valid
+                if (0 <= final_x < raster_data.shape[1] and
+                        0 <= final_y < raster_data.shape[0]):
+                    # Update crosshairs
+                    self.crosshair_v.setPos(x)
+                    self.crosshair_h.setPos(y)
+
+                    # Get spectral data
+                    spectral_data = raster_data[final_y, final_x, :]
+
+                    # Get wavelengths from image metadata
+                    wavelengths = image.metadata.wavelength
+                    logger.debug(f"Wavelength data from metadata: {wavelengths[:5]}...")  # Log first 5 values
+                    logger.debug(f"Wavelength array shape: {wavelengths.shape if wavelengths is not None else 'None'}")
+                    logger.debug(f"Raster shape: {raster_data.shape}")
+
+                    if wavelengths is None or len(wavelengths) == 0 or len(wavelengths) != raster_data.shape[2]:
+                        logger.warning(f"Invalid wavelength data detected. Using band numbers instead.")
+                        wavelengths = np.arange(raster_data.shape[2])
+                    else:
+                        logger.info(f"Using wavelength range: {wavelengths.min():.2f} - {wavelengths.max():.2f} nm")
+
+                    # Update plot window
+                    self.pixel_plot_window.update_plot(wavelengths, spectral_data, (final_x, final_y))
+
+            except Exception as e:
+                logger.error(f"Error updating pixel plot: {str(e)}")
+
+        event.accept()
+
     def _connectSignals(self):
-        # signals so viewmodel can tell us when to update
-        self.viewModel.sigStretchChanged.connect(self._onStretchChanged)
-        self.viewModel.sigBandChanged.connect(self._onBandChanged)
-
-        # signals so we can tell the viewmodel that the user selected a new band/stretch
-        self.stretchSelector.currentIndexChanged.connect(self.viewModel.selectStretch)
-        self.bandSelector.currentIndexChanged.connect(self.viewModel.selectBand)
-
-        # signals for ROI functionality
-        self.contextROI.sigRegionChanged.connect(self._updateMainView)
-        self.mainROI.sigRegionChanged.connect(self._updateZoomView)
+        """Connect ROI signals."""
+        if self.contextROI:
+            self.contextROI.sigRegionChanged.connect(self._updateMainView)
+        if self.mainROI:
+            self.mainROI.sigRegionChanged.connect(self._updateZoomView)
 
         self.freehandROIs[-1].sigDrawingComplete.connect(self._onROIDrawn)
         
 
 
     def _initROIS(self):
-        # creates new ROIs and inserts them into the views.
+        """Initialize Region of Interest elements."""
         self.clearROIs()
 
-        # because we rely on the size of the imageItem to position the ROI, we need
-        # to set the image BEFORE adding an ROI to it, hence the process of
-        # update context -> add context ROI -> update main -> add ROI...
-        # TODO: There is almost certainly a better way to set this up. But I'll come
-        #  back to it later.
+        # Initialize context ROI
         self._updateImageItem(self.contextImage, self.viewModel.getRasterFromBand())
         self.contextROI = self._getDefaultROI(self.contextImage)
         self.contextView.addItem(self.contextROI)
 
+        # Initialize main ROI
         self._updateMainView()
         self.mainROI = self._getDefaultROI(self.mainImage)
         self.mainView.addItem(self.mainROI)
 
+        # Update zoom view
         self._updateZoomView()
 
     def clearROIs(self):
-        """Clears the existing ROIs"""
+        """Clear existing ROIs."""
         if self.contextROI is not None:
             self.contextView.removeItem(self.contextROI)
         if self.mainROI is not None:
             self.mainView.removeItem(self.mainROI)
 
     def _updateViews(self):
+        """Update all views."""
         self._updateImageItem(self.contextImage, self.viewModel.getRasterFromBand())
         self._updateMainView()
 
     def _updateMainView(self):
-        """Updates the main view based on the context ROI"""
+        """Update the main view based on context ROI."""
         if self.contextROI is None:
             return
 
@@ -189,16 +275,14 @@ class RasterView(QWidget):
         self._updateImageItem(self.mainImage, image)
 
         if self.mainROI is not None:
-            # force mainROI to update so that it gets readjusted to be inside new
-            # image range.
             self.mainROI.maxBounds = self.mainImage.boundingRect()
             currentPos = self.mainROI.pos()
-            self.mainROI.setPos(currentPos + QtCore.QPointF(1, 1))  # Small nudge
-            self.mainROI.setPos(currentPos)  # Reset back to original position
+            self.mainROI.setPos(currentPos + QtCore.QPointF(1, 1))
+            self.mainROI.setPos(currentPos)
         self._updateZoomView()
 
     def _updateZoomView(self):
-        """Updates the zoom view based on the main ROI"""
+        """Update the zoom view based on main ROI."""
         if self.mainROI is None:
             return
 
@@ -208,20 +292,19 @@ class RasterView(QWidget):
         self._updateImageItem(self.zoomImage, image)
 
     def _updateImageItem(self, imageItem, rasterData):
+        """Update an image item with new raster data."""
         levels = self.viewModel.getSelectedStretch().toList()
         imageItem.setImage(rasterData, levels=levels)
 
     def _onStretchChanged(self):
-        """Updates the image levels based on the model stretch"""
+        """Handle stretch changes."""
         levels = self.viewModel.getSelectedStretch().toList()
-        # self.tripleHistogram.setLevels(rgba=levels)
-
         self.mainImage.setLevels(levels)
         self.contextImage.setLevels(levels)
         self.zoomImage.setLevels(levels)
 
     def _onBandChanged(self):
-        """Updates the model band based on the band editor"""
+        """Handle band changes."""
         self._updateViews()
   
     # def startDrawingROI(self):
@@ -305,11 +388,12 @@ class RasterView(QWidget):
 
     @staticmethod
     def _initImageItem():
+        """Initialize a new image item."""
         return pg.ImageItem(axisOrder="row-major", autoLevels=False, levels=(0, 1))
 
     @staticmethod
     def _initViewBox(name, imageItem):
-        """Helper function to initialize an image item view"""
+        """Initialize a new view box."""
         viewBox = pg.ViewBox(
             name=name, lockAspect=True, enableMouse=False, invertY=True
         )
@@ -318,6 +402,7 @@ class RasterView(QWidget):
 
     @staticmethod
     def _getDefaultROI(imageItem):
+        """Get default ROI for an image item."""
         imgRect = imageItem.boundingRect()
         center = imageItem.mapToParent(imgRect.center())
         startSize = (imgRect.width() / 4, imgRect.height() / 4)
@@ -325,15 +410,9 @@ class RasterView(QWidget):
 
     @staticmethod
     def _makeROISquare(roi):
-        """Ensures the ROI is square."""
+        """Make an ROI square shaped."""
         size = roi.size()
         minDim = min(size.x(), size.y())
-
-        # Adjust the size to be square
         roi.setSize([minDim, minDim], update=False)
-
-        # Reposition the scale handle
         handle = roi.handles[0]["item"]
         handle.setPos(minDim, minDim)
-
-   
