@@ -20,8 +20,10 @@ from features import (
     image_view_raster,
     image_view_stretch,
     image_view_band,
+    image_view_roi,
     all_images_view_list,
     image_load,
+    image_view_histogram,
 )
 import core.utilities as utils
 
@@ -43,6 +45,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.proj = proj
         self.imageList = None
         self.selectedImage = None
+        self.rasterViewObj = None
         self.initUI()
         self.connectSignals()
 
@@ -86,12 +89,10 @@ class MainGUI(QtWidgets.QMainWindow):
         return dock
 
     def connectSignals(self):
-        self.menuBar().sigImportFile.connect(
-            lambda: asyncio.create_task(self.loadImage())
-        )
+        self.menuBar().sigImportFile.connect(self.loadImage)
         self.menuBar().sigExitApp.connect(self.exitApp)
-        # menubar.sigSaveProject.connect(self.saveProject)
-        # menubar.sigOpenProject.connect(self.loadProject)
+        # self.menuBar().menubar.sigSaveProject.connect(self.saveProject)
+        # self.menuBar().menubar.sigOpenProject.connect(self.loadProject)
 
         self.imageList.currentItemChanged.connect(self.onSelectedImageChanged)
 
@@ -125,22 +126,37 @@ class MainGUI(QtWidgets.QMainWindow):
         openView = contextMenu.addMenu("Open View")
         rasterView = openView.addAction("RasterData View")
         bandView = openView.addAction("Band View")
+        roiView = openView.addAction("ROI Table View")
         stretchView = openView.addAction("Stretch View")
+        histogramView = openView.addAction("Histogram View")
         image = index.data(QtCore.Qt.ItemDataRole.UserRole)
         logger.debug(type(image))
         imageIndex = image.index
         rasterView.triggered.connect(lambda: self.openRasterView(imageIndex))
         bandView.triggered.connect(lambda: self.openBandView(imageIndex))
+        roiView.triggered.connect(lambda: self.openROIView(imageIndex))
         stretchView.triggered.connect(lambda: self.openStretchView(imageIndex))
+        histogramView.triggered.connect(lambda: self.openHistogramView(imageIndex))
         return contextMenu
 
-    def openRasterView(self, index):
-        view = image_view_raster.getRasterView(self.proj, index, self)
-        dock = QtWidgets.QDockWidget("Raster Editor", parent=self)
+    def openHistogramView(self, index):
+        view = image_view_histogram.getHistogramView(self.proj, index, self)
+        dock = QtWidgets.QDockWidget("Histogram Editor", parent=self)
         dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
         dock.setWidget(view)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
+
+    def openRasterView(self, index):
+        view = image_view_raster.getRasterView(self.proj, index, self)
+        self.rasterViewObj = view
+        self.setCentralWidget(view)
+        return
+        dock = QtWidgets.QDockWidget("Raster Editor", parent=self)
+        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(view)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        # dock.setFloating(True)
 
     def openStretchView(self, index):
         view = image_view_stretch.getStretchView(self.proj, index, self)
@@ -158,27 +174,25 @@ class MainGUI(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
 
-    async def loadImage(self):
-        await image_load.loadNewImage(self.proj)
+    def openROIView(self, index):
+        view = image_view_roi.getROIView(self.proj, index, self)
+        view.viewModel.setRasterView(self.rasterViewObj)
+        dock = QtWidgets.QDockWidget(parent=self)
+        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setWidget(view)
+        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.setFloating(True)
 
-    # def onImageLoaded(self, image):
-    #     self.statusBar().loadingFinished()
-    #     if image is None:
-    #         return
-    #
-    #     imageView = ImageViewRaster(image)
-    #
-    #     # remove initial prompt
-    #     if self.centralWidget().isHidden() is False:
-    #         self.centralWidget().hide()
-    #
-    #     dock = QtWidgets.QDockWidget("Image" + str(self.imageManager.rowCount()), self)
-    #     dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
-    #     dock.setWidget(imageView)
-    #     self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-    #     dock.show()
-    #     dock.raise_()
-    #
+    def loadImage(self, filePath=None):
+        self.statusBar().showLoadingMessage()
+        image_load.loadNewImage(self.proj, filePath, self.onImageLoaded)
+
+    def onImageLoaded(self, index):
+        self.statusBar().loadingFinished()
+        # remove initial prompt
+        # if self.centralWidget().isHidden() is False:
+        #     self.centralWidget().hide()
+
     def saveProject(self):
         fileName = QtWidgets.QFileDialog.getSaveFileName(
             None, "Save File", "", "Varda project file (" "*.varda)"
@@ -193,20 +207,19 @@ class MainGUI(QtWidgets.QMainWindow):
         )
         if not fileName[0]:
             return
-
         # TODO
 
     def exitApp(self):
         self.close()
 
-    # @override
-    # def dragEnterEvent(self, event, **kwargs):
-    #     event.acceptProposedAction()
-    #
-    # @override
-    # def dropEvent(self, event, **kwargs):
-    #     self.statusBar().showLoadingMessage()
-    #     self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
+    @override
+    def dragEnterEvent(self, event, **kwargs):
+        event.acceptProposedAction()
+
+    @override
+    def dropEvent(self, event, **kwargs):
+        self.statusBar().showLoadingMessage()
+        self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
 
 
 def startGui(proj: ProjectContext):

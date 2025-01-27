@@ -1,10 +1,17 @@
 import logging
 import numpy as np
 from PyQt6 import QtCore, QtWidgets
+from PyQt6.QtCore import QEvent
+from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QWidget
 import pyqtgraph as pg
+import numpy as np
+from scipy.spatial import ConvexHull
+from skimage.draw import polygon
 
 from features.shared.selection_controls import StretchSelector, BandSelector
+from gui.widgets.ROI_selector import ROISelector
+from core.entities.freehandROI import FreeHandROI
 from .raster_viewmodel import RasterViewModel
 
 logger = logging.getLogger(__name__)
@@ -53,9 +60,9 @@ class RasterView(QWidget):
         self.pixel_plot_window = PixelPlotWindow()
 
         # Initialize image items and views
-        self.mainImage = self._initImageItem()
-        self.contextImage = self._initImageItem()
-        self.zoomImage = self._initImageItem()
+        self.mainImage = None
+        self.contextImage = None
+        self.zoomImage = None
 
         self.mainView = None
         self.contextView = None
@@ -64,11 +71,23 @@ class RasterView(QWidget):
         self.contextROI = None
         self.mainROI = None
 
+        self.freehandROIs = []
+
+        self.roiColors = [
+            (255, 0, 0, 100),  # Red
+            (0, 255, 0, 100),  # Green
+            (0, 0, 255, 100),  # Blue
+            (255, 255, 0, 100),  # Yellow
+            (255, 0, 255, 100),  # Magenta
+            (0, 255, 255, 100),  # Cyan
+        ]
+        self.colorIndex = 0
+        
         # Initialize the UI
         self._initUI()
         self._initROIS()
         self._connectSignals()
-
+        
         # Log initial image information
         self._logImageInfo()
 
@@ -86,6 +105,10 @@ class RasterView(QWidget):
 
     def _initUI(self):
         """Initialize the user interface components."""
+        # Initialize Image Items
+        self.mainImage = self._initImageItem()
+        self.contextImage = self._initImageItem()
+        self.zoomImage = self._initImageItem()
         # Initialize view boxes
         self.mainView = self._initViewBox("Main View", self.mainImage)
         self.contextView = self._initViewBox("Context View", self.contextImage)
@@ -139,6 +162,11 @@ class RasterView(QWidget):
         selectorLayout = QtWidgets.QHBoxLayout()
         selectorLayout.addWidget(self.stretchSelector)
         selectorLayout.addWidget(self.bandSelector)
+
+        first_roi = ROISelector(None)
+        first_roi.setImageIndex(self.viewModel.index)
+        self.freehandROIs.append(first_roi)
+        mainGraphicsView.addItem(self.freehandROIs[0])
 
         # Create main layout
         layout = QtWidgets.QVBoxLayout()
@@ -200,6 +228,10 @@ class RasterView(QWidget):
             self.contextROI.sigRegionChanged.connect(self._updateMainView)
         if self.mainROI:
             self.mainROI.sigRegionChanged.connect(self._updateZoomView)
+
+        self.freehandROIs[-1].sigDrawingComplete.connect(self._onROIDrawn)
+        
+
 
     def _initROIS(self):
         """Initialize Region of Interest elements."""
@@ -274,6 +306,85 @@ class RasterView(QWidget):
     def _onBandChanged(self):
         """Handle band changes."""
         self._updateViews()
+  
+    # def startDrawingROI(self):
+    #     """Start the ROI drawing process."""
+    #     if self.freehandROI:
+    #         self.freehandROI.draw()
+
+    def startNewROI(self):
+        """Create and start a new FreehandROI."""
+
+        color = self.roiColors[self.colorIndex]
+        self.colorIndex = (self.colorIndex + 1) % len(self.roiColors)
+
+        new_roi = ROISelector(color)
+        new_roi.setImageIndex(self.viewModel.index)
+        self.freehandROIs.append(new_roi)
+        self.mainView.addItem(new_roi)
+
+        # Connect the new ROI's signal
+        new_roi.sigDrawingComplete.connect(self._onROIDrawn)
+
+        # Start drawing
+        new_roi.draw()
+
+    def extractArraySlice(self, roi: ROISelector):
+        """
+        Extract the raster data slice bounded by the given ROI points.
+        
+        Args:
+            roi (FreeHandROI): The ROI object containing points.
+
+        Returns:
+            np.ndarray: The raster slice bounded by the ROI.
+        """
+        # Get raster data for the current image
+        raster = self.viewModel.proj.getImage(roi.imageIndex).raster
+
+        # Convert ROI points to integer indices
+        points = np.array(roi.getLinePts(), dtype=int)
+
+        # Compute a convex hull or polygon mask
+        if len(points) > 2:
+            hull = ConvexHull(points)
+            polygon_points = points[hull.vertices]
+        else:
+            polygon_points = points
+
+        # Create a mask for the ROI
+        rr, cc = polygon(polygon_points[:, 1], polygon_points[:, 0], raster.shape[:2])
+        mask = np.zeros(raster.shape[:2], dtype=bool)
+        mask[rr, cc] = True
+
+        # Apply the mask to extract the slice
+        extracted_slice = raster[mask]
+        return extracted_slice
+    
+    def _onROIDrawn(self):
+        """
+        Handle the completion of an ROI drawing.
+        Extracts the raster slice, creates a FreeHandROI, and adds it to the ProjectContext.
+        """
+        last_roi = self.freehandROIs[-1]
+
+        # Get ROI data
+        roi_points = last_roi.getLinePts()
+        roi_color = last_roi.color
+        image_index = self.viewModel.index
+
+        # Extract the array slice for the ROI
+        array_slice = self.extractArraySlice(last_roi)
+
+        # Create a FreeHandROI and add it to the ProjectContext
+        roi = FreeHandROI(
+            points=roi_points,
+            color=roi_color,
+            imageIndex=image_index,
+            arraySlice=array_slice,
+        )
+        self.viewModel.proj.addROI(image_index, roi)
+
 
     @staticmethod
     def _initImageItem():

@@ -4,35 +4,51 @@ import logging
 from PyQt6.QtWidgets import QFileDialog
 
 from core.data import ProjectContext
+import core.utilities as utils
 from features.image_load.abstractimageloader import AbstractImageLoader
 
 
 logger = logging.getLogger(__name__)
 
 
-# TODO: switch from async back to multithrading. Turns out async still freezes
-#  the program.
-
-
 # TODO: create improved system for image loading. I think we can skip the
 #  AbstractImageLoader stuff and just iterate through the modules. This would
 #  probably be a lot simpler to understand and work with.
 
+managers = []
 
-async def loadNewImage(proj: ProjectContext, filePath=None):
-    """Queries the user for a filePath and Loads the image. adds it to project
+
+def loadNewImage(proj: ProjectContext, filePath=None, functionCallback=None):
+    """Loads a new image and adds it to project.
+    If a filePath is not provided, it will prompt the user to select a file
+    using a file dialog.
+    functionCallback is an optional function that will be called after the
+    image is loaded.
 
     Returns:
-        int: Index of the newly added image.
+        int: Index of the newly added image. -1 if an error occurred.
     """
+    _cleanupManagerList()
+
     if filePath is None:
         filePath = _requestFilePath()
     if filePath is None:
-        return -1
+        functionCallback(-1)
+        return
 
-    raster, metadata = _beginLoader(filePath)
-    index = proj.createImage(raster, metadata)
-    return index
+    loader = _getLoader(filePath)
+
+    loadingManager = ImageLoadingManager(proj, loader, filePath, functionCallback)
+    managers.append(loadingManager)
+    loadingManager.load()
+
+
+def _cleanupManagerList():
+    for i in range(len(managers)):
+        if managers[i].isComplete:
+            managers.pop(i)
+            i -= 1
+    # managers = [manager for manager in managers if not manager.isComplete]
 
 
 def _requestFilePath():
@@ -45,12 +61,11 @@ def _requestFilePath():
     return fileName[0]
 
 
-def _beginLoader(filePath):
+def _getLoader(filePath):
     imageType = _getImageType(filePath)
     for loader in AbstractImageLoader.subclasses:
         if imageType in loader.imageType:
-            # load() returns a tuple, so we unpack it (*) to pass to ImageModel
-            return loader().load(filePath)
+            return loader()
 
     # if no image type is found, raise an error
     raise ValueError(f"Bad file type {imageType}")
@@ -58,6 +73,30 @@ def _beginLoader(filePath):
 
 def _getImageType(path):
     return Path(path).suffix.strip()
+
+
+class ImageLoadingManager:
+    def __init__(self, proj, loader, filePath, functionCallback):
+        self.proj = proj
+        self.loader = loader
+        self.filePath = filePath
+        self.functionCallback = functionCallback
+        self.isComplete = False
+
+    def load(self):
+        """Begins the loading process. This will load the image data in a
+        separate thread. When the complete, it will use the data to add a
+        new image to the project, and call the functionCallback.
+        """
+        utils.threading_helper.dispatchThreadProcess(
+            self._onLoaderFinished, lambda: self.loader.load(self.filePath)
+        )
+
+    def _onLoaderFinished(self, loadedData):
+        raster, metadata = loadedData
+        index = self.proj.createImage(raster, metadata)
+        self.functionCallback(index)
+        self.isComplete = True
 
 
 # def loadNewImage(filepath):

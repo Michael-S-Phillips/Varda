@@ -8,7 +8,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 import numpy as np
 
 # local imports
-from core.entities import Image, Metadata, Band, Stretch
+from core.entities import Image, Metadata, Band, Stretch, FreeHandROI
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ class ProjectContext(QObject):
         BAND = "band"
         STRETCH = "stretch"
         METADATA = "metadata"
+        ROI = "roi"
 
     # signal that emits when something writes to the projectContext.
     # int argument is the index of the item that was changed.
@@ -53,6 +54,7 @@ class ProjectContext(QObject):
         metadata: Metadata,
         stretch: List[Stretch] = None,
         band: List[Band] = None,
+        roi: List[FreeHandROI] = None
     ):
         """Creates a new image with optional defaults for stretch, adding it to the
         project. Unless we're loading from an existing project, a newly
@@ -63,6 +65,7 @@ class ProjectContext(QObject):
             metadata,
             stretch if stretch else [Stretch.createDefault()],
             band if band else [Band.createDefault()],
+            roi if roi else [],
             len(self._images),
         )
         if len(image.stretch) == 0:
@@ -180,8 +183,23 @@ class ProjectContext(QObject):
         logger.debug(
             f"Updated Band.\n"
             f"  old: {oldBand.r}, {oldBand.g}, {oldBand.b}\n"
-            f"  new:  {newBand.r}, {newBand.g}, {newBand.b}"
+            f"  new: {newBand.r}, {newBand.g}, {newBand.b}"
         )
+
+    # ROI actions
+    def addROI(self, index, roi: Any):
+        # need to put logic for roi band somewhere 
+        # call addROI and removeROI in the control panel
+        self._images[index].rois.append(roi)
+        self._emitChange(index, self.ChangeType.ROI)
+        return len(self._images[index].rois) - 1
+    
+    def removeROI(self, index, roiIndex):
+        self._images[index].rois.pop(roiIndex)
+        self._emitChange(index, self.ChangeType.ROI)
+
+    def getROIs(self, index):
+        return self._images[index].rois
 
     # Helper methods
     def _emitChange(self, index, changeType):

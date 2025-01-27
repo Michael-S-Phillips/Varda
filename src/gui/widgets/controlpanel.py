@@ -10,13 +10,16 @@ from PyQt6.QtWidgets import (
     QWidget
 )
 from PyQt6.QtCore import Qt
+import pyqtgraph as pg
 import sys
-from features.image_view_raster.PixelPlotWindow import PixelPlotWindow
 
 # Local imports
+from features.image_view_raster.PixelPlotWindow import PixelPlotWindow
 from core.data.project_context import ProjectContext
 from features.image_view_raster.raster_view import RasterView
 from features.image_view_raster.raster_viewmodel import RasterViewModel
+from gui.widgets.ROI_selector import ROISelector
+from core.entities import FreeHandROI
 
 
 class ControlPanel(QMainWindow):
@@ -29,14 +32,21 @@ class ControlPanel(QMainWindow):
         self.imageIndex = None
         self.rasterView = None  # Keep the RasterView instance alive
         self.setWindowTitle("Control Panel")
+        self.roiSelector = None
+
+
+        self.setWindowTitle("Control Panel")
         self.resize(400, 300)
+
+        # Add graphics view to layout
 
         # Create Dock Widget
         self.tabsDock = QDockWidget("Control Panel", self)
 
         # Main Widget and Layout for Dock Widget
-        dock_widget_content = QWidget()
-        main_layout = QVBoxLayout()
+        self.dock_widget_content = QWidget()
+        self.main_layout = QVBoxLayout()
+
 
         # Active Image Label
         self.activeImageLabel = QLabel("No image selected")
@@ -66,12 +76,12 @@ class ControlPanel(QMainWindow):
         self.treeWidget.itemClicked.connect(self.handle_item_click)
 
         # Add widgets to the layout
-        main_layout.addWidget(self.activeImageLabel)
-        main_layout.addWidget(self.treeWidget)
-        dock_widget_content.setLayout(main_layout)
+        self.main_layout.addWidget(self.activeImageLabel)
+        self.main_layout.addWidget(self.treeWidget)
+        self.dock_widget_content.setLayout(self.main_layout)
 
         # Set Dock Widget Content
-        self.tabsDock.setWidget(dock_widget_content)
+        self.tabsDock.setWidget(self.dock_widget_content)
 
     def handle_item_click(self, item, column):
         """
@@ -85,13 +95,73 @@ class ControlPanel(QMainWindow):
             print("Settings clicked")
 
     def handle_draw_roi(self):
-        """
-        Handle the Draw ROI action.
-        """
-        if self.imageIndex is not None:
-            print(f"Drawing ROI for image index {self.imageIndex}")
+        """Handle the Draw ROI action."""
+        if self.imageIndex is None:
+            print("No active image selected.")
+            return
+
+        # Access the current image
+        current_image = self.project_context.getImage(self.imageIndex)
+
+        # Initialize or update ROI Selector
+        if self.roiSelector is None:
+            self.roiSelector = ROISelector()
+
+        # add to the raster view the roi functionalty (roiExperiment): done 
+        # make a similar roi view model that will save roi data that was drawn on 
+        # the main raster view
+        # roi view folder needs:
+        #   - __init__.py: initializes import: done
+        #   - roi_view.py: a widget for viewing ROIs (QWidget): done
+        #   - roi_viewmodel.py: will handle the logic and interaction with the project context: done
+        #       - the raster view will send the created ROI to the project context: done
+        #       - the project context will send a signal that a new ROI has been created: done
+        #       - the roi_view will update the table with the new ROI added: done
+        #   - image_view_roi.py: returns/updates an instance of roi_view: done
+        # create option to open an roiWindow from the mainGUI: done
+        # saving the roi is done with saveROI in the project context: done
+
+        # move button to draw roi to the roi table: done
+        # add multiple ROIs at a time (each one a different color): done
+        # store ROISelector object as a pyqt ROI object: ??
+        # be able to select an ROI, and have it pop back up on the raster view: 
+        # transform into ROI pyqt object to get mean spectrum data: in progress
+        # find a place to plot mean spectrum data
+        # add buttons to table to do so: done
+
+        # BUGS: 
+        # when draw roi is selected before rasterview exists, cannot draw an roi after raster
+        # view is opened
+        # when roi table is closed after rois have been drawn, all the old rois will be lost
+
+        # roi refactoring: move roi folder inside the raster view folder, create button to open roi
+        # window then draw rois from there
+        # ask michael if he likes right click image or having all views together in a layout
+        # create a list for plots in the control panel 
+        # pixel plot as its own view
+
         else:
-            print("No active image selected for ROI.")
+            self.roiSelector.raster = current_image.raster  # Update raster
+
+        # Add image and ROI selector to the scene
+        self.roiSelector.addToScene(self.graphicsScene)
+
+        # Prompt the user to draw the ROI
+        self.roiSelector.draw()
+        print("Start drawing ROI...")
+
+        # After drawing, retrieve the points
+        roi_points = self.roiSelector.getLinePts()
+        if roi_points is None:
+            print("No ROI drawn.")
+            return
+
+        # Convert points to FreeHandROI
+        new_roi = FreeHandROI(points=roi_points)
+
+        # Add ROI to the current image in the project context
+        roi_index = self.project_context.addROI(self.imageIndex, new_roi)
+        print(f"ROI added at index {roi_index} with points: {roi_points}")
 
     def handle_pixel_plot(self):
         """Handle the Show Pixel Plot action."""

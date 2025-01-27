@@ -10,3 +10,4 @@ This guide assumes you use the pip package installer. We may add support for oth
 This app is a work in progress! Users are also encouraged to add their own custom features for their individual workflows. If you are interested
 in doing this, [this] (https://www.notion.so/Feature-Development-Workflow-17002b23849580649788ff3e4b2adb6f) guide on Vardas code structure may
 be useful to you. 
+
