@@ -54,3 +54,7 @@ class RasterViewModel(QObject):
             self.sigBandChanged.emit()
         elif changeType is ProjectContext.ChangeType.STRETCH:
             self.sigStretchChanged.emit()
+
+    def getFullDataCube(self):
+        """Returns the full hyperspectral data cube from the image."""
+        return self.proj.getImage(self.index).raster
