@@ -4,3 +4,4 @@ These should basically act as shells to contain other features. Which simply lin
 Their logic should not extend beyond serving this purpose.
 If they do, that functionality should probably be seperated into its own feature
 """
+from .general_image_analysis import GeneralImageAnalysis
