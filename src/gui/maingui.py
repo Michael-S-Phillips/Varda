@@ -41,6 +41,7 @@ class MainGUI(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowTitle("Varda")
         self.setWindowIcon(QIcon("../img/logo.svg"))
+        self.controlPanels = []
 
         self.proj = proj
         self.imageList = None
@@ -64,11 +65,11 @@ class MainGUI(QtWidgets.QMainWindow):
         self.imageList = all_images_view_list.newList(self.proj, self)
         self.newDock("Image List", self.imageList, Qt.DockWidgetArea.LeftDockWidgetArea)
 
-        # Initialize Control Panel with ProjectContext
-        self.controlPanel = ControlPanel(self, self.proj)
-        self.addDockWidget(
-            Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock
-        )
+        # # Initialize Control Panel with ProjectContext
+        # self.controlPanel = ControlPanel(self, self.proj)
+        # self.addDockWidget(
+        #     Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock
+        # )
 
         # set default central widget
         self.setCentralWidget(self.getStartingScreenWidget())
@@ -100,6 +101,8 @@ class MainGUI(QtWidgets.QMainWindow):
         """
         Handle the selection of a new image and update the control panel.
         """
+        # now, only after an image is selected a control panel is created
+
         if item is None:
             self.selectedImage = None
             self.controlPanel.updateActiveImage(None)
@@ -108,6 +111,15 @@ class MainGUI(QtWidgets.QMainWindow):
         # Retrieve the selected image's index
         index = self.imageList.row(item)
         self.selectedImage = self.proj.getImage(index)
+
+        # one image control panel should be open at a time
+        # todo: add to list of control panels. Open an exisiting image's control
+        # panel, remove / add control panels to the main window
+        self.controlPanel = ControlPanel(self)
+        self.addDockWidget(
+            Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock
+        )
+
         self.controlPanel.updateActiveImage(index)
         print(f"Selected image updated: {self.selectedImage.metadata.name}")
 

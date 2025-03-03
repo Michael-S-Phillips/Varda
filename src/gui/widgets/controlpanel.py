@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QMainWindow, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QDockWidget, QLabel, QWidget
+    QMainWindow, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QDockWidget, QLabel, QWidget, QSplitter
 )
 from PyQt6.QtCore import Qt
 from core.data.project_context import ProjectContext
@@ -13,9 +13,13 @@ class ControlPanel(QMainWindow):
     """
     Revamped Control Panel with expandable menu options.
     """
-    def __init__(self, main_window: QMainWindow, project_context: ProjectContext, parent=None):
+    def __init__(self, main_window: QMainWindow, parent=None):
         super(ControlPanel, self).__init__(parent)
-        self.project_context = project_context
+        # as discussed, we will have one (1) control panel per image 
+        # We will implement a mutli-image control panel later. The _image
+        # property should never be changed after it is set.
+        self._image = main_window.selectedImage
+        self.project_context = main_window.proj
         self.main_window = main_window
 
         self.setWindowTitle("Control Panel")
@@ -42,14 +46,15 @@ class ControlPanel(QMainWindow):
         # Main Category: Views
         views_item = QTreeWidgetItem(self.treeWidget)
         views_item.setText(0, "Views")
+
+        edit_item = QTreeWidgetItem(self.treeWidget)
+        edit_item.setText(0, "Edit")
         
         # View options
         view_options = {
             "Raster Data": self.openRasterView,
-            "ROI Table": self.openROIView,
-            "Histogram": self.openHistogramView,
+            "ROI Table": self.openROIView,     
             "Stretch": self.openStretchView,
-            "Bands": self.openBandView
         }
         
         for name, method in view_options.items():
@@ -59,10 +64,10 @@ class ControlPanel(QMainWindow):
         
         self.treeWidget.itemClicked.connect(self.handleItemClick)
         
-        # Sub-options (placeholders for now)
-        for i in range(1, 6):
-            option_item = QTreeWidgetItem(views_item)
-            option_item.setText(0, f"Option {i}")
+        # # Sub-options (placeholders for now)
+        # for i in range(1, 6):
+        #     option_item = QTreeWidgetItem(views_item)
+        #     option_item.setText(0, f"Option {i}")
         
         # Expand Views by default
         views_item.setExpanded(False)
@@ -75,8 +80,15 @@ class ControlPanel(QMainWindow):
         
         # Set Dock Widget Content
         self.tabsDock.setWidget(self.dock_widget_content)
+        self.treeWidget.itemExpanded.connect(self.handleEditTabExpanded)
 
         self.rasterViewObj = None
+        self.bandView = None
+
+    @property
+    def image(self):
+        # returns the image associated with this control panel
+        return self._image
 
     def updateActiveImage(self, index):
         """
@@ -100,17 +112,17 @@ class ControlPanel(QMainWindow):
         Handle clicks on tree widget items.
         """
         method = item.data(0, Qt.ItemDataRole.UserRole)
-        currIndex = self.main_window.selectedImage.index
-        if callable(method) and currIndex is not None:
-            method(currIndex)
+        if callable(method):
+            method()
     
-    def openRasterView(self, index):
-        view = getRasterView(self.project_context, index, self.main_window)
+    def openRasterView(self):
+        view = getRasterView(self.project_context, self.image.index, self.main_window)
         self.rasterViewObj = view
         self.main_window.setCentralWidget(view)
+        #self.openBandView()
     
-    def openROIView(self, index):
-        view = getROIView(self.project_context, index, self.main_window)
+    def openROIView(self):
+        view = getROIView(self.project_context, self.image.index, self.main_window)
         if (self.rasterViewObj):
             view.viewModel.setRasterView(self.rasterViewObj)
         else:
@@ -133,205 +145,29 @@ class ControlPanel(QMainWindow):
         dock.setWidget(view)
         self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
+
+    def handleEditTabExpanded(self, item):
+        """
+        Add the Band View dynamically when the Edit tab is expanded.
+        """
+        self.addBandView()
     
-    def openBandView(self, index):
-        view = getBandView(self.project_context, index, self.main_window)
+    def openBandView(self):
+        view = getBandView(self.project_context, self.image.index, self.main_window)
         dock = QDockWidget("Bands View", self.main_window)
         dock.setWidget(view)
         self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
 
-
-
-
-
-
-# from PyQt6.QtWidgets import (
-#     QApplication,
-#     QMainWindow,
-#     QVBoxLayout,
-#     QTreeWidget,
-#     QTreeWidgetItem,
-#     QDockWidget,
-#     QLabel,
-#     QWidget
-# )
-# from PyQt6.QtCore import Qt
-# import sys
-
-# # Local imports
-# from features.pixel_plot.pixel_plot import PixelPlot
-# from core.data.project_context import ProjectContext
-# from gui.widgets.ROI_selector import ROISelector
-# from core.entities import FreeHandROI
-
-
-# class ControlPanel(QMainWindow):
-#     """
-#     ControlPanel appears as a standalone window with expandable/collapsible menus for sub-options.
-#     """
-#     def __init__(self, project_context: ProjectContext, parent=None):
-#         super(ControlPanel, self).__init__(parent)
-#         self.project_context = project_context
-#         self.imageIndex = None
-#         self.rasterView = None  # Keep the RasterView instance alive
-#         self.setWindowTitle("Control Panel")
-#         self.roiSelector = None
-
-
-#         self.setWindowTitle("Control Panel")
-#         self.resize(400, 300)
-
-#         # Add graphics view to layout
-
-#         # Create Dock Widget
-#         self.tabsDock = QDockWidget("Control Panel", self)
-
-#         # Main Widget and Layout for Dock Widget
-#         self.dock_widget_content = QWidget()
-#         self.main_layout = QVBoxLayout()
-
-
-#         # Active Image Label
-#         self.activeImageLabel = QLabel("No image selected")
-#         self.activeImageLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-#         self.activeImageLabel.setStyleSheet("font-size: 14px; font-weight: bold;")
-
-#         # Create Tree Widget for Expandable/Collapsible Options
-#         self.treeWidget = QTreeWidget()
-#         self.treeWidget.setHeaderLabel("Control Options")
-
-#         # Add Main Categories and Sub-options
-#         image_tools_item = QTreeWidgetItem(self.treeWidget)
-#         image_tools_item.setText(0, "Image Tools")
-
-#         roi_item = QTreeWidgetItem(image_tools_item)
-#         roi_item.setText(0, "ROI")
-#         roi_item.setToolTip(0, "Draw Region of Interest")
-
-#         pixel_plot_item = QTreeWidgetItem(image_tools_item)
-#         pixel_plot_item.setText(0, "Pixel Plot")
-#         pixel_plot_item.setToolTip(0, "Show Pixel Plot")
-
-#         settings_item = QTreeWidgetItem(self.treeWidget)
-#         settings_item.setText(0, "Settings")
-
-#         # Connect TreeWidget Item Clicks
-#         self.treeWidget.itemClicked.connect(self.handle_item_click)
-
-#         # Add widgets to the layout
-#         self.main_layout.addWidget(self.activeImageLabel)
-#         self.main_layout.addWidget(self.treeWidget)
-#         self.dock_widget_content.setLayout(self.main_layout)
-
-#         # Set Dock Widget Content
-#         self.tabsDock.setWidget(self.dock_widget_content)
-
-#     def handle_item_click(self, item, column):
-#         """
-#         Handle clicks on tree widget items.
-#         """
-#         if item.text(0) == "ROI":
-#             self.handle_draw_roi()
-#         elif item.text(0) == "Pixel Plot":
-#             self.handle_pixel_plot()
-#         elif item.text(0) == "Settings":
-#             print("Settings clicked")
-
-#     def handle_draw_roi(self):
-#         """Handle the Draw ROI action."""
-#         if self.imageIndex is None:
-#             print("No active image selected.")
-#             return
-
-#         # Access the current image
-#         current_image = self.project_context.getImage(self.imageIndex)
-
-#         # Initialize or update ROI Selector
-#         if self.roiSelector is None:
-#             self.roiSelector = ROISelector()
-
-#         # add to the raster view the roi functionalty (roiExperiment): done 
-#         # make a similar roi view model that will save roi data that was drawn on 
-#         # the main raster view
-#         # roi view folder needs:
-#         #   - __init__.py: initializes import: done
-#         #   - roi_view.py: a widget for viewing ROIs (QWidget): done
-#         #   - roi_viewmodel.py: will handle the logic and interaction with the project context: done
-#         #       - the raster view will send the created ROI to the project context: done
-#         #       - the project context will send a signal that a new ROI has been created: done
-#         #       - the roi_view will update the table with the new ROI added: done
-#         #   - image_view_roi.py: returns/updates an instance of roi_view: done
-#         # create option to open an roiWindow from the mainGUI: done
-#         # saving the roi is done with saveROI in the project context: done
-
-#         # move button to draw roi to the roi table: done
-#         # add multiple ROIs at a time (each one a different color): done
-#         # store ROISelector object as a pyqt ROI object: ??
-#         # be able to select an ROI, and have it pop back up on the raster view: 
-#         # transform into ROI pyqt object to get mean spectrum data: in progress
-#         # find a place to plot mean spectrum data
-#         # add buttons to table to do so: done
-
-#         # BUGS: 
-#         # when draw roi is selected before rasterview exists, cannot draw an roi after raster
-#         # view is opened
-#         # when roi table is closed after rois have been drawn, all the old rois will be lost
-
-#         # roi refactoring: move roi folder inside the raster view folder, create button to open roi
-#         # window then draw rois from there
-#         # ask michael if he likes right click image or having all views together in a layout
-#         # create a list for plots in the control panel 
-#         # pixel plot as its own view
-
-#         else:
-#             self.roiSelector.raster = current_image.raster  # Update raster
-
-#         # Add image and ROI selector to the scene
-#         self.roiSelector.addToScene(self.graphicsScene)
-
-#         # Prompt the user to draw the ROI
-#         self.roiSelector.draw()
-#         print("Start drawing ROI...")
-
-#         # After drawing, retrieve the points
-#         roi_points = self.roiSelector.getLinePts()
-#         if roi_points is None:
-#             print("No ROI drawn.")
-#             return
-
-#         # Convert points to FreeHandROI
-#         new_roi = FreeHandROI(points=roi_points)
-
-#         # Add ROI to the current image in the project context
-#         roi_index = self.project_context.addROI(self.imageIndex, new_roi)
-#         print(f"ROI added at index {roi_index} with points: {roi_points}")
-
-#     def handle_pixel_plot(self):
-#         """Handle the Show Pixel Plot action."""
-#         if self.imageIndex is not None:
-#             image = self.project_context.getImage(self.imageIndex)
-
-#             # Retrieve raster data and wavelength
-#             raster_data = image.raster
-#             wavelength = getattr(image.metadata, "wavelength", None)
-
-#             # Create and show the Pixel Plot Window
-#             self.pixelPlotWindow = PixelPlot(raster_data, wavelength)
-#             self.pixelPlotWindow.show()
-#         else:
-#             print("No active image selected.")
-
-#     def updateActiveImage(self, index):
-#         """
-#         Update the active image index and label.
-#         """
-#         self.imageIndex = index
-#         if index is None:
-#             self.activeImageLabel.setText("No image selected")
-#         else:
-#             # Use the image index for the label
-#             self.activeImageLabel.setText(f"Active Image: Image {index}")
-
-
-
+    def addBandView(self):
+        """
+        Add the Band View inside the Options tree widget under the Edit tab.
+        """
+        if self.bandView:
+            self.bandView.deleteLater()  # Remove previous band view if exists
+        
+        self.bandView = getBandView(self.project_context, self.image.index, self.treeWidget)
+        dock = QDockWidget("Bands View", self.main_window)
+        dock.setWidget(self.bandView)
+        self.treeWidget.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        # self.treeWidget.setItemWidget(self.bandViewItem, 0, self.bandView)
