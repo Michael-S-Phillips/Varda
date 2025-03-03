@@ -65,7 +65,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.newDock("Image List", self.imageList, Qt.DockWidgetArea.LeftDockWidgetArea)
 
         # Initialize Control Panel with ProjectContext
-        self.controlPanel = ControlPanel(self.proj)
+        self.controlPanel = ControlPanel(self, self.proj)
         self.addDockWidget(
             Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock
         )
