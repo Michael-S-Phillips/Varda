@@ -76,6 +76,8 @@ class ControlPanel(QMainWindow):
         # Set Dock Widget Content
         self.tabsDock.setWidget(self.dock_widget_content)
 
+        self.rasterViewObj = None
+
     def updateActiveImage(self, index):
         """
         Update the active image index and label.
@@ -104,10 +106,15 @@ class ControlPanel(QMainWindow):
     
     def openRasterView(self, index):
         view = getRasterView(self.project_context, index, self.main_window)
+        self.rasterViewObj = view
         self.main_window.setCentralWidget(view)
     
     def openROIView(self, index):
         view = getROIView(self.project_context, index, self.main_window)
+        if (self.rasterViewObj):
+            view.viewModel.setRasterView(self.rasterViewObj)
+        else:
+            print("Must open raster view before drawing an ROI")
         dock = QDockWidget("ROI Table", self.main_window)
         dock.setWidget(view)
         self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
