@@ -110,14 +110,15 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
             )
 
         return Metadata(
-            driver,
-            width,
-            height,
-            dtype,
-            dataIgnore,
-            bandCount,
-            defaultBands,
-            wavelength,
+            _filename=filePath,
+            _driver=driver,
+            _width=width,
+            _height=height,
+            _dtype=dtype,
+            _dataIgnore=dataIgnore,
+            _bandCount=bandCount,
+            _defaultBand=defaultBands,
+            _wavelength=wavelength,
             _extraMetadata={
                 "transform": transform,
                 "description": description,

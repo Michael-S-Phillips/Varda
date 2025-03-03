@@ -65,6 +65,7 @@ class HDF5ImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
             wavelength = spectralData["Wavelength"][:]
 
         return Metadata(
+            _filename=filePath,
             _driver="HDF5",
             _width=width,
             _height=height,
