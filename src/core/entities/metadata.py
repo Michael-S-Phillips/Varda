@@ -21,7 +21,7 @@ class Metadata:
     Note that this data container is mutable, But do not directly modify its contents.
     use ProjectContext to edit it so that the program knows when it's changed.
     """
-
+    _filename: str = ""
     _driver: str = ""
     _width: int = 0
     _height: int = 0
@@ -31,6 +31,11 @@ class Metadata:
     _defaultBand: Band = field(default_factory=Band.createDefault)
     _wavelength: np.ndarray = field(default_factory=lambda: np.zeros(0))
     _extraMetadata: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def filename(self):
+        """read-only property for driver"""
+        return self._filename
 
     @property
     def driver(self):
@@ -100,3 +105,4 @@ class Metadata:
 
     def __getitem__(self, item):
         return self.toDict().get(item)
+
