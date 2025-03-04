@@ -47,7 +47,7 @@ class BandViewModel(QObject):
     def getBandCount(self):
         """gets the number of band values in the image."""
         print(self.proj.getImage(self.imageIndex).metadata.bandCount)
-        return self.proj.getImage(self.imageIndex).metadata.bandCount['r'] - 1
+        return self.proj.getImage(self.imageIndex).metadata.bandCount - 1
 
     def updateBand(self, r=None, g=None, b=None):
         """Begins a debounced band update. Since the slider value is constantly

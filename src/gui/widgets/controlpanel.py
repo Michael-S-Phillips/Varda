@@ -47,8 +47,8 @@ class ControlPanel(QMainWindow):
         views_item = QTreeWidgetItem(self.treeWidget)
         views_item.setText(0, "Views")
 
-        edit_item = QTreeWidgetItem(self.treeWidget)
-        edit_item.setText(0, "Edit")
+        self.edit_item = QTreeWidgetItem(self.treeWidget)
+        self.edit_item.setText(0, "Edit")
         
         # View options
         view_options = {
@@ -71,6 +71,7 @@ class ControlPanel(QMainWindow):
         
         # Expand Views by default
         views_item.setExpanded(False)
+        self.edit_item.setExpanded(False)
         
         # Add widgets to layout
         self.main_layout.addWidget(self.headerLabel)
@@ -80,7 +81,7 @@ class ControlPanel(QMainWindow):
         
         # Set Dock Widget Content
         self.tabsDock.setWidget(self.dock_widget_content)
-        self.treeWidget.itemExpanded.connect(self.handleEditTabExpanded)
+        self.treeWidget.itemClicked.connect(self.handleEditTabExpanded)
 
         self.rasterViewObj = None
         self.bandView = None
@@ -166,8 +167,6 @@ class ControlPanel(QMainWindow):
         if self.bandView:
             self.bandView.deleteLater()  # Remove previous band view if exists
         
-        self.bandView = getBandView(self.project_context, self.image.index, self.treeWidget)
-        dock = QDockWidget("Bands View", self.main_window)
-        dock.setWidget(self.bandView)
-        self.treeWidget.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        # self.treeWidget.setItemWidget(self.bandViewItem, 0, self.bandView)
+        if self.rasterViewObj:
+            self.bandView = getBandView(self.project_context, self.image.index, self.treeWidget)
+            self.treeWidget.setItemWidget(self.edit_item, 0, self.bandView)
