@@ -82,9 +82,12 @@ class ControlPanel(QMainWindow):
         # Set Dock Widget Content
         self.tabsDock.setWidget(self.dock_widget_content)
         self.treeWidget.itemClicked.connect(self.handleEditTabExpanded)
+        self.treeWidget.itemCollapsed.connect(self.handleEditTabCollapsed)
 
         self.rasterViewObj = None
+        self.editContainer = None
         self.bandView = None
+        self.histogramView = None
 
     @property
     def image(self):
@@ -151,14 +154,33 @@ class ControlPanel(QMainWindow):
         """
         Add the Band View dynamically when the Edit tab is expanded.
         """
-        self.addBandView()
+        if item == self.edit_item:
+            self.showEditViews(self.imageIndex)
+
+    def handleEditTabCollapsed(self, item):
+        """
+        Hide the Band View inside the Edit tab when collapsed.
+        """
+        if item == self.edit_item and self.editContainer:
+            self.editContainer.hide()
+
+    def showHistogramView(self):
+        """ Show or create the Histogram View inside the Edit tab. """
+        if not self.histogramView:
+            self.histogramView = getHistogramView(self.project_context, self.image.index, self)
+            self.histogramViewItem = QTreeWidgetItem(self.edit_item)
+            self.histogramViewItem.setText(0, "Histogram View")
+            self.treeWidget.setItemWidget(self.edit_item, 0, self.histogramView)
+        self.histogramView.show()
     
-    def openBandView(self):
-        view = getBandView(self.project_context, self.image.index, self.main_window)
-        dock = QDockWidget("Bands View", self.main_window)
-        dock.setWidget(view)
-        self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        dock.setFloating(True)
+    def showBandView(self):
+        """
+        Show or create the Band View inside the Edit tab.
+        """
+        if not self.bandView:
+            self.bandView = getBandView(self.project_context, self.image.index, self)
+            self.treeWidget.setItemWidget(self.edit_item, 0, self.bandView)
+        self.bandView.show()
 
     def addBandView(self):
         """
@@ -170,3 +192,29 @@ class ControlPanel(QMainWindow):
         if self.rasterViewObj:
             self.bandView = getBandView(self.project_context, self.image.index, self.treeWidget)
             self.treeWidget.setItemWidget(self.edit_item, 0, self.bandView)
+
+    def showEditViews(self, index):
+        """ Show or create the Band View and Histogram View inside the Edit tab. """
+        if not self.editContainer:
+            self.editContainer = QWidget()
+            self.editLayout = QVBoxLayout(self.editContainer)
+
+            # Create Band View
+            self.bandView = getBandView(self.project_context, index, self)
+            self.bandViewItem = QTreeWidgetItem(self.edit_item)
+            self.bandViewItem.setText(0, "Band View")
+
+            # Create Histogram View
+            self.histogramView = getHistogramView(self.project_context, index, self)
+            self.histogramViewItem = QTreeWidgetItem(self.edit_item)
+            self.histogramViewItem.setText(0, "Histogram View")
+
+            # Add both widgets to a vertical layout inside the container
+            self.editLayout.addWidget(self.bandView)
+            self.editLayout.addWidget(self.histogramView)
+
+            # Assign the container to the tree widget
+            self.treeWidget.setItemWidget(self.edit_item, 0, self.editContainer)
+
+        # Show container
+        self.editContainer.show()

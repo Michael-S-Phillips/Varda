@@ -2,7 +2,7 @@
 
 # third-party imports
 import pyqtgraph as pg
-from PyQt6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout
+from PyQt6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout,QTabWidget
 from PyQt6.QtGui import QColor
 
 # local imports
@@ -26,17 +26,9 @@ class DualHistogram(QWidget):
         self.histogram.item.regions[0].setHoverBrush(QColor(*(*self.color, 50)))
         self.histogram.item.gradient.hide()
         self.histogram.item.fillHistogram(True, level=0.0, color=(*self.color, 50))
-        self.histogramZoomed = pg.HistogramLUTWidget(
-            self, image=self.image, orientation="horizontal"
-        )
-        zoomedColor = (self.color[0], self.color[1], self.color[2], 50)
-        self.histogramZoomed.item.fillHistogram(True, level=0.0, color=zoomedColor)
-        self.histogramZoomed.item.gradient.hide()
-        self.histogramZoomed.item.regions[0].hide()
-        self.histogramZoomed.item.vb.setMouseEnabled(x=False, y=False)
+
         layout = QVBoxLayout()
         layout.addWidget(self.histogram)
-        layout.addWidget(self.histogramZoomed)
         self.setLayout(layout)
 
     def _connectSignals(self):
@@ -44,21 +36,10 @@ class DualHistogram(QWidget):
 
     def _handleLevelsChanged(self):
         mn, mx = self.histogram.item.getLevels()
-        self.histogramZoomed.item.setHistogramRange(mn, mx)
-
+        self.histogram.item.setHistogramRange(mn, mx)
 
 class HistogramView(QWidget):
-    """A basic view for editing band configurations of an image. Cannot create new
-    parameters at the moment. only edit existing ones.
-    """
-
-    viewModel: HistogramViewModel
-    bandSelector: BandSelector
-    stretchSelector: StretchSelector
-    histogramR: DualHistogram
-    histogramG: DualHistogram
-    histogramB: DualHistogram
-    imageItem: pg.ImageItem
+    """A basic view for editing band configurations of an image with selectable RGB histograms."""
 
     def __init__(self, viewModel=None, parent=None):
         super().__init__(parent)
@@ -70,9 +51,15 @@ class HistogramView(QWidget):
         self._connectSignals()
 
     def _initUI(self):
+        self.tabWidget = QTabWidget()
+
         self.histogramR = DualHistogram(self, self.imageItem, color=(255, 0, 0))
         self.histogramG = DualHistogram(self, self.imageItem, color=(0, 255, 0))
         self.histogramB = DualHistogram(self, self.imageItem, color=(0, 0, 255))
+
+        self.tabWidget.addTab(self.histogramR, "Red")
+        self.tabWidget.addTab(self.histogramG, "Green")
+        self.tabWidget.addTab(self.histogramB, "Blue")
 
         self.bandSelector = BandSelector(
             self.viewModel.proj, self.viewModel.index, self
@@ -82,24 +69,22 @@ class HistogramView(QWidget):
             self.viewModel.proj, self.viewModel.index, self
         )
 
-        selectorLayout = QHBoxLayout()
+        selectorLayout = QVBoxLayout()
         selectorLayout.addWidget(self.bandSelector)
         selectorLayout.addWidget(self.stretchSelector)
 
         layout = QVBoxLayout()
         layout.addLayout(selectorLayout)
-        layout.addWidget(self.histogramR)
-        layout.addWidget(self.histogramG)
-        layout.addWidget(self.histogramB)
+        layout.addWidget(self.tabWidget)
         self.setLayout(layout)
 
     def _connectSignals(self):
         self.viewModel.sigBandChanged.connect(self._onBandChanged)
         self.viewModel.sigStretchChanged.connect(self._onStretchChanged)
 
-        self.histogramR.histogram.sigLevelsChanged.connect(self._handleLevelsChanged)
-        self.histogramG.histogram.sigLevelsChanged.connect(self._handleLevelsChanged)
-        self.histogramB.histogram.sigLevelsChanged.connect(self._handleLevelsChanged)
+        self.histogramR.histogram.item.sigLevelsChanged.connect(self._handleLevelsChanged)
+        self.histogramG.histogram.item.sigLevelsChanged.connect(self._handleLevelsChanged)
+        self.histogramB.histogram.item.sigLevelsChanged.connect(self._handleLevelsChanged)
 
         self.bandSelector.currentIndexChanged.connect(self.viewModel.selectBand)
         self.stretchSelector.currentIndexChanged.connect(self.viewModel.selectStretch)
