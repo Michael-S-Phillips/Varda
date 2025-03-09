@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QDockWidget, QLabel, QWidget, QSplitter
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from core.data.project_context import ProjectContext
 from features.image_view_raster import getRasterView
 from features.image_view_roi import getROIView
@@ -49,6 +49,20 @@ class ControlPanel(QMainWindow):
 
         self.edit_item = QTreeWidgetItem(self.treeWidget)
         self.edit_item.setText(0, "Edit")
+        self.treeWidget.addTopLevelItem(self.edit_item)
+
+        # Band View child
+        self.bandViewLabel = QTreeWidgetItem(self.edit_item)
+        self.bandViewLabel.setText(0, "Band View")
+        self.treeWidget.addTopLevelItem(self.bandViewLabel)
+        self.bandViewItem = QTreeWidgetItem(self.bandViewLabel)
+
+
+        # Histogram View child
+        self.histogramViewLabel = QTreeWidgetItem(self.edit_item)
+        self.histogramViewLabel.setText(0, "Histogram View")
+        self.treeWidget.addTopLevelItem(self.histogramViewLabel)
+        self.histogramViewItem = QTreeWidgetItem(self.histogramViewLabel)
         
         # View options
         view_options = {
@@ -82,7 +96,9 @@ class ControlPanel(QMainWindow):
         # Set Dock Widget Content
         self.tabsDock.setWidget(self.dock_widget_content)
         self.treeWidget.itemClicked.connect(self.handleEditTabExpanded)
-        self.treeWidget.itemCollapsed.connect(self.handleEditTabCollapsed)
+        self.treeWidget.itemExpanded.connect(self.handleItemExpanded)
+        self.treeWidget.itemCollapsed.connect(self.handleItemCollapsed)
+        self.treeWidget.itemClicked.connect(self.handleViewClick)
 
         self.rasterViewObj = None
         self.editContainer = None
@@ -154,67 +170,51 @@ class ControlPanel(QMainWindow):
         """
         Add the Band View dynamically when the Edit tab is expanded.
         """
-        if item == self.edit_item:
-            self.showEditViews(self.imageIndex)
+        if item == self.edit_item and self.rasterViewObj:
+            print("here")
+            self.bandViewItem.setHidden(False)
+            self.histogramViewItem.setHidden(False)
 
+    
     def handleEditTabCollapsed(self, item):
         """
         Hide the Band View inside the Edit tab when collapsed.
         """
-        if item == self.edit_item and self.editContainer:
-            self.editContainer.hide()
+        if item == self.edit_item:
+            self.bandViewItem.setHidden(True)
+            self.histogramViewItem.setHidden(True)
+            self.removeBandView()
+            self.removeHistogramView()
 
-    def showHistogramView(self):
-        """ Show or create the Histogram View inside the Edit tab. """
-        if not self.histogramView:
-            self.histogramView = getHistogramView(self.project_context, self.image.index, self)
-            self.histogramViewItem = QTreeWidgetItem(self.edit_item)
-            self.histogramViewItem.setText(0, "Histogram View")
-            self.treeWidget.setItemWidget(self.edit_item, 0, self.histogramView)
-        self.histogramView.show()
-    
+    def handleItemExpanded(self, item):
+        """ Show the Band View or Histogram View when their labels are expanded. """
+        if item == self.bandViewLabel:
+            self.showBandView()
+        elif item == self.histogramViewLabel:
+            self.showHistogramView()
+
+    def handleItemCollapsed(self, item):
+        """ Hide the Band View or Histogram View when their labels are collapsed, but keep them in memory. """
+        if item == self.bandViewLabel and self.bandView:
+            self.bandView.hide()
+        elif item == self.histogramViewLabel and self.histogramView:
+            self.histogramView.hide()
+
+    def handleViewClick(self, item, column):
+        """ Prevent clicks from toggling views incorrectly. """
+        if item == self.bandViewItem or item == self.histogramViewItem:
+            return  # Prevent clicks on the actual views from doing anything
+
     def showBandView(self):
-        """
-        Show or create the Band View inside the Edit tab.
-        """
-        if not self.bandView:
-            self.bandView = getBandView(self.project_context, self.image.index, self)
-            self.treeWidget.setItemWidget(self.edit_item, 0, self.bandView)
+        """ Show the Band View inside the Band Label item. """
+        if self.bandView is None:  # Create only if needed
+            self.bandView = getBandView(self.project_context, self.imageIndex, self)
+            self.treeWidget.setItemWidget(self.bandViewItem, 0, self.bandView)
         self.bandView.show()
 
-    def addBandView(self):
-        """
-        Add the Band View inside the Options tree widget under the Edit tab.
-        """
-        if self.bandView:
-            self.bandView.deleteLater()  # Remove previous band view if exists
-        
-        if self.rasterViewObj:
-            self.bandView = getBandView(self.project_context, self.image.index, self.treeWidget)
-            self.treeWidget.setItemWidget(self.edit_item, 0, self.bandView)
-
-    def showEditViews(self, index):
-        """ Show or create the Band View and Histogram View inside the Edit tab. """
-        if not self.editContainer:
-            self.editContainer = QWidget()
-            self.editLayout = QVBoxLayout(self.editContainer)
-
-            # Create Band View
-            self.bandView = getBandView(self.project_context, index, self)
-            self.bandViewItem = QTreeWidgetItem(self.edit_item)
-            self.bandViewItem.setText(0, "Band View")
-
-            # Create Histogram View
-            self.histogramView = getHistogramView(self.project_context, index, self)
-            self.histogramViewItem = QTreeWidgetItem(self.edit_item)
-            self.histogramViewItem.setText(0, "Histogram View")
-
-            # Add both widgets to a vertical layout inside the container
-            self.editLayout.addWidget(self.bandView)
-            self.editLayout.addWidget(self.histogramView)
-
-            # Assign the container to the tree widget
-            self.treeWidget.setItemWidget(self.edit_item, 0, self.editContainer)
-
-        # Show container
-        self.editContainer.show()
+    def showHistogramView(self):
+        """ Show the Histogram View inside the Histogram Label item. """
+        if self.histogramView is None:  # Create only if needed
+            self.histogramView = getHistogramView(self.project_context, self.imageIndex, self)
+            self.treeWidget.setItemWidget(self.histogramViewItem, 0, self.histogramView)
+        self.histogramView.show()

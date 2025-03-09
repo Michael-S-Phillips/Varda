@@ -19,6 +19,7 @@ class DualHistogram(QWidget):
         self._connectSignals()
 
     def _initUI(self):
+        # First (main) histogram
         self.histogram = pg.HistogramLUTWidget(
             self, image=self.image, orientation="horizontal"
         )
@@ -27,8 +28,20 @@ class DualHistogram(QWidget):
         self.histogram.item.gradient.hide()
         self.histogram.item.fillHistogram(True, level=0.0, color=(*self.color, 50))
 
+        # Second (zoomed) histogram
+        self.histogramZoomed = pg.HistogramLUTWidget(
+            self, image=self.image, orientation="horizontal"
+        )
+        zoomedColor = (self.color[0], self.color[1], self.color[2], 50)
+        self.histogramZoomed.item.fillHistogram(True, level=0.0, color=zoomedColor)
+        self.histogramZoomed.item.gradient.hide()
+        self.histogramZoomed.item.regions[0].hide()
+        self.histogramZoomed.item.vb.setMouseEnabled(x=False, y=False)
+
+        # Layout: Stack two histograms vertically
         layout = QVBoxLayout()
         layout.addWidget(self.histogram)
+        layout.addWidget(self.histogramZoomed)
         self.setLayout(layout)
 
     def _connectSignals(self):
@@ -75,6 +88,7 @@ class HistogramView(QWidget):
 
         layout = QVBoxLayout()
         layout.addLayout(selectorLayout)
+        layout.setContentsMargins(0, 20, 0, 0)
         layout.addWidget(self.tabWidget)
         self.setLayout(layout)
 
