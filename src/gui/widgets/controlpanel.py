@@ -57,18 +57,22 @@ class ControlPanel(QMainWindow):
         self.treeWidget.addTopLevelItem(self.bandViewLabel)
         self.bandViewItem = QTreeWidgetItem(self.bandViewLabel)
 
-
         # Histogram View child
         self.histogramViewLabel = QTreeWidgetItem(self.edit_item)
         self.histogramViewLabel.setText(0, "Histogram View")
         self.treeWidget.addTopLevelItem(self.histogramViewLabel)
         self.histogramViewItem = QTreeWidgetItem(self.histogramViewLabel)
+
+        # stretch View child
+        self.stretchViewLabel = QTreeWidgetItem(self.edit_item)
+        self.stretchViewLabel.setText(0, "Stretch View")
+        self.treeWidget.addTopLevelItem(self.stretchViewLabel)
+        self.stretchViewItem = QTreeWidgetItem(self.stretchViewLabel)
         
         # View options
         view_options = {
             "Raster Data": self.openRasterView,
             "ROI Table": self.openROIView,     
-            "Stretch": self.openStretchView,
         }
         
         for name, method in view_options.items():
@@ -77,11 +81,6 @@ class ControlPanel(QMainWindow):
             option_item.setData(0, Qt.ItemDataRole.UserRole, method)
         
         self.treeWidget.itemClicked.connect(self.handleItemClick)
-        
-        # # Sub-options (placeholders for now)
-        # for i in range(1, 6):
-        #     option_item = QTreeWidgetItem(views_item)
-        #     option_item.setText(0, f"Option {i}")
         
         # Expand Views by default
         views_item.setExpanded(False)
@@ -104,6 +103,7 @@ class ControlPanel(QMainWindow):
         self.editContainer = None
         self.bandView = None
         self.histogramView = None
+        self.stretchView = None
 
     @property
     def image(self):
@@ -152,28 +152,15 @@ class ControlPanel(QMainWindow):
         self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
     
-    def openHistogramView(self, index):
-        view = getHistogramView(self.project_context, index, self.main_window)
-        dock = QDockWidget("Histogram", self.main_window)
-        dock.setWidget(view)
-        self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        dock.setFloating(True)
-    
-    def openStretchView(self, index):
-        view = getStretchView(self.project_context, index, self.main_window)
-        dock = QDockWidget("Stretch View", self.main_window)
-        dock.setWidget(view)
-        self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        dock.setFloating(True)
 
     def handleEditTabExpanded(self, item):
         """
         Add the Band View dynamically when the Edit tab is expanded.
         """
         if item == self.edit_item and self.rasterViewObj:
-            print("here")
             self.bandViewItem.setHidden(False)
             self.histogramViewItem.setHidden(False)
+            self.StretchViewItem.setHidden(False)
 
     
     def handleEditTabCollapsed(self, item):
@@ -192,6 +179,8 @@ class ControlPanel(QMainWindow):
             self.showBandView()
         elif item == self.histogramViewLabel:
             self.showHistogramView()
+        elif item == self.stretchViewLabel:
+            self.showStretchView()
 
     def handleItemCollapsed(self, item):
         """ Hide the Band View or Histogram View when their labels are collapsed, but keep them in memory. """
@@ -199,11 +188,13 @@ class ControlPanel(QMainWindow):
             self.bandView.hide()
         elif item == self.histogramViewLabel and self.histogramView:
             self.histogramView.hide()
+        elif item == self.stretchViewLabel and self.stretchView:
+            self.stretchView.hide()
 
     def handleViewClick(self, item, column):
         """ Prevent clicks from toggling views incorrectly. """
-        if item == self.bandViewItem or item == self.histogramViewItem:
-            return  # Prevent clicks on the actual views from doing anything
+        if item == self.bandViewItem or item == self.histogramViewItem or item == self.stretchViewItem:
+            return
 
     def showBandView(self):
         """ Show the Band View inside the Band Label item. """
@@ -218,3 +209,10 @@ class ControlPanel(QMainWindow):
             self.histogramView = getHistogramView(self.project_context, self.imageIndex, self)
             self.treeWidget.setItemWidget(self.histogramViewItem, 0, self.histogramView)
         self.histogramView.show()
+
+    def showStretchView(self):
+        """ Show the Stretch View inside the Stretch Label item. """
+        if self.stretchView is None:
+            self.stretchView = getStretchView(self.project_context, self.imageIndex, self)
+            self.treeWidget.setItemWidget(self.stretchViewItem, 0, self.stretchView)
+        self.stretchView.show()
