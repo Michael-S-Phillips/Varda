@@ -12,10 +12,14 @@ from qasync import QEventLoop, QApplication
 import asyncio
 import pyqtgraph as pg
 
-from core.data.project_context import ProjectContext
+# to do:
+# update control panel in main gui so multiple instances are not created
+# make control panel accessible for one image
 
+from core.data.project_context import ProjectContext
+from core.ui import ControlPanel
 # local imports
-from gui.widgets import ControlPanel, StatusBar, MainMenuBar
+from gui.widgets import StatusBar, MainMenuBar
 from features import (
     image_view_raster,
     image_view_stretch,
@@ -41,7 +45,6 @@ class MainGUI(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowTitle("Varda")
         self.setWindowIcon(QIcon("../img/logo.svg"))
-        self.controlPanels = []
 
         self.proj = proj
         self.imageList = None
@@ -112,15 +115,21 @@ class MainGUI(QtWidgets.QMainWindow):
         index = self.imageList.row(item)
         self.selectedImage = self.proj.getImage(index)
 
+        controlPanel = self.proj.getControlPanel(index, self)
+
+        # remove other control panels if they are active for other images
+        for dock in self.findChildren(QtWidgets.QDockWidget):
+            if dock.widget() and isinstance(dock.widget(), ControlPanel):
+                dock.close()
+
         # one image control panel should be open at a time
         # todo: add to list of control panels. Open an exisiting image's control
         # panel, remove / add control panels to the main window
-        self.controlPanel = ControlPanel(self)
         self.addDockWidget(
-            Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock
+            Qt.DockWidgetArea.RightDockWidgetArea, controlPanel.tabsDock
         )
 
-        self.controlPanel.updateActiveImage(index)
+        controlPanel.updateActiveImage(index)
         print(f"Selected image updated: {self.selectedImage.metadata.name}")
 
     def contextMenuEvent(self, event):

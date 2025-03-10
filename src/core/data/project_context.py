@@ -34,6 +34,7 @@ class ProjectContext(QObject):
     def __init__(self):
         super().__init__()
         self._images = []
+        self._controlPanels = {}
 
     # Image Access
     def getImage(self, index):
@@ -82,6 +83,18 @@ class ProjectContext(QObject):
     def getAllImages(self):
         """Retrieve a list of all the images in the project"""
         return self._images
+    
+    def getControlPanel(self, index, main_window):
+        """
+        Get or create a control panel for the given image index.
+
+        If a control panel already exists for this image, return it.
+        Otherwise, create a new one and store it.
+        """
+        from core.ui.controlpanel import ControlPanel
+        if index not in self._controlPanels:
+            self._controlPanels[index] = ControlPanel(main_window)
+        return self._controlPanels[index]
 
     # Metadata
     def updateMetadata(self, index, key: str, value: Any):

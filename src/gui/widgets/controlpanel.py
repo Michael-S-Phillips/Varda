@@ -2,12 +2,11 @@ from PyQt6.QtWidgets import (
     QMainWindow, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QDockWidget, QLabel, QWidget, QSplitter
 )
 from PyQt6.QtCore import Qt, QSize
-from core.data.project_context import ProjectContext
-from features.image_view_raster import getRasterView
-from features.image_view_roi import getROIView
-from features.image_view_histogram import getHistogramView
-from features.image_view_stretch import getStretchView
-from features.image_view_band import getBandView
+# from features.image_view_raster import getRasterView
+# from features.image_view_roi import getROIView
+# from features.image_view_histogram import getHistogramView
+# from features.image_view_stretch import getStretchView
+# from features.image_view_band import getBandView
 
 class ControlPanel(QMainWindow):
     """
