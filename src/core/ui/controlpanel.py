@@ -3,6 +3,8 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QScrollArea, QVBoxLayout
 )
 from PyQt6.QtCore import Qt, QSize
+import numpy as np
+import pyqtgraph as pg
 from features.image_view_raster import getRasterView
 from features.image_view_roi import getROIView
 from features.image_view_histogram import getHistogramView
@@ -109,6 +111,7 @@ class ControlPanel(QMainWindow):
         self.bandView = None
         self.histogramView = None
         self.stretchView = None
+        self.plotsView = None
 
     @property
     def image(self):
@@ -186,6 +189,8 @@ class ControlPanel(QMainWindow):
             self.showHistogramView()
         elif item == self.stretchViewLabel:
             self.showStretchView()
+        elif item == self.plotsLabel:
+            self.showPlotsView()
 
     def handleItemCollapsed(self, item):
         """ Hide the Band View or Histogram View when their labels are collapsed, but keep them in memory. """
@@ -195,6 +200,8 @@ class ControlPanel(QMainWindow):
             self.histogramView.hide()
         elif item == self.stretchViewLabel and self.stretchView:
             self.stretchView.hide()
+        elif item == self.plotsLabel and self.plotsView:
+            self.plotsView.hide()
 
     def handleViewClick(self, item, column):
         """ Prevent clicks from toggling views incorrectly. """
@@ -261,4 +268,52 @@ class PlotsView(QWidget):
 
         for plot in plots[:5]:  # Show only 5 plots
             item = QListWidgetItem(f"{plot.timestamp} - {plot.plot_type}")
+            item.setData(Qt.ItemDataRole.UserRole, plot)  # Store the plot object in the item
             self.listWidget.addItem(item)
+
+        self.listWidget.itemClicked.connect(self.showPlotInWindow)
+
+    def showPlotInWindow(self, item):
+        """Opens a separate pg.plot window displaying the selected plot."""
+        plot = item.data(Qt.ItemDataRole.UserRole)
+        if plot:
+            self.plotWindow = pg.plot(
+                title=f"ROI Mean Spectrum - {plot.timestamp}",
+                pen="y"
+            )
+            self.plotWindow.setLabels(left="Intensity", bottom="Wavelength Index")
+            self.plotWindow.addLegend()
+
+            # Extract mean spectrum data from the ROI
+            mean_spectrum = plot.data  # Mean spectrum from FreeHandROI
+            wavelengths = np.arange(len(mean_spectrum))  # Generate dummy wavelengths
+
+            # Plot the mean spectrum
+            self.plotWindow.plot(wavelengths, mean_spectrum, pen="y", name="Mean Spectrum")
+
+            self.plotWindow.show()
+
+class PlotWindow(QWidget):
+    """Displays the mean spectrum of a selected plot."""
+
+    def __init__(self, plot, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"ROI Spectrum - {plot.timestamp}")
+        self.resize(600, 400)
+
+        # Create a PyQtGraph plot widget
+        self.plotWidget = pg.PlotWidget(title="Mean Spectrum")
+        self.plotWidget.setLabels(left="Intensity", bottom="Wavelength (nm)")
+        self.plotWidget.addLegend()
+
+        # Extract data
+        mean_spectrum = plot.data  # Mean spectrum from FreeHandROI
+        wavelengths = np.arange(len(mean_spectrum))  # Generate dummy wavelengths
+
+        # Plot mean spectrum
+        self.plotWidget.plot(wavelengths, mean_spectrum, pen="y", name="Mean Spectrum")
+
+        # Layout
+        layout = QVBoxLayout()
+        layout.addWidget(self.plotWidget)
+        self.setLayout(layout)

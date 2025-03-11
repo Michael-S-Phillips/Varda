@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import numpy as np
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class FreeHandROI:
     """Data container holding an ROI for an image."""
     """Will hold a list of points that can be transformed into an ROI object"""
@@ -10,6 +10,7 @@ class FreeHandROI:
     color : str
     imageIndex : int
     arraySlice : np.ndarray
+    meanSpectrum: np.ndarray
     
     def toList(self):
         return [ x for x in self.points ]

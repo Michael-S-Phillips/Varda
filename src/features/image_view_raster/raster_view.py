@@ -382,10 +382,10 @@ class RasterView(QWidget):
             color=roi_color,
             imageIndex=image_index,
             arraySlice=array_slice,
+            meanSpectrum=array_slice.mean(axis=(0, 1))
         )
         self.viewModel.proj.addROI(image_index, roi)
         # TODO: add mean spectrum at a later time
-        self.viewModel.proj.addPlot(image_index, "ROI Spectrum")
 
         logger.info(f"Saved ROI spectrum plot for image {image_index}.")
 

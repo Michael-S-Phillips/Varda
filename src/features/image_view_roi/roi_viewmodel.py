@@ -80,12 +80,14 @@ class ROIViewModel(QObject):
 
         # Compute the mean spectrum from the array slice
         #mean_spectrum = roi.arraySlice.mean(axis=(0, 1))
-
         # Plot the mean spectrum (using PyQtGraph or another plotting library)
 
         plot_window = pg.plot(title=f"Mean Spectrum for ROI {roi.color}")
         #plot_window.plot(mean_spectrum, pen='b')
         print(f"Plotted mean spectrum for ROI {roi.color}.")
+        # dummy values
+        roi.meanSpectrum = np.ndarray([1, 2, 3, 4, 5])
+        self.rasterView.viewModel.proj.addPlot(roi)
 
     def _onDataChanged(self, index, changeType):
         """React to changes in the project context."""

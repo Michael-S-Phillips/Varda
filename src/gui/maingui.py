@@ -108,7 +108,6 @@ class MainGUI(QtWidgets.QMainWindow):
 
         if item is None:
             self.selectedImage = None
-            self.controlPanel.updateActiveImage(None)
             return
 
         # Retrieve the selected image's index

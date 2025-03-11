@@ -218,18 +218,13 @@ class ProjectContext(QObject):
         return self._images[index].rois
     
     # TODO: add data param
-    def addPlot(self, index, plot_type, data=None):
+    def addPlot(self, roi):
         """
         Save a new plot for the image at the given index.
         """
-        if index not in range(len(self._images)):
-            logger.error(f"Cannot save plot. Invalid image index: {index}")
-            return
-
-        plot = Plot.create(plot_type, data)
-        self._images[index].plots.append(plot)
-        self.sigDataChanged.emit(index, self.ChangeType.IMAGE)
-        logger.info(f"Saved {plot_type} plot for image {index}.")
+        plot = Plot.create(roi)
+        self._images[roi.imageIndex].plots.append(plot)
+        self.sigDataChanged.emit(roi.imageIndex, self.ChangeType.IMAGE)
 
     def getPlots(self, index):
         """Retrieve all saved plots for an image."""
