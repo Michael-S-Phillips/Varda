@@ -8,7 +8,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 import numpy as np
 
 # local imports
-from core.entities import Image, Metadata, Band, Stretch, FreeHandROI
+from core.entities import Image, Metadata, Band, Stretch, FreeHandROI, Plot
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ class ProjectContext(QObject):
         STRETCH = "stretch"
         METADATA = "metadata"
         ROI = "roi"
+        PLOT = "plot"
 
     # signal that emits when something writes to the projectContext.
     # int argument is the index of the item that was changed.
@@ -55,7 +56,8 @@ class ProjectContext(QObject):
         metadata: Metadata,
         stretch: List[Stretch] = None,
         band: List[Band] = None,
-        roi: List[FreeHandROI] = None
+        roi: List[FreeHandROI] = None,
+        plot: List[Plot] = None
     ):
         """Creates a new image with optional defaults for stretch, adding it to the
         project. Unless we're loading from an existing project, a newly
@@ -67,6 +69,7 @@ class ProjectContext(QObject):
             stretch if stretch else [Stretch.createDefault()],
             band if band else [Band.createDefault()],
             roi if roi else [],
+            plot if plot else [],
             len(self._images),
         )
         if len(image.stretch) == 0:
@@ -213,6 +216,26 @@ class ProjectContext(QObject):
 
     def getROIs(self, index):
         return self._images[index].rois
+    
+    # TODO: add data param
+    def addPlot(self, index, plot_type, data=None):
+        """
+        Save a new plot for the image at the given index.
+        """
+        if index not in range(len(self._images)):
+            logger.error(f"Cannot save plot. Invalid image index: {index}")
+            return
+
+        plot = Plot.create(plot_type, data)
+        self._images[index].plots.append(plot)
+        self.sigDataChanged.emit(index, self.ChangeType.IMAGE)
+        logger.info(f"Saved {plot_type} plot for image {index}.")
+
+    def getPlots(self, index):
+        """Retrieve all saved plots for an image."""
+        if index not in range(len(self._images)):
+            return []
+        return self._images[index].plots
 
     # Helper methods
     def _emitChange(self, index, changeType):

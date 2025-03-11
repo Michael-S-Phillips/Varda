@@ -15,6 +15,7 @@ from .band import Band
 from .stretch import Stretch
 from .metadata import Metadata
 from .freehandROI import FreeHandROI
+from .plot import Plot
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,7 @@ class Image:
     stretch: List[Stretch]
     band: List[Band]
     rois: List[FreeHandROI]
+    plots: List[Plot]
     index: int
 
     def __eq__(self, other):
