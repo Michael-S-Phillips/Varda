@@ -99,24 +99,22 @@ class ROIViewModel(QObject):
         """Update the ROI table with the current ROIs."""
         if not self.roiTable:
             return
-
         # Clear the existing table
         self.roiTable.setRowCount(0)
         rois = self.proj.getROIs(self.imageIndex)
         last_roi = rois[-1]
 
         # Populate the table with the new ROI data
-        if self.roiTable:
-            last_index = len(rois) - 1
-            self.roiTable.insertRow(last_index)
-            self.roiTable.setItem(last_index, 0, QTableWidgetItem(str(last_index)))
-            self.roiTable.setItem(last_index, 1, QTableWidgetItem(f"{last_roi.color}"))
+        last_index = len(rois) - 1
+        self.roiTable.insertRow(last_index)
+        self.roiTable.setItem(last_index, 0, QTableWidgetItem(str(last_index)))
+        self.roiTable.setItem(last_index, 1, QTableWidgetItem(f"{last_roi.color}"))
 
-            # Add the "Plot mean spectrum" button
-            roi_view = self.roiTable.parentWidget()
-            roi_view._addPlotButtonToTable(last_index, last_roi)
+        # Add the "Plot mean spectrum" button
+        roi_view = self.roiTable.parentWidget()
+        roi_view._addPlotButtonToTable(last_index, last_roi)
 
-            self.roiTable.setItem(last_index, 3, QTableWidgetItem("Data3")) 
+        self.roiTable.setItem(last_index, 3, QTableWidgetItem("Data3")) 
 
     # selectROI
 

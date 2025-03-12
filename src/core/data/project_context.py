@@ -5,10 +5,12 @@ from enum import Enum
 
 # third party imports
 from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtWidgets import QWidget
 import numpy as np
 
 # local imports
 from core.entities import Image, Metadata, Band, Stretch, FreeHandROI, Plot
+# from features.image_view_roi import getROIView
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,7 @@ class ProjectContext(QObject):
         METADATA = "metadata"
         ROI = "roi"
         PLOT = "plot"
+        ROIView = "ROIView"
 
     # signal that emits when something writes to the projectContext.
     # int argument is the index of the item that was changed.
@@ -57,7 +60,8 @@ class ProjectContext(QObject):
         stretch: List[Stretch] = None,
         band: List[Band] = None,
         roi: List[FreeHandROI] = None,
-        plot: List[Plot] = None
+        plot: List[Plot] = None,
+        ROIview: QWidget = None
     ):
         """Creates a new image with optional defaults for stretch, adding it to the
         project. Unless we're loading from an existing project, a newly
@@ -70,6 +74,7 @@ class ProjectContext(QObject):
             band if band else [Band.createDefault()],
             roi if roi else [],
             plot if plot else [],
+            ROIview if ROIview else None,
             len(self._images),
         )
         if len(image.stretch) == 0:
@@ -224,13 +229,23 @@ class ProjectContext(QObject):
         """
         plot = Plot.create(roi)
         self._images[roi.imageIndex].plots.append(plot)
-        self.sigDataChanged.emit(roi.imageIndex, self.ChangeType.IMAGE)
+        self.sigDataChanged.emit(roi.imageIndex, self.ChangeType.PLOT)
 
     def getPlots(self, index):
         """Retrieve all saved plots for an image."""
         if index not in range(len(self._images)):
             return []
         return self._images[index].plots
+    
+    def setROIView(self, index, view:QObject):
+        """
+        Retrieve or create the ROI Table for a given image.
+        Ensures each image has only one ROI Table open at a time.
+        """
+        if self._images[index].ROIview is None:
+            self._images[index].ROIview = view
+
+        return self._images[index].ROIview
 
     # Helper methods
     def _emitChange(self, index, changeType):

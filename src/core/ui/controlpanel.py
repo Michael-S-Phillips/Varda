@@ -160,6 +160,26 @@ class ControlPanel(QMainWindow):
         dock.setWidget(view)
         self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
+
+    
+    def openROIView(self):
+        """Retrieve or create the ROI Table for the selected image."""
+        view = getROIView(self.project_context, self.image.index, self.main_window)
+        if (self.rasterViewObj):
+            view.viewModel.setRasterView(self.rasterViewObj)
+
+        roi_view = self.project_context.setROIView(self.image.index, view)
+
+        # Close any existing ROI tables before adding the new one
+        for dock in self.findChildren(QDockWidget):
+            if dock.widget() and isinstance(dock.widget(), type(roi_view)):
+                dock.close()
+
+        # Add ROI Table to UI
+        dock = QDockWidget("ROI Table", self.main_window)
+        dock.setWidget(roi_view)
+        self.main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.setFloating(True)
     
 
     def handleEditTabExpanded(self, item):
@@ -265,6 +285,13 @@ class PlotsView(QWidget):
         # Right-click context menu
         self.listWidget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.listWidget.customContextMenuRequested.connect(self.showContextMenu)
+
+        self.proj.sigDataChanged.connect(self.onDataChanged)
+
+    def onDataChanged(self, index, changeType):
+        """Refresh plot list when a new plot is added."""
+        if index == self.image_index and changeType == self.proj.ChangeType.PLOT:
+            self.loadPlots()
 
     def loadPlots(self):
         """Load saved plots and display up to 5 at a time."""
