@@ -1,10 +1,11 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QDockWidget, QLabel, QWidget,
-    QListWidget, QListWidgetItem, QScrollArea, QVBoxLayout
+    QListWidget, QListWidgetItem, QScrollArea, QVBoxLayout, QFileDialog, QMenu
 )
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QPoint
 import numpy as np
 import pyqtgraph as pg
+import csv
 from features.image_view_raster import getRasterView
 from features.image_view_roi import getROIView
 from features.image_view_histogram import getHistogramView
@@ -238,7 +239,7 @@ class ControlPanel(QMainWindow):
 
 
 class PlotsView(QWidget):
-    """Displays saved plots for an image."""
+    """Displays saved plots for an image with a right-click menu for each item."""
 
     def __init__(self, proj, image_index, parent=None):
         super().__init__(parent)
@@ -260,6 +261,10 @@ class PlotsView(QWidget):
 
         # Load saved plots
         self.loadPlots()
+
+        # Right-click context menu
+        self.listWidget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.listWidget.customContextMenuRequested.connect(self.showContextMenu)
 
     def loadPlots(self):
         """Load saved plots and display up to 5 at a time."""
@@ -293,27 +298,42 @@ class PlotsView(QWidget):
 
             self.plotWindow.show()
 
-class PlotWindow(QWidget):
-    """Displays the mean spectrum of a selected plot."""
+    def showContextMenu(self, pos: QPoint):
+        """Display the context menu when right-clicking a plot item."""
+        item = self.listWidget.itemAt(pos)
+        if not item:
+            return
 
-    def __init__(self, plot, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(f"ROI Spectrum - {plot.timestamp}")
-        self.resize(600, 400)
+        plot = item.data(Qt.ItemDataRole.UserRole)
+        if not plot:
+            return
 
-        # Create a PyQtGraph plot widget
-        self.plotWidget = pg.PlotWidget(title="Mean Spectrum")
-        self.plotWidget.setLabels(left="Intensity", bottom="Wavelength (nm)")
-        self.plotWidget.addLegend()
+        menu = QMenu(self)
 
-        # Extract data
-        mean_spectrum = plot.data  # Mean spectrum from FreeHandROI
-        wavelengths = np.arange(len(mean_spectrum))  # Generate dummy wavelengths
+        openAction = menu.addAction("Open Plot")
+        exportAction = menu.addAction("Export Plot")
+        discardAction = menu.addAction("Discard Plot")
 
-        # Plot mean spectrum
-        self.plotWidget.plot(wavelengths, mean_spectrum, pen="y", name="Mean Spectrum")
+        action = menu.exec(self.listWidget.mapToGlobal(pos))
 
-        # Layout
-        layout = QVBoxLayout()
-        layout.addWidget(self.plotWidget)
-        self.setLayout(layout)
+        if action == openAction:
+            self.showPlotInWindow(item)
+        elif action == exportAction:
+            self.exportPlot(plot)
+        elif action == discardAction:
+            self.discardPlot(item, plot)
+
+    def exportPlot(self, plot):
+        """Export plot data to a CSV file."""
+        fileName, _ = QFileDialog.getSaveFileName(self, "Save Plot Data", "", "CSV Files (*.csv)")
+        if fileName:
+            with open(fileName, "w", newline="") as file:
+                writer = csv.writer(file)
+                writer.writerow(["Wavelength Index", "Mean Intensity"])
+                for i, value in enumerate(plot.data):
+                    writer.writerow([i, value])
+
+    def discardPlot(self, item, plot):
+        """Remove the plot from the list and from the project context."""
+        self.listWidget.takeItem(self.listWidget.row(item))  # Remove from UI
+        self.proj.getPlots(self.image_index).remove(plot)  # Remove from ProjectContext
