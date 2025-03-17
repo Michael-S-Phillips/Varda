@@ -18,6 +18,7 @@ from .metadata import Metadata
 from .freehandROI import FreeHandROI
 from .plot import Plot
 
+
 # TODO: changed this? Bad?
 @dataclass(frozen=False)
 class Image:

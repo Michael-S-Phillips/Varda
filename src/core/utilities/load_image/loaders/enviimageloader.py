@@ -7,10 +7,10 @@ import numpy as np
 import rasterio as rio
 
 # local imports
-from features.image_load.abstractimageloader import AbstractImageLoader
+from core.utilities.load_image.loaders.abstractimageloader import AbstractImageLoader
 from core.entities.metadata import Metadata
 from core.utilities import debug
-
+from core.entities import Band
 
 logging.getLogger("rasterio").setLevel(logging.CRITICAL)
 
@@ -21,7 +21,7 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
     imageType = (".hdr", ".img")
 
     @staticmethod
-    def _loadRasterData(filePath):
+    def loadRasterData(filePath) -> np.ndarray:
         path = filePath.replace(".hdr", ".img")
         timeStarted = time.time()
 
@@ -38,7 +38,7 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
         return data
 
     @staticmethod
-    def _loadMetadata(image, filePath):  # pylint: disable=too-many-locals
+    def loadMetadata(raster, filePath) -> Metadata:  # pylint: disable=too-many-locals
         path = filePath.replace(".hdr", ".img")
         with rio.open(path) as src:
             # get rasterio metadata
@@ -64,7 +64,7 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
             # get envi metadata
             enviData = src.tags(ns="ENVI")
             if debug.DEBUG:
-                #print("Raw Metadata:", enviData)
+                # print("Raw Metadata:", enviData)
                 pass
 
             description = (
@@ -81,27 +81,23 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                     int(band)
                     for band in enviData["default_bands"].strip("{}").split(",")
                 ]
-                defaultBands = {
-                    "r": defaultBands[0],
-                    "g": defaultBands[1],
-                    "b": defaultBands[2],
-                }
+                defaultBands = Band("default", defaultBands[0], defaultBands[1], defaultBands[2])
 
             wavelengthUnits = (
                 enviData["wavelength_units"] if "wavelength_units" in enviData else None
             )
             bandNames = (
-                np.asarray(enviData["band_names"].strip("{}").split(","))
+                enviData["band_names"].strip("{}").split(",")
                 if "band_names" in enviData
                 else None
             )
 
-            wavelength = enviData["wavelength"] if "wavelength" in enviData else None
-            if wavelength is not None:
-                wavelength = np.asarray(
+            wavelengths = enviData["wavelength"] if "wavelength" in enviData else None
+            if wavelengths is not None:
+                wavelengths = np.asarray(
                     [
                         float(wavelength)
-                        for wavelength in wavelength.strip("{}").split(",")
+                        for wavelength in wavelengths.strip("{}").split(",")
                     ]
                 )
 
@@ -110,20 +106,20 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
             )
 
         return Metadata(
-            _filename=filePath,
-            _driver=driver,
-            _width=width,
-            _height=height,
-            _dtype=dtype,
-            _dataIgnore=dataIgnore,
-            _bandCount=bandCount,
-            _defaultBand=defaultBands,
-            _wavelength=wavelength,
-            _extraMetadata={
-                "transform": transform,
+            filePath=filePath,
+            driver=driver,
+            width=width,
+            height=height,
+            dtype=dtype,
+            dataIgnore=dataIgnore,
+            bandCount=bandCount,
+            defaultBand=defaultBands,
+            wavelengths=wavelengths,
+            extraMetadata={
+                # "transform": transform,
                 "description": description,
                 "wavelength_units": wavelengthUnits,
                 "band_names": bandNames,
-                "geospatial_info": geospatialInfo,
+                # "geospatial_info": geospatialInfo,
             },
         )

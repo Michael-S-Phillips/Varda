@@ -1,4 +1,5 @@
 # standard library
+import json
 import logging
 from typing import Any, List
 from enum import Enum
@@ -10,7 +11,7 @@ import numpy as np
 
 # local imports
 from core.entities import Image, Metadata, Band, Stretch, FreeHandROI, Plot
-# from features.image_view_roi import getROIView
+from core.utilities.load_image import ImageLoadingService
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,46 @@ class ProjectContext(QObject):
         super().__init__()
         self._images = []
         self._controlPanels = {}
+        self._imageLoadingService = ImageLoadingService()
+
+    def saveProject(self, savePath):
+        saveData = self.serialize()
+        with open(savePath, "w") as file:
+            json.dump(saveData, file, indent=4)
+
+    def loadProject(self, loadPath):
+        with open(loadPath, "r") as file:
+            self.deserialize(json.load(file))
+
+    def serialize(self):
+        imageDictList = [
+            {
+                "metadata": image.metadata.serialize(),
+                "stretch": [stretch.serialize() for stretch in image.stretch],
+                "band": [band.serialize() for band in image.band],
+            }
+            for image in self._images
+        ]
+        return {"images": imageDictList}
+
+    def deserialize(self, data):
+        self._images = []
+
+        imageDictList = data["images"]
+        for imageDict in imageDictList:
+            metadata = Metadata.deserialize(imageDict["metadata"])
+            stretch = [Stretch.deserialize(stretch) for stretch in imageDict["stretch"] ]
+            band = [Band.deserialize(band) for band in imageDict["band"] ]
+            # this lambda is basically a custom version of loadNewImage, that passes in the data from the json.
+            self._imageLoadingService.loadImageData(
+                metadata.filePath,
+                lambda raster, _: self.createImage(
+                    raster=raster,
+                    metadata=metadata,
+                    stretch=stretch,
+                    band=band,
+                ),
+            )
 
     # Image Access
     def getImage(self, index):
@@ -48,10 +89,16 @@ class ProjectContext(QObject):
     def addImage(self, image: Image):
         """Add a new image to the context."""
         index = len(self._images)
-        image.metadata.name = f"Image {index}"  # Assign a unique name based on the index
+        image.metadata.name = (
+            f"Image {index}"  # Assign a unique name based on the index
+        )
         self._images.append(image)
         self._emitChange(index, self.ChangeType.IMAGE)
         return index
+
+    def loadNewImage(self, path: str):
+        """Load an image from the given path."""
+        self._imageLoadingService.loadImageData(path, self.createImage)
 
     def createImage(
         self,
@@ -61,7 +108,7 @@ class ProjectContext(QObject):
         band: List[Band] = None,
         roi: List[FreeHandROI] = None,
         plot: List[Plot] = None,
-        ROIview: QWidget = None
+        ROIview: QWidget = None,
     ):
         """Creates a new image with optional defaults for stretch, adding it to the
         project. Unless we're loading from an existing project, a newly
@@ -91,7 +138,7 @@ class ProjectContext(QObject):
     def getAllImages(self):
         """Retrieve a list of all the images in the project"""
         return self._images
-    
+
     def getControlPanel(self, index, main_window):
         """
         Get or create a control panel for the given image index.
@@ -100,6 +147,7 @@ class ProjectContext(QObject):
         Otherwise, create a new one and store it.
         """
         from core.ui.controlpanel import ControlPanel
+
         if index not in self._controlPanels:
             self._controlPanels[index] = ControlPanel(main_window)
         return self._controlPanels[index]
@@ -209,19 +257,19 @@ class ProjectContext(QObject):
 
     # ROI actions
     def addROI(self, index, roi: Any):
-        # need to put logic for roi band somewhere 
+        # need to put logic for roi band somewhere
         # call addROI and removeROI in the control panel
         self._images[index].rois.append(roi)
         self._emitChange(index, self.ChangeType.ROI)
         return len(self._images[index].rois) - 1
-    
+
     def removeROI(self, index, roiIndex):
         self._images[index].rois.pop(roiIndex)
         self._emitChange(index, self.ChangeType.ROI)
 
     def getROIs(self, index):
         return self._images[index].rois
-    
+
     # TODO: add data param
     def addPlot(self, roi):
         """
@@ -236,8 +284,8 @@ class ProjectContext(QObject):
         if index not in range(len(self._images)):
             return []
         return self._images[index].plots
-    
-    def setROIView(self, index, view:QObject):
+
+    def setROIView(self, index, view: QObject):
         """
         Retrieve or create the ROI Table for a given image.
         Ensures each image has only one ROI Table open at a time.

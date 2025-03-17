@@ -26,7 +26,6 @@ from features import (
     image_view_band,
     image_view_roi,
     all_images_view_list,
-    image_load,
     image_view_histogram,
 )
 import core.utilities as utils
@@ -95,8 +94,8 @@ class MainGUI(QtWidgets.QMainWindow):
     def connectSignals(self):
         self.menuBar().sigImportFile.connect(self.loadImage)
         self.menuBar().sigExitApp.connect(self.exitApp)
-        # self.menuBar().menubar.sigSaveProject.connect(self.saveProject)
-        # self.menuBar().menubar.sigOpenProject.connect(self.loadProject)
+        self.menuBar().sigSaveProject.connect(self.saveProject)
+        self.menuBar().sigOpenProject.connect(self.loadProject)
 
         self.imageList.currentItemChanged.connect(self.onSelectedImageChanged)
 
@@ -204,14 +203,7 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.setFloating(True)
 
     def loadImage(self, filePath=None):
-        self.statusBar().showLoadingMessage()
-        image_load.loadNewImage(self.proj, filePath, self.onImageLoaded)
-
-    def onImageLoaded(self, index):
-        self.statusBar().loadingFinished()
-        # remove initial prompt
-        # if self.centralWidget().isHidden() is False:
-        #     self.centralWidget().hide()
+        self.proj.loadNewImage(filePath)
 
     def saveProject(self):
         fileName = QtWidgets.QFileDialog.getSaveFileName(
@@ -219,7 +211,7 @@ class MainGUI(QtWidgets.QMainWindow):
         )
         if not fileName[0]:
             return
-        # TODO
+        self.proj.saveProject(fileName[0])
 
     def loadProject(self):
         fileName = QtWidgets.QFileDialog.getOpenFileName(
@@ -227,7 +219,7 @@ class MainGUI(QtWidgets.QMainWindow):
         )
         if not fileName[0]:
             return
-        # TODO
+        self.proj.loadProject(fileName[0])
 
     def exitApp(self):
         self.close()

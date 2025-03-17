@@ -38,7 +38,7 @@ class PixelPlot(QWidget):
         raster_data = image.raster
         spectral_data = raster_data[coords[1], coords[0], :]
 
-        wavelengths = image.metadata.wavelength
+        wavelengths = image.metadata.wavelengths
         if wavelengths is None or len(wavelengths) == 0 or len(wavelengths) != raster_data.shape[2]:
             logger.warning(f"Invalid wavelength data detected. Using band numbers instead.")
             wavelengths = np.arange(raster_data.shape[2])

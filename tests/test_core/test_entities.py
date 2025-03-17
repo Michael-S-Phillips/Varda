@@ -52,7 +52,7 @@ def test_metadata_custom():
     assert metadata.driver == "GTiff"
     assert metadata.width == 100
     assert metadata.height == 200
-    assert (metadata.wavelength == wavelength).all()
+    assert (metadata.wavelengths == wavelength).all()
 
 
 def test_image_creation():

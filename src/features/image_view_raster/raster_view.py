@@ -5,7 +5,6 @@ from PyQt6.QtCore import QEvent
 from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QWidget
 import pyqtgraph as pg
-import numpy as np
 from scipy.spatial import ConvexHull
 from skimage.draw import polygon
 
@@ -96,10 +95,10 @@ class RasterView(QWidget):
         try:
             image = self.viewModel.proj.getImage(self.viewModel.index)
             logger.debug(f"Image shape: {image.raster.shape}")
-            logger.debug(f"Metadata wavelength shape: {image.metadata.wavelength.shape}")
-            logger.debug(f"First few wavelengths: {image.metadata.wavelength[:5]}")
+            logger.debug(f"Metadata wavelength shape: {image.metadata.wavelengths.shape}")
+            logger.debug(f"First few wavelengths: {image.metadata.wavelengths[:5]}")
             logger.debug(
-                f"Wavelength range: {image.metadata.wavelength.min():.2f} - {image.metadata.wavelength.max():.2f} nm")
+                f"Wavelength range: {image.metadata.wavelengths.min():.2f} - {image.metadata.wavelengths.max():.2f} nm")
         except Exception as e:
             logger.error(f"Error logging image info: {str(e)}")
 
@@ -203,7 +202,7 @@ class RasterView(QWidget):
                     spectral_data = raster_data[final_y, final_x, :]
 
                     # Get wavelengths from image metadata
-                    wavelengths = image.metadata.wavelength
+                    wavelengths = image.metadata.wavelengths
                     logger.debug(f"Wavelength data from metadata: {wavelengths[:5]}...")  # Log first 5 values
                     logger.debug(f"Wavelength array shape: {wavelengths.shape if wavelengths is not None else 'None'}")
                     logger.debug(f"Raster shape: {raster_data.shape}")

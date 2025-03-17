@@ -130,8 +130,8 @@ class ImageWorkspace(QtWidgets.QWidget):
             spectral_data = self.image.rasterData[y, x, :]
 
             # Get wavelength data
-            if self.image.meta.wavelength is not None:
-                wavelength = self.image.meta.wavelength
+            if self.image.meta.wavelengths is not None:
+                wavelength = self.image.meta.wavelengths
             else:
                 wavelength = np.arange(self.image.rasterData.shape[2])
 

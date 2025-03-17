@@ -128,7 +128,7 @@ class ControlPanel(QMainWindow):
             self.activeImageLabel.setText("No image selected")
         else:
             # Use the image index for the label
-            fn = self.project_context.getImage(index).metadata._filename.split("/")[-1]
+            fn = self.project_context.getImage(index).metadata.filePath.split("/")[-1]
             if (len(fn) > 10):
                 fn_short = fn[0:10]
             else:
