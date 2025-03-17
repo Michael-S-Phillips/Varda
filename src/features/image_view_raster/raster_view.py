@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 from PyQt6 import QtCore, QtWidgets
-from PyQt6.QtCore import QEvent
+from PyQt6.QtCore import QEvent, pyqtSignal
 from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QWidget
 import pyqtgraph as pg
@@ -50,13 +50,11 @@ class PixelPlotWindow(QtWidgets.QMainWindow):
 
 class RasterView(QWidget):
     """Main widget for displaying and interacting with raster images."""
+    sigImageClicked = pyqtSignal(int, int)
 
     def __init__(self, viewmodel: RasterViewModel, parent=None):
         super().__init__(parent=parent)
         self.viewModel = viewmodel
-
-        # Initialize separate window for pixel plot
-        self.pixel_plot_window = PixelPlotWindow()
 
         # Initialize image items and views
         self.mainImage = None
@@ -176,50 +174,29 @@ class RasterView(QWidget):
     def zoomImageClicked(self, event):
         """Handle clicks on the zoom image."""
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
-            try:
-                # Get click position
-                pos = event.pos()
-                x, y = int(pos.x()), int(pos.y())
 
-                # Get image and raster data
-                image = self.viewModel.proj.getImage(self.viewModel.index)
-                raster_data = image.raster
+            # Get click position
+            x, y = event.pos().x(), event.pos().y()
+            final_x, final_y = self._zoomCoordsToAbsolute(x, y)
 
-                # Calculate coordinates in original image space
-                main_roi_pos = self.mainROI.pos()
-                context_roi_pos = self.contextROI.pos()
-                final_x = int(context_roi_pos.x() + main_roi_pos.x() + x)
-                final_y = int(context_roi_pos.y() + main_roi_pos.y() + y)
-
-                # Update display if coordinates are valid
-                if (0 <= final_x < raster_data.shape[1] and
-                        0 <= final_y < raster_data.shape[0]):
-                    # Update crosshairs
-                    self.crosshair_v.setPos(x)
-                    self.crosshair_h.setPos(y)
-
-                    # Get spectral data
-                    spectral_data = raster_data[final_y, final_x, :]
-
-                    # Get wavelengths from image metadata
-                    wavelengths = image.metadata.wavelengths
-                    logger.debug(f"Wavelength data from metadata: {wavelengths[:5]}...")  # Log first 5 values
-                    logger.debug(f"Wavelength array shape: {wavelengths.shape if wavelengths is not None else 'None'}")
-                    logger.debug(f"Raster shape: {raster_data.shape}")
-
-                    if wavelengths is None or len(wavelengths) == 0 or len(wavelengths) != raster_data.shape[2]:
-                        logger.warning(f"Invalid wavelength data detected. Using band numbers instead.")
-                        wavelengths = np.arange(raster_data.shape[2])
-                    else:
-                        logger.info(f"Using wavelength range: {wavelengths.min():.2f} - {wavelengths.max():.2f} nm")
-
-                    # Update plot window
-                    self.pixel_plot_window.update_plot(wavelengths, spectral_data, (final_x, final_y))
-
-            except Exception as e:
-                logger.error(f"Error updating pixel plot: {str(e)}")
-
+            self._updateCrosshair(x, y)
+            self.sigImageClicked.emit(final_x, final_y)
         event.accept()
+
+    def _zoomCoordsToAbsolute(self, xZoom, yZoom):
+        """Transforms coordinates from the zoom view space into absolute image space"""
+        final_x = int(self.contextROI.pos().x() + self.mainROI.pos().x() + xZoom)
+        final_y = int(self.contextROI.pos().y() + self.mainROI.pos().y() + yZoom)
+
+        image_size = self.viewModel.proj.getImage(self.viewModel.index).raster.shape
+        if final_x in range(0, image_size[1]) and final_y in range(0, image_size[0]):
+            return final_x, final_y
+        else:
+            raise IndexError(f"Selected coordinates are invalid: {final_x}, {final_y}")
+
+    def _updateCrosshair(self, x, y):
+        self.crosshair_v.setPos(x)
+        self.crosshair_h.setPos(y)
 
     def _connectSignals(self):
         """Connect ROI signals."""
@@ -229,7 +206,9 @@ class RasterView(QWidget):
             self.mainROI.sigRegionChanged.connect(self._updateZoomView)
 
         self.freehandROIs[-1].sigDrawingComplete.connect(self._onROIDrawn)
-        
+
+        self.viewModel.sigStretchChanged.connect(self._onStretchChanged)
+        self.viewModel.sigBandChanged.connect(self._onBandChanged)
 
 
     def _initROIS(self):

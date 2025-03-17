@@ -63,23 +63,27 @@ class ProjectContext(QObject):
         return {"images": imageDictList}
 
     def deserialize(self, data):
-        self._images = []
-
-        imageDictList = data["images"]
-        for imageDict in imageDictList:
-            metadata = Metadata.deserialize(imageDict["metadata"])
-            stretch = [Stretch.deserialize(stretch) for stretch in imageDict["stretch"] ]
-            band = [Band.deserialize(band) for band in imageDict["band"] ]
-            # this lambda is basically a custom version of loadNewImage, that passes in the data from the json.
-            self._imageLoadingService.loadImageData(
-                metadata.filePath,
-                lambda raster, _: self.createImage(
-                    raster=raster,
-                    metadata=metadata,
-                    stretch=stretch,
-                    band=band,
-                ),
-            )
+        imagesTemp = self._images
+        try:
+            self._images = []
+            imageDictList = data["images"]
+            for imageDict in imageDictList:
+                metadata = Metadata.deserialize(imageDict["metadata"])
+                stretch = [Stretch.deserialize(stretch) for stretch in imageDict["stretch"] ]
+                band = [Band.deserialize(band) for band in imageDict["band"] ]
+                # this lambda is basically a custom version of loadNewImage, that passes in the data from the json.
+                self._imageLoadingService.loadImageData(
+                    metadata.filePath,
+                    lambda raster, _: self.createImage(
+                        raster=raster,
+                        metadata=metadata,
+                        stretch=stretch,
+                        band=band,
+                    ),
+                )
+        except Exception as e:
+            logger.error(f"Project Load Aborted! Error: {e}")
+            self._images = imagesTemp
 
     # Image Access
     def getImage(self, index):
