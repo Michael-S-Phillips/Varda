@@ -83,6 +83,7 @@ class ProjectContext(QObject):
                 )
         except Exception as e:
             logger.error(f"Project Load Aborted! Error: {e}")
+            # restore previous project state
             self._images = imagesTemp
 
     # Image Access

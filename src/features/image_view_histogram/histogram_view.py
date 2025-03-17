@@ -27,6 +27,7 @@ class DualHistogram(QWidget):
         self.histogram.item.regions[0].setHoverBrush(QColor(*(*self.color, 50)))
         self.histogram.item.gradient.hide()
         self.histogram.item.fillHistogram(True, level=0.0, color=(*self.color, 50))
+        self.histogram.item.disableAutoHistogramRange()
 
         # Second (zoomed) histogram
         self.histogramZoomed = pg.HistogramLUTWidget(
@@ -49,7 +50,7 @@ class DualHistogram(QWidget):
 
     def _handleLevelsChanged(self):
         mn, mx = self.histogram.item.getLevels()
-        self.histogram.item.setHistogramRange(mn, mx)
+        self.histogramZoomed.item.setHistogramRange(mn, mx)
 
 class HistogramView(QWidget):
     """A basic view for editing band configurations of an image with selectable RGB histograms."""
