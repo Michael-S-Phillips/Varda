@@ -1,3 +1,4 @@
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -9,11 +10,14 @@ from PyQt6.QtWidgets import (
     QWidget
 )
 from PyQt6.QtCore import Qt
+import pyqtgraph as pg
 import sys
 
 # Local imports
-from features.pixel_plot.pixel_plot import PixelPlot
+from features.image_view_raster.PixelPlotWindow import PixelPlotWindow
 from core.data.project_context import ProjectContext
+from features.image_view_raster.raster_view import RasterView
+from features.image_view_raster.raster_viewmodel import RasterViewModel
 from gui.widgets.ROI_selector import ROISelector
 from core.entities import FreeHandROI
 
@@ -169,7 +173,7 @@ class ControlPanel(QMainWindow):
             wavelength = getattr(image.metadata, "wavelength", None)
 
             # Create and show the Pixel Plot Window
-            self.pixelPlotWindow = PixelPlot(raster_data, wavelength)
+            self.pixelPlotWindow = PixelPlotWindow(raster_data, wavelength)
             self.pixelPlotWindow.show()
         else:
             print("No active image selected.")

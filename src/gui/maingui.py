@@ -25,7 +25,6 @@ from features import (
     image_load,
     image_view_histogram,
 )
-from features.composite_features import GeneralImageAnalysis
 import core.utilities as utils
 
 logger = logging.getLogger(__name__)
@@ -130,7 +129,6 @@ class MainGUI(QtWidgets.QMainWindow):
         roiView = openView.addAction("ROI Table View")
         stretchView = openView.addAction("Stretch View")
         histogramView = openView.addAction("Histogram View")
-        generalImageAnalysis = openView.addAction("General Image Analysis")
         image = index.data(QtCore.Qt.ItemDataRole.UserRole)
         logger.debug(type(image))
         imageIndex = image.index
@@ -139,7 +137,6 @@ class MainGUI(QtWidgets.QMainWindow):
         roiView.triggered.connect(lambda: self.openROIView(imageIndex))
         stretchView.triggered.connect(lambda: self.openStretchView(imageIndex))
         histogramView.triggered.connect(lambda: self.openHistogramView(imageIndex))
-        generalImageAnalysis.triggered.connect(lambda: self.openGeneralImageAnalysis(imageIndex))
         return contextMenu
 
     def openHistogramView(self, index):
@@ -185,10 +182,6 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.setWidget(view)
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
-
-    def openGeneralImageAnalysis(self, index):
-        view = GeneralImageAnalysis(self.proj, index, self)
-        self.setCentralWidget(view)
 
     def loadImage(self, filePath=None):
         self.statusBar().showLoadingMessage()
