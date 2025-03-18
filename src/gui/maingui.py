@@ -28,7 +28,7 @@ from features import (
     all_images_view_list,
     image_view_histogram,
 )
-import core.utilities as utils
+import core.utilities.debug as debug
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +95,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.menuBar().sigExitApp.connect(self.exitApp)
         self.menuBar().sigSaveProject.connect(self.proj.saveProject)
         self.menuBar().sigOpenProject.connect(self.proj.loadProject)
+        self.menuBar().sigDumpProjectData.connect(lambda: debug.ProjectContextDataTable(self.proj, self))
 
         self.imageList.currentItemChanged.connect(self.onSelectedImageChanged)
 

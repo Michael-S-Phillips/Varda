@@ -122,14 +122,12 @@ class ProjectContext(QObject):
                 # just let the function execution continue
                 pass
 
+        f: str = None
         if loadPath is None:
-            f = QFileDialog.getOpenFileName(
+            f, _ = QFileDialog.getOpenFileName(
                 None, "Open File", "", "Varda project file (*.varda)"
             )
-            if f[0]:
-                loadPath = f[0]
-            else:
-                return
+        loadPath = f if f is not None else loadPath
 
         with open(loadPath, "r") as file:
             self.deserialize(file.name, json.load(file))
@@ -171,13 +169,15 @@ class ProjectContext(QObject):
                         metadata.filePath = newPath
 
                 # this lambda is basically a custom version of loadNewImage, that passes in the data from the json.
+                # it's important that we "capture" the variables from the current loop iteration, via default vals
+                # because the lambda won't execute until later
                 self._imageLoadingService.loadImageData(
                     metadata.filePath,
-                    lambda raster, _: self.createImage(
+                    lambda raster, _, m=metadata, s=stretch, b=band: self.createImage(
                         raster=raster,
-                        metadata=metadata,
-                        stretch=stretch,
-                        band=band,
+                        metadata=m,
+                        stretch=s,
+                        band=b,
                     ),
                 )
         except Exception as e:

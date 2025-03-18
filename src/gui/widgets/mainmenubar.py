@@ -8,7 +8,6 @@ from PyQt6.QtWidgets import QMenuBar, QMenu
 
 # local imports
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -24,10 +23,10 @@ class MainMenuBar(QMenuBar):
     sigExitApp = QtCore.pyqtSignal()
     sigAboutDialog = QtCore.pyqtSignal()
     sigLoadDebugProject = QtCore.pyqtSignal()
+    sigDumpProjectData = QtCore.pyqtSignal()
 
-    def __init__(self, imageManager=None, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.imageManager = imageManager
         self._initUI()
 
     def _initUI(self):
@@ -65,4 +64,5 @@ class MainMenuBar(QMenuBar):
     def _initDebugMenu(self):
         debugMenu = QMenu("Debug", self)
         debugMenu.addAction("Load Debug Project", self.sigLoadDebugProject)
+        debugMenu.addAction("Project Data Dump", self.sigDumpProjectData)
         return debugMenu
