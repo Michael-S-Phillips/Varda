@@ -1,9 +1,8 @@
 from os import listdir
 from os.path import dirname, basename
-from .abstractimageloader import AbstractImageLoader
 from .enviimageloader import ENVIImageLoader
 from .hdf5imageloader import HDF5ImageLoader
-from .load_image import loadNewImage
+from .abstractimageloader import AbstractImageLoader
 
 # This dynamically imports all the modules in this package. ty StackOverflow
 __all__ = [

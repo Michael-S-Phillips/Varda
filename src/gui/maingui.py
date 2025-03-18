@@ -12,20 +12,23 @@ from qasync import QEventLoop, QApplication
 import asyncio
 import pyqtgraph as pg
 
-from core.data.project_context import ProjectContext
+# to do:
+# update control panel in main gui so multiple instances are not created
+# make control panel accessible for one image
 
+from core.data import ProjectContext
+from core.ui import ControlPanel
 # local imports
-from gui.widgets import ControlPanel, StatusBar, MainMenuBar
+from gui.widgets import StatusBar, MainMenuBar
 from features import (
     image_view_raster,
     image_view_stretch,
     image_view_band,
     image_view_roi,
     all_images_view_list,
-    image_load,
     image_view_histogram,
 )
-import core.utilities as utils
+import core.utilities.debug as debug
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +56,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def initUI(self):
         self.setMenuBar(MainMenuBar())
-        self.setStatusBar(StatusBar())
-
+        self.setStatusBar(StatusBar(self.proj))
         # make dock tabs appear on top
         self.setTabPosition(
             Qt.DockWidgetArea.AllDockWidgetAreas,
@@ -64,11 +66,11 @@ class MainGUI(QtWidgets.QMainWindow):
         self.imageList = all_images_view_list.newList(self.proj, self)
         self.newDock("Image List", self.imageList, Qt.DockWidgetArea.LeftDockWidgetArea)
 
-        # Initialize Control Panel with ProjectContext
-        self.controlPanel = ControlPanel(self.proj)
-        self.addDockWidget(
-            Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock
-        )
+        # # Initialize Control Panel with ProjectContext
+        # self.controlPanel = ControlPanel(self, self.proj)
+        # self.addDockWidget(
+        #     Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock
+        # )
 
         # set default central widget
         self.setCentralWidget(self.getStartingScreenWidget())
@@ -89,10 +91,11 @@ class MainGUI(QtWidgets.QMainWindow):
         return dock
 
     def connectSignals(self):
-        self.menuBar().sigImportFile.connect(self.loadImage)
+        self.menuBar().sigImportFile.connect(self.proj.loadNewImage)
         self.menuBar().sigExitApp.connect(self.exitApp)
-        # self.menuBar().menubar.sigSaveProject.connect(self.saveProject)
-        # self.menuBar().menubar.sigOpenProject.connect(self.loadProject)
+        self.menuBar().sigSaveProject.connect(self.proj.saveProject)
+        self.menuBar().sigOpenProject.connect(self.proj.loadProject)
+        self.menuBar().sigDumpProjectData.connect(lambda: debug.ProjectContextDataTable(self.proj, self))
 
         self.imageList.currentItemChanged.connect(self.onSelectedImageChanged)
 
@@ -100,15 +103,31 @@ class MainGUI(QtWidgets.QMainWindow):
         """
         Handle the selection of a new image and update the control panel.
         """
+        # now, only after an image is selected a control panel is created
+
         if item is None:
             self.selectedImage = None
-            self.controlPanel.updateActiveImage(None)
             return
 
         # Retrieve the selected image's index
         index = self.imageList.row(item)
         self.selectedImage = self.proj.getImage(index)
-        self.controlPanel.updateActiveImage(index)
+
+        controlPanel = self.proj.getControlPanel(index, self)
+
+        # remove other control panels if they are active for other images
+        for dock in self.findChildren(QtWidgets.QDockWidget):
+            if dock.widget() and isinstance(dock.widget(), ControlPanel):
+                dock.close()
+
+        # one image control panel should be open at a time
+        # todo: add to list of control panels. Open an exisiting image's control
+        # panel, remove / add control panels to the main window
+        self.addDockWidget(
+            Qt.DockWidgetArea.RightDockWidgetArea, controlPanel.tabsDock
+        )
+
+        controlPanel.updateActiveImage(index)
         print(f"Selected image updated: {self.selectedImage.metadata.name}")
 
     def contextMenuEvent(self, event):
@@ -183,32 +202,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
 
-    def loadImage(self, filePath=None):
-        self.statusBar().showLoadingMessage()
-        image_load.loadNewImage(self.proj, filePath, self.onImageLoaded)
-
-    def onImageLoaded(self, index):
-        self.statusBar().loadingFinished()
-        # remove initial prompt
-        # if self.centralWidget().isHidden() is False:
-        #     self.centralWidget().hide()
-
-    def saveProject(self):
-        fileName = QtWidgets.QFileDialog.getSaveFileName(
-            None, "Save File", "", "Varda project file (" "*.varda)"
-        )
-        if not fileName[0]:
-            return
-        # TODO
-
-    def loadProject(self):
-        fileName = QtWidgets.QFileDialog.getOpenFileName(
-            None, "Open File", "", "Varda project file (" "*.varda)"
-        )
-        if not fileName[0]:
-            return
-        # TODO
-
     def exitApp(self):
         self.close()
 
@@ -219,8 +212,7 @@ class MainGUI(QtWidgets.QMainWindow):
     @override
     def dropEvent(self, event, **kwargs):
         self.statusBar().showLoadingMessage()
-        self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
-
+        self.proj.loadNewImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
 
 def startGui(proj: ProjectContext):
     """Main entrypoint for the GUI."""

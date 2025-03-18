@@ -9,15 +9,18 @@ from typing import List
 
 # third party imports
 import numpy as np
+from PyQt6.QtWidgets import QWidget
 
 # local imports
 from .band import Band
 from .stretch import Stretch
 from .metadata import Metadata
 from .freehandROI import FreeHandROI
+from .plot import Plot
 
 
-@dataclass(frozen=True)
+# TODO: changed this? Bad?
+@dataclass(frozen=False)
 class Image:
     """Immutable data container representing an Image object in Varda
 
@@ -34,6 +37,8 @@ class Image:
     stretch: List[Stretch]
     band: List[Band]
     rois: List[FreeHandROI]
+    plots: List[Plot]
+    ROIview: QWidget
     index: int
 
     def __eq__(self, other):
