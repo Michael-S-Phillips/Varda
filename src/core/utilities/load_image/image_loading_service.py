@@ -4,11 +4,13 @@ from pathlib import Path
 import logging
 import importlib
 import pkgutil
-
+from enum import Enum
 
 # third party imports
 from PyQt6.QtCore import pyqtSignal, QObject, QThreadPool, QRunnable
 from PyQt6.QtWidgets import QFileDialog
+
+from core.entities import Metadata
 
 # local imports
 from core.utilities.load_image.loaders import AbstractImageLoader
@@ -50,6 +52,11 @@ class ImageLoadingService:
         loadImageData - loads raster and metadata from an image file and return it.
     """
 
+    class LoadStatus(Enum):
+        LOAD = 0
+        SUCCESS = 1
+        FAIL = 2
+
     def __init__(self):
         self.threadPool = QThreadPool()  # Global thread pool
         self.activeLoadingProcesses = []  # Track active processes
@@ -75,24 +82,6 @@ class ImageLoadingService:
         except ValueError as e:
             logger.error(f"Error loading image: {e}")
 
-    def _requestFilePath(self):
-        """Opens a file dialog to request an image file path from the user."""
-        fileName, _ = QFileDialog.getOpenFileName(
-            None,
-            "Open File",
-            "",
-            "image file (*.hdr *.img *.h5)",
-        )
-        return fileName if fileName else None
-
-    def _getLoader(self, filePath):
-        """Finds the correct image loader based on the file type."""
-        imageType = Path(filePath).suffix.strip()
-        for loader in AbstractImageLoader.subclasses:
-            if imageType in loader.imageType:
-                return loader()
-        raise ValueError(f"Unsupported file type: {imageType}")
-
     def _createNewLoadProcess(self, loader, filePath, onSuccessCallback):
         """Creates and starts a new image loading process in the thread pool."""
         logger.info(f"Creating new image loading process for {filePath}")
@@ -102,14 +91,38 @@ class ImageLoadingService:
         self.threadPool.start(process)
 
     def _onLoadingProcessFinished(self, loadingProcess):
-        """Handles post-processing once the image is loaded."""
+        """Handles cleanup and callback (if success) once the image is loaded."""
         self.activeLoadingProcesses.remove(loadingProcess)  # Cleanup
-        raster, metadata = loadingProcess.result
-        logger.info(f"Done loading image: {metadata.filePath}")
-        loadingProcess.onSuccessCallback(raster, metadata)  # Call the original callback
+        if loadingProcess.status == ImageLoadingService.LoadStatus.SUCCESS:
+            raster, metadata = loadingProcess.result
+            logger.info(f"Done loading image: {metadata.filePath}")
+            loadingProcess.onSuccessCallback(
+                raster, metadata
+            )  # Call the original callback
+
+    @staticmethod
+    def _requestFilePath():
+        """Opens a file dialog to request an image file path from the user."""
+        fileName, _ = QFileDialog.getOpenFileName(
+            None,
+            "Open File",
+            "",
+            "image file (*.hdr *.img *.h5)",
+        )
+        return fileName if fileName else None
+
+    @staticmethod
+    def _getLoader(filePath):
+        """Finds the correct image loader based on the file type."""
+        imageType = Path(filePath).suffix.strip()
+        for loader in AbstractImageLoader.subclasses:
+            if imageType in loader.imageType:
+                return loader()
+        raise ValueError(f"Unsupported file type: {imageType}")
 
     class ImageLoadProcess(QRunnable):
         """Represents a single image loading process running in a thread."""
+
         class Signals(QObject):
             sigFinished: pyqtSignal = pyqtSignal(object)
 
@@ -120,10 +133,18 @@ class ImageLoadingService:
             self.onSuccessCallback = onSuccessCallback
             self.signals = self.Signals()
             self.result = None
+            self.status = ImageLoadingService.LoadStatus.LOAD
 
         def run(self):
             """loads the image from a separate thread. emits signal with a reference to itself when complete."""
             logger.info(f"Loading image: {self.filePath}")
-            self.result = self.loader.load(self.filePath)
-            logger.info(f"image loading complete: {self.filePath}")
-            self.signals.sigFinished.emit(self)
+            try:
+                self.result = self.loader.load(self.filePath)
+                self.status = ImageLoadingService.LoadStatus.SUCCESS
+                logger.info(f"Image loading Success: {self.filePath}")
+            except Exception as e:
+                self.status = ImageLoadingService.LoadStatus.FAIL
+                logger.error(f"Image loading Failed: {e}")
+                raise e
+            finally:
+                self.signals.sigFinished.emit(self)
