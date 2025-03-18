@@ -53,6 +53,24 @@ class Metadata:
             raise self.BadMetadataError("wavelengths", "np.ndarray", self.wavelengths)
         if not isinstance(self.extraMetadata, dict):
             raise self.BadMetadataError("extraMetadata", "dict", self.extraMetadata)
+        for key, value in self.extraMetadata.items():
+            if not self._checkExtraMetadata(value):
+                raise self.BadMetadataError(
+                    f"Extra Metadata: {key}", "str, int, or float", value
+                )
+
+    def _checkExtraMetadata(self, item):
+        """Check if a value is serializable by JSON."""
+        if isinstance(item, (str, int, float)):
+            return True
+        if isinstance(item, (list, tuple)):
+            return True and all(self._checkExtraMetadata(i) for i in item)
+        if isinstance(item, dict):
+            return True and all(
+                self._checkExtraMetadata(key) and self._checkExtraMetadata(value)
+                for key, value in item.items()
+            )
+        return False
 
     def serialize(self):
         """Generates a dictionary representation of the metadata."""

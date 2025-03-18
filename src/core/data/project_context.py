@@ -284,12 +284,12 @@ class ProjectContext(QObject):
         imageIndex: int,
         stretchIndex: int,
         name: str = None,
-        minR: int = None,
-        maxR: int = None,
-        minG: int = None,
-        maxG: int = None,
-        minB: int = None,
-        maxB: int = None,
+        minR: float = None,
+        maxR: float = None,
+        minG: float = None,
+        maxG: float = None,
+        minB: float = None,
+        maxB: float = None,
     ):
         """Update the stretch parameters for a specific image and stretch index.
 
@@ -301,12 +301,12 @@ class ProjectContext(QObject):
         # Create the updated Stretch using existing values as fallbacks
         newStretch = Stretch(
             name=name if name is not None else oldStretch.name,
-            minR=minR if minR is not None else oldStretch.minR,
-            maxR=maxR if maxR is not None else oldStretch.maxR,
-            minG=minG if minG is not None else oldStretch.minG,
-            maxG=maxG if maxG is not None else oldStretch.maxG,
-            minB=minB if minB is not None else oldStretch.minB,
-            maxB=maxB if maxB is not None else oldStretch.maxB,
+            minR=float(minR) if minR is not None else oldStretch.minR,
+            maxR=float(maxR) if maxR is not None else oldStretch.maxR,
+            minG=float(minG) if minG is not None else oldStretch.minG,
+            maxG=float(maxG) if maxG is not None else oldStretch.maxG,
+            minB=float(minB) if minB is not None else oldStretch.minB,
+            maxB=float(maxB) if maxB is not None else oldStretch.maxB,
         )
         # replace the Stretch
         self._images[imageIndex].stretch[stretchIndex] = newStretch
@@ -347,9 +347,9 @@ class ProjectContext(QObject):
         oldBand = image.band[bandIndex]
         newBand = Band(
             name=name if name else oldBand.name,
-            r=r if r is not None else oldBand.r,
-            g=g if g is not None else oldBand.g,
-            b=b if b is not None else oldBand.b,
+            r=int(r) if r is not None else oldBand.r,
+            g=int(g) if g is not None else oldBand.g,
+            b=int(b) if b is not None else oldBand.b,
         )
         # Replace the band
         self._images[index].band[bandIndex] = newBand

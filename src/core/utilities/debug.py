@@ -106,9 +106,8 @@ class ProjectContextDataTable(QWidget):
                     parent.addChild(item)
                     self._populateTree(value, item)
                 else:
-                    item = QTreeWidgetItem([str(index), str(value)])
+                    item = QTreeWidgetItem([f"{index} ({type(value)})", str(value)])
                     parent.addChild(item)
-
 
     def filterTree(self, text):
         """Filter the tree widget items based on the search text."""
