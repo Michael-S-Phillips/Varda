@@ -104,22 +104,24 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
             geospatialInfo = (
                 enviData["geospatial_info"] if "geospatial_info" in enviData else None
             )
-
-        return Metadata(
-            filePath=filePath,
-            driver=driver,
-            width=width,
-            height=height,
-            dtype=dtype,
-            dataIgnore=dataIgnore,
-            bandCount=bandCount,
-            defaultBand=defaultBands,
-            wavelengths=wavelengths,
-            extraMetadata={
+        out = {
+            "filePath": filePath,
+            "driver": driver,
+            "width": width,
+            "height": height,
+            "dtype": dtype,
+            "dataIgnore": dataIgnore,
+            "bandCount": bandCount,
+            "defaultBand": defaultBands,
+            "extraMetadata": {
                 # "transform": transform,
                 "description": description,
                 "wavelength_units": wavelengthUnits,
                 "band_names": bandNames,
                 # "geospatial_info": geospatialInfo,
             },
-        )
+        }
+        if wavelengths is not None:
+            out["wavelengths"] = wavelengths
+
+        return Metadata(**out)

@@ -33,6 +33,26 @@ class Metadata:
     wavelengths: np.ndarray = field(default_factory=lambda: np.zeros(0))
     extraMetadata: Dict[str, str | int | float] = field(default_factory=dict)
 
+    def __post_init__(self):
+        """Validate that all attributes are of the correct type."""
+        if not isinstance(self.filePath, str):
+            raise self.BadMetadataError("filePath", "str", self.filePath)
+        if not isinstance(self.driver, str):
+            raise self.BadMetadataError("driver", "str", self.driver)
+        if not isinstance(self.width, int):
+            raise self.BadMetadataError("width", "int", self.width)
+        if not isinstance(self.dtype, str):
+            raise self.BadMetadataError("dtype", "str", self.dtype)
+        if not isinstance(self.dataIgnore, (int, float)):
+            raise self.BadMetadataError("dataIgnore", "int or float", self.dataIgnore)
+        if not isinstance(self.bandCount, int):
+            raise self.BadMetadataError("bandCount", "int", self.bandCount)
+        if not isinstance(self.defaultBand, Band):
+            raise self.BadMetadataError("defaultBand", "Band", self.defaultBand)
+        if not isinstance(self.wavelengths, np.ndarray):
+            raise self.BadMetadataError("wavelengths", "np.ndarray", self.wavelengths)
+        if not isinstance(self.extraMetadata, dict):
+            raise self.BadMetadataError("extraMetadata", "dict", self.extraMetadata)
 
     def serialize(self):
         """Generates a dictionary representation of the metadata."""
@@ -46,7 +66,7 @@ class Metadata:
             "bandCount": self.bandCount,
             "defaultBand": self.defaultBand.serialize(),
             "wavelengths": self.wavelengths.tolist(),
-            "extraMetadata": self.extraMetadata
+            "extraMetadata": self.extraMetadata,
         }
 
     @classmethod
@@ -62,7 +82,7 @@ class Metadata:
             bandCount=data["bandCount"],
             defaultBand=Band.deserialize(data["defaultBand"]),
             wavelengths=np.array(data["wavelengths"]),
-            extraMetadata=data["extraMetadata"]
+            extraMetadata=data["extraMetadata"],
         )
 
     # other methods
@@ -88,3 +108,12 @@ class Metadata:
 
     def __getitem__(self, item):
         return self.toFlatDict().get(item)
+
+    class BadMetadataError(Exception):
+        """Raised when the input given to metadata is of an incompatible format."""
+
+        def __init__(self, itemName, correctType, actualValue):
+            self.message = (
+                f"{itemName} must be a {correctType}, got {type(actualValue).__name__}"
+            )
+            super().__init__(self.message)

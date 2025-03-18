@@ -16,7 +16,7 @@ import pyqtgraph as pg
 # update control panel in main gui so multiple instances are not created
 # make control panel accessible for one image
 
-from core.data.project_context import ProjectContext
+from core.data import ProjectContext
 from core.ui import ControlPanel
 # local imports
 from gui.widgets import StatusBar, MainMenuBar
@@ -56,8 +56,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def initUI(self):
         self.setMenuBar(MainMenuBar())
-        self.setStatusBar(StatusBar())
-
+        self.setStatusBar(StatusBar(self.proj))
         # make dock tabs appear on top
         self.setTabPosition(
             Qt.DockWidgetArea.AllDockWidgetAreas,
@@ -92,10 +91,10 @@ class MainGUI(QtWidgets.QMainWindow):
         return dock
 
     def connectSignals(self):
-        self.menuBar().sigImportFile.connect(self.loadImage)
+        self.menuBar().sigImportFile.connect(self.proj.loadNewImage)
         self.menuBar().sigExitApp.connect(self.exitApp)
-        self.menuBar().sigSaveProject.connect(self.saveProject)
-        self.menuBar().sigOpenProject.connect(self.loadProject)
+        self.menuBar().sigSaveProject.connect(self.proj.saveProject)
+        self.menuBar().sigOpenProject.connect(self.proj.loadProject)
 
         self.imageList.currentItemChanged.connect(self.onSelectedImageChanged)
 
@@ -202,25 +201,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
 
-    def loadImage(self, filePath=None):
-        self.proj.loadNewImage(filePath)
-
-    def saveProject(self):
-        fileName = QtWidgets.QFileDialog.getSaveFileName(
-            None, "Save File", "", "Varda project file (" "*.varda)"
-        )
-        if not fileName[0]:
-            return
-        self.proj.saveProject(fileName[0])
-
-    def loadProject(self):
-        fileName = QtWidgets.QFileDialog.getOpenFileName(
-            None, "Open File", "", "Varda project file (" "*.varda)"
-        )
-        if not fileName[0]:
-            return
-        self.proj.loadProject(fileName[0])
-
     def exitApp(self):
         self.close()
 
@@ -231,8 +211,7 @@ class MainGUI(QtWidgets.QMainWindow):
     @override
     def dropEvent(self, event, **kwargs):
         self.statusBar().showLoadingMessage()
-        self.loadImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
-
+        self.proj.loadNewImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
 
 def startGui(proj: ProjectContext):
     """Main entrypoint for the GUI."""

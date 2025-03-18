@@ -1,17 +1,21 @@
 # standard library
 import json
 import logging
+import os
+from pathlib import Path
 from typing import Any, List
 from enum import Enum
+import tempfile
 
 # third party imports
-from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtCore import QObject, pyqtSignal, QFileSelector
+from PyQt6.QtWidgets import QWidget, QFileDialog, QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout
 import numpy as np
 
 # local imports
 from core.entities import Image, Metadata, Band, Stretch, FreeHandROI, Plot
 from core.utilities.load_image import ImageLoadingService
+from gui.widgets import FilePathBox
 
 logger = logging.getLogger(__name__)
 
@@ -33,23 +37,71 @@ class ProjectContext(QObject):
     # signal that emits when something writes to the projectContext.
     # int argument is the index of the item that was changed.
     sigDataChanged = pyqtSignal(int, ChangeType)
-
-    _images: List[Image]
+    sigProjectChanged = pyqtSignal()
 
     def __init__(self):
         super().__init__()
-        self._images = []
+        self._images: List[Image] = []
+        self.currentProj: Path = None
         self._controlPanels = {}
         self._imageLoadingService = ImageLoadingService()
 
-    def saveProject(self, savePath):
-        saveData = self.serialize()
-        with open(savePath, "w") as file:
-            json.dump(saveData, file, indent=4)
+    def getProjectName(self):
+        if self.currentProj is None:
+            return "None"
+        return self.currentProj.name
 
-    def loadProject(self, loadPath):
+    def saveProject(self, saveAs=False):
+        """Safely writes project data to disk"""
+
+        # if we are not in an existing project, OR if the user wants to save to a new file,
+        #  prompt for a path and update currentProj
+        if self.currentProj is None or saveAs is True:
+            fileName = QFileDialog.getSaveFileName(
+                None, "Save File", "../", "Varda project file (*.varda)"
+            )
+            if fileName[0]:
+                self.currentProj = Path(fileName[0])
+                self.sigProjectChanged.emit()
+            else:
+                return
+
+        # write new data to a temp file, then replace the original file only if the write operation was successful.
+        # this avoids losing data if the write operation fails somehow.
+        saveData = self.serialize()
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                dir=self.currentProj.parent,
+                prefix=self.currentProj.name,
+                suffix=".tmp",
+                delete=False,
+            ) as tempFile:
+                json.dump(saveData, tempFile, indent=4)
+                tempFile.flush()
+
+            os.replace(tempFile.name, self.currentProj)
+            logger.info(f"Project saved to {self.currentProj}")
+        except Exception as e:
+            logger.error(f"Failed to save project! {e}")
+            # cleanup temp file
+            if Path(tempFile.name).exists():
+                os.remove(tempFile.name)
+
+    def loadProject(self, loadPath=None):
+        if loadPath is None:
+            f = QFileDialog.getOpenFileName(
+                None, "Open File", "", "Varda project file (*.varda)"
+            )
+            if f[0]:
+                loadPath = f[0]
+            else:
+                return
+
         with open(loadPath, "r") as file:
-            self.deserialize(json.load(file))
+            self.deserialize(file.name, json.load(file))
+        logger.info(f"Loaded project from {loadPath}")
+        self.sigProjectChanged.emit()
 
     def serialize(self):
         imageDictList = [
@@ -62,15 +114,27 @@ class ProjectContext(QObject):
         ]
         return {"images": imageDictList}
 
-    def deserialize(self, data):
+    def deserialize(self, projectName, data):
         imagesTemp = self._images
+        projectNameTemp = self.currentProj
         try:
+            self.currentProj = Path(projectName)
             self._images = []
             imageDictList = data["images"]
             for imageDict in imageDictList:
                 metadata = Metadata.deserialize(imageDict["metadata"])
-                stretch = [Stretch.deserialize(stretch) for stretch in imageDict["stretch"] ]
-                band = [Band.deserialize(band) for band in imageDict["band"] ]
+                stretch = [
+                    Stretch.deserialize(stretch) for stretch in imageDict["stretch"]
+                ]
+                band = [Band.deserialize(band) for band in imageDict["band"]]
+
+                # check whether file paths exist. if not, prompt user for updated one.
+                if not Path(metadata.filePath).exists():
+                    logger.warning(f"Image {metadata.filePath} does not exist!")
+                    newPath = FileInputDialog.getFilePath(f"Cannot find {metadata.filePath}. Please locate this image.")
+                    if newPath is not None:
+                        metadata.filePath = newPath
+
                 # this lambda is basically a custom version of loadNewImage, that passes in the data from the json.
                 self._imageLoadingService.loadImageData(
                     metadata.filePath,
@@ -84,6 +148,7 @@ class ProjectContext(QObject):
         except Exception as e:
             logger.error(f"Project Load Aborted! Error: {e}")
             # restore previous project state
+            self.currentProj = projectNameTemp
             self._images = imagesTemp
 
     # Image Access
@@ -101,7 +166,7 @@ class ProjectContext(QObject):
         self._emitChange(index, self.ChangeType.IMAGE)
         return index
 
-    def loadNewImage(self, path: str):
+    def loadNewImage(self, path=None):
         """Load an image from the given path."""
         self._imageLoadingService.loadImageData(path, self.createImage)
 
@@ -300,6 +365,47 @@ class ProjectContext(QObject):
 
         return self._images[index].ROIview
 
+
     # Helper methods
     def _emitChange(self, index, changeType):
         self.sigDataChanged.emit(index, changeType)
+
+
+class FileInputDialog(QDialog):
+    def __init__(self, message="Select a file:", defaultPath="", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("File Selection")
+
+        # Message label
+        self.label = QLabel(message)
+
+        self.fileInput = FilePathBox(defaultPath, "image file (*.hdr *.img *.h5)",  parent=self)
+
+        # OK and Cancel buttons
+        self.ok_button = QPushButton("OK")
+        self.ok_button.clicked.connect(self.accept)
+
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+
+        # Layouts
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.ok_button)
+        button_layout.addWidget(self.cancel_button)
+
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(self.label)
+        main_layout.addWidget(self.fileInput)
+        main_layout.addLayout(button_layout)
+
+        self.setLayout(main_layout)
+
+    @staticmethod
+    def getFilePath(message="Select a file:", default_path="", parent=None):
+        """
+        Static method to show the dialog and return the selected file path.
+        """
+        dialog = FileInputDialog(message, default_path, parent)
+        if dialog.exec():
+            return dialog.fileInput.result  # Return the selected path
+        return None  # Return None if cancelled

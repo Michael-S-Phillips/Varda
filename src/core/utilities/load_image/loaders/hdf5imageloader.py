@@ -45,29 +45,35 @@ class HDF5ImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
         return data
 
     @staticmethod
-    def loadMetadata(raster, filePath) -> Metadata:
+    def loadMetadata(raster: np.ndarray, filePath) -> Metadata:
         with h5py.File(filePath, "r") as hdf:
             metadata = hdf["SERC/Reflectance/Metadata"]
             spectralData = metadata["Spectral_Data"]
 
             if raster is not None:
-                dtype = type(raster)
+                dtype = raster.dtype.str
                 width = raster.shape[0]
                 height = raster.shape[1]
                 bandCount = raster.shape[2]
+                wavelengths = (
+                    spectralData["Wavelength"][:]
+                    if spectralData["Wavelength"] is not None
+                    else None
+                )
             else:
                 dtype = None
                 width = None
                 height = None
                 bandCount = None
-            wavelengths = spectralData["Wavelength"][:]
+        out = {
+            "filePath": filePath,
+            "driver": "HDF5",
+            "width": width,
+            "height": height,
+            "dtype": dtype,
+            "bandCount": bandCount,
+        }
+        if wavelengths is not None:
+            out["wavelengths"] = wavelengths
 
-        return Metadata(
-            filePath=filePath,
-            driver="HDF5",
-            width=width,
-            height=height,
-            dtype=dtype,
-            bandCount=bandCount,
-            wavelengths=wavelengths,
-        )
+        return Metadata(**out)
