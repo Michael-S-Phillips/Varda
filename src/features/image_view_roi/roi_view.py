@@ -29,7 +29,6 @@ class ROIView(QWidget):
         self.setLayout(layout)
 
         # Associate the table with the view model
-        self.viewModel.setROITable(self.table)
         self.table.cellClicked.connect(self._onTableRowClicked)
         self.draw_roi_button.clicked.connect(self._onDrawROIClicked)
 

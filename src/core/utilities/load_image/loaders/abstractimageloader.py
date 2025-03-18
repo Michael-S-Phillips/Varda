@@ -48,18 +48,18 @@ class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
         self._filePath = filepath
 
         if self._rasterData is None:
-            self._rasterData = self._loadRasterData(self._filePath)
+            self._rasterData = self.loadRasterData(self._filePath)
 
         if self._imageMetadata is None:
-            self._imageMetadata = self._loadMetadata(self._rasterData, self._filePath)
+            self._imageMetadata = self.loadMetadata(self._rasterData, self._filePath)
         return self._rasterData, self._imageMetadata
 
     @staticmethod
     @abstractmethod
-    def _loadRasterData(filePath) -> np.ndarray:
+    def loadRasterData(filePath) -> np.ndarray:
         pass
 
     @staticmethod
     @abstractmethod
-    def _loadMetadata(image, filePath) -> Metadata:
+    def loadMetadata(raster, filePath) -> Metadata:
         pass

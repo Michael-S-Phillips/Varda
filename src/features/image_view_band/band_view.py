@@ -83,6 +83,7 @@ class BandView(QWidget):
 
         # Layout setup
         layout = QVBoxLayout()
+        #layout.setContentsMargins(0, 20, 0, 20)
         layout.addWidget(self.bandSelector)
         layout.addWidget(view)
         self.setLayout(layout)

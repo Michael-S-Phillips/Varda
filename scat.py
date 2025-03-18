@@ -442,7 +442,7 @@ class SpectralCubeAnalysisTool:
         if file_path:
             self.left_data = spectral.io.envi.open(file_path)
             self.ld = self.left_data.deserialize()
-            self.img_base_name = self.left_data.filename.split('/')[-1].split('.')[0]
+            self.img_base_name = self.left_data.filePath.split('/')[-1].split('.')[0]
             rio_path = file_path.replace("hdr", "img")
             self.left_rio = rio.open(rio_path)
             self.left_transform = self.left_rio.transform
@@ -3516,8 +3516,8 @@ class SpectralCubeAnalysisTool:
         if file_path:
             # Create a dictionary to store the relevant attributes
             state_dict = {
-                "left_file": self.left_data.filename.replace(".img", ".hdr"),
-                "right_file": self.right_data.filename.replace(".img", ".hdr"),
+                "left_file": self.left_data.filePath.replace(".img", ".hdr"),
+                "right_file": self.right_data.filePath.replace(".img", ".hdr"),
                 "all_polygons": self.all_polygons,
                 "polygon_colors": self.polygon_colors,
                 "polygon_spectra": self.polygon_spectra,

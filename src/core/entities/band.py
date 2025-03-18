@@ -14,6 +14,13 @@ class Band:
         """get object data as a list in the format: [r, g, b]"""
         return [self.r, self.g, self.b]
 
+    def serialize(self):
+        return [self.name, *self.toList()]
+
+    @classmethod
+    def deserialize(cls, data):
+        return cls(*data)
+
     @classmethod
     def createDefault(cls):
         """Get a new Band object with default parameters"""

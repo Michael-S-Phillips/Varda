@@ -3,3 +3,4 @@ from .metadata import Metadata
 from .band import Band
 from .stretch import Stretch
 from .freehandROI import FreeHandROI
+from .plot import Plot

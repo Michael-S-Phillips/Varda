@@ -1,7 +1,7 @@
 import time
 
 from PyQt6 import QtWidgets, QtCore
-
+from PyQt6.QtWidgets import QLabel
 
 class StatusBar(QtWidgets.QStatusBar):
     """A custom widget for the statusbar.
@@ -9,10 +9,14 @@ class StatusBar(QtWidgets.QStatusBar):
     Lets us create more complex status messages or animations
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, proj, parent=None):
         super().__init__(parent)
+        self.proj = proj
         self.animationTimer = QtCore.QTimer(self)
         self.animationIndex = None
+        self.projectName = QLabel(f"Project: {proj.getProjectName()}")
+        self.addPermanentWidget(self.projectName)
+        self.proj.sigProjectChanged.connect(self.onProjectChanged)
 
     def showLoadingMessage(self):
         """Begins the loading message."""
@@ -39,3 +43,6 @@ class StatusBar(QtWidgets.QStatusBar):
             self.tr("Image loaded in " + str(round(timeElapsed, 2)) + " seconds"),
             msecs=5000,
         )
+
+    def onProjectChanged(self):
+        self.projectName.setText(f"Project: {self.proj.getProjectName()}")
