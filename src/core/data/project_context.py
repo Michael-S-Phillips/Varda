@@ -9,7 +9,16 @@ import tempfile
 
 # third party imports
 from PyQt6.QtCore import QObject, pyqtSignal, QFileSelector
-from PyQt6.QtWidgets import QWidget, QFileDialog, QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout
+from PyQt6.QtWidgets import (
+    QWidget,
+    QFileDialog,
+    QDialog,
+    QLabel,
+    QPushButton,
+    QHBoxLayout,
+    QVBoxLayout,
+    QMessageBox,
+)
 import numpy as np
 
 # local imports
@@ -36,13 +45,14 @@ class ProjectContext(QObject):
 
     # signal that emits when something writes to the projectContext.
     # int argument is the index of the item that was changed.
-    sigDataChanged = pyqtSignal(int, ChangeType)
-    sigProjectChanged = pyqtSignal()
+    sigDataChanged: pyqtSignal = pyqtSignal(int, ChangeType)
+    sigProjectChanged: pyqtSignal = pyqtSignal()
 
     def __init__(self):
         super().__init__()
         self._images: List[Image] = []
         self.currentProj: Path = None
+        self.isSaved: bool = True
         self._controlPanels = {}
         self._imageLoadingService = ImageLoadingService()
 
@@ -81,6 +91,7 @@ class ProjectContext(QObject):
                 tempFile.flush()
 
             os.replace(tempFile.name, self.currentProj)
+            self.isSaved = True
             logger.info(f"Project saved to {self.currentProj}")
         except Exception as e:
             logger.error(f"Failed to save project! {e}")
@@ -89,6 +100,28 @@ class ProjectContext(QObject):
                 os.remove(tempFile.name)
 
     def loadProject(self, loadPath=None):
+        """Load a project from a file. If no path is provided, prompt the user to select a file."""
+
+        # Ask if user wants to save the current project
+        if self.isSaved is False:
+            msgBox = QMessageBox()
+            msgBox.setText("The project has unsaved changes.")
+            msgBox.setInformativeText("Do you want to save your changes?")
+            msgBox.setStandardButtons(
+                QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel
+            )
+            ret = msgBox.exec()
+            if ret == QMessageBox.StandardButton.Save:
+                self.saveProject()
+            elif ret == QMessageBox.StandardButton.Cancel:
+                logger.info("Project load aborted.")
+                return
+            elif ret == QMessageBox.StandardButton.Discard:
+                # just let the function execution continue
+                pass
+
         if loadPath is None:
             f = QFileDialog.getOpenFileName(
                 None, "Open File", "", "Varda project file (*.varda)"
@@ -131,7 +164,9 @@ class ProjectContext(QObject):
                 # check whether file paths exist. if not, prompt user for updated one.
                 if not Path(metadata.filePath).exists():
                     logger.warning(f"Image {metadata.filePath} does not exist!")
-                    newPath = FileInputDialog.getFilePath(f"Cannot find {metadata.filePath}. Please locate this image.")
+                    newPath = FileInputDialog.getFilePath(
+                        f"Cannot find {metadata.filePath}. Please locate this image."
+                    )
                     if newPath is not None:
                         metadata.filePath = newPath
 
@@ -365,9 +400,9 @@ class ProjectContext(QObject):
 
         return self._images[index].ROIview
 
-
     # Helper methods
     def _emitChange(self, index, changeType):
+        self.isSaved = False
         self.sigDataChanged.emit(index, changeType)
 
 
@@ -379,7 +414,9 @@ class FileInputDialog(QDialog):
         # Message label
         self.label = QLabel(message)
 
-        self.fileInput = FilePathBox(defaultPath, "image file (*.hdr *.img *.h5)",  parent=self)
+        self.fileInput = FilePathBox(
+            defaultPath, ImageLoadingService.getImageTypeFilter(), parent=self
+        )
 
         # OK and Cancel buttons
         self.ok_button = QPushButton("OK")

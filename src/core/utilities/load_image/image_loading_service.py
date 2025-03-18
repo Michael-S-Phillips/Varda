@@ -61,6 +61,7 @@ class ImageLoadingService:
         self.threadPool = QThreadPool()  # Global thread pool
         self.activeLoadingProcesses = []  # Track active processes
 
+    # public methods
     def loadImageData(self, filePath=None, onSuccessCallback=None):
         """Loads a new image and adds it to the project.
 
@@ -82,6 +83,17 @@ class ImageLoadingService:
         except ValueError as e:
             logger.error(f"Error loading image: {e}")
 
+    @staticmethod
+    def getImageTypeFilter():
+        """Returns a list of file filters for the image file dialog."""
+        filters = "Image File ("
+        for loader in AbstractImageLoader.subclasses:
+            for imageType in loader.imageType:
+                filters += f"*{imageType} "
+        filters = filters.strip() + ")"
+        return filters
+
+    # private methods
     def _createNewLoadProcess(self, loader, filePath, onSuccessCallback):
         """Creates and starts a new image loading process in the thread pool."""
         logger.info(f"Creating new image loading process for {filePath}")
@@ -100,6 +112,8 @@ class ImageLoadingService:
                 raster, metadata
             )  # Call the original callback
 
+
+    # private helpers
     @staticmethod
     def _requestFilePath():
         """Opens a file dialog to request an image file path from the user."""
@@ -107,7 +121,7 @@ class ImageLoadingService:
             None,
             "Open File",
             "",
-            "image file (*.hdr *.img *.h5)",
+            ImageLoadingService.getImageTypeFilter(),
         )
         return fileName if fileName else None
 
