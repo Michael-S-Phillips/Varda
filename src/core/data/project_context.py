@@ -160,13 +160,21 @@ class ProjectContext(QObject):
                 band = [Band.deserialize(band) for band in imageDict["band"]]
 
                 # check whether file paths exist. if not, prompt user for updated one.
-                if not Path(metadata.filePath).exists():
-                    logger.warning(f"Image {metadata.filePath} does not exist!")
-                    newPath = FileInputDialog.getFilePath(
-                        f"Cannot find {metadata.filePath}. Please locate this image."
+                oldPath = Path(metadata.filePath)
+                if not oldPath.exists():
+                    logger.warning(f"Image {oldPath} does not exist!")
+                    newPath = Path(
+                        FileInputDialog.getFilePath(
+                            f"Cannot find {oldPath}. Please locate this image.",
+                            fileFilter=f"Image File ({oldPath.name})",
+                        )
                     )
-                    if newPath is not None:
-                        metadata.filePath = newPath
+
+                    if newPath.name == oldPath.name:
+                        metadata.filePath = str(newPath)
+                    else:
+                        logger.info(f"Skipping image {oldPath}")
+                        continue
 
                 # this lambda is basically a custom version of loadNewImage, that passes in the data from the json.
                 # it's important that we "capture" the variables from the current loop iteration, via default vals
@@ -407,16 +415,16 @@ class ProjectContext(QObject):
 
 
 class FileInputDialog(QDialog):
-    def __init__(self, message="Select a file:", defaultPath="", parent=None):
+    def __init__(
+        self, message="Select a file:", defaultPath="", fileFilter=None, parent=None
+    ):
         super().__init__(parent)
         self.setWindowTitle("File Selection")
 
         # Message label
         self.label = QLabel(message)
 
-        self.fileInput = FilePathBox(
-            defaultPath, ImageLoadingService.getImageTypeFilter(), parent=self
-        )
+        self.fileInput = FilePathBox(defaultPath, fileFilter, parent=self)
 
         # OK and Cancel buttons
         self.ok_button = QPushButton("OK")
@@ -438,11 +446,13 @@ class FileInputDialog(QDialog):
         self.setLayout(main_layout)
 
     @staticmethod
-    def getFilePath(message="Select a file:", default_path="", parent=None):
+    def getFilePath(
+        message="Select a file:", default_path="", fileFilter=None, parent=None
+    ):
         """
         Static method to show the dialog and return the selected file path.
         """
-        dialog = FileInputDialog(message, default_path, parent)
+        dialog = FileInputDialog(message, default_path, fileFilter, parent)
         if dialog.exec():
             return dialog.fileInput.result  # Return the selected path
         return None  # Return None if cancelled
