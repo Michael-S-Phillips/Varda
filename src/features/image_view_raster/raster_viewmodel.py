@@ -11,6 +11,7 @@ class RasterViewModel(QObject):
 
     sigBandChanged = pyqtSignal()
     sigStretchChanged = pyqtSignal()
+    sigROIChanged = pyqtSignal()
 
     def __init__(self, proj: ProjectContext, imageIndex, parent=None):
         super().__init__(parent)
@@ -54,6 +55,8 @@ class RasterViewModel(QObject):
             self.sigBandChanged.emit()
         elif changeType is ProjectContext.ChangeType.STRETCH:
             self.sigStretchChanged.emit()
+        elif changeType is ProjectContext.ChangeType.ROI:
+            self.sigROIChanged.emit()
 
     def getFullDataCube(self):
         """Returns the full hyperspectral data cube from the image."""
