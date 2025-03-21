@@ -15,6 +15,7 @@ import pyqtgraph as pg
 # to do:
 # update control panel in main gui so multiple instances are not created
 # make control panel accessible for one image
+# when closing control panel, should be able to open it again for that image
 
 from core.data import ProjectContext
 from core.ui import ControlPanel
@@ -49,6 +50,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.imageList = None
         self.selectedImage = None
         self.rasterViewObj = None
+        self.currControlPanel = None
         self.initUI()
         self.connectSignals()
 
@@ -67,11 +69,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.newDock("Image List", self.imageList, Qt.DockWidgetArea.LeftDockWidgetArea)
 
         # # Initialize Control Panel with ProjectContext
-        # self.controlPanel = ControlPanel(self, self.proj)
-        # self.addDockWidget(
-        #     Qt.DockWidgetArea.RightDockWidgetArea, self.controlPanel.tabsDock
-        # )
-
         # set default central widget
         self.setCentralWidget(self.getStartingScreenWidget())
 
@@ -97,14 +94,14 @@ class MainGUI(QtWidgets.QMainWindow):
         self.menuBar().sigOpenProject.connect(self.proj.loadProject)
         self.menuBar().sigDumpProjectData.connect(lambda: debug.ProjectContextDataTable(self.proj, self))
 
-        self.imageList.currentItemChanged.connect(self.onSelectedImageChanged)
+        self.imageList.itemClicked.connect(self.onSelectedImageChanged)
 
     def onSelectedImageChanged(self, item):
         """
         Handle the selection of a new image and update the control panel.
         """
         # now, only after an image is selected a control panel is created
-
+        
         if item is None:
             self.selectedImage = None
             return
@@ -113,21 +110,20 @@ class MainGUI(QtWidgets.QMainWindow):
         index = self.imageList.row(item)
         self.selectedImage = self.proj.getImage(index)
 
-        controlPanel = self.proj.getControlPanel(index, self)
+        if self.currControlPanel:
+            self.currControlPanel = self.proj.getControlPanel(index, self)
+            self.currControlPanel.updateActiveImage(index)
+        else:
+            self.currControlPanel = self.proj.getControlPanel(index, self)
+            self.addDockWidget(
+            Qt.DockWidgetArea.RightDockWidgetArea, self.currControlPanel.tabsDock)
+            self.currControlPanel.updateActiveImage(index)
 
         # remove other control panels if they are active for other images
-        for dock in self.findChildren(QtWidgets.QDockWidget):
-            if dock.widget() and isinstance(dock.widget(), ControlPanel):
-                dock.close()
 
         # one image control panel should be open at a time
         # todo: add to list of control panels. Open an exisiting image's control
         # panel, remove / add control panels to the main window
-        self.addDockWidget(
-            Qt.DockWidgetArea.RightDockWidgetArea, controlPanel.tabsDock
-        )
-
-        controlPanel.updateActiveImage(index)
         print(f"Selected image updated: {self.selectedImage.metadata.name}")
 
     def contextMenuEvent(self, event):
@@ -171,11 +167,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.rasterViewObj = view
         self.setCentralWidget(view)
         return
-        dock = QtWidgets.QDockWidget("Raster Editor", parent=self)
-        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
-        dock.setWidget(view)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        # dock.setFloating(True)
 
     def openStretchView(self, index):
         view = image_view_stretch.getStretchView(self.proj, index, self)
