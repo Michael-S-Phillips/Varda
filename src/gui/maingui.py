@@ -24,7 +24,7 @@ from features import (
     all_images_view_list,
     image_view_histogram,
 )
-import core.utilities.debug as debug
+import core.utilities.debug as debug 
 
 logger = logging.getLogger(__name__)
 
@@ -141,45 +141,6 @@ class MainGUI(QtWidgets.QMainWindow):
         stretchView.triggered.connect(lambda: self.openStretchView(imageIndex))
         histogramView.triggered.connect(lambda: self.openHistogramView(imageIndex))
         return contextMenu
-
-    def openHistogramView(self, index):
-        view = image_view_histogram.getHistogramView(self.proj, index, self)
-        dock = QtWidgets.QDockWidget("Histogram Editor", parent=self)
-        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
-        dock.setWidget(view)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        dock.setFloating(True)
-
-    def openRasterView(self, index):
-        view = image_view_raster.getRasterView(self.proj, index, self)
-        self.rasterViewObj = view
-        self.setCentralWidget(view)
-        return
-
-    def openStretchView(self, index):
-        view = image_view_stretch.getStretchView(self.proj, index, self)
-        dock = QtWidgets.QDockWidget("Stretch Editor", parent=self)
-        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
-        dock.setWidget(view)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        dock.setFloating(True)
-
-    def openBandView(self, index):
-        view = image_view_band.getBandView(self.proj, index, self)
-        dock = QtWidgets.QDockWidget(parent=self)
-        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
-        dock.setWidget(view)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        dock.setFloating(True)
-
-    def openROIView(self, index):
-        view = image_view_roi.getROIView(self.proj, index, self)
-        view.viewModel.setRasterView(self.rasterViewObj)
-        dock = QtWidgets.QDockWidget(parent=self)
-        dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.AllDockWidgetAreas)
-        dock.setWidget(view)
-        self.addDockWidget(QtCore.Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        dock.setFloating(True)
 
     def exitApp(self):
         self.close()
