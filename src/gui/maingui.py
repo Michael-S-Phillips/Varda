@@ -12,11 +12,6 @@ from qasync import QEventLoop, QApplication
 import asyncio
 import pyqtgraph as pg
 
-# to do:
-# update control panel in main gui so multiple instances are not created
-# make control panel accessible for one image
-# when closing control panel, should be able to open it again for that image
-
 from core.data import ProjectContext
 from core.ui import ControlPanel
 # local imports
@@ -100,34 +95,23 @@ class MainGUI(QtWidgets.QMainWindow):
         """
         Handle the selection of a new image and update the control panel.
         """
-        # now, only after an image is selected a control panel is created
         
         if item is None:
             self.selectedImage = None
             return
 
-        # Retrieve the selected image's index
         index = self.imageList.row(item)
         self.selectedImage = self.proj.getImage(index)
 
         if self.currControlPanel:
-            # Reuse existing panel
             self.currControlPanel.updateActiveImage(index)
-
-            # If user previously closed the dock, show it again
             if self.currControlPanel.tabsDock.isHidden():
                 self.currControlPanel.tabsDock.show()
         else:
-            # Create and add the panel for the first time
             self.currControlPanel = self.proj.getControlPanel(index, self)
             self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.currControlPanel.tabsDock)
             self.currControlPanel.updateActiveImage(index)
 
-        # remove other control panels if they are active for other images
-
-        # one image control panel should be open at a time
-        # todo: add to list of control panels. Open an exisiting image's control
-        # panel, remove / add control panels to the main window
         print(f"Selected image updated: {self.selectedImage.metadata.name}")
 
     def contextMenuEvent(self, event):
