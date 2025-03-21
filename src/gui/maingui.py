@@ -110,30 +110,18 @@ class MainGUI(QtWidgets.QMainWindow):
         index = self.imageList.row(item)
         self.selectedImage = self.proj.getImage(index)
 
-        def onSelectedImageChanged(self, item):
-            """
-            Handle the selection of a new image and update the control panel.
-            """
-            if item is None:
-                self.selectedImage = None
-                return
+        if self.currControlPanel:
+            # Reuse existing panel
+            self.currControlPanel.updateActiveImage(index)
 
-            # Retrieve the selected image's index
-            index = self.imageList.row(item)
-            self.selectedImage = self.proj.getImage(index)
-
-            if self.currControlPanel:
-                # Reuse existing panel
-                self.currControlPanel.updateActiveImage(index)
-
-                # If user previously closed the dock, show it again
-                if self.currControlPanel.tabsDock.isHidden():
-                    self.currControlPanel.tabsDock.show()
-            else:
-                # Create and add the panel for the first time
-                self.currControlPanel = self.proj.getControlPanel(index, self)
-                self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.currControlPanel.tabsDock)
-                self.currControlPanel.updateActiveImage(index)
+            # If user previously closed the dock, show it again
+            if self.currControlPanel.tabsDock.isHidden():
+                self.currControlPanel.tabsDock.show()
+        else:
+            # Create and add the panel for the first time
+            self.currControlPanel = self.proj.getControlPanel(index, self)
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.currControlPanel.tabsDock)
+            self.currControlPanel.updateActiveImage(index)
 
         # remove other control panels if they are active for other images
 
