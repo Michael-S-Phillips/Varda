@@ -9,7 +9,7 @@ import csv
 from features.image_view_raster import getRasterView
 from features.image_view_roi import getROIView
 from features.image_view_histogram import getHistogramView
-from features.image_view_stretch import getStretchView
+from features.image_view_stretch import getStretchView, StretchManager
 from features.image_view_band import BandManager, getBandView
 
 
@@ -241,7 +241,8 @@ class ControlPanel(QMainWindow):
     def showHistogramView(self):
         """ Show the Histogram View inside the Histogram Label item. """
         if self.histogramView is None:  # Create only if needed
-            self.histogramView = getHistogramView(self.project_context, self.imageIndex, self)
+            # self.histogramView = getHistogramView(self.project_context, self.imageIndex, self)
+            self.histogramView = StretchManager(self.project_context, self.imageIndex, self)
             self.treeWidget.setItemWidget(self.histogramViewItem, 0, self.histogramView)
         self.histogramView.show()
 

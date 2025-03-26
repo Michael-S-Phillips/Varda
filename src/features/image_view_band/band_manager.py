@@ -68,7 +68,7 @@ class BandManager(QWidget):
     def _connectSignals(self):
         self.table.itemSelectionChanged.connect(self._onRowSelected)
         self.table.itemChanged.connect(self._onItemChanged)
-        self.addButton.clicked.connect(self._onAddBandButtonPressed)
+        self.addButton.clicked.connect(self._onAddButtonPressed)
         self.deleteButton.clicked.connect(self._onDeleteButtonPressed)
         self.proj.sigDataChanged.connect(self._onProjectDataChanged)
 
@@ -86,7 +86,7 @@ class BandManager(QWidget):
         self.disableProjectUpdating = False
 
     @pyqtSlot()
-    def _onAddBandButtonPressed(self):
+    def _onAddButtonPressed(self):
         """Add a new band configuration to the project."""
         self.proj.addBand(self.imageIndex)
         # the project context will implicitly call _populateTable after updating
@@ -130,10 +130,10 @@ class BandManager(QWidget):
 
     @pyqtSlot()
     def _onRowSelected(self):
-        print("row selected!", self.table.selectedItems())
-        selected_items = self.table.selectedItems()
-        if selected_items:
-            row = selected_items[0].row()
+        selectedItems = self.table.selectedItems()
+        if selectedItems:
+            row = selectedItems[0].row()
+            print("row selected!", row)
             self.bandView.viewModel.selectBand(row)
 
     @pyqtSlot(int, ProjectContext.ChangeType)

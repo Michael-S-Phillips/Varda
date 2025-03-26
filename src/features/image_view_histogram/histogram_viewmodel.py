@@ -3,10 +3,13 @@
 """
 
 # third party imports
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from core.data import ProjectContext
 
 # local imports
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class HistogramViewModel(QObject):
@@ -15,7 +18,7 @@ class HistogramViewModel(QObject):
     """
 
     sigBandChanged = pyqtSignal()
-    sigStretchChanged = pyqtSignal()
+    sigStretchChanged = pyqtSignal(float, float, float, float, float, float)
 
     def __init__(self, proj: ProjectContext, imageIndex, parent=None):
         super().__init__(parent)
@@ -23,10 +26,15 @@ class HistogramViewModel(QObject):
         self.index = imageIndex
         self.stretchIndex = 0
         self.bandIndex = 0
+
+        self.blockSignals = False
+
         self._connectSignals()
 
     def _connectSignals(self):
-        self.proj.sigDataChanged.connect(self._handleDataChanged)
+        self.proj.sigDataChanged[
+            int, ProjectContext.ChangeType, ProjectContext.ChangeModifier
+        ].connect(self._handleDataChanged)
 
     def selectBand(self, stretchIndex):
         """selects a new stretch from the image."""
@@ -36,7 +44,7 @@ class HistogramViewModel(QObject):
     def selectStretch(self, stretchIndex):
         """selects a new stretch from the image."""
         self.stretchIndex = stretchIndex
-        self.sigStretchChanged.emit()
+        self._handleDataChanged(self.index, ProjectContext.ChangeType.STRETCH, ProjectContext.ChangeModifier.UPDATE)
 
     def getSelectedBand(self):
         """requests the stretch corresponding to stretchIndex, and returns it."""
@@ -52,7 +60,9 @@ class HistogramViewModel(QObject):
         band = self.getSelectedBand()
         return self.proj.getImage(self.index).raster[:, :, [band.r, band.g, band.b]]
 
-    def updateStretch(self, minR, maxR, minG, maxG, minB, maxB):
+    def updateStretch(
+        self, minR=None, maxR=None, minG=None, maxG=None, minB=None, maxB=None
+    ):
         """tells the project to update the stretch configuration with new values."""
         self.proj.updateStretch(
             self.index,
@@ -66,10 +76,20 @@ class HistogramViewModel(QObject):
             maxB=maxB,
         )
 
-    def _handleDataChanged(self, index, changeType):
+    @pyqtSlot(int, ProjectContext.ChangeType, ProjectContext.ChangeModifier)
+    def _handleDataChanged(self, index, changeType, changeModifier):
         if index != self.index:
             return
+        if changeModifier is not ProjectContext.ChangeModifier.UPDATE:
+            return
+
         if changeType is ProjectContext.ChangeType.BAND:
             self.sigBandChanged.emit()
         elif changeType is ProjectContext.ChangeType.STRETCH:
-            self.sigStretchChanged.emit()
+            minR, maxR, minG, maxG, minB, maxB = [
+                value
+                for subList in self.getSelectedStretch().toList()
+                for value in subList
+            ]
+            logger.debug("Stretch changed: %s", (minR, maxR, minG, maxG, minB, maxB))
+            self.sigStretchChanged.emit(minR, maxR, minG, maxG, minB, maxB)

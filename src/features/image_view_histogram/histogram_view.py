@@ -1,14 +1,17 @@
 # standard library
-
+import logging
 # third-party imports
 import pyqtgraph as pg
+from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout,QTabWidget
 from PyQt6.QtGui import QColor
+from pyqtgraph import HistogramLUTItem
 
 # local imports
 from features.shared.selection_controls import StretchSelector, BandSelector
 from .histogram_viewmodel import HistogramViewModel
 
+logger = logging.getLogger(__name__)
 
 class DualHistogram(QWidget):
     def __init__(self, parent=None, image=None, color=(255, 255, 255)):
@@ -55,12 +58,17 @@ class DualHistogram(QWidget):
 class HistogramView(QWidget):
     """A basic view for editing band configurations of an image with selectable RGB histograms."""
 
-    def __init__(self, viewModel=None, parent=None):
+    def __init__(self, viewModel: HistogramViewModel = None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Histogram")
         self.viewModel = viewModel
+
+        # To link the histograms to the image, we use an ImageItem.
+        # This is just to leverage the existing functionality of the HistogramLUTWidget.
         self.imageItem = pg.ImageItem()
         self.imageItem.setImage(self.viewModel.getRasterFromBand())
+
+        self._updatingHistograms = False
         self._initUI()
         self._connectSignals()
 
@@ -75,17 +83,7 @@ class HistogramView(QWidget):
         self.tabWidget.addTab(self.histogramG, "Green")
         self.tabWidget.addTab(self.histogramB, "Blue")
 
-        self.bandSelector = BandSelector(
-            self.viewModel.proj, self.viewModel.index, self
-        )
-
-        self.stretchSelector = StretchSelector(
-            self.viewModel.proj, self.viewModel.index, self
-        )
-
         selectorLayout = QVBoxLayout()
-        selectorLayout.addWidget(self.bandSelector)
-        selectorLayout.addWidget(self.stretchSelector)
 
         layout = QVBoxLayout()
         layout.addLayout(selectorLayout)
@@ -97,25 +95,30 @@ class HistogramView(QWidget):
         self.viewModel.sigBandChanged.connect(self._onBandChanged)
         self.viewModel.sigStretchChanged.connect(self._onStretchChanged)
 
-        self.histogramR.histogram.item.sigLevelsChanged.connect(self._handleLevelsChanged)
-        self.histogramG.histogram.item.sigLevelsChanged.connect(self._handleLevelsChanged)
-        self.histogramB.histogram.item.sigLevelsChanged.connect(self._handleLevelsChanged)
+        self.histogramR.histogram.item.sigLevelsChanged.connect(self._onHistogramLevelsChanged)
+        self.histogramG.histogram.item.sigLevelsChanged.connect(self._onHistogramLevelsChanged)
+        self.histogramB.histogram.item.sigLevelsChanged.connect(self._onHistogramLevelsChanged)
 
-        self.bandSelector.currentIndexChanged.connect(self.viewModel.selectBand)
-        self.stretchSelector.currentIndexChanged.connect(self.viewModel.selectStretch)
-
-    def _handleLevelsChanged(self):
+    @pyqtSlot()
+    def _onHistogramLevelsChanged(self):
+        if self._updatingHistograms:
+            return
         minR, maxR = self.histogramR.histogram.item.getLevels()
         minG, maxG = self.histogramG.histogram.item.getLevels()
         minB, maxB = self.histogramB.histogram.item.getLevels()
-        self.viewModel.updateStretch(minR, maxR, minG, maxG, minB, maxB)
 
+        self.viewModel.updateStretch(minR=minR, maxR=maxR, minG=minG, maxG=maxG, minB=minB, maxB=maxB)
+
+    @pyqtSlot()
     def _onBandChanged(self):
         image = self.viewModel.getRasterFromBand()
-        self.imageItem.setImage(image)
+        self.imageItem.setImage(image, autoLevels=False)
 
-    def _onStretchChanged(self):
-        stretch = self.viewModel.getSelectedStretch()
-        self.histogramR.histogram.item.setLevels(stretch.minR, stretch.maxR)
-        self.histogramG.histogram.item.setLevels(stretch.minG, stretch.maxG)
-        self.histogramB.histogram.item.setLevels(stretch.minB, stretch.maxB)
+    @pyqtSlot(float, float, float, float, float, float)
+    def _onStretchChanged(self, minR, maxR, minG, maxG, minB, maxB):
+
+        self._updatingHistograms = True
+        self.histogramR.histogram.item.setLevels(minR, maxR)
+        self.histogramG.histogram.item.setLevels(minG, maxG)
+        self.histogramB.histogram.item.setLevels(minB, maxB)
+        self._updatingHistograms = False

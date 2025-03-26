@@ -24,7 +24,7 @@ class BandViewModel(QObject):
         self._updateInterval = 20
         self.isDragging = False
 
-        self._justUpdated = False
+        self._ignoreProjectUpdates = False
 
         self._initTimer()
         self._connectSignals()
@@ -36,9 +36,11 @@ class BandViewModel(QObject):
         self.updateTimer.setSingleShot(True)
 
     def _connectSignals(self):
-        """ all signal callbacks are connected here."""
+        """all signal callbacks are connected here."""
         self.updateTimer.timeout.connect(self._commitBandUpdate)
-        self.proj.sigDataChanged.connect(self._handleDataChanged)
+        self.proj.sigDataChanged[
+            int, ProjectContext.ChangeType, ProjectContext.ChangeModifier
+        ].connect(self._handleDataChanged)
 
     def selectBand(self, bandIndex):
         """selects a new band from the image."""
@@ -73,17 +75,17 @@ class BandViewModel(QObject):
         r, g, b = self._pendingBandValues
 
         self.isDragging = False
-        self._justUpdated = True
+        self._ignoreProjectUpdates = True
 
         self.proj.updateBand(self.imageIndex, self.bandIndex, r=r, g=g, b=b)
 
-    @pyqtSlot(int, ProjectContext.ChangeType)
-    def _handleDataChanged(self, index, changeType):
+    @pyqtSlot(int, ProjectContext.ChangeType, ProjectContext.ChangeModifier)
+    def _handleDataChanged(self, index, changeType, changeModifier):
         """receives ProjectContext updates. Check if the update pertains to us."""
 
-        if self._justUpdated:
+        if self._ignoreProjectUpdates:
             # if we were the one that caused the update, ignore it
-            self._justUpdated = False
+            self._ignoreProjectUpdates = False
             return
 
         if index != self.imageIndex:
