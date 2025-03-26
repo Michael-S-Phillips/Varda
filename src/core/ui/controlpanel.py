@@ -10,7 +10,8 @@ from features.image_view_raster import getRasterView
 from features.image_view_roi import getROIView
 from features.image_view_histogram import getHistogramView
 from features.image_view_stretch import getStretchView
-from features.image_view_band import getBandView
+from features.image_view_band import BandManager, getBandView
+
 
 class ControlPanel(QMainWindow):
     """
@@ -232,7 +233,8 @@ class ControlPanel(QMainWindow):
     def showBandView(self):
         """ Show the Band View inside the Band Label item. """
         if self.bandView is None:  # Create only if needed
-            self.bandView = getBandView(self.project_context, self.imageIndex, self)
+            # self.bandView = getBandView(self.project_context, self.imageIndex, self)
+            self.bandView = BandManager(self.project_context, self.imageIndex, self)
             self.treeWidget.setItemWidget(self.bandViewItem, 0, self.bandView)
         self.bandView.show()
 

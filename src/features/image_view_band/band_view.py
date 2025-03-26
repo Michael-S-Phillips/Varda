@@ -4,10 +4,9 @@ from typing import override
 # third-party imports
 import pyqtgraph as pg
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 
 # local imports
-from features.shared.selection_controls import StretchSelector
 from .band_viewmodel import BandViewModel
 
 
@@ -20,15 +19,13 @@ class BandView(QWidget):
     rBandSlider: pg.InfiniteLine
     gBandSlider: pg.InfiniteLine
     bBandSlider: pg.InfiniteLine
-    bandSelector: StretchSelector
     widgetHeight = 152
     updateTimer: QTimer
 
     def __init__(self, viewModel=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Band Editor")
-        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint)
-        self.setMaximumHeight(self.widgetHeight)
+        # self.setMaximumHeight(self.widgetHeight)
         self.viewModel = viewModel
 
         self._initUI()
@@ -63,19 +60,14 @@ class BandView(QWidget):
         self.bBandSlider = pg.InfiniteLine(0, 90, "b", True, bounds)
 
         # initialize labels for each slider
-        self.MyInfLineLabel(self.rBandSlider, "{value}", False, 0.5, [(0, 0.5)])
-        self.MyInfLineLabel(self.gBandSlider, "{value}", False, 0.5, [(0, 0.5)])
-        self.MyInfLineLabel(self.bBandSlider, "{value}", False, 0.5, [(0, 0.5)])
+        self.MyInfLineLabel(self.rBandSlider, "{value}", False, 0.5 )
+        self.MyInfLineLabel(self.gBandSlider, "{value}", False, 0.5 )
+        self.MyInfLineLabel(self.bBandSlider, "{value}", False, 0.5 )
 
         # Add sliders to the ViewBox
         vbox.addItem(self.rBandSlider)
         vbox.addItem(self.gBandSlider)
         vbox.addItem(self.bBandSlider)
-
-        # setup Band selector
-        self.bandSelector = StretchSelector(
-            self.viewModel.proj, self.viewModel.imageIndex
-        )
 
         # GraphicsView setup
         view = pg.GraphicsView(parent=self)
@@ -84,15 +76,13 @@ class BandView(QWidget):
         # Layout setup
         layout = QVBoxLayout()
         #layout.setContentsMargins(0, 20, 0, 20)
-        layout.addWidget(self.bandSelector)
         layout.addWidget(view)
         self.setLayout(layout)
 
     def _connectSignals(self):
         self.viewModel.sigBandChanged.connect(self._onBandChanged)
-        self.bandSelector.currentIndexChanged.connect(self.viewModel.selectBand)
         self.rBandSlider.sigPositionChanged.connect(
-            lambda: self.viewModel.updateBand(r=self.rBandSlider.value())
+            lambda: self._onSliderChanged(self.rBandSlider)
         )
         self.gBandSlider.sigPositionChanged.connect(
             lambda: self.viewModel.updateBand(g=self.gBandSlider.value())
@@ -101,6 +91,21 @@ class BandView(QWidget):
             lambda: self.viewModel.updateBand(b=self.bBandSlider.value())
         )
 
+    @pyqtSlot(pg.InfiniteLine)
+    def _onSliderChanged(self, slider):
+        # clamp slider to the range of the image wavelengths
+        range = self.viewModel.getBandCount()
+        slider.setValue(max(min(slider.value(), range), 0))
+
+        # update the correct band
+        if slider is self.rBandSlider:
+            self.viewModel.updateBand(r=slider.value())
+        elif slider is self.gBandSlider:
+            self.viewModel.updateBand(g=slider.value())
+        elif slider is self.bBandSlider:
+            self.viewModel.updateBand(b=slider.value())
+
+    @pyqtSlot(int, int, int)
     def _onBandChanged(self, r, g, b):
         self.rBandSlider.setValue(r)
         self.gBandSlider.setValue(g)
@@ -115,6 +120,7 @@ class BandView(QWidget):
         def valueChanged(self):
             if not self.isVisible():
                 return
+
             value = int(self.line.value())
             self.setText(self.format.format(value=value))
             self.updatePosition()

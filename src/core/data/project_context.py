@@ -326,8 +326,10 @@ class ProjectContext(QObject):
         self._emitChange(index, self.ChangeType.STRETCH)
 
     # Band Management
-    def addBand(self, index, band: Any):
+    def addBand(self, index, band: Band = None):
         """Add a band to an image. Returns the index of the new band"""
+        if band is None:
+            band = Band.createDefault()
         self._images[index].band.append(band)
         self._emitChange(index, self.ChangeType.BAND)
         return len(self._images[index].band) - 1

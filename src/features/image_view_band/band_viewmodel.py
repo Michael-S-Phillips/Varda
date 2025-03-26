@@ -1,5 +1,5 @@
 # third party imports
-from PyQt6.QtCore import QObject, pyqtSignal, QTimer
+from PyQt6.QtCore import QObject, pyqtSignal, QTimer, pyqtSlot
 
 # local imports
 from core.data import ProjectContext
@@ -19,26 +19,32 @@ class BandViewModel(QObject):
         self.proj = proj
         self.imageIndex = imageIndex
         self.bandIndex = 0
-        self.isDragging = False
+
         self._pendingBandValues = (None, None, None)
         self._updateInterval = 20
+        self.isDragging = False
+
+        self._justUpdated = False
+
         self._initTimer()
         self._connectSignals()
 
     def _initTimer(self):
+        """Initializes the timer that will be used to debounce the band updates."""
         self.updateTimer = QTimer()
         self.updateTimer.setInterval(self._updateInterval)
         self.updateTimer.setSingleShot(True)
-        self.isDragging = False
 
     def _connectSignals(self):
-        self.proj.sigDataChanged.connect(self._handleDataChanged)
+        """ all signal callbacks are connected here."""
         self.updateTimer.timeout.connect(self._commitBandUpdate)
+        self.proj.sigDataChanged.connect(self._handleDataChanged)
 
     def selectBand(self, bandIndex):
         """selects a new band from the image."""
         self.bandIndex = bandIndex
-        self.sigBandChanged.emit()
+        r, g, b = self.proj.getImage(self.imageIndex).band[self.bandIndex].toList()
+        self.sigBandChanged.emit(r, g, b)
 
     def getSelectedBand(self):
         """requests the band corresponding to bandIndex, and returns it."""
@@ -61,14 +67,25 @@ class BandViewModel(QObject):
             self.isDragging = True
             self.updateTimer.start(20)
 
+    @pyqtSlot()
     def _commitBandUpdate(self):
         """Commits the debounced slider values to the ProjectContext."""
         r, g, b = self._pendingBandValues
-        self.proj.updateBand(self.imageIndex, self.bandIndex, r=r, g=g, b=b)
-        self.isDragging = False
 
+        self.isDragging = False
+        self._justUpdated = True
+
+        self.proj.updateBand(self.imageIndex, self.bandIndex, r=r, g=g, b=b)
+
+    @pyqtSlot(int, ProjectContext.ChangeType)
     def _handleDataChanged(self, index, changeType):
         """receives ProjectContext updates. Check if the update pertains to us."""
+
+        if self._justUpdated:
+            # if we were the one that caused the update, ignore it
+            self._justUpdated = False
+            return
+
         if index != self.imageIndex:
             return
         if changeType is not ProjectContext.ChangeType.BAND:
