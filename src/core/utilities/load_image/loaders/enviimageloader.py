@@ -113,6 +113,7 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
             "dataIgnore": dataIgnore,
             "bandCount": bandCount,
             "defaultBand": defaultBands,
+            "geospatialInfo": geospatialInfo,
             "extraMetadata": {
                 # "transform": transform,
                 "description": description,
@@ -123,5 +124,12 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
         }
         if wavelengths is not None:
             out["wavelengths"] = wavelengths
+            out["wavelengths_type"] = float
+        elif bandNames is not None:
+            out["wavelengths"] = np.asarray(bandNames, dtype="S")
+            out["wavelengths_type"] = str
+        else:
+            out["wavelengths"] = np.arange(bandCount)
+            out["wavelengths_type"] = int
 
         return Metadata(**out)

@@ -33,7 +33,7 @@ class ProjectContext(QObject):
     """TODO:"""
 
     class ChangeType(Enum):
-        """Simple enumerator to representing the types of data that can be changed"""
+        """Enumerator to represent the types of data that may be changed"""
 
         IMAGE = "image"
         BAND = "band"
@@ -43,9 +43,20 @@ class ProjectContext(QObject):
         PLOT = "plot"
         ROIView = "ROIView"
 
+    class ChangeModifier(Enum):
+        """Enumerator to represent the ways in which data may be changed"""
+
+        ADD = "add"
+        REMOVE = "remove"
+        UPDATE = "update"
+
     # signal that emits when something writes to the projectContext.
     # int argument is the index of the item that was changed.
-    sigDataChanged: pyqtSignal = pyqtSignal(int, ChangeType)
+
+    # overloaded signal, to add support for a new argument without breaking existing code
+    sigDataChanged: pyqtSignal = pyqtSignal(
+        [int, ChangeType], [int, ChangeType, ChangeModifier]
+    )
     sigProjectChanged: pyqtSignal = pyqtSignal()
 
     def __init__(self):
@@ -195,7 +206,7 @@ class ProjectContext(QObject):
             self._images = imagesTemp
 
     # Image Access
-    def getImage(self, index):
+    def getImage(self, index) -> Image:
         """Retrieve an image by index."""
         return self._images[index]
 
@@ -206,7 +217,7 @@ class ProjectContext(QObject):
             f"Image {index}"  # Assign a unique name based on the index
         )
         self._images.append(image)
-        self._emitChange(index, self.ChangeType.IMAGE)
+        self._emitChange(index, self.ChangeType.IMAGE, self.ChangeModifier.ADD)
         return index
 
     def loadNewImage(self, path=None):
@@ -246,7 +257,7 @@ class ProjectContext(QObject):
     def removeImage(self, index):
         """Remove an image by index."""
         self._images.pop(index)
-        self._emitChange(index, self.ChangeType.IMAGE)
+        self._emitChange(index, self.ChangeType.IMAGE, self.ChangeModifier.REMOVE)
 
     def getAllImages(self):
         """Retrieve a list of all the images in the project"""
@@ -273,19 +284,21 @@ class ProjectContext(QObject):
             setattr(metadata, f"_{key}", value)
         else:
             metadata.extraMetadata[key] = value
-        self._emitChange(index, self.ChangeType.METADATA)
+        self._emitChange(index, self.ChangeType.METADATA, self.ChangeModifier.UPDATE)
 
     # Stretch Management
-    def addStretch(self, index, stretch: Stretch):
-        """Add a stretch to an image. Returns the index of the new stretch"""
+    def addStretch(self, index, stretch: Stretch = None):
+        """Add a stretch to an image. If no stretch is provided, use default. Returns index of the new stretch"""
+        if stretch is None:
+            stretch = Stretch.createDefault()
         self._images[index].stretch.append(stretch)
-        self._emitChange(index, self.ChangeType.STRETCH)
+        self._emitChange(index, self.ChangeType.STRETCH, self.ChangeModifier.ADD)
         return len(self._images[index].stretch) - 1
 
     def removeStretch(self, index, stretchIndex):
         """Remove a stretch by index from an image."""
         self._images[index].stretch.pop(stretchIndex)
-        self._emitChange(index, self.ChangeType.STRETCH)
+        self._emitChange(index, self.ChangeType.STRETCH, self.ChangeModifier.REMOVE)
 
     def updateStretch(
         self,
@@ -318,24 +331,23 @@ class ProjectContext(QObject):
         )
         # replace the Stretch
         self._images[imageIndex].stretch[stretchIndex] = newStretch
-        self._emitChange(imageIndex, self.ChangeType.STRETCH)
-
-    def replaceStretch(self, index, stretchIndex, newStretch: Stretch):
-        """Update a specific stretch."""
-        self._images[index].stretch[stretchIndex] = newStretch
-        self._emitChange(index, self.ChangeType.STRETCH)
+        self._emitChange(
+            imageIndex, self.ChangeType.STRETCH, self.ChangeModifier.UPDATE
+        )
 
     # Band Management
-    def addBand(self, index, band: Any):
-        """Add a band to an image. Returns the index of the new band"""
+    def addBand(self, index, band: Band = None):
+        """Add a band to an image. If no band is provided, use default. Returns index of the new band"""
+        if band is None:
+            band = Band.createDefault()
         self._images[index].band.append(band)
-        self._emitChange(index, self.ChangeType.BAND)
+        self._emitChange(index, self.ChangeType.BAND, self.ChangeModifier.ADD)
         return len(self._images[index].band) - 1
 
     def removeBand(self, index, bandIndex):
         """Remove a band by index from an image."""
         self._images[index].band.pop(bandIndex)
-        self._emitChange(index, self.ChangeType.BAND)
+        self._emitChange(index, self.ChangeType.BAND, self.ChangeModifier.REMOVE)
 
     def updateBand(
         self,
@@ -361,7 +373,7 @@ class ProjectContext(QObject):
         )
         # Replace the band
         self._images[index].band[bandIndex] = newBand
-        self._emitChange(index, self.ChangeType.BAND)
+        self._emitChange(index, self.ChangeType.BAND, self.ChangeModifier.UPDATE)
         logger.debug(
             f"Updated Band.\n"
             f"  old: {oldBand.r}, {oldBand.g}, {oldBand.b}\n"
@@ -373,12 +385,12 @@ class ProjectContext(QObject):
         # need to put logic for roi band somewhere
         # call addROI and removeROI in the control panel
         self._images[index].rois.append(roi)
-        self._emitChange(index, self.ChangeType.ROI)
+        self._emitChange(index, self.ChangeType.ROI, self.ChangeModifier.ADD)
         return len(self._images[index].rois) - 1
 
     def removeROI(self, index, roiIndex):
         self._images[index].rois.pop(roiIndex)
-        self._emitChange(index, self.ChangeType.ROI)
+        self._emitChange(index, self.ChangeType.ROI, self.ChangeModifier.REMOVE)
 
     def getROIs(self, index):
         return self._images[index].rois
@@ -409,9 +421,14 @@ class ProjectContext(QObject):
         return self._images[index].ROIview
 
     # Helper methods
-    def _emitChange(self, index, changeType):
+    def _emitChange(self, index, changeType, changeModifier):
         self.isSaved = False
-        self.sigDataChanged.emit(index, changeType)
+
+        # to support existing code which expects 2 arguments, we simply emit both versions of the signal
+        self.sigDataChanged[int, self.ChangeType, self.ChangeModifier].emit(
+            index, changeType, changeModifier
+        )
+        self.sigDataChanged[int, self.ChangeType].emit(index, changeType)
 
 
 class FileInputDialog(QDialog):

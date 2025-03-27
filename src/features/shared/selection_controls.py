@@ -1,7 +1,9 @@
-from PyQt6.QtWidgets import QWidget, QComboBox, QVBoxLayout
+from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtWidgets import (
+    QComboBox,
+)
 
 from core.data import ProjectContext
-
 
 class BandSelector(QComboBox):
     """Basic utility widget for listing the band configurations of an image and
@@ -15,7 +17,7 @@ class BandSelector(QComboBox):
         super().__init__(parent)
         self.proj = proj
         self.imageIndex = imageIndex
-
+        self.proj.sigDataChanged.connect(self._onProjectDataChanged)
         self._populateComboBox()
 
     def _populateComboBox(self):
@@ -23,13 +25,14 @@ class BandSelector(QComboBox):
         self.addItems([band.name for band in self.proj.getImage(self.imageIndex).band])
 
     def setImageIndex(self, imageIndex):
-        """Updates selector to use a new image. Refreshes contents to match new data.
-
-        Args:
-            imageIndex: the index of the new image to use.
-        """
+        """Updates selector to use a new image. Refreshes contents to match new data."""
         self.imageIndex = imageIndex
         self._populateComboBox()
+
+    @pyqtSlot(int, ProjectContext.ChangeType)
+    def _onProjectDataChanged(self, index, changeType):
+        if index == self.imageIndex and changeType == ProjectContext.ChangeType.BAND:
+            self._populateComboBox()
 
 
 class StretchSelector(QComboBox):
@@ -45,6 +48,7 @@ class StretchSelector(QComboBox):
         self.proj = proj
         self.imageIndex = imageIndex
 
+        self.proj.sigDataChanged.connect(self._onProjectDataChanged)
         self._populateComboBox()
 
     def _populateComboBox(self):
@@ -61,3 +65,9 @@ class StretchSelector(QComboBox):
         """
         self.imageIndex = imageIndex
         self._populateComboBox()
+
+    @pyqtSlot(int, ProjectContext.ChangeType)
+    def _onProjectDataChanged(self, index, changeType):
+        if index == self.imageIndex and changeType == ProjectContext.ChangeType.STRETCH:
+            self._populateComboBox()
+

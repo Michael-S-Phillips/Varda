@@ -1,5 +1,5 @@
 # standard library
-from typing import Any, Dict
+from typing import Any, Dict, Type
 from dataclasses import dataclass, field
 
 # third-party imports
@@ -31,6 +31,11 @@ class Metadata:
     bandCount: int = 0
     defaultBand: Band = field(default_factory=Band.createDefault)
     wavelengths: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    wavelengths_type: Type = float
+
+    # no idea what the format of this is yet
+    geospatialInfo: any = None
+
     extraMetadata: Dict[str, str | int | float] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -58,6 +63,10 @@ class Metadata:
                 raise self.BadMetadataError(
                     f"Extra Metadata: {key}", "str, int, or float", value
                 )
+
+        # fix inputs
+        if self.wavelengths.size == 0:
+            self.wavelengths = np.arange(self.bandCount)
 
     def _checkExtraMetadata(self, item):
         """Check if a value is serializable by JSON."""
