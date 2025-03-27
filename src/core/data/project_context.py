@@ -206,7 +206,7 @@ class ProjectContext(QObject):
             self._images = imagesTemp
 
     # Image Access
-    def getImage(self, index):
+    def getImage(self, index) -> Image:
         """Retrieve an image by index."""
         return self._images[index]
 

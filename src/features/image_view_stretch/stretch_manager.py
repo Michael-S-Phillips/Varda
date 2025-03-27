@@ -1,3 +1,6 @@
+# standard library
+
+# third party imports
 from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtGui import QDoubleValidator
 from PyQt6.QtWidgets import (
@@ -15,6 +18,7 @@ from PyQt6.QtWidgets import (
     QLayout, QStyle,
 )
 
+# local imports
 from core.data import ProjectContext
 from features.image_view_histogram import getHistogramView
 

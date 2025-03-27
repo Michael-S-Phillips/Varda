@@ -1,9 +1,10 @@
 # third party imports
+import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer, pyqtSlot
 
 # local imports
 from core.data import ProjectContext
-
+from core.entities import Metadata
 
 class BandViewModel(QObject):
     """Simple ViewModel for the band view/editor.
@@ -12,14 +13,14 @@ class BandViewModel(QObject):
     To help with performance, it limits the frequency that the Band can be updated,
     """
 
-    sigBandChanged = pyqtSignal(int, int, int)
+    sigBandChanged = pyqtSignal(float, float, float)
 
     def __init__(self, proj: ProjectContext, imageIndex, parent=None):
         super().__init__(parent)
         self.proj = proj
         self.imageIndex = imageIndex
         self.bandIndex = 0
-
+        self.bounds = (self.getWavelengthAt(0), self.getWavelengthAt(-1))
         self._pendingBandValues = (None, None, None)
         self._updateInterval = 20
         self.isDragging = False
@@ -42,6 +43,14 @@ class BandViewModel(QObject):
             int, ProjectContext.ChangeType, ProjectContext.ChangeModifier
         ].connect(self._handleDataChanged)
 
+    def getWavelengthAt(self, index) -> float:
+        """returns the wavelength at the given index."""
+        return self.proj.getImage(self.imageIndex).metadata.wavelengths[index]
+
+    def getIndexOfWavelength(self, wavelength: float) -> int:
+        """returns the index of the given wavelength."""
+        return np.abs(self.proj.getImage(self.imageIndex).metadata.wavelengths - wavelength).argmin()
+
     def selectBand(self, bandIndex):
         """selects a new band from the image."""
         self.bandIndex = bandIndex
@@ -60,10 +69,11 @@ class BandViewModel(QObject):
     def updateBand(self, r=None, g=None, b=None):
         """Begins a debounced band update. Since the slider value is constantly
         changing when being moved, this waits until the change is complete"""
+
         self._pendingBandValues = (
-            int(r) if r else None,
-            int(g) if g else None,
-            int(b) if b else None,
+            r if r else None,
+            g if g else None,
+            b if b else None,
         )
         if not self.isDragging:
             self.isDragging = True
@@ -72,11 +82,11 @@ class BandViewModel(QObject):
     @pyqtSlot()
     def _commitBandUpdate(self):
         """Commits the debounced slider values to the ProjectContext."""
-        r, g, b = self._pendingBandValues
-
         self.isDragging = False
         self._ignoreProjectUpdates = True
 
+        wavelengths = self.proj.getImage(self.imageIndex).metadata.wavelengths
+        r, g, b = [(np.abs(wavelengths - value)).argmin() if value is not None else None for value in self._pendingBandValues]
         self.proj.updateBand(self.imageIndex, self.bandIndex, r=r, g=g, b=b)
 
     @pyqtSlot(int, ProjectContext.ChangeType, ProjectContext.ChangeModifier)
