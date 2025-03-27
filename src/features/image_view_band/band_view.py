@@ -21,7 +21,6 @@ class BandView(QWidget):
     rBandSlider: pg.InfiniteLine
     gBandSlider: pg.InfiniteLine
     bBandSlider: pg.InfiniteLine
-    bounds: Tuple[float, float]
     widgetHeight = 152
     updateTimer: QTimer
 
@@ -36,9 +35,6 @@ class BandView(QWidget):
         self.show()
 
     def _initUI(self):
-        # This assumes the wavelengths are numbers, but I think they can sometimes be strings?
-        self.bounds = (self.viewModel.getWavelengthAt(0), self.viewModel.getWavelengthAt(-1))
-
         # Create GraphicsLayout
         graphicsLayout = pg.GraphicsLayout()
         graphicsLayout.setContentsMargins(0, 0, 0, 0)
@@ -46,7 +42,7 @@ class BandView(QWidget):
 
         # ViewBox setup
         vbox = pg.ViewBox()
-        vbox.setRange(xRange=self.bounds, yRange=(-1, 1))
+        vbox.setRange(xRange=self.viewModel.bounds, yRange=(-1, 1))
         vbox.setMaximumHeight(self.widgetHeight)
         vbox.setMinimumHeight(45)
         vbox.setMouseEnabled(x=False, y=False)
@@ -59,9 +55,9 @@ class BandView(QWidget):
         graphicsLayout.addItem(axis, row=1, col=0)
 
         # Sliders setup
-        self.rBandSlider = pg.InfiniteLine(0, 90, "r", True, self.bounds)
-        self.gBandSlider = pg.InfiniteLine(0, 90, "g", True, self.bounds)
-        self.bBandSlider = pg.InfiniteLine(0, 90, "b", True, self.bounds)
+        self.rBandSlider = pg.InfiniteLine(0, 90, "r", True, self.viewModel.bounds)
+        self.gBandSlider = pg.InfiniteLine(0, 90, "g", True, self.viewModel.bounds)
+        self.bBandSlider = pg.InfiniteLine(0, 90, "b", True, self.viewModel.bounds)
 
         # initialize labels for each slider
         self.MyInfLineLabel(self.viewModel, self.rBandSlider, "{value}", False, 0.5 )
@@ -98,7 +94,7 @@ class BandView(QWidget):
     @pyqtSlot(pg.InfiniteLine)
     def _onSliderChanged(self, slider):
         # clamp slider to the range of the image wavelengths
-        minValue, maxValue = self.bounds
+        minValue, maxValue = self.viewModel.bounds
         logger.debug(f"minValue: {minValue} maxValue {maxValue}")
         slider.setValue(max(min(slider.value(), maxValue), minValue))
 
@@ -113,9 +109,9 @@ class BandView(QWidget):
 
     @pyqtSlot(float, float, float)
     def _onBandChanged(self, r, g, b):
-        self.rBandSlider.setValue(self.viewModel.getWavelengthAt(r))
-        self.gBandSlider.setValue(self.viewModel.getWavelengthAt(g))
-        self.bBandSlider.setValue(self.viewModel.getWavelengthAt(b))
+        self.rBandSlider.setValue(self.viewModel.getIndexOfWavelength(r))
+        self.gBandSlider.setValue(self.viewModel.getIndexOfWavelength(g))
+        self.bBandSlider.setValue(self.viewModel.getIndexOfWavelength(b))
 
     # pylint: disable=abstract-method
     class MyInfLineLabel(pg.InfLineLabel):

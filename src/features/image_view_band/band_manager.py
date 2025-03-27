@@ -1,4 +1,4 @@
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import pyqtSlot, Qt
 from PyQt6.QtGui import QIntValidator
 from PyQt6.QtWidgets import (
     QWidget,
@@ -7,11 +7,17 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QTableWidgetItem,
     QPushButton,
-    QSizePolicy, QStyledItemDelegate, QLineEdit, QHeaderView, QHBoxLayout, QLayout,
+    QSizePolicy,
+    QStyledItemDelegate,
+    QLineEdit,
+    QHeaderView,
+    QHBoxLayout,
+    QLayout, QToolButton,
 )
 
 from core.data import ProjectContext
 from features.image_view_band import getBandView
+
 
 class BandManager(QWidget):
     """A widget to display a list of all the bands associated with an image, and manage them.
@@ -30,7 +36,6 @@ class BandManager(QWidget):
 
         self.disableProjectUpdating = False
 
-
     def _initUI(self):
         self.table = QTableWidget(self)
         self.table.setColumnCount(4)
@@ -38,27 +43,40 @@ class BandManager(QWidget):
         self.table.setItemDelegateForColumn(1, self.IntegerDelegate(self))
         self.table.setItemDelegateForColumn(2, self.IntegerDelegate(self))
         self.table.setItemDelegateForColumn(3, self.IntegerDelegate(self))
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.AnyKeyPressed | QAbstractItemView.EditTrigger.DoubleClicked)
+        self.table.setEditTriggers(
+            QAbstractItemView.EditTrigger.AnyKeyPressed
+            | QAbstractItemView.EditTrigger.DoubleClicked
+        )
 
+        self.toggleButton = QToolButton(self)
+        self.toggleButton.setText("Show/Hide Table")
+        self.toggleButton.setCheckable(True)
+        self.toggleButton.setChecked(True)
+        self.toggleButton.setArrowType(Qt.ArrowType.DownArrow)
+        self.toggleButton.setFixedSize(15, 15)
 
         self.addButton = QPushButton("Add Band", self)
         self.addButton.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
         self.deleteButton = QPushButton("Delete Band", self)
-        self.deleteButton.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.deleteButton.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+        )
 
         self.buttonLayout = QHBoxLayout()
         self.buttonLayout.addWidget(self.addButton)
-        self.buttonLayout.addStretch() # pushes the buttons apart from each other
+        self.buttonLayout.addStretch()  # pushes the buttons apart from each other
         self.buttonLayout.addWidget(self.deleteButton)
 
         self.bandView = getBandView(self.proj, self.imageIndex, self)
 
-
         self.layout = QVBoxLayout(self)
+        self.layout.addWidget(self.toggleButton)
         self.layout.addLayout(self.buttonLayout)
         self.layout.addWidget(self.table)
         self.layout.addWidget(self.bandView)
@@ -68,6 +86,7 @@ class BandManager(QWidget):
     def _connectSignals(self):
         self.table.itemSelectionChanged.connect(self._onRowSelected)
         self.table.itemChanged.connect(self._onItemChanged)
+        self.toggleButton.clicked.connect(self._toggleTable)
         self.addButton.clicked.connect(self._onAddButtonPressed)
         self.deleteButton.clicked.connect(self._onDeleteButtonPressed)
         self.proj.sigDataChanged.connect(self._onProjectDataChanged)
@@ -84,6 +103,19 @@ class BandManager(QWidget):
             self.table.setItem(row, 3, QTableWidgetItem(str(band.b)))
 
         self.disableProjectUpdating = False
+
+    @pyqtSlot()
+    def _toggleTable(self):
+        if self.table.isVisible():
+            self.table.hide()
+            self.addButton.hide()
+            self.deleteButton.hide()
+            self.toggleButton.setArrowType(Qt.ArrowType.RightArrow)
+        else:
+            self.table.show()
+            self.addButton.show()
+            self.deleteButton.show()
+            self.toggleButton.setArrowType(Qt.ArrowType.DownArrow)
 
     @pyqtSlot()
     def _onAddButtonPressed(self):

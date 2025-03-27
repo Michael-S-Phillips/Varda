@@ -26,6 +26,7 @@ class DualHistogram(QWidget):
         self.histogram = pg.HistogramLUTWidget(
             self, image=self.image, orientation="horizontal"
         )
+
         self.histogram.item.regions[0].setBrush(QColor(*(*self.color, 25)))
         self.histogram.item.regions[0].setHoverBrush(QColor(*(*self.color, 50)))
         self.histogram.item.gradient.hide()
@@ -65,8 +66,10 @@ class HistogramView(QWidget):
 
         # To link the histograms to the image, we use an ImageItem.
         # This is just to leverage the existing functionality of the HistogramLUTWidget.
-        self.imageItem = pg.ImageItem()
-        self.imageItem.setImage(self.viewModel.getRasterFromBand())
+        self.imageItemR = pg.ImageItem()
+        self.imageItemG = pg.ImageItem()
+        self.imageItemB = pg.ImageItem()
+        self._updateImageItems()
 
         self._updatingHistograms = False
         self._initUI()
@@ -75,9 +78,9 @@ class HistogramView(QWidget):
     def _initUI(self):
         self.tabWidget = QTabWidget()
 
-        self.histogramR = DualHistogram(self, self.imageItem, color=(255, 0, 0))
-        self.histogramG = DualHistogram(self, self.imageItem, color=(0, 255, 0))
-        self.histogramB = DualHistogram(self, self.imageItem, color=(0, 0, 255))
+        self.histogramR = DualHistogram(self, self.imageItemR, color=(255, 0, 0))
+        self.histogramG = DualHistogram(self, self.imageItemG, color=(0, 255, 0))
+        self.histogramB = DualHistogram(self, self.imageItemB, color=(0, 0, 255))
 
         self.tabWidget.addTab(self.histogramR, "Red")
         self.tabWidget.addTab(self.histogramG, "Green")
@@ -99,6 +102,12 @@ class HistogramView(QWidget):
         self.histogramG.histogram.item.sigLevelsChanged.connect(self._onHistogramLevelsChanged)
         self.histogramB.histogram.item.sigLevelsChanged.connect(self._onHistogramLevelsChanged)
 
+    def _updateImageItems(self):
+        data = self.viewModel.getRasterFromBand()
+        self.imageItemR.setImage(data[:, :, 0], autoLevels=False)
+        self.imageItemG.setImage(data[:, :, 1], autoLevels=False)
+        self.imageItemB.setImage(data[:, :, 2], autoLevels=False)
+
     @pyqtSlot()
     def _onHistogramLevelsChanged(self):
         if self._updatingHistograms:
@@ -111,8 +120,7 @@ class HistogramView(QWidget):
 
     @pyqtSlot()
     def _onBandChanged(self):
-        image = self.viewModel.getRasterFromBand()
-        self.imageItem.setImage(image, autoLevels=False)
+        self._updateImageItems()
 
     @pyqtSlot(float, float, float, float, float, float)
     def _onStretchChanged(self, minR, maxR, minG, maxG, minB, maxB):

@@ -1,7 +1,7 @@
 # standard library
 
 # third party imports
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import pyqtSlot, Qt, QSize
 from PyQt6.QtGui import QDoubleValidator
 from PyQt6.QtWidgets import (
     QWidget,
@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QHeaderView,
     QHBoxLayout,
-    QLayout, QStyle,
+    QLayout, QStyle, QToolButton,
 )
 
 # local imports
@@ -62,6 +62,12 @@ class StretchManager(QWidget):
             QAbstractItemView.EditTrigger.AnyKeyPressed
             | QAbstractItemView.EditTrigger.DoubleClicked
         )
+        self.toggleButton = QToolButton(self)
+        self.toggleButton.setText("Show/Hide Table")
+        self.toggleButton.setCheckable(True)
+        self.toggleButton.setChecked(True)
+        self.toggleButton.setArrowType(Qt.ArrowType.DownArrow)
+        self.toggleButton.setFixedSize(15, 15)
 
         self.addButton = QPushButton("Add Stretch", self)
         self.addButton.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -79,18 +85,22 @@ class StretchManager(QWidget):
         self.histogramView = getHistogramView(self.proj, self.imageIndex, self)
 
         self.layout = QVBoxLayout(self)
+        self.layout.addWidget(self.toggleButton)
         self.layout.addLayout(self.buttonLayout)
         self.layout.addWidget(self.table)
         self.layout.addWidget(self.histogramView)
 
         self.setLayout(self.layout)
 
+
     def _connectSignals(self):
         self.table.itemSelectionChanged.connect(self._onRowSelected)
         self.table.itemChanged.connect(self._onItemChanged)
+        self.toggleButton.clicked.connect(self._toggleTable)
         self.addButton.clicked.connect(self._onAddButtonPressed)
         self.deleteButton.clicked.connect(self._onDeleteButtonPressed)
         self.proj.sigDataChanged.connect(self._onProjectDataChanged)
+
 
     def _populateTable(self):
         self.disableProjectUpdating = True
@@ -106,6 +116,19 @@ class StretchManager(QWidget):
             self.table.setItem(row, 5, QTableWidgetItem(str(stretch.minB)))
             self.table.setItem(row, 6, QTableWidgetItem(str(stretch.maxB)))
         self.disableProjectUpdating = False
+
+    @pyqtSlot()
+    def _toggleTable(self):
+        if self.table.isVisible():
+            self.table.hide()
+            self.addButton.hide()
+            self.deleteButton.hide()
+            self.toggleButton.setArrowType(Qt.ArrowType.RightArrow)
+        else:
+            self.table.show()
+            self.addButton.show()
+            self.deleteButton.show()
+            self.toggleButton.setArrowType(Qt.ArrowType.DownArrow)
 
     @pyqtSlot()
     def _onAddButtonPressed(self):

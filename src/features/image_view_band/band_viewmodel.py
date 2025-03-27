@@ -20,7 +20,12 @@ class BandViewModel(QObject):
         self.proj = proj
         self.imageIndex = imageIndex
         self.bandIndex = 0
-        self.bounds = (self.getWavelengthAt(0), self.getWavelengthAt(-1))
+
+        if self.proj.getImage(self.imageIndex).metadata.wavelengths_type is str:
+            self.bounds = (0, self.getBandCount() - 1)
+        else:
+            self.bounds = (self.getWavelengthAt(0), self.getWavelengthAt(-1))
+
         self._pendingBandValues = (None, None, None)
         self._updateInterval = 20
         self.isDragging = False
@@ -43,12 +48,16 @@ class BandViewModel(QObject):
             int, ProjectContext.ChangeType, ProjectContext.ChangeModifier
         ].connect(self._handleDataChanged)
 
-    def getWavelengthAt(self, index) -> float:
+    def getWavelengthAt(self, index) -> float | str:
         """returns the wavelength at the given index."""
         return self.proj.getImage(self.imageIndex).metadata.wavelengths[index]
 
-    def getIndexOfWavelength(self, wavelength: float) -> int:
+    def getIndexOfWavelength(self, wavelength: float | str) -> int:
         """returns the index of the given wavelength."""
+        # if the wavelengths are strings, then the value is already the index
+        if self.getMetadata().wavelengths_type == str:
+            return  int(wavelength)
+        # otherwise the slider value is a float and we need to find the closest wavelength
         return np.abs(self.proj.getImage(self.imageIndex).metadata.wavelengths - wavelength).argmin()
 
     def selectBand(self, bandIndex):
@@ -57,6 +66,9 @@ class BandViewModel(QObject):
         r, g, b = self.proj.getImage(self.imageIndex).band[self.bandIndex].toList()
         self.sigBandChanged.emit(r, g, b)
 
+    def getBounds(self):
+        """returns the bounds of the image."""
+        return self.bounds
     def getSelectedBand(self):
         """requests the band corresponding to bandIndex, and returns it."""
         return self.proj.getImage(self.imageIndex).band[self.bandIndex]
@@ -85,8 +97,7 @@ class BandViewModel(QObject):
         self.isDragging = False
         self._ignoreProjectUpdates = True
 
-        wavelengths = self.proj.getImage(self.imageIndex).metadata.wavelengths
-        r, g, b = [(np.abs(wavelengths - value)).argmin() if value is not None else None for value in self._pendingBandValues]
+        r, g, b = [self.getIndexOfWavelength(value) if value is not None else None for value in self._pendingBandValues]
         self.proj.updateBand(self.imageIndex, self.bandIndex, r=r, g=g, b=b)
 
     @pyqtSlot(int, ProjectContext.ChangeType, ProjectContext.ChangeModifier)
@@ -104,3 +115,6 @@ class BandViewModel(QObject):
             return
         r, g, b = self.proj.getImage(self.imageIndex).band[self.bandIndex].toList()
         self.sigBandChanged.emit(r, g, b)
+
+    def getMetadata(self):
+        return self.proj.getImage(self.imageIndex).metadata
