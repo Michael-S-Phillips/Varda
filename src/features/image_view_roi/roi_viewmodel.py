@@ -47,6 +47,20 @@ class ROIViewModel(QObject):
             return rois[row]
         return None
 
+    def updateImageIndex(self, new_image_index):
+        """Update the image index and refresh the view."""
+        print(f"[DEBUG] Updating ROI view from image {self.imageIndex} to {new_image_index}")
+        # Update the image index
+        self.imageIndex = new_image_index
+
+        # Get ROIs for the new image
+        rois = self.proj.getROIs(self.imageIndex)
+
+        # Update the view with the new ROIs
+        if self.view:
+            print(f"[DEBUG] Updating ROI table with {len(rois)} ROIs")
+            self.view.updateROITable(rois)
+
     def _onDataChanged(self, index, changeType):
         if changeType == ProjectContext.ChangeType.ROI and index == self.imageIndex:
             if self.view:
