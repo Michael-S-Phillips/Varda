@@ -143,6 +143,37 @@ class FreehandROI:
     def set_custom_value(self, column_name, value):
         """Set a custom data value"""
         self.custom_data.values[column_name] = value
+
+    def pixel_to_geo(self, transform):
+        """
+        Convert ROI pixel coordinates to geographic coordinates.
+        
+        Args:
+            transform: A rasterio/affine transformation object
+            
+        Returns:
+            Updated geo_points array
+        """
+        if self.points is None or transform is None:
+            return None
+            
+        try:
+            import rasterio.transform
+            
+            # Convert points using the geotransform
+            geo_x, geo_y = [], []
+            for i in range(len(self.points[0])):
+                x, y = self.points[0][i], self.points[1][i]
+                # Apply the transform
+                geo_coord = rasterio.transform.xy(transform, y, x)
+                geo_x.append(geo_coord[0])
+                geo_y.append(geo_coord[1])
+                
+            self.geo_points = np.array([geo_x, geo_y])
+            return self.geo_points
+        except Exception as e:
+            logger.error(f"Error converting to geo coordinates: {e}")
+            return None
     
     def serialize(self):
         """Convert the ROI to a serializable dictionary"""

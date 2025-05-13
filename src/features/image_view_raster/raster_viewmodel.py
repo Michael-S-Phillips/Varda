@@ -16,6 +16,7 @@ class RasterViewModel(QObject):
     def __init__(self, proj: ProjectContext, imageIndex, parent=None):
         super().__init__(parent)
         self.proj = proj
+        self.imageIndex = imageIndex
         self.index = imageIndex
         self.bandIndex = 0
         self.stretchIndex = 0

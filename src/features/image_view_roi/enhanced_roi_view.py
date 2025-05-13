@@ -540,6 +540,15 @@ class EnhancedROIView(QWidget):
                 roi = rois[roi_index]
                 self.property_editor.set_roi(roi, roi_index)
                 self.roiSelectionChanged.emit(roi_index)
+                
+                # Also highlight the ROI in the raster view
+                if hasattr(self.viewModel, 'rasterView') and self.viewModel.rasterView:
+                    if hasattr(self.viewModel.rasterView, 'roi_drawing_manager'):
+                        # Use new ROI system
+                        self.viewModel.rasterView.roi_drawing_manager.highlightROI(roi.id)
+                    else:
+                        # Fallback to old system
+                        self.viewModel.rasterView.highlightROI(roi_index)
     
     def onRoiDoubleClicked(self, roi_index):
         """Handle ROI double-click"""

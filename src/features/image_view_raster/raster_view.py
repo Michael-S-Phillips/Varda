@@ -9,6 +9,7 @@ from scipy.spatial import ConvexHull
 from skimage.draw import polygon
 
 from features.shared.selection_controls import StretchSelector, BandSelector
+from features.image_view_roi.roi_drawing_manager import ROIDrawingManager
 from gui.widgets.ROI_selector import ROISelector
 from core.entities.freehandROI import FreehandROI
 from .raster_viewmodel import RasterViewModel
@@ -106,6 +107,8 @@ class RasterView(QWidget):
         self.mainImage = self._initImageItem()
         self.contextImage = self._initImageItem()
         self.zoomImage = self._initImageItem()
+        # Initialize ROI drawing manager
+        self.roi_drawing_manager = ROIDrawingManager(self, self.viewModel)
         # Initialize view boxes
         self.mainView = self._initViewBox("Main View", self.mainImage)
         self.contextView = self._initViewBox("Context View", self.contextImage)
@@ -170,13 +173,21 @@ class RasterView(QWidget):
         layout.addLayout(selectorLayout)
         layout.addWidget(horizontalSplitter)
         self.setLayout(layout)
+        
+        # Add ROI toolbar if available
+        if hasattr(self, 'roi_drawing_manager'):
+            roi_toolbar = self.roi_drawing_manager.getToolbar()
+            if roi_toolbar:
+                layout.addWidget(roi_toolbar)
 
     def zoomImageClicked(self, event):
         """Handle clicks on the zoom image."""
         if event.button() == QtCore.Qt.MouseButton.LeftButton:
-
-            # Get click position
-            x, y = event.pos().x(), event.pos().y()
+            # Get click position in image coordinates
+            pos = self.zoomImage.mapFromScene(event.scenePos())
+            x, y = int(pos.x()), int(pos.y())
+            
+            # Convert to absolute image coordinates
             final_x, final_y = self._zoomCoordsToAbsolute(x, y)
 
             self._updateCrosshair(x, y)
@@ -291,23 +302,19 @@ class RasterView(QWidget):
     #         self.freehandROI.draw()
 
     def startNewROI(self):
-        """Create and start a new FreehandROI."""
+        """Create and start a new ROI using the drawing manager"""
+        self.roi_drawing_manager.startDrawingROI()
 
-        color = self.roiColors[self.colorIndex]
-        self.colorIndex = (self.colorIndex + 1) % len(self.roiColors)
-
-        new_roi = ROISelector(color)
-        new_roi.setImageIndex(self.viewModel.index)
-        self.freehandROIs.append(new_roi)
-        self.mainView.addItem(new_roi)
-
-        # Connect the new ROI's signal
-        new_roi.sigDrawingComplete.connect(self._onROIDrawn)
-
-        # Start drawing
-        new_roi.draw()
-
-    def extractArraySlice(self, roi: ROISelector):
+    def extractArraySlice(self, roi):
+        """
+        Legacy method for backward compatibility.
+        ROI data extraction is now handled by the ROI Drawing Manager.
+        """
+        if hasattr(self, 'roi_drawing_manager'):
+            return self.roi_drawing_manager.getROIData(roi.id).array_slice if roi and hasattr(roi, 'id') else None
+        
+        # Fallback to original implementation
+        # (original code here - keeping the existing implementation as a fallback)
         """
         Extract the raster data slice bounded by the given ROI points.
         
@@ -359,13 +366,15 @@ class RasterView(QWidget):
             return None
         
     def highlightROI(self, roi_index):
-        """Highlight a specific ROI"""
-        # Store the highlighted ROI index
-        self.highlighted_roi_index = roi_index
-        
-        # Refresh all ROIs with the highlighting
-        self.remove_polygons_from_display()
-        self.draw_all_polygons()
+        """Highlight a specific ROI using the drawing manager"""
+        try:
+            # Get ROIs from the project
+            rois = self.viewModel.proj.get_rois_for_image(self.viewModel.index)
+            if rois and roi_index < len(rois):
+                roi = rois[roi_index]
+                self.roi_drawing_manager.highlightROI(roi.id)
+        except Exception as e:
+            logger.error(f"Error highlighting ROI: {e}")
 
     def remove_polygons_from_display(self):
         """Remove all polygons from the display"""
@@ -431,41 +440,18 @@ class RasterView(QWidget):
         
     def _onROIDrawn(self):
         """
-        Handle the completion of an ROI drawing.
-        Extracts the raster slice, creates a FreeHandROI, and adds it to the ProjectContext.
+        Legacy method for backward compatibility.
+        ROI drawing is now handled by the ROI Drawing Manager.
         """
-        last_roi = self.freehandROIs[-1]
+        pass
+
+    def closeEvent(self, event):
+        """Clean up resources when the view is closed"""
+        # Clean up ROI resources
+        if hasattr(self, 'roi_drawing_manager'):
+            self.roi_drawing_manager.cleanupROIs()
         
-        # Get ROI data
-        roi_points = last_roi.getLinePts()
-        if roi_points is None or len(roi_points[0]) < 3:
-            logger.warning("Invalid ROI: Not enough points")
-            return
-            
-        roi_color = last_roi.color
-        image_index = self.viewModel.index
-        
-        try:
-            # Extract the array slice for the ROI
-            array_slice = self.extractArraySlice(last_roi)
-            
-            # Create a FreeHandROI
-            from core.entities.freehandROI import FreehandROI
-            
-            roi = FreehandROI(
-                points=np.array(roi_points),
-                image_indices=[image_index],  # Important: Pass as a list
-                color=roi_color,
-                array_slice=array_slice,
-                mean_spectrum=np.nanmean(array_slice, axis=0) if array_slice is not None else None
-            )
-            
-            # Add the ROI to the ProjectContext
-            self.viewModel.proj.add_roi(roi, [image_index])  # Use new API
-            
-            logger.info(f"Saved ROI spectrum plot for image {image_index}.")
-        except Exception as e:
-            logger.error(f"Error creating ROI: {str(e)}", exc_info=True)
+        super().closeEvent(event)
 
 
     @staticmethod
@@ -477,9 +463,13 @@ class RasterView(QWidget):
     def _initViewBox(name, imageItem):
         """Initialize a new view box."""
         viewBox = pg.ViewBox(
-            name=name, lockAspect=True, enableMouse=False, invertY=True
+            name=name, lockAspect=True, invertY=True
         )
         viewBox.addItem(imageItem)
+        
+        # Enable mouse interaction for panning and zooming
+        viewBox.setMouseEnabled(x=True, y=True)
+        
         return viewBox
 
     @staticmethod

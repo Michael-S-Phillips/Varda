@@ -166,11 +166,14 @@ class ROIViewModel(QObject):
     
     def startDrawingROI(self):
         """Start the ROI drawing process"""
-        if self.rasterView:
-            self.rasterView.startNewROI()
-            logger.debug("Starting new ROI drawing")
+        if self.rasterView and hasattr(self.rasterView, 'roi_drawing_manager'):
+            self.rasterView.roi_drawing_manager.startDrawingROI()
         else:
-            logger.warning("Cannot start ROI drawing - no RasterView available")
+            # Fallback to old method
+            if self.rasterView:
+                self.rasterView.startNewROI()
+            else:
+                logger.warning("Cannot start ROI drawing - no RasterView available")
     
     def get_roi(self, roi_id):
         """Get a specific ROI by ID"""
