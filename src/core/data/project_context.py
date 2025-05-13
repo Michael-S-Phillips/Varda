@@ -621,8 +621,8 @@ class ProjectContext(QObject):
         Save a new plot for the image at the given index.
         """
         plot = Plot.create(roi)
-        self._images[roi.imageIndex].plots.append(plot)
-        self.sigDataChanged.emit(roi.imageIndex, self.ChangeType.PLOT)
+        self._images[roi.image_indices[0]].plots.append(plot)
+        self.sigDataChanged.emit(roi.image_indices[0], self.ChangeType.PLOT)
 
     def getPlots(self, index):
         """Retrieve all saved plots for an image."""

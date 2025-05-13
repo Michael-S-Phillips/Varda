@@ -57,7 +57,7 @@ class FreehandROI:
     name: str = "New ROI"
     points: np.ndarray = field(default_factory=lambda: np.array([]))
     geo_points: Optional[np.ndarray] = None
-    image_indices: List[int] = field(default_factory=list)
+    image_indices: List[int] = field(default_factory=list)  # This should be a list by default
     color: Tuple[int, int, int, int] = (255, 0, 0, 128)  # RGBA
     line_width: float = 2.0
     fill_opacity: float = 0.5
@@ -91,6 +91,14 @@ class FreehandROI:
         if not isinstance(self.color, tuple) or len(self.color) != 4:
             logger.warning(f"Invalid color {self.color}, using default")
             self.color = (255, 0, 0, 128)
+            
+        # Ensure image_indices is a list
+        if not isinstance(self.image_indices, list):
+            logger.warning(f"Converting image_indices from {type(self.image_indices)} to list")
+            if self.image_indices is None:
+                self.image_indices = []
+            else:
+                self.image_indices = [self.image_indices]
     
     def get_pixel_points(self):
         """Get the ROI points in pixel coordinates"""
@@ -207,12 +215,17 @@ class FreehandROI:
         # Handle custom data
         custom_data = ROICustomData.deserialize(data.get("custom_data", {}))
         
+        # Ensure image_indices is a list
+        image_indices = data.get("image_indices", [])
+        if not isinstance(image_indices, list):
+            image_indices = [image_indices] if image_indices is not None else []
+        
         return cls(
             id=data.get("id", str(uuid.uuid4())),
             name=data.get("name", "ROI"),
             points=points,
             geo_points=geo_points,
-            image_indices=data.get("image_indices", []),
+            image_indices=image_indices,
             color=data.get("color", (255, 0, 0, 128)),
             line_width=data.get("line_width", 2.0),
             fill_opacity=data.get("fill_opacity", 0.5),

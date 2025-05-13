@@ -222,11 +222,11 @@ class ROIPropertyEditor(QWidget):
         else:
             self.points_label.setText("0")
             
-        self.image_index_label.setText(str(roi.imageIndex))
+        self.image_index_label.setText(str(roi.image_indices[0]))
         
         # Update statistics if available
-        if roi.meanSpectrum is not None:
-            mean_value = float(roi.meanSpectrum.mean())
+        if roi.mean_spectrum is not None:
+            mean_value = float(roi.mean_spectrum.mean())
             self.mean_label.setText(f"{mean_value:.4f}")
             
             # Std is not available in the current ROI class, so we'll set a placeholder
@@ -436,13 +436,16 @@ class EnhancedROIView(QWidget):
     def updateROITable(self, rois=None):
         """Update the ROI table with current data"""
         if rois is None:
-            rois = self.viewModel.getAllRois()
+            rois = self.viewModel.getROIs(imageIndex=self.viewModel.imageIndex)
         
         # Clear the table
         self.roi_table.setRowCount(0)
         
         # Add the rows
         for i, roi in enumerate(rois):
+            # print the properties of the ROI
+            print(f"ROI {i}: {roi.__dict__}")
+
             self.roi_table.insertRow(i)
             
             visible_columns = [col for col in self.columns if col.visible]
@@ -466,16 +469,16 @@ class EnhancedROIView(QWidget):
             item.setText(str(roi_index))
         elif column_name == "Color":
             item.setText("")
-            item.setBackground(QBrush(QColor(roi.color)))
+            item.setBackground(QBrush(QColor(roi.color[0], roi.color[1], roi.color[2])))
         elif column_name == "Points":
             if roi.points is not None:
                 item.setText(str(len(roi.points[0])))
             else:
                 item.setText("0")
         elif column_name == "Image Index":
-            item.setText(str(roi.imageIndex))
+            item.setText(str(self.viewModel.imageIndex))
         elif column_name == "Mean Spectrum":
-            if roi.meanSpectrum is not None:
+            if roi.mean_spectrum is not None:
                 item.setText("Available")
             else:
                 item.setText("Not calculated")
@@ -570,7 +573,7 @@ class EnhancedROIView(QWidget):
         rois = self.viewModel.getROIs(self.viewModel.imageIndex)
         if roi_index < len(rois):
             roi = rois[roi_index]
-            self.viewModel.plotMeanSpectrum(roi)
+            self.viewModel.plotRoiSpectrum(roi.id)
     
     def remove_roi(self, roi_index):
         """Remove an ROI"""
@@ -582,7 +585,7 @@ class EnhancedROIView(QWidget):
         )
         
         if confirm == QMessageBox.StandardButton.Yes:
-            self.viewModel.removeROI(self.viewModel.imageIndex, roi_index)
+            self.viewModel.removeRoi(self.viewModel.imageIndex, roi_index)
             self.updateROITable()
             if self.selectedRoiIndex == roi_index:
                 self.selectedRoiIndex = None

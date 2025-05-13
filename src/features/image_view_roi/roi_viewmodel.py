@@ -62,6 +62,16 @@ class ROIViewModel(QObject):
             # Fallback to legacy ROI handling
             return {roi.id: roi for roi in self.proj.getROIs(self.imageIndex)}
     
+    def getROIs(self, imageIndex=None):
+        """Get all ROIs for the specified image (default is current image)"""
+        idx = imageIndex if imageIndex is not None else self.imageIndex
+        
+        if hasattr(self.proj, 'roi_manager'):
+            return self.proj.get_rois_for_image(idx)
+        else:
+            # Legacy API
+            return self.proj.getROIs(idx)
+        
     def getRoi(self, roi_id):
         """Get a specific ROI by ID"""
         if hasattr(self.proj, 'roi_manager'):
@@ -164,7 +174,7 @@ class ROIViewModel(QObject):
     def plotRoiSpectrum(self, roi_id):
         """Plot the spectrum of an ROI"""
         roi = self.getRoi(roi_id)
-        if roi and hasattr(roi, 'meanSpectrum') and roi.meanSpectrum is not None:
+        if roi and hasattr(roi, 'mean_spectrum') and roi.mean_spectrum is not None:
             logger.debug(f"Plotting spectrum for ROI {roi_id}")
             
             # This would normally call a plotting function
@@ -234,4 +244,4 @@ class ROIViewModel(QObject):
             
             # For now, we'll just trigger a view update
             if self.view:
-                self.view.updateRoiTable()
+                self.view.updateROITable()

@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 class ROISelector(pg.GraphicsObject):
 
     sigDrawingComplete = pyqtSignal()
+    
     def __init__(self, color=None):
         pg.GraphicsObject.__init__(self)
         self.pts = None
@@ -40,10 +41,18 @@ class ROISelector(pg.GraphicsObject):
             return True
         elif ev.type() == ev.Type.GraphicsSceneMouseRelease:
             ev.accept()
-            self.path.closeSubpath()
-            self.scene().removeEventFilter(self)
-            self.sigDrawingComplete.emit()
-            logger.debug("ROI drawing completed")  
+            # Make sure we have at least 3 points for a valid polygon
+            if self.pts is not None and len(self.pts[0]) >= 3:
+                self.path.closeSubpath()
+                self.scene().removeEventFilter(self)
+                self.sigDrawingComplete.emit()
+                logger.debug("ROI drawing completed")  
+            else:
+                # If not enough points, reset drawing
+                logger.debug("ROI drawing canceled - not enough points")
+                self.pts = None
+                self.path = None
+                self.scene().removeEventFilter(self)
             return True
         else:
             return False
@@ -56,7 +65,7 @@ class ROISelector(pg.GraphicsObject):
             self.pts[0].append(pt.x())
             self.pts[1].append(pt.y())
         self.path = pg.arrayToQPath(np.array(self.pts[0]),
-                                    np.array(self.pts[1]))
+                                     np.array(self.pts[1]))
         self.prepareGeometryChange()
 
     # Method to return a bounding rectangle as an ROI if needed.
@@ -70,7 +79,7 @@ class ROISelector(pg.GraphicsObject):
         if self.path is None:
             return
         p.setRenderHints(p.renderHints() |
-                            p.RenderHint.Antialiasing)
+                          p.RenderHint.Antialiasing)
         p.setPen(pg.mkPen(self.color[:3]))  # Outline color
         p.drawPath(self.path)
         p.fillPath(self.path, pg.mkBrush(*self.color))  # Fill color

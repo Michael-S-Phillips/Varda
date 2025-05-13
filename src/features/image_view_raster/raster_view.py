@@ -312,61 +312,89 @@ class RasterView(QWidget):
         Extract the raster data slice bounded by the given ROI points.
         
         Args:
-            roi (FreeHandROI): The ROI object containing points.
+            roi (ROISelector): The ROI object containing points.
 
         Returns:
             np.ndarray: The raster slice bounded by the ROI.
         """
         # Get raster data for the current image
-        raster = self.viewModel.proj.getImage(roi.imageIndex).raster
-
-        # Convert ROI points to integer indices
-        points = np.array(roi.getLinePts(), dtype=int)
-
-        # Compute a convex hull or polygon mask
-        if len(points) > 2:
-            hull = ConvexHull(points)
-            polygon_points = points[hull.vertices]
-        else:
-            polygon_points = points
-
-        # Create a mask for the ROI
-        rr, cc = polygon(polygon_points[:, 1], polygon_points[:, 0], raster.shape[:2])
-        mask = np.zeros(raster.shape[:2], dtype=bool)
-        mask[rr, cc] = True
-
-        # Apply the mask to extract the slice
-        extracted_slice = raster[mask]
-        return extracted_slice
-    
+        try:
+            raster = self.viewModel.proj.getImage(roi.imageIndex).raster
+            
+            # Get ROI points
+            points = roi.getLinePts()
+            if points is None or len(points[0]) < 3:
+                logger.warning("Not enough points to extract slice")
+                return None
+                
+            # Convert points format to x,y pairs for polygon function
+            polygon_points = np.array([points[0], points[1]]).T
+            
+            # Create a mask for the ROI
+            from skimage.draw import polygon
+            try:
+                # Use polygon function with correct parameters
+                rows, cols = raster.shape[:2]
+                mask = np.zeros((rows, cols), dtype=bool)
+                # Convert to integer values for polygon function
+                r_coords = np.clip(np.array(points[1], dtype=int), 0, rows-1)
+                c_coords = np.clip(np.array(points[0], dtype=int), 0, cols-1)
+                
+                rr, cc = polygon(r_coords, c_coords, mask.shape)
+                mask[rr, cc] = True
+                
+                # Extract all bands from the masked area
+                if mask.sum() > 0:
+                    # Take all bands for each masked pixel
+                    extracted_slice = raster[mask]
+                    return extracted_slice
+                else:
+                    logger.warning("ROI mask contains no pixels")
+                    return None
+            except Exception as e:
+                logger.error(f"Error creating ROI mask: {str(e)}")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting raster data: {str(e)}")
+            return None
+        
     def _onROIDrawn(self):
         """
         Handle the completion of an ROI drawing.
         Extracts the raster slice, creates a FreeHandROI, and adds it to the ProjectContext.
         """
         last_roi = self.freehandROIs[-1]
-
+        
         # Get ROI data
         roi_points = last_roi.getLinePts()
+        if roi_points is None or len(roi_points[0]) < 3:
+            logger.warning("Invalid ROI: Not enough points")
+            return
+            
         roi_color = last_roi.color
         image_index = self.viewModel.index
-
-        # Extract the array slice for the ROI
-        array_slice = self.extractArraySlice(last_roi)
-
-        # Create a FreeHandROI and add it to the ProjectContext
-        roi = FreehandROI(
-            points=roi_points,
-            color=roi_color,
-            image_indices=image_index,
-            array_slice=array_slice,
-            mean_spectrum=array_slice.mean(axis=(0, 1))
-        )
-        self.viewModel.proj.addROI(image_index, roi)
         
-        # TODO: add mean spectrum at a later time
-
-        logger.info(f"Saved ROI spectrum plot for image {image_index}.")
+        try:
+            # Extract the array slice for the ROI
+            array_slice = self.extractArraySlice(last_roi)
+            
+            # Create a FreeHandROI
+            from core.entities.freehandROI import FreehandROI
+            
+            roi = FreehandROI(
+                points=np.array(roi_points),
+                image_indices=[image_index],  # Important: Pass as a list
+                color=roi_color,
+                array_slice=array_slice,
+                mean_spectrum=np.nanmean(array_slice, axis=0) if array_slice is not None else None
+            )
+            
+            # Add the ROI to the ProjectContext
+            self.viewModel.proj.add_roi(roi, [image_index])  # Use new API
+            
+            logger.info(f"Saved ROI spectrum plot for image {image_index}.")
+        except Exception as e:
+            logger.error(f"Error creating ROI: {str(e)}", exc_info=True)
 
 
     @staticmethod

@@ -25,4 +25,4 @@ class Plot:
     def create(roi: FreehandROI):
         """Factory method to create a new plot with a timestamp."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        return Plot("ROI", timestamp, roi.meanSpectrum)
+        return Plot("ROI", timestamp, roi.mean_spectrum)

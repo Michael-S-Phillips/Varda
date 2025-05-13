@@ -29,7 +29,7 @@ class MainGUI(QtWidgets.QMainWindow):
         super().__init__()
 
         self.setWindowTitle("Varda")
-        self.setWindowIcon(QIcon("../img/logo.svg"))
+        self.setWindowIcon(QIcon("img/logo.svg"))
 
         self.proj = proj
         self.selectedImage = None
