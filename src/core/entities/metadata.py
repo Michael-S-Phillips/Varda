@@ -4,11 +4,12 @@ from dataclasses import dataclass, field
 
 # third-party imports
 import numpy as np
-
+import logging
 
 # local imports
 from .band import Band
 
+logger = logging.getLogger(__name__)
 
 # pylint: disable=too-many-instance-attributes
 @dataclass
@@ -32,6 +33,7 @@ class Metadata:
     defaultBand: Band = field(default_factory=Band.createDefault)
     wavelengths: np.ndarray = field(default_factory=lambda: np.zeros(0))
     wavelengths_type: Type = float
+    name: str = ""  # Added a name field for display purposes
 
     # no idea what the format of this is yet
     geospatialInfo: any = None
@@ -39,7 +41,7 @@ class Metadata:
     extraMetadata: Dict[str, str | int | float] = field(default_factory=dict)
 
     def __post_init__(self):
-        """Validate that all attributes are of the correct type."""
+        """Validate that all attributes are of the correct type and handle unexpected kwargs."""
         if not isinstance(self.filePath, str):
             raise self.BadMetadataError("filePath", "str", self.filePath)
         if not isinstance(self.driver, str):
@@ -68,6 +70,27 @@ class Metadata:
         if self.wavelengths.size == 0:
             self.wavelengths = np.arange(self.bandCount)
 
+    def __init__(self, **kwargs):
+        """
+        Initialize metadata with flexible handling of unexpected keyword arguments.
+        Any unexpected kwargs are placed in extraMetadata automatically.
+        """
+        # Get the list of expected field names from the dataclass
+        expected_fields = [f.name for f in self.__dataclass_fields__.values()]
+        
+        # Handle expected fields
+        for field in expected_fields:
+            if field in kwargs:
+                setattr(self, field, kwargs.pop(field))
+            elif field == 'extraMetadata':
+                # Initialize extraMetadata if not provided
+                self.extraMetadata = kwargs.pop('extraMetadata', {})
+        
+        # Move any remaining unexpected kwargs to extraMetadata
+        for key, value in kwargs.items():
+            logger.warning(f"Unexpected keyword argument '{key}' moved to extraMetadata")
+            self.extraMetadata[key] = value
+
     def _checkExtraMetadata(self, item):
         """Check if a value is serializable by JSON."""
         if isinstance(item, (str, int, float)):
@@ -94,6 +117,7 @@ class Metadata:
             "defaultBand": self.defaultBand.serialize(),
             "wavelengths": self.wavelengths.tolist(),
             "extraMetadata": self.extraMetadata,
+            "name": self.name,
         }
 
     @classmethod
@@ -110,6 +134,7 @@ class Metadata:
             defaultBand=Band.deserialize(data["defaultBand"]),
             wavelengths=np.array(data["wavelengths"]),
             extraMetadata=data["extraMetadata"],
+            name=data.get("name", ""),
         )
 
     # other methods

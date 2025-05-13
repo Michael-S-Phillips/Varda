@@ -394,6 +394,33 @@ class ProjectContext(QObject):
 
     def getROIs(self, index):
         return self._images[index].rois
+    
+    # metadata editor
+    def openMetadataEditor(self, index):
+        """Opens the metadata editor for the specified image."""
+        from gui.widgets.metadata_editor import MetadataEditor
+        
+        if index < 0 or index >= len(self._images):
+            logger.warning(f"Invalid image index for metadata editor: {index}")
+            return
+            
+        editor = MetadataEditor(
+            self._images[index].metadata,
+            self,
+            index
+        )
+        
+        # Show the dialog
+        if editor.exec():
+            # Dialog was accepted - metadata has been updated via direct calls
+            # to updateMetadata() by the dialog itself
+            logger.info(f"Metadata updated for image {index}")
+            
+            # Make sure the GUI knows the data changed
+            self._emitChange(index, self.ChangeType.METADATA, self.ChangeModifier.UPDATE)
+            return True
+        
+        return False
 
     # TODO: add data param
     def addPlot(self, roi):

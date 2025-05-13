@@ -1,6 +1,6 @@
 # standard library
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Tuple, Optional
 import logging
 
 # third party imports
@@ -35,6 +35,7 @@ class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
         self._filePath = None
         self._rasterData = None
         self._imageMetadata = None
+        self._loadErrors = []
 
     def load(self, filepath: str) -> Tuple[np.ndarray, Metadata]:
         """Loads the image data and metadata from the file path.
@@ -44,15 +45,60 @@ class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
 
         Returns:
             Tuple[np.ndarray, Metadata]: A tuple with the image raster data and metadata
+            
+        Raises:
+            ValueError: If the raster data cannot be loaded, since this is a critical failure.
+            For metadata errors, it will attempt to create fallback metadata.
         """
         self._filePath = filepath
+        self._loadErrors = []
 
-        if self._rasterData is None:
+        try:
             self._rasterData = self.loadRasterData(self._filePath)
+        except Exception as e:
+            logger.error(f"Failed to load raster data: {e}")
+            raise ValueError(f"Failed to load raster data: {e}")
 
-        if self._imageMetadata is None:
+        try:
             self._imageMetadata = self.loadMetadata(self._rasterData, self._filePath)
+        except Exception as e:
+            logger.error(f"Error loading metadata: {e}")
+            self._loadErrors.append(f"Metadata load error: {e}")
+            # Create fallback metadata with basic information
+            self._imageMetadata = self.createFallbackMetadata(self._rasterData, self._filePath)
+            
         return self._rasterData, self._imageMetadata
+
+    def getLoadErrors(self):
+        """Returns any errors that occurred during loading."""
+        return self._loadErrors
+
+    def createFallbackMetadata(self, raster, filePath):
+        """Creates basic metadata when the normal loading process fails."""
+        logger.warning("Creating fallback metadata due to loading errors")
+        
+        # Get basic information from the raster that should always be available
+        try:
+            height, width, bandCount = raster.shape
+        except ValueError:
+            # Handle case where raster is 2D instead of 3D
+            height, width = raster.shape
+            bandCount = 1
+            # Convert to 3D for consistency
+            raster = raster.reshape(height, width, 1)
+            
+        return Metadata(
+            filePath=filePath,
+            driver="Unknown",
+            width=width,
+            height=height,
+            dtype=str(raster.dtype),
+            dataIgnore=0,
+            bandCount=bandCount,
+            wavelengths=np.arange(bandCount),
+            wavelengths_type=int,
+            extraMetadata={"warning": "Metadata was created as a fallback due to loading errors"}
+        )
 
     @staticmethod
     @abstractmethod
