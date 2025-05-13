@@ -9,9 +9,11 @@ from datetime import datetime
 import logging
 import sys
 import os
+import atexit
 
 # third party imports
 import pyqtgraph as pg
+from PyQt6.QtWidgets import QApplication
 
 # local imports
 from gui import maingui
@@ -46,9 +48,25 @@ def setupConfig():
     pg.setConfigOptions(imageAxisOrder="row-major")
 
 
+def cleanup():
+    """Clean up resources before application exit."""
+    logging.info("Application exiting, performing cleanup...")
+    # Force any remaining QApplication instances to quit
+    app = QApplication.instance()
+    if app:
+        app.quit()
+
+
 if __name__ == "__main__":
     initLogging()
     setupConfig()
+    
+    # Register cleanup function to be called on exit
+    atexit.register(cleanup)
+    
     proj = ProjectContext()
-
-    maingui.startGui(proj)
+    try:
+        maingui.startGui(proj)
+    except Exception as e:
+        logging.error(f"Error in main application: {e}", exc_info=True)
+        sys.exit(1)

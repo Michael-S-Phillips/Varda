@@ -122,6 +122,9 @@ class ControlPanel(QMainWindow):
         if not hasattr(self, 'pixelPlotPopup') or self.pixelPlotPopup is None:
             from features.image_view_raster.PixelPlotWindow import PixelPlotWindow
             self.pixelPlotPopup = PixelPlotWindow()
+            # Register with main window for tracking
+            if hasattr(self, 'main_window') and self.main_window:
+                self.main_window.trackPixelPlotWindow(self.pixelPlotPopup)
 
         # Use last clicked pixel (or 0,0 if not tracked)
         x, y = getattr(self, 'lastPixelCoords', (0, 0))

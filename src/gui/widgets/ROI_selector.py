@@ -1,6 +1,9 @@
 from PyQt6.QtCore import pyqtSignal
 import pyqtgraph as pg
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Class to handle freehand drawn ROI's with pyqt graphicsobjects
 class ROISelector(pg.GraphicsObject):
@@ -12,6 +15,7 @@ class ROISelector(pg.GraphicsObject):
         self.path = None
         self.color = color if color else (0, 0, 255, 100)
         self.imageIndex = None
+        logger.debug("ROISelector initialized")
 
     # Method to handle user drawing
     def draw(self):
@@ -19,6 +23,7 @@ class ROISelector(pg.GraphicsObject):
         self.path = None
         self.scene().installEventFilter(self)
         self.prepareGeometryChange()
+        logger.debug("ROI drawing started")
 
     def setImageIndex(self, indx):
         self.imageIndex = indx
@@ -37,7 +42,8 @@ class ROISelector(pg.GraphicsObject):
             ev.accept()
             self.path.closeSubpath()
             self.scene().removeEventFilter(self)
-            self.sigDrawingComplete.emit()  
+            self.sigDrawingComplete.emit()
+            logger.debug("ROI drawing completed")  
             return True
         else:
             return False
@@ -73,4 +79,3 @@ class ROISelector(pg.GraphicsObject):
     # list[0] are all x values, list[1] are all y values
     def getLinePts(self):
         return self.pts
-

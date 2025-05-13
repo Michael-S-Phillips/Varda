@@ -38,7 +38,10 @@ class MainGUI(QtWidgets.QMainWindow):
         self.controlPanels = {}  # image index -> ControlPanel
         self.rasterViews = {}  # image index -> RasterView
         self.roiViews = {}
-        self.openROIViews = []  # Track all open ROI views - ADDED THIS LINE
+        
+        # Track all open windows
+        self.childWindows = []  # List of all child windows/widgets we need to track
+        self.pixelPlotWindows = []  # Track all pixel plot windows specifically
 
         self.initUI()
         self.connectSignals()
@@ -180,41 +183,32 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.setWidget(view)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
-
-        # Store reference to the ROI view and its dock
-        view_info = {"view": view, "dock": dock}
-        self.openROIViews.append(view_info)
-
+        
+        # Track the dock widget
+        self.childWindows.append(dock)
+        
         # Connect close event to remove from tracking when dock is closed
-        dock.destroyed.connect(lambda: self._removeROIView(view_info))
+        dock.destroyed.connect(lambda: self.removeChildWindow(dock))
 
         return view
 
-    def _removeROIView(self, view_info):
-        """Helper method to remove a ROI view from tracking when closed."""
-        if view_info in self.openROIViews:
-            self.openROIViews.remove(view_info)
-            print(f"[DEBUG] Removed ROI view from tracking. Remaining views: {len(self.openROIViews)}")
+    def removeChildWindow(self, window):
+        """Remove a window from tracking when it's closed."""
+        if window in self.childWindows:
+            self.childWindows.remove(window)
+            logger.debug(f"Removed window from tracking. Remaining windows: {len(self.childWindows)}")
 
     def updateAllROIViews(self, current_image_index):
         """Update all open ROI views to show data for the current image."""
-        if not hasattr(self, 'openROIViews') or not self.openROIViews:
-            print("[DEBUG] No open ROI views to update")
-            return
-
-        print(f"[DEBUG] Updating {len(self.openROIViews)} open ROI views to show image {current_image_index}")
-
-        # Update all open ROI views
-        for view_info in self.openROIViews:
-            roi_view = view_info["view"]
-
-            # Update the image index in the view model
-            roi_view.viewModel.updateImageIndex(current_image_index)
-
-            # Update raster view reference if available
-            if current_image_index in self.rasterViews:
-                raster_view = self.rasterViews[current_image_index]
-                roi_view.viewModel.setRasterView(raster_view)
+        for window in self.childWindows:
+            if hasattr(window, 'widget') and window.widget():
+                widget = window.widget()
+                if hasattr(widget, 'viewModel') and hasattr(widget.viewModel, 'updateImageIndex'):
+                    widget.viewModel.updateImageIndex(current_image_index)
+                    
+                    # Update raster view reference if available
+                    if hasattr(widget.viewModel, 'setRasterView') and current_image_index in self.rasterViews:
+                        widget.viewModel.setRasterView(self.rasterViews[current_image_index])
 
     def openBandView(self, image_index):
         from features.image_view_band import BandManager
@@ -223,6 +217,10 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.setWidget(view)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
         dock.setFloating(True)
+        
+        # Track the dock widget
+        self.childWindows.append(dock)
+        dock.destroyed.connect(lambda: self.removeChildWindow(dock))
 
     def openStretchView(self, image_index):
         from features.image_view_stretch import getStretchView
@@ -231,6 +229,10 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.setWidget(view)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
         dock.setFloating(True)
+        
+        # Track the dock widget
+        self.childWindows.append(dock)
+        dock.destroyed.connect(lambda: self.removeChildWindow(dock))
 
     def openHistogramView(self, image_index):
         from features.image_view_histogram import getHistogramView
@@ -239,10 +241,68 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.setWidget(view)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
         dock.setFloating(True)
+        
+        # Track the dock widget
+        self.childWindows.append(dock)
+        dock.destroyed.connect(lambda: self.removeChildWindow(dock))
+    
+    def trackPixelPlotWindow(self, window):
+        """Track a pixel plot window."""
+        if window not in self.pixelPlotWindows:
+            self.pixelPlotWindows.append(window)
+            # Connect close event to remove from tracking
+            window.destroyed.connect(lambda: self.removePixelPlotWindow(window))
+    
+    def removePixelPlotWindow(self, window):
+        """Remove a pixel plot window from tracking."""
+        if window in self.pixelPlotWindows:
+            self.pixelPlotWindows.remove(window)
+    
+    def closeAllChildWindows(self):
+        """Close all child windows before shutting down."""
+        # Close all tracked child windows
+        for window in self.childWindows[:]:  # Use a copy of the list since it will be modified during iteration
+            if window and window.isVisible():
+                window.close()
+                
+        # Close all pixel plot windows
+        for window in self.pixelPlotWindows[:]:
+            if window and window.isVisible():
+                window.close()
+                
+        # Close any control panels
+        for panel in self.controlPanels.values():
+            if hasattr(panel, 'pixelPlotPopup') and panel.pixelPlotPopup:
+                panel.pixelPlotPopup.close()
+                
+        # Clear tracking lists
+        self.childWindows.clear()
+        self.pixelPlotWindows.clear()
+        
+        logger.info("All child windows closed")
 
     def exitApp(self):
-        print("[DEBUG] Exit App triggered")
+        """Properly shut down the application by closing all windows."""
+        logger.info("Exiting application...")
+        
+        # Close all child windows first
+        self.closeAllChildWindows()
+        
+        # Then close the main window
         self.close()
+        
+        # Force application to quit after a short delay if it hasn't already
+        QtCore.QTimer.singleShot(500, lambda: QtWidgets.QApplication.quit())
+
+    def closeEvent(self, event):
+        """Handle the window close event to ensure proper cleanup."""
+        logger.info("Main window close event triggered")
+        
+        # Close all child windows first
+        self.closeAllChildWindows()
+        
+        # Accept the close event to allow the window to close
+        event.accept()
 
     def dragEnterEvent(self, event, **kwargs):
         event.acceptProposedAction()
@@ -251,16 +311,30 @@ class MainGUI(QtWidgets.QMainWindow):
         self.statusBar().showLoadingMessage()
         self.proj.loadNewImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
 
-
 def startGui(proj: ProjectContext):
     app = QApplication(sys.argv)
-
+    
+    # Set the application name and organization
+    app.setApplicationName("Varda")
+    app.setOrganizationName("Varda")
+    
+    # Set up a signal handler for graceful shutdown
+    def signal_handler(sig, frame):
+        logger.info(f"Received signal {sig}. Shutting down...")
+        app.quit()
+    
+    # Set up the event loop
     eventLoop = QEventLoop(app)
     asyncio.set_event_loop(eventLoop)
-
+    
+    # Create and show the main window
     window = MainGUI(proj)
     window.showMaximized()
     window.show()
-
+    
+    # Register the cleanup handler for when the application is about to quit
+    app.aboutToQuit.connect(lambda: logger.info("Application is about to quit"))
+    
+    # Run the event loop until it's stopped
     with eventLoop:
         eventLoop.run_forever()
