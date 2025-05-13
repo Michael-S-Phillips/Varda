@@ -358,9 +358,9 @@ class RasterView(QWidget):
         roi = FreehandROI(
             points=roi_points,
             color=roi_color,
-            imageIndex=image_index,
-            arraySlice=array_slice,
-            meanSpectrum=array_slice.mean(axis=(0, 1))
+            image_indices=image_index,
+            array_slice=array_slice,
+            mean_spectrum=array_slice.mean(axis=(0, 1))
         )
         self.viewModel.proj.addROI(image_index, roi)
         

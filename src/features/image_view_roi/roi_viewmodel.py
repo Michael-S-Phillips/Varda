@@ -181,6 +181,36 @@ class ROIViewModel(QObject):
         logger.warning(f"Cannot plot spectrum for ROI {roi_id} - no spectral data available")
         return False
     
+    def calculate_roi_statistics(self, roi_id):
+        """Calculate detailed statistics for an ROI"""
+        from features.roi_statistics import calculate_roi_stats
+        
+        roi = self.getRoi(roi_id)
+        if not roi:
+            logger.warning(f"ROI {roi_id} not found")
+            return None
+            
+        # Get the image data
+        image = self.proj.getImage(self.imageIndex)
+        image_data = image.raster
+        wavelengths = image.metadata.wavelengths
+        
+        # Calculate statistics
+        stats = calculate_roi_stats(roi, image_data, wavelengths)
+        
+        # Store statistics in the ROI for future reference
+        if hasattr(roi, 'statistics'):
+            roi.statistics = stats.get_summary()
+        else:
+            # For older ROI objects, store in custom_data
+            if hasattr(roi, 'custom_data') and hasattr(roi.custom_data, 'values'):
+                roi.custom_data.values['statistics'] = stats.get_summary()
+        
+        # Signal that the ROI has been updated
+        self.roiUpdated.emit(roi_id)
+        
+        return stats
+    
     def duplicateRoi(self, roi_id):
         """Create a duplicate of an ROI"""
         # This would create a copy of the ROI with a new ID

@@ -4,13 +4,13 @@ from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QToolButton, QMenu, QAction, QHeaderView, QLabel,
+    QPushButton, QToolButton, QMenu, QHeaderView, QLabel,
     QComboBox, QCheckBox, QColorDialog, QInputDialog, QMessageBox,
     QTabWidget, QSplitter, QLineEdit, QGroupBox, QFormLayout,
     QSlider, QTextEdit, QDialog, QListWidget, QListWidgetItem
 )
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QTimer
-from PyQt6.QtGui import QColor, QBrush, QIcon, QPixmap
+from PyQt6.QtGui import QColor, QBrush, QIcon, QPixmap, QAction
 
 from core.data import ProjectContext
 from core.entities.freehandROI import FreehandROI
@@ -436,7 +436,7 @@ class EnhancedROIView(QWidget):
     def updateROITable(self, rois=None):
         """Update the ROI table with current data"""
         if rois is None:
-            rois = self.viewModel.getROIs(self.viewModel.imageIndex)
+            rois = self.viewModel.getAllRois()
         
         # Clear the table
         self.roi_table.setRowCount(0)
@@ -613,6 +613,128 @@ class EnhancedROIView(QWidget):
         if color.isValid():
             logger.debug(f"Changing color of ROI {roi_index} to {color.name()}")
             self.onRoiPropertyChanged(roi_index, "color", color.name())
+
+    def addStatisticsButton(self):
+        """Add a button to view ROI statistics"""
+        self.view_stats_button = QPushButton("View Statistics", self)
+        self.view_stats_button.setToolTip("View detailed statistics for the selected ROI")
+        self.view_stats_button.clicked.connect(self.viewRoiStatistics)
+        self.header_layout.addWidget(self.view_stats_button)
+
+    def viewRoiStatistics(self):
+        """View statistics for the selected ROI"""
+        if self.selectedRoiIndex is None:
+            QMessageBox.warning(self, "No ROI Selected", 
+                            "Please select an ROI first.")
+            return
+            
+        # Get all ROIs for the current image
+        rois = self.viewModel.getAllRois()
+        if not rois:
+            return
+            
+        # Get the selected ROI
+        roi_id = list(rois.keys())[self.selectedRoiIndex]
+        roi = rois[roi_id]
+        
+        # Calculate statistics if not already calculated
+        stats = self.viewModel.calculate_roi_statistics(roi_id)
+        if not stats:
+            QMessageBox.warning(self, "Statistics Error", 
+                            "Could not calculate statistics for this ROI.")
+            return
+        
+        # Create and show statistics dialog
+        self.showStatisticsDialog(roi, stats)
+
+    def showStatisticsDialog(self, roi, stats):
+        """Show a dialog with ROI statistics"""
+        from PyQt6.QtWidgets import QDialog, QTabWidget, QVBoxLayout, QTableWidget, QTableWidgetItem
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Statistics for ROI: {roi.name}")
+        dialog.resize(800, 600)
+        
+        layout = QVBoxLayout(dialog)
+        tab_widget = QTabWidget()
+        
+        # Summary tab
+        summary_widget = QWidget()
+        summary_layout = QVBoxLayout(summary_widget)
+        summary_table = QTableWidget()
+        summary_table.setColumnCount(2)
+        summary_table.setHorizontalHeaderLabels(["Property", "Value"])
+        
+        # Add basic properties
+        properties = [
+            ("Number of pixels", stats.n_pixels),
+            ("Number of bands", stats.n_bands),
+            ("Area (pixels)", stats.n_pixels),
+            ("Mean values", "See Band Statistics Tab"),
+            ("Created", roi.creation_time.strftime("%Y-%m-%d %H:%M:%S") if hasattr(roi, "creation_time") else "Unknown")
+        ]
+        
+        summary_table.setRowCount(len(properties))
+        for i, (prop, value) in enumerate(properties):
+            summary_table.setItem(i, 0, QTableWidgetItem(prop))
+            summary_table.setItem(i, 1, QTableWidgetItem(str(value)))
+        
+        summary_layout.addWidget(summary_table)
+        tab_widget.addTab(summary_widget, "Summary")
+        
+        # Band statistics tab
+        band_widget = QWidget()
+        band_layout = QVBoxLayout(band_widget)
+        band_table = QTableWidget()
+        
+        # Set up columns for band statistics
+        stats_columns = ["Band", "Mean", "Median", "Std Dev", "Min", "Max", "25%", "75%"]
+        band_table.setColumnCount(len(stats_columns))
+        band_table.setHorizontalHeaderLabels(stats_columns)
+        
+        # Add rows for each band
+        band_table.setRowCount(stats.n_bands)
+        for i in range(stats.n_bands):
+            band_stats = stats.get_band_stats(i)
+            band_table.setItem(i, 0, QTableWidgetItem(str(i)))
+            band_table.setItem(i, 1, QTableWidgetItem(f"{band_stats['mean']:.4f}"))
+            band_table.setItem(i, 2, QTableWidgetItem(f"{band_stats['median']:.4f}"))
+            band_table.setItem(i, 3, QTableWidgetItem(f"{band_stats['std_dev']:.4f}"))
+            band_table.setItem(i, 4, QTableWidgetItem(f"{band_stats['min']:.4f}"))
+            band_table.setItem(i, 5, QTableWidgetItem(f"{band_stats['max']:.4f}"))
+            band_table.setItem(i, 6, QTableWidgetItem(f"{band_stats['percentile_25']:.4f}"))
+            band_table.setItem(i, 7, QTableWidgetItem(f"{band_stats['percentile_75']:.4f}"))
+        
+        band_layout.addWidget(band_table)
+        tab_widget.addTab(band_widget, "Band Statistics")
+        
+        # Add histogram tab if matplotlib is available
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+            
+            hist_widget = QWidget()
+            hist_layout = QVBoxLayout(hist_widget)
+            
+            # Create figure and canvas
+            fig, ax = plt.subplots(figsize=(8, 6))
+            canvas = FigureCanvasQTAgg(fig)
+            
+            # Plot histogram for the first band
+            bin_centers, hist_values = stats.histogram(0)
+            ax.bar(bin_centers, hist_values, width=(bin_centers[1]-bin_centers[0]) if len(bin_centers) > 1 else 0.1)
+            ax.set_title(f"Histogram for Band 0")
+            ax.set_xlabel("Value")
+            ax.set_ylabel("Frequency")
+            
+            hist_layout.addWidget(canvas)
+            tab_widget.addTab(hist_widget, "Histogram")
+        except ImportError:
+            pass  # Skip histogram tab if matplotlib is not available
+        
+        layout.addWidget(tab_widget)
+        dialog.setLayout(layout)
+        dialog.exec()
 
 
 def getROIView(proj, index, parent):
