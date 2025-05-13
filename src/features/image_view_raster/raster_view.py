@@ -10,7 +10,7 @@ from skimage.draw import polygon
 
 from features.shared.selection_controls import StretchSelector, BandSelector
 from gui.widgets.ROI_selector import ROISelector
-from core.entities.freehandROI import FreeHandROI
+from core.entities.freehandROI import FreehandROI
 from .raster_viewmodel import RasterViewModel
 
 logger = logging.getLogger(__name__)
@@ -355,7 +355,7 @@ class RasterView(QWidget):
         array_slice = self.extractArraySlice(last_roi)
 
         # Create a FreeHandROI and add it to the ProjectContext
-        roi = FreeHandROI(
+        roi = FreehandROI(
             points=roi_points,
             color=roi_color,
             imageIndex=image_index,

@@ -22,7 +22,8 @@ from PyQt6.QtWidgets import (
 import numpy as np
 
 # local imports
-from core.entities import Image, Metadata, Band, Stretch, FreeHandROI, Plot
+from core.entities import Image, Metadata, Band, Stretch, freehandROI, Plot
+from core.entities.freehandROI import FreehandROI
 from core.utilities.load_image import ImageLoadingService
 from gui.widgets import FilePathBox
 
@@ -66,6 +67,10 @@ class ProjectContext(QObject):
         self.isSaved: bool = True
         self._controlPanels = {}
         self._imageLoadingService = ImageLoadingService()
+        
+        # Initialize the ROI Manager
+        from core.data.roi_manager import ROIManager
+        self.roi_manager = ROIManager(self)
 
     def getProjectName(self):
         if self.currentProj is None:
@@ -154,11 +159,20 @@ class ProjectContext(QObject):
             }
             for image in self._images
         ]
-        return {"images": imageDictList}
+        
+        # Serialize the ROI Manager
+        roi_manager_data = self.roi_manager.serialize() if hasattr(self, 'roi_manager') else {}
+        
+        return {
+            "images": imageDictList,
+            "roi_manager": roi_manager_data
+        }
 
     def deserialize(self, projectName, data):
         imagesTemp = self._images
         projectNameTemp = self.currentProj
+        roi_manager_temp = self.roi_manager if hasattr(self, 'roi_manager') else None
+        
         try:
             self.currentProj = Path(projectName)
             self._images = []
@@ -199,12 +213,23 @@ class ProjectContext(QObject):
                         band=b,
                     ),
                 )
+            
+            # Deserialize ROI Manager
+            if "roi_manager" in data:
+                from core.data.roi_manager import ROIManager
+                self.roi_manager = ROIManager.deserialize(data["roi_manager"], self)
+            else:
+                # If no ROI Manager in the data, create a new one
+                from core.data.roi_manager import ROIManager
+                self.roi_manager = ROIManager(self)
+                
         except Exception as e:
             logger.error(f"Project Load Aborted! Error: {e}")
             # restore previous project state
             self.currentProj = projectNameTemp
             self._images = imagesTemp
-
+            if roi_manager_temp:
+                self.roi_manager = roi_manager_temp
     # Image Access
     def getImage(self, index) -> Image:
         """Retrieve an image by index."""
@@ -230,7 +255,7 @@ class ProjectContext(QObject):
         metadata: Metadata,
         stretch: List[Stretch] = None,
         band: List[Band] = None,
-        roi: List[FreeHandROI] = None,
+        roi: List[FreehandROI] = None,
         plot: List[Plot] = None,
         ROIview: QWidget = None,
     ):
@@ -380,22 +405,190 @@ class ProjectContext(QObject):
             f"  new: {newBand.r}, {newBand.g}, {newBand.b}"
         )
 
-    # ROI actions
+    # --------------------------------------------------------
+    # ROI methods that delegate to ROI Manager
+    # --------------------------------------------------------
+    # Legacy ROI methods - these are updated to use the new ROI Manager
     def addROI(self, index, roi: Any):
-        # need to put logic for roi band somewhere
-        # call addROI and removeROI in the control panel
-        self._images[index].rois.append(roi)
-        self._emitChange(index, self.ChangeType.ROI, self.ChangeModifier.ADD)
-        return len(self._images[index].rois) - 1
+        """
+        Legacy method to add an ROI to an image.
+        Now uses the ROI Manager.
+        """
+        # Handle both new-style FreehandROI and legacy ROIs
+        if isinstance(roi, FreehandROI):
+            # New-style ROI
+            return self.add_roi(roi, [index])
+        else:
+            # Legacy ROI format - convert to new format
+            try:
+                points = np.array(roi.points) if hasattr(roi, 'points') else np.array([])
+                color = roi.color if hasattr(roi, 'color') else (255, 0, 0, 128)
+                
+                # Create a new ROI with data from the legacy one
+                new_roi = FreehandROI(
+                    points=points,
+                    image_indices=[index],
+                    color=color,
+                    array_slice=getattr(roi, 'arraySlice', None),
+                    mean_spectrum=getattr(roi, 'meanSpectrum', None)
+                )
+                
+                return self.add_roi(new_roi, [index])
+            except Exception as e:
+                logger.error(f"Failed to convert legacy ROI: {e}")
+                # Fall back to old behavior
+                self._images[index].rois.append(roi)
+                self._emitChange(index, self.ChangeType.ROI, self.ChangeModifier.ADD)
+                return len(self._images[index].rois) - 1
 
     def removeROI(self, index, roiIndex):
-        self._images[index].rois.pop(roiIndex)
-        self._emitChange(index, self.ChangeType.ROI, self.ChangeModifier.REMOVE)
+        """
+        Legacy method to remove an ROI from an image.
+        Now uses the ROI Manager.
+        """
+        try:
+            # Try to handle as a new-style ROI first
+            rois = self.get_rois_for_image(index)
+            if roiIndex < len(rois):
+                roi_id = rois[roiIndex].id
+                return self.remove_roi(roi_id)
+            else:
+                # Fall back to old behavior
+                self._images[index].rois.pop(roiIndex)
+                self._emitChange(index, self.ChangeType.ROI, self.ChangeModifier.REMOVE)
+                return True
+        except Exception as e:
+            logger.error(f"Error in removeROI: {e}")
+            return False
 
     def getROIs(self, index):
-        return self._images[index].rois
+        """
+        Legacy method to get ROIs for an image.
+        Now uses the ROI Manager.
+        """
+        try:
+            # Try to get new-style ROIs first
+            rois = self.get_rois_for_image(index)
+            if rois:
+                return rois
+            else:
+                # Fall back to old behavior
+                return self._images[index].rois if index in range(len(self._images)) else []
+        except Exception as e:
+            logger.error(f"Error in getROIs: {e}")
+            return []
+        
+    def add_roi(self, roi, image_indices=None):
+        """Add an ROI to the project"""
+        roi_id = self.roi_manager.add_roi(roi, image_indices)
+        if roi_id:
+            self._emitChange(image_indices[0] if image_indices else 0, self.ChangeType.ROI, self.ChangeModifier.ADD)
+        return roi_id
+
+    def remove_roi(self, roi_id):
+        """Remove an ROI from the project"""
+        roi = self.roi_manager.get_roi(roi_id)
+        image_indices = roi.image_indices if roi else []
+        result = self.roi_manager.remove_roi(roi_id)
+        if result and image_indices:
+            self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.REMOVE)
+        return result
+
+    def update_roi(self, roi_id, **properties):
+        """Update an ROI's properties"""
+        roi = self.roi_manager.get_roi(roi_id)
+        image_indices = roi.image_indices if roi else []
+        result = self.roi_manager.update_roi(roi_id, **properties)
+        if result and image_indices:
+            self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+        return result
+
+    def get_roi(self, roi_id):
+        """Get an ROI by ID"""
+        return self.roi_manager.get_roi(roi_id)
+
+    def get_all_rois(self):
+        """Get all ROIs in the project"""
+        return self.roi_manager.get_all_rois()
+
+    def get_rois_for_image(self, image_index):
+        """Get all ROIs associated with an image"""
+        return self.roi_manager.get_rois_for_image(image_index)
+
+    def associate_roi_with_image(self, roi_id, image_index):
+        """Associate an ROI with an image"""
+        result = self.roi_manager.associate_roi_with_image(roi_id, image_index)
+        if result:
+            self._emitChange(image_index, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+        return result
+
+    def dissociate_roi_from_image(self, roi_id, image_index):
+        """Dissociate an ROI from an image"""
+        result = self.roi_manager.dissociate_roi_from_image(roi_id, image_index)
+        if result:
+            self._emitChange(image_index, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+        return result
+
+    # ROI Table Column methods
+    def add_roi_column(self, name, data_type, formula=None):
+        """Add a new column to the ROI table"""
+        column = self.roi_manager.add_column(name, data_type, formula)
+        if column:
+            # Signal that ROI table structure has changed
+            self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+        return column
+
+    def remove_roi_column(self, name):
+        """Remove a column from the ROI table"""
+        result = self.roi_manager.remove_column(name)
+        if result:
+            # Signal that ROI table structure has changed
+            self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+        return result
+
+    def update_roi_column(self, name, **properties):
+        """Update a column's properties"""
+        result = self.roi_manager.update_column(name, **properties)
+        if result:
+            # Signal that ROI table structure has changed
+            self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+        return result
+
+    def get_roi_column(self, name):
+        """Get a column by name"""
+        return self.roi_manager.get_column(name)
+
+    def get_all_roi_columns(self):
+        """Get all columns in the ROI table"""
+        return self.roi_manager.get_all_columns()
+
+    def calculate_roi_formulas(self):
+        """Calculate all formula columns"""
+        self.roi_manager.calculate_formula_columns()
+        # Signal that ROI data has changed
+        self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+
+    def set_roi_custom_value(self, roi_id, column_name, value):
+        """Set a custom value for an ROI"""
+        roi = self.roi_manager.get_roi(roi_id)
+        if roi:
+            roi.set_custom_value(column_name, value)
+            image_indices = roi.image_indices
+            if image_indices:
+                self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+            return True
+        return False
+
+    def get_roi_custom_value(self, roi_id, column_name, default=None):
+        """Get a custom value for an ROI"""
+        roi = self.roi_manager.get_roi(roi_id)
+        if roi:
+            return roi.get_custom_value(column_name, default)
+        return default
     
+    # -------------------------------------------------------
     # metadata editor
+    # -------------------------------------------------------
     def openMetadataEditor(self, index):
         """Opens the metadata editor for the specified image."""
         from gui.widgets.metadata_editor import MetadataEditor
