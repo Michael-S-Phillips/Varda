@@ -171,6 +171,7 @@ class MainGUI(QtWidgets.QMainWindow):
         return contextMenu
 
     def openROIView(self, image_index):
+        """Open ROI view and properly connect it to RasterView"""
         print(f"[DEBUG] openROIView called with index: {image_index}")
         view = image_view_roi.getROIView(self.proj, image_index, self)
 
@@ -178,14 +179,24 @@ class MainGUI(QtWidgets.QMainWindow):
         if image_index in self.rasterViews:
             raster_view = self.rasterViews[image_index]
             view.viewModel.setRasterView(raster_view)
+            
+            # Connect signals/slots for updates in both directions
+            if hasattr(view, 'roiSelectionChanged'):
+                view.roiSelectionChanged.connect(
+                    lambda roi_index: raster_view.highlightROI(roi_index) 
+                    if hasattr(raster_view, 'highlightROI') else None
+                )
 
         dock = QtWidgets.QDockWidget("ROI Table", self)
         dock.setWidget(view)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
         
-        # Track the dock widget
+        # Store the view and track the dock widget
         self.childWindows.append(dock)
+        if not hasattr(self, 'roiViews'):
+            self.roiViews = {}
+        self.roiViews[image_index] = view
         
         # Connect close event to remove from tracking when dock is closed
         dock.destroyed.connect(lambda: self.removeChildWindow(dock))

@@ -443,8 +443,6 @@ class EnhancedROIView(QWidget):
         
         # Add the rows
         for i, roi in enumerate(rois):
-            # print the properties of the ROI
-            print(f"ROI {i}: {roi.__dict__}")
 
             self.roi_table.insertRow(i)
             
@@ -573,7 +571,31 @@ class EnhancedROIView(QWidget):
         rois = self.viewModel.getROIs(self.viewModel.imageIndex)
         if roi_index < len(rois):
             roi = rois[roi_index]
-            self.viewModel.plotRoiSpectrum(roi.id)
+            
+            # Check if spectrum is available
+            if not hasattr(roi, 'mean_spectrum') or roi.mean_spectrum is None:
+                QMessageBox.warning(self, "No Spectrum", 
+                                "This ROI doesn't have spectrum data available.")
+                return
+                
+            # Get wavelength data from the image
+            image = self.viewModel.proj.getImage(self.viewModel.imageIndex)
+            wavelengths = image.metadata.wavelengths
+            
+            # Create or get the pixel plot window
+            if not hasattr(self, 'pixelPlotWindow') or self.pixelPlotWindow is None:
+                from features.image_view_raster.PixelPlotWindow import PixelPlotWindow
+                self.pixelPlotWindow = PixelPlotWindow()
+                
+                # Track the window so it gets cleaned up properly
+                if hasattr(self.viewModel.proj, 'main_window'):
+                    self.viewModel.proj.main_window.trackPixelPlotWindow(self.pixelPlotWindow)
+            
+            # Update the plot with ROI data
+            coords_label = f"ROI {roi.name}" if hasattr(roi, 'name') else f"ROI {roi_index}"
+            self.pixelPlotWindow.update_plot(wavelengths, roi.mean_spectrum, coords_label)
+            self.pixelPlotWindow.show()
+            self.pixelPlotWindow.raise_()  # Bring to front
     
     def remove_roi(self, roi_index):
         """Remove an ROI"""
@@ -605,17 +627,72 @@ class EnhancedROIView(QWidget):
             logger.debug(f"Renaming ROI {roi_index} to '{new_name}'")
             # In a complete implementation, this would update the ROI name
     
+    def refresh_raster_view(self):
+        """Refresh the ROI display in the RasterView"""
+        # Find and update the RasterView if available
+        if hasattr(self.viewModel, 'rasterView') and self.viewModel.rasterView:
+            raster_view = self.viewModel.rasterView
+            
+            # Force redraw of all ROIs
+            if hasattr(raster_view, 'remove_polygons_from_display'):
+                raster_view.remove_polygons_from_display()
+            if hasattr(raster_view, 'draw_all_polygons'):
+                raster_view.draw_all_polygons()
+        else:
+            # Try to find the RasterView through the main window
+            main_window = self.window()  # Get parent window
+            if hasattr(main_window, 'rasterViews'):
+                raster_view = main_window.rasterViews.get(self.viewModel.imageIndex)
+                if raster_view:
+                    self.viewModel.setRasterView(raster_view)
+                    raster_view.remove_polygons_from_display()
+                    raster_view.draw_all_polygons()
+
     def change_roi_color(self, roi_index):
         """Change the color of an ROI"""
+        rois = self.viewModel.getROIs(self.viewModel.imageIndex)
+        if roi_index >= len(rois):
+            return
+            
+        roi = rois[roi_index]
+        
+        # Get current color
+        current_color = roi.color
+        if isinstance(current_color, tuple):
+            if len(current_color) >= 3:
+                initial_color = QColor(current_color[0], current_color[1], current_color[2])
+            else:
+                initial_color = QColor(255, 0, 0)  # Default red
+        else:
+            initial_color = QColor(255, 0, 0)  # Default red
+        
+        # Show color dialog
         color = QColorDialog.getColor(
-            QColor(255, 0, 0),  # Default red
+            initial_color,
             self,
             f"Select color for ROI #{roi_index}"
         )
         
         if color.isValid():
-            logger.debug(f"Changing color of ROI {roi_index} to {color.name()}")
-            self.onRoiPropertyChanged(roi_index, "color", color.name())
+            # Create RGBA tuple
+            new_color = (color.red(), color.green(), color.blue(), 
+                        128 if len(current_color) < 4 else current_color[3])
+            
+            logger.debug(f"Changing color of ROI {roi_index} to {new_color}")
+            
+            # Update ROI in the data model
+            self.viewModel.update_roi(roi.id, color=new_color)
+            
+            # Update the table cell
+            col_idx = next((i for i, col in enumerate([c for c in self.columns if c.visible]) 
+                        if col.name == "Color"), -1)
+            if col_idx >= 0:
+                item = self.roi_table.item(roi_index, col_idx)
+                if item:
+                    item.setBackground(QBrush(color))
+            
+            # Refresh the visual representation in the RasterView
+            self.refresh_raster_view()
 
     def addStatisticsButton(self):
         """Add a button to view ROI statistics"""

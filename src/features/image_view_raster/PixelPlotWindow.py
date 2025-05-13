@@ -37,10 +37,20 @@ class PixelPlotWindow(QMainWindow):
         """Update the plot with new spectral data."""
         self.plot_widget.clear()
         logger.debug(f"Plotting spectrum for coordinates: {coords}")
-        logger.debug(f"Wavelength range: {wavelengths.min() if len(wavelengths) > 0 else 'N/A'} - " + 
-                    f"{wavelengths.max() if len(wavelengths) > 0 else 'N/A'} nm")
-        logger.debug(f"Spectral data range: {spectrum.min() if len(spectrum) > 0 else 'N/A'} - " + 
-                    f"{spectrum.max() if len(spectrum) > 0 else 'N/A'}")
+        try:
+            try:
+                wavelengths = np.asarray(wavelengths, dtype=float)
+            except ValueError as e:
+                logger.warning(f"Wavelengths appear to be categorical. Generating a numeric vector of the same length.")
+                wavelengths = np.arange(len(wavelengths), dtype=float)
+            spectrum = np.asarray(spectrum, dtype=float)
+            logger.debug(f"Wavelength range: {wavelengths.min() if len(wavelengths) > 0 else 'N/A'} - " + 
+                        f"{wavelengths.max() if len(wavelengths) > 0 else 'N/A'} nm")
+            logger.debug(f"Spectral data range: {spectrum.min() if len(spectrum) > 0 else 'N/A'} - " + 
+                        f"{spectrum.max() if len(spectrum) > 0 else 'N/A'}")
+        except ValueError as e:
+            logger.error(f"Error converting data to numeric types: {e}")
+            return
 
         self.plot_widget.plot(wavelengths, spectrum, pen='y', name=f"({coords[0]}, {coords[1]})")
         self.plot_widget.setTitle(f"Pixel Spectrum at {coords}")

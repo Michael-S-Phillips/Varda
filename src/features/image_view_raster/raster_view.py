@@ -2,7 +2,7 @@ import logging
 import numpy as np
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtCore import QEvent, pyqtSignal
-from PyQt6.QtGui import QPainter
+from PyQt6.QtGui import QPainter, QColor
 from PyQt6.QtWidgets import QWidget
 import pyqtgraph as pg
 from scipy.spatial import ConvexHull
@@ -357,6 +357,77 @@ class RasterView(QWidget):
         except Exception as e:
             logger.error(f"Error getting raster data: {str(e)}")
             return None
+        
+    def highlightROI(self, roi_index):
+        """Highlight a specific ROI"""
+        # Store the highlighted ROI index
+        self.highlighted_roi_index = roi_index
+        
+        # Refresh all ROIs with the highlighting
+        self.remove_polygons_from_display()
+        self.draw_all_polygons()
+
+    def remove_polygons_from_display(self):
+        """Remove all polygons from the display"""
+        if hasattr(self, 'roi_items'):
+            for item in self.roi_items:
+                self.mainView.removeItem(item)
+                self.contextView.removeItem(item)
+
+    # Update draw_all_polygons to support highlighting
+    def draw_all_polygons(self):
+        """Draw all ROIs with optional highlighting for the selected one"""
+        # Get ROIs from the project
+        rois = self.viewModel.proj.get_rois_for_image(self.viewModel.index)
+        if not rois:
+            return
+            
+        for i, roi in enumerate(rois):
+            # Get color and points from the ROI
+            color = roi.color if hasattr(roi, 'color') else (255, 0, 0, 128)
+            highlighted = hasattr(self, 'highlighted_roi_index') and self.highlighted_roi_index == i
+            
+            # Get points - handle different ROI formats
+            if hasattr(roi, 'points') and roi.points is not None:
+                # FreehandROI style - points is [x_coords, y_coords]
+                if isinstance(roi.points, list) and len(roi.points) == 2:
+                    points = [(x, y) for x, y in zip(roi.points[0], roi.points[1])]
+                else:
+                    points = roi.points
+                    
+                # Create a polygon with the points
+                polygon = pg.Qt.QtGui.QPolygonF()
+                for x, y in zip(*points):
+                    polygon.append(pg.Qt.QtCore.QPointF(x, y))
+                    
+                # Create a polygon item with the color
+                from PyQt6.QtGui import QPen, QBrush
+                pen_width = 2
+                if highlighted:
+                    pen = QPen(QColor(255, 255, 0))  # Yellow for highlight
+                    pen.setWidth(3)
+                else:
+                    pen = QPen(QColor(color[0], color[1], color[2]))
+                    pen.setWidth(pen_width)
+                    
+                brush = QBrush(QColor(color[0], color[1], color[2], 
+                                    color[3] if len(color) >= 4 else 128))
+                    
+                polygon_item = pg.Qt.QtWidgets.QGraphicsPolygonItem(polygon)
+                polygon_item.setPen(pen)
+                polygon_item.setBrush(brush)
+                
+                # Add to the view
+                self.mainView.addItem(polygon_item)
+                cloned_polygon_item = pg.Qt.QtWidgets.QGraphicsPolygonItem(polygon_item.polygon())
+                cloned_polygon_item.setPen(polygon_item.pen())
+                cloned_polygon_item.setBrush(polygon_item.brush())
+                self.contextView.addItem(cloned_polygon_item)
+                
+                # Store references to remove them later
+                if not hasattr(self, 'roi_items'):
+                    self.roi_items = []
+                self.roi_items.append(polygon_item)
         
     def _onROIDrawn(self):
         """

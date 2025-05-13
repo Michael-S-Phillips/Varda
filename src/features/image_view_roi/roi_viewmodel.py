@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
+from PyQt6.QtWidgets import QMessageBox
 
 from core.data import ProjectContext
 
@@ -171,25 +172,79 @@ class ROIViewModel(QObject):
         else:
             logger.warning("Cannot start ROI drawing - no RasterView available")
     
+    def get_roi(self, roi_id):
+        """Get a specific ROI by ID"""
+        if hasattr(self.proj, 'roi_manager'):
+            return self.proj.roi_manager.get_roi(roi_id)
+        else:
+            # Fallback to searching in the image's ROIs
+            for roi in self.proj.getROIs(self.imageIndex):
+                if hasattr(roi, 'id') and roi.id == roi_id:
+                    return roi
+            return None
+    
+    def update_roi(self, roi_id, **properties):
+        """Update ROI properties"""
+        result = False
+        
+        if hasattr(self.proj, 'roi_manager'):
+            # Use ROI Manager API
+            result = self.proj.roi_manager.update_roi(roi_id, **properties)
+            if result:
+                self.roiUpdated.emit(roi_id)
+        else:
+            # Legacy implementation - find and update directly
+            roi = self.get_roi(roi_id)
+            if roi:
+                for key, value in properties.items():
+                    if hasattr(roi, key):
+                        setattr(roi, key, value)
+                self.roiUpdated.emit(roi_id)
+                result = True
+        
+        # Refresh display if this is a visual property
+        visual_properties = {'color', 'visible', 'line_width', 'fill_opacity'}
+        if result and any(prop in visual_properties for prop in properties.keys()):
+            # Notify any connected views
+            if hasattr(self, 'view') and self.view:
+                if hasattr(self.view, 'refresh_raster_view'):
+                    self.view.refresh_raster_view()
+            
+            # Direct update to RasterView if available
+            if hasattr(self, 'rasterView') and self.rasterView:
+                if hasattr(self.rasterView, 'remove_polygons_from_display'):
+                    self.rasterView.remove_polygons_from_display()
+                if hasattr(self.rasterView, 'draw_all_polygons'):
+                    self.rasterView.draw_all_polygons()
+        
+        return result
+    
     def plotRoiSpectrum(self, roi_id):
         """Plot the spectrum of an ROI"""
-        roi = self.getRoi(roi_id)
-        if roi and hasattr(roi, 'mean_spectrum') and roi.mean_spectrum is not None:
-            logger.debug(f"Plotting spectrum for ROI {roi_id}")
+        try:
+            # Get the ROI
+            roi = self.viewModel.get_roi(roi_id)
+            if not roi or roi.mean_spectrum is None:
+                QMessageBox.warning(self, "No Spectrum", "This ROI doesn't have spectrum data available.")
+                return
+                
+            # Get wavelength data from the image
+            image = self.viewModel.proj.getImage(self.viewModel.imageIndex)
+            wavelengths = image.metadata.wavelengths
             
-            # This would normally call a plotting function
-            # For now, we'll delegate to the ProjectContext's plotROI method if available
-            if hasattr(self.proj, 'plotROI'):
-                self.proj.plotROI(roi)
-            elif hasattr(self.proj, 'addPlot'):
-                self.proj.addPlot(roi)
-            else:
-                logger.warning("No plotting function available in ProjectContext")
+            # Create or reuse the pixel plot window
+            if not hasattr(self, 'pixelPlotWindow') or self.pixelPlotWindow is None:
+                from features.image_view_raster.PixelPlotWindow import PixelPlotWindow
+                self.pixelPlotWindow = PixelPlotWindow()
+                
+            # Update the plot with ROI data
+            self.pixelPlotWindow.update_plot(wavelengths, roi.mean_spectrum, f"ROI {roi.name}")
+            self.pixelPlotWindow.show()
+            self.pixelPlotWindow.raise_()  # Bring to front
             
-            return True
-        
-        logger.warning(f"Cannot plot spectrum for ROI {roi_id} - no spectral data available")
-        return False
+        except Exception as e:
+            logger.error(f"Error plotting ROI spectrum: {e}")
+            QMessageBox.warning(self, "Plot Error", f"Error plotting spectrum: {str(e)}")
     
     def calculate_roi_statistics(self, roi_id):
         """Calculate detailed statistics for an ROI"""
