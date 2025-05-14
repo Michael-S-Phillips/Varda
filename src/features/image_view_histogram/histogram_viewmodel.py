@@ -29,6 +29,8 @@ class HistogramViewModel(QObject):
 
         self.blockSignals = False
 
+        self._handling_change = False
+
         self._connectSignals()
 
     def _connectSignals(self):
@@ -83,13 +85,24 @@ class HistogramViewModel(QObject):
         if changeModifier is not ProjectContext.ChangeModifier.UPDATE:
             return
 
-        if changeType is ProjectContext.ChangeType.BAND:
-            self.sigBandChanged.emit()
-        elif changeType is ProjectContext.ChangeType.STRETCH:
-            minR, maxR, minG, maxG, minB, maxB = [
-                value
-                for subList in self.getSelectedStretch().toList()
-                for value in subList
-            ]
-            logger.debug("Stretch changed: %s", (minR, maxR, minG, maxG, minB, maxB))
-            self.sigStretchChanged.emit(minR, maxR, minG, maxG, minB, maxB)
+        # Guard against recursion
+        if self._handling_change:
+            return
+            
+        self._handling_change = True
+        try:
+            if changeType is ProjectContext.ChangeType.BAND:
+                self.sigBandChanged.emit()
+            elif changeType is ProjectContext.ChangeType.STRETCH:
+                try:
+                    stretch = self.getSelectedStretch()
+                    minR, maxR, minG, maxG, minB, maxB = [
+                        float(value) for subList in stretch.toList() for value in subList
+                    ]
+                    logger.debug("Stretch changed: (%.6f, %.6f, %.6f, %.6f, %.6f, %.6f)", 
+                            minR, maxR, minG, maxG, minB, maxB)
+                    self.sigStretchChanged.emit(minR, maxR, minG, maxG, minB, maxB)
+                except Exception as e:
+                    logger.error(f"Error handling stretch change: {e}")
+        finally:
+            self._handling_change = False

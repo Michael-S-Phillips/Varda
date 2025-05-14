@@ -39,6 +39,7 @@ class StretchView(QWidget):
     def __init__(self, viewModel: StretchViewModel, parent):
         super().__init__(parent=parent)
         self.viewModel = viewModel
+        self._handling_change = False
 
         self.initUI()
         self.connectSignals()
@@ -97,10 +98,17 @@ class StretchView(QWidget):
         )
 
     def onStretchChanged(self):
-        stretch = self.viewModel.getSelectedStretch()
-        self.minRInput.setValue(stretch.minR)
-        self.maxRInput.setValue(stretch.maxR)
-        self.minGInput.setValue(stretch.minG)
-        self.maxGInput.setValue(stretch.maxG)
-        self.minBInput.setValue(stretch.minB)
-        self.maxBInput.setValue(stretch.maxB)
+        if self._handling_change:
+            return
+            
+        self._handling_change = True
+        try:
+            stretch = self.viewModel.getSelectedStretch()
+            self.minRInput.setValue(stretch.minR)
+            self.maxRInput.setValue(stretch.maxR)
+            self.minGInput.setValue(stretch.minG)
+            self.maxGInput.setValue(stretch.maxG)
+            self.minBInput.setValue(stretch.minB)
+            self.maxBInput.setValue(stretch.maxB)
+        finally:
+            self._handling_change = False

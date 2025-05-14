@@ -17,6 +17,7 @@ class BandSelector(QComboBox):
         super().__init__(parent)
         self.proj = proj
         self.imageIndex = imageIndex
+        self._handling_change = False
         self.proj.sigDataChanged.connect(self._onProjectDataChanged)
         self._populateComboBox()
 
@@ -31,8 +32,15 @@ class BandSelector(QComboBox):
 
     @pyqtSlot(int, ProjectContext.ChangeType)
     def _onProjectDataChanged(self, index, changeType):
-        if index == self.imageIndex and changeType == ProjectContext.ChangeType.BAND:
-            self._populateComboBox()
+        if self._handling_change:
+            return
+            
+        if index == self.imageIndex and changeType == ProjectContext.ChangeType.STRETCH:
+            self._handling_change = True
+            try:
+                self._populateComboBox()
+            finally:
+                self._handling_change = False
 
 
 class StretchSelector(QComboBox):

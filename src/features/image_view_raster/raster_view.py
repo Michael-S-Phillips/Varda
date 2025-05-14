@@ -287,10 +287,17 @@ class RasterView(QWidget):
 
     def _onStretchChanged(self):
         """Handle stretch changes."""
-        levels = self.viewModel.getSelectedStretch().toList()
-        self.mainImage.setLevels(levels)
-        self.contextImage.setLevels(levels)
-        self.zoomImage.setLevels(levels)
+        if hasattr(self, '_handling_stretch_change') and self._handling_stretch_change:
+            return
+            
+        self._handling_stretch_change = True
+        try:
+            levels = self.viewModel.getSelectedStretch().toList()
+            self.mainImage.setLevels(levels)
+            self.contextImage.setLevels(levels)
+            self.zoomImage.setLevels(levels)
+        finally:
+            self._handling_stretch_change = False
 
     def _onBandChanged(self):
         """Handle band changes."""
