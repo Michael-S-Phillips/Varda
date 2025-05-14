@@ -36,6 +36,7 @@ class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
         self._rasterData = None
         self._imageMetadata = None
         self._loadErrors = []
+        self.loading_mode = 'full'
 
     def load(self, filepath: str) -> Tuple[np.ndarray, Metadata]:
         """Loads the image data and metadata from the file path.
@@ -54,7 +55,7 @@ class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
         self._loadErrors = []
 
         try:
-            self._rasterData = self.loadRasterData(self._filePath)
+            self._rasterData = self.loadRasterData(self._filePath, self.loading_mode)
         except Exception as e:
             logger.error(f"Failed to load raster data: {e}")
             raise ValueError(f"Failed to load raster data: {e}")

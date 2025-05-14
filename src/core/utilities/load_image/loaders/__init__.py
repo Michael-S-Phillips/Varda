@@ -1,7 +1,10 @@
+# src/core/utilities/load_image/loaders/__init__.py
 from os import listdir
 from os.path import dirname, basename
 from .enviimageloader import ENVIImageLoader
 from .hdf5imageloader import HDF5ImageLoader
+from .tiffimageloader import TIFFImageLoader
+from .pillowimageloader import PillowImageLoader
 from .abstractimageloader import AbstractImageLoader
 
 # This dynamically imports all the modules in this package. ty StackOverflow
