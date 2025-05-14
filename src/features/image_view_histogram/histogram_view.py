@@ -3,13 +3,14 @@ import logging
 # third-party imports
 import pyqtgraph as pg
 from PyQt6.QtCore import pyqtSlot
-from PyQt6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout,QTabWidget
+from PyQt6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout, QTabWidget, QMessageBox, QGroupBox, QComboBox, QPushButton, QLabel
 from PyQt6.QtGui import QColor
 from pyqtgraph import HistogramLUTItem
 
 # local imports
 from features.shared.selection_controls import StretchSelector, BandSelector
 from .histogram_viewmodel import HistogramViewModel
+from core.stretch.stretch_manager import StretchPresets
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ class HistogramView(QWidget):
         self._updatingHistograms = False
         self._initUI()
         self._connectSignals()
-
+        
     def _initUI(self):
         self.tabWidget = QTabWidget()
 
@@ -86,7 +87,26 @@ class HistogramView(QWidget):
         self.tabWidget.addTab(self.histogramG, "Green")
         self.tabWidget.addTab(self.histogramB, "Blue")
 
+        # Add stretch preset options
+        self.presetsGroup = QGroupBox("Preset Stretches")
+        self.presetsLayout = QVBoxLayout()
+        
+        # Add a dropdown for selecting presets
+        self.presetCombo = QComboBox()
+        for _, preset_name in StretchPresets.get_preset_names():
+            self.presetCombo.addItem(preset_name)
+        
+        self.applyPresetButton = QPushButton("Apply Selected Preset")
+        self.applyPresetButton.clicked.connect(self._onApplyPresetClicked)
+        
+        self.presetsLayout.addWidget(QLabel("Select a preset stretch:"))
+        self.presetsLayout.addWidget(self.presetCombo)
+        self.presetsLayout.addWidget(self.applyPresetButton)
+        
+        self.presetsGroup.setLayout(self.presetsLayout)
+        
         selectorLayout = QVBoxLayout()
+        selectorLayout.addWidget(self.presetsGroup)
 
         layout = QVBoxLayout()
         layout.addLayout(selectorLayout)
@@ -107,6 +127,36 @@ class HistogramView(QWidget):
         self.imageItemR.setImage(data[:, :, 0], autoLevels=False)
         self.imageItemG.setImage(data[:, :, 1], autoLevels=False)
         self.imageItemB.setImage(data[:, :, 2], autoLevels=False)
+
+    def _onApplyPresetClicked(self):
+        """Apply the selected preset stretch."""
+        try:
+            # Get the selected preset
+            preset_index = self.presetCombo.currentIndex()
+            preset_id = StretchPresets.get_preset_names()[preset_index][0]
+            
+            # Get the image data
+            image = self.viewModel.proj.getImage(self.viewModel.index)
+            image_data = image.raster
+            
+            # Create a stretch from the preset
+            stretch = StretchPresets.create_stretch_from_preset(preset_id, image_data)
+            
+            # Add the stretch to the project
+            self.viewModel.proj.addStretch(self.viewModel.index, stretch)
+            
+            # Select the new stretch
+            self.viewModel.selectStretch(len(image.stretch) - 1)
+            
+        except Exception as e:
+            logger.error(f"Error applying preset stretch: {e}")
+            # Show an error message
+            QMessageBox.warning(
+                self, 
+                "Stretch Error",
+                f"Error applying stretch preset: {str(e)}",
+                QMessageBox.StandardButton.Ok
+            )
 
     @pyqtSlot()
     def _onHistogramLevelsChanged(self):

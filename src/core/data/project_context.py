@@ -263,6 +263,32 @@ class ProjectContext(QObject):
         project. Unless we're loading from an existing project, a newly
         loaded image usually won't have stretch and band data associated with it yet
         """
+        # If stretch is not provided, create default stretches
+        if stretch is None:
+            try:
+                # Import here to avoid circular import
+                from core.stretch.stretch_manager import StretchPresets
+                
+                # Create basic default stretches
+                stretch = []
+                
+                # Always add the standard default stretch first
+                stretch.append(Stretch.createDefault())
+                
+                # Add a few common presets
+                basic_presets = ["min_max", "percentile_2", "gaussian_2sigma"]
+                for preset_id in basic_presets:
+                    try:
+                        preset_stretch = StretchPresets.create_stretch_from_preset(preset_id, raster)
+                        stretch.append(preset_stretch)
+                    except Exception as e:
+                        logger.warning(f"Failed to create preset stretch {preset_id}: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to create preset stretches: {e}")
+                # Fallback to single default stretch
+                stretch = [Stretch.createDefault()]
+        
+        # Continue with the rest of the method as before
         image = Image(
             raster,
             metadata,
