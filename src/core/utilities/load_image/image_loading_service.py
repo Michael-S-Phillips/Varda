@@ -1,5 +1,6 @@
 # standard library
 import os
+import numpy as np
 from typing import Callable, List, Dict, Optional
 from pathlib import Path
 import logging
@@ -15,7 +16,7 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog, QApplicat
 from core.entities import Metadata
 
 # local imports
-from core.utilities.load_image.loaders import AbstractImageLoader
+from core.utilities.load_image.loaders import AbstractImageLoader, PillowImageLoader, TIFFImageLoader, HDF5ImageLoader
 
 
 logger = logging.getLogger(__name__)

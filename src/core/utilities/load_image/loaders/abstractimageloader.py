@@ -55,7 +55,7 @@ class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
         self._loadErrors = []
 
         try:
-            self._rasterData = self.loadRasterData(self._filePath, self.loading_mode)
+            self._rasterData = self.loadRasterData(self._filePath) #self.loading_mode
         except Exception as e:
             logger.error(f"Failed to load raster data: {e}")
             raise ValueError(f"Failed to load raster data: {e}")
