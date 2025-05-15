@@ -1,6 +1,9 @@
+# src/core/utilities/load_image/loaders/enviimageloader.py
+
 # standard library
 import time
 import logging
+import os
 from pathlib import Path
 
 # third party imports
@@ -24,7 +27,16 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
     imageType = (".hdr", ".img")
 
     @staticmethod
-    def loadRasterData(filePath) -> np.ndarray:
+    def loadRasterData(filePath, loading_mode='full') -> np.ndarray:
+        """Load raster data from an ENVI image file.
+        
+        Args:
+            filePath: Path to the ENVI header file
+            loading_mode: Mode to control how the data is loaded ('full', 'preview', or 'metadata')
+            
+        Returns:
+            np.ndarray: The raster data
+        """
         path = filePath.replace(".hdr", ".img")
         timeStarted = time.time()
 
@@ -32,19 +44,53 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
             with rio.open(path) as src:
                 logger.debug("time to open file: %s", time.time() - timeStarted)
 
-                # TODO: we should probably mask the array manually. masked=True makes this
-                #  return a MaskedArray which is much slower
-                timeStarted = time.time()
-                data = src.read(masked=True).transpose(1, 2, 0)
-                logger.debug("time to read data: %s", time.time() - timeStarted)
+                # Check if we should load a downsampled version for preview mode
+                if loading_mode == 'preview':
+                    # Calculate dimensions for preview
+                    file_size_mb = os.path.getsize(path) / (1024 * 1024)
+                    downsample_factor = max(1, int(file_size_mb / 100))  # Adjust divisor as needed
+                    
+                    logger.info(f"Loading preview with downsample factor {downsample_factor}")
+                    
+                    # Calculate new dimensions
+                    out_shape = (
+                        src.count,
+                        max(1, int(src.height / downsample_factor)),
+                        max(1, int(src.width / downsample_factor))
+                    )
+                    
+                    # Read with decimation
+                    data = src.read(
+                        out_shape=out_shape,
+                        masked=True,
+                        resampling=rio.enums.Resampling.average
+                    )
+                else:
+                    # Full resolution data
+                    timeStarted = time.time()
+                    data = src.read(masked=True)
+                    logger.debug("time to read data: %s", time.time() - timeStarted)
 
-            return data
+                # Transpose to match expected format (height, width, bands)
+                data = data.transpose(1, 2, 0)
+                
+                return data
+                
         except Exception as e:
             logger.error(f"Failed to load raster data from {path}: {e}")
             raise ValueError(f"Could not read image file: {e}")
 
     @staticmethod
     def loadMetadata(raster, filePath) -> Metadata:  # pylint: disable=too-many-locals
+        """Load metadata from an ENVI image file.
+        
+        Args:
+            raster: The raster data
+            filePath: Path to the ENVI header file
+            
+        Returns:
+            Metadata: The image metadata
+        """
         path = filePath.replace(".hdr", ".img")
         metadata_dict = {}
         errors = []

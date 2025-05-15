@@ -117,11 +117,36 @@ class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
     @staticmethod
     @abstractmethod
     def loadRasterData(filePath, loading_mode='full') -> np.ndarray:
+        """Load raster data from a file.
+        
+        Args:
+            filePath: Path to the image file
+            loading_mode: Mode to control loading ('full', 'preview', or 'metadata')
+            
+        Returns:
+            np.ndarray: The raster data
+        """
         pass
 
     @staticmethod
     @abstractmethod
     def loadMetadata(raster, filePath) -> Metadata:
+        """Load metadata from an image file.
+        
+        This abstract method should be implemented by concrete loader classes to extract
+        metadata from the image file. The implementation should handle any format-specific
+        metadata extraction and return it in a standardized Metadata object.
+        
+        Args:
+            raster (np.ndarray): The loaded raster data array with shape (height, width, bands)
+            filePath (str): Path to the image file
+            
+        Returns:
+            Metadata: A Metadata object containing the extracted metadata
+            
+        Raises:
+            ValueError: If metadata cannot be extracted from the file
+        """
         pass
     
     @classmethod

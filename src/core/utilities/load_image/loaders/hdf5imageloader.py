@@ -22,7 +22,16 @@ class HDF5ImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
     imageType = (".h5", ".hdf5")
 
     @staticmethod
-    def loadRasterData(filePath) -> np.ndarray:
+    def loadRasterData(filePath, loading_mode='full') -> np.ndarray:
+        """Load raster data from HDF5 file.
+        
+        Args:
+            filePath: Path to the HDF5 file
+            loading_mode: 'full', 'preview', or 'metadata'
+            
+        Returns:
+            np.ndarray: The raster data
+        """
         timeStarted = time.time()
 
         try:
@@ -86,9 +95,36 @@ class HDF5ImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                 if dataset is None:
                     raise ValueError("Could not find a suitable dataset in the HDF5 file")
 
-                timeStarted = time.time()
-                data = dataset[:]
-                logger.debug(f"Time to read data: {time.time() - timeStarted}")
+                # Check if we're in preview mode for large datasets
+                if loading_mode == 'preview' and dataset is not None:
+                    # Calculate dimensions for preview
+                    preview_scale = 8  # Adjust based on your needs
+                    
+                    # If dataset shape is (bands, height, width)
+                    if len(dataset.shape) == 3:
+                        out_shape = (dataset.shape[0], dataset.shape[1] // preview_scale, dataset.shape[2] // preview_scale)
+                        data = dataset[
+                            :,  # All bands
+                            ::preview_scale,  # Stride by preview_scale in height
+                            ::preview_scale   # Stride by preview_scale in width
+                        ]
+                    # If dataset shape is (height, width, bands)
+                    elif len(dataset.shape) == 3:
+                        data = dataset[
+                            ::preview_scale,  # Stride by preview_scale in height
+                            ::preview_scale,  # Stride by preview_scale in width
+                            :                 # All bands
+                        ]
+                    else:
+                        # For other shapes, load full data
+                        data = dataset[:]
+                        
+                    logger.info(f"Loaded preview with scale factor {preview_scale}")
+                else:
+                    # Full resolution data
+                    timeStarted = time.time()
+                    data = dataset[:]
+                    logger.debug(f"Time to read data: {time.time() - timeStarted}")
                 
                 # Ensure the data has 3 dimensions (height, width, bands)
                 if len(data.shape) == 2:

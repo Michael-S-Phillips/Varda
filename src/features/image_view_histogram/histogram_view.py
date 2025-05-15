@@ -15,6 +15,7 @@ from .histogram_viewmodel import HistogramViewModel
 from core.stretch.stretch_manager import StretchPresets
 from features.shared.base_view import BaseView
 from core.utilities.signal_utils import guard_signals, SignalBlocker
+from core.data import ProjectContext
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,17 @@ class HistogramView(BaseView):
     def __init__(self, viewModel: HistogramViewModel = None, parent=None):
         super().__init__(viewModel, parent)
         self.setWindowTitle("Histogram")
+        
+        # Find the raster view for direct updates
+        self.rasterView = None
+        if hasattr(viewModel, 'proj') and hasattr(viewModel, 'index'):
+            # Try to get from parent window
+            try:
+                main_window = self.window()
+                if hasattr(main_window, 'rasterViews'):
+                    self.rasterView = main_window.rasterViews.get(viewModel.index)
+            except Exception as e:
+                logger.warning(f"Could not find raster view: {e}")
 
         # To link the histograms to the image, we use an ImageItem.
         # This is just to leverage the existing functionality of the HistogramLUTWidget.
@@ -121,16 +133,26 @@ class HistogramView(BaseView):
         self.viewModel.sigBandChanged.connect(self._onBandChanged)
         self.viewModel.sigStretchChanged.connect(self._onStretchChanged)
 
-        self.histogramR.histogram.item.sigLevelsChanged.connect(self._onHistogramLevelsChanged)
-        self.histogramG.histogram.item.sigLevelsChanged.connect(self._onHistogramLevelsChanged)
-        self.histogramB.histogram.item.sigLevelsChanged.connect(self._onHistogramLevelsChanged)
+        # Use lambda functions to safely wrap the histogram signals
+        self.histogramR.histogram.item.sigLevelsChanged.connect(
+            lambda: self._onHistogramLevelsChanged("R")
+        )
+        self.histogramG.histogram.item.sigLevelsChanged.connect(
+            lambda: self._onHistogramLevelsChanged("G")
+        )
+        self.histogramB.histogram.item.sigLevelsChanged.connect(
+            lambda: self._onHistogramLevelsChanged("B")
+        )
 
     def _updateImageItems(self):
         """Update the image items with current raster data."""
-        data = self.viewModel.getRasterFromBand()
-        self.imageItemR.setImage(data[:, :, 0], autoLevels=False)
-        self.imageItemG.setImage(data[:, :, 1], autoLevels=False)
-        self.imageItemB.setImage(data[:, :, 2], autoLevels=False)
+        try:
+            data = self.viewModel.getRasterFromBand()
+            self.imageItemR.setImage(data[:, :, 0], autoLevels=False)
+            self.imageItemG.setImage(data[:, :, 1], autoLevels=False)
+            self.imageItemB.setImage(data[:, :, 2], autoLevels=False)
+        except Exception as e:
+            logger.error(f"Error updating image items: {e}")
 
     def _onApplyPresetClicked(self):
         """Apply the selected preset stretch."""
@@ -162,46 +184,109 @@ class HistogramView(BaseView):
                 QMessageBox.StandardButton.Ok
             )
 
+    def updateDirectRasterView(self, levels):
+        """Directly update the raster view with new stretch levels."""
+        if self.rasterView is None:
+            # Try to find the raster view if not already set
+            try:
+                main_window = self.window()
+                if hasattr(main_window, 'rasterViews'):
+                    self.rasterView = main_window.rasterViews.get(self.viewModel.index)
+            except Exception:
+                pass
+                
+        # Update the image items directly if we found the view
+        if self.rasterView is not None:
+            logger.debug(f"Direct update to raster view: {levels}")
+            try:
+                if hasattr(self.rasterView, 'mainImage'):
+                    self.rasterView.mainImage.setLevels(levels)
+                if hasattr(self.rasterView, 'contextImage'):
+                    self.rasterView.contextImage.setLevels(levels)
+                if hasattr(self.rasterView, 'zoomImage'):
+                    self.rasterView.zoomImage.setLevels(levels)
+                self.rasterView.update()
+            except Exception as e:
+                logger.error(f"Error during direct raster view update: {e}")
+
     @guard_signals
-    def _onHistogramLevelsChanged(self):
-        """Handle changes to histogram levels.
-        
-        Updates the stretch parameters in the ViewModel based on 
-        the current histogram levels. Protected against recursive
-        updates by the guard_signals decorator.
-        """
-        minR, maxR = self.histogramR.histogram.item.getLevels()
-        minG, maxG = self.histogramG.histogram.item.getLevels()
-        minB, maxB = self.histogramB.histogram.item.getLevels()
+    def _onHistogramLevelsChanged(self, channel=None):
+        """Handle changes to histogram levels."""
+        try:
+            # Get the current levels from each histogram
+            minR, maxR = self.histogramR.histogram.item.getLevels()
+            minG, maxG = self.histogramG.histogram.item.getLevels()
+            minB, maxB = self.histogramB.histogram.item.getLevels()
+            
+            # Log the changes
+            logger.debug(f"Histogram levels changed via {channel}: R({minR},{maxR}) G({minG},{maxG}) B({minB},{maxB})")
+            
+            # Update the ViewModel's stretch
+            self.viewModel.updateStretch(minR=minR, maxR=maxR, minG=minG, maxG=maxG, minB=minB, maxB=maxB)
+            
+            # Direct update to the raster view
+            levels = [[minR, maxR], [minG, maxG], [minB, maxB]]
+            self.updateDirectRasterView(levels)
+            
+            # Force a refresh of the current stretch selection to ensure signals propagate
+            current_index = self.viewModel.stretchIndex
+            self.viewModel.selectStretch(current_index)
+        except Exception as e:
+            logger.error(f"Error updating stretch from histogram: {e}", exc_info=True)
 
-        self.viewModel.updateStretch(minR=minR, maxR=maxR, minG=minG, maxG=maxG, minB=minB, maxB=maxB)
-
+    @guard_signals
+    def _onStretchChanged(self, *args, **kwargs):
+        """Handle stretch changes from the ViewModel."""
+        try:
+            # Get current stretch values
+            stretch = self.viewModel.getSelectedStretch()
+            
+            # Log the stretch values
+            logger.debug(f"Updating histogram display: R({stretch.minR},{stretch.maxR}) G({stretch.minG},{stretch.maxG}) B({stretch.minB},{stretch.maxB})")
+            
+            # Update histogram levels with signal blocking to prevent loops
+            with SignalBlocker(self):
+                self.histogramR.histogram.item.setLevels(stretch.minR, stretch.maxR)
+                self.histogramG.histogram.item.setLevels(stretch.minG, stretch.maxG)
+                self.histogramB.histogram.item.setLevels(stretch.minB, stretch.maxB)
+                
+                # Update the zoomed histograms
+                self.histogramR.histogramZoomed.item.setHistogramRange(stretch.minR, stretch.maxR)
+                self.histogramG.histogramZoomed.item.setHistogramRange(stretch.minG, stretch.maxG)
+                self.histogramB.histogramZoomed.item.setHistogramRange(stretch.minB, stretch.maxB)
+            
+            # Direct update to raster view
+            levels = [[stretch.minR, stretch.maxR], [stretch.minG, stretch.maxG], [stretch.minB, stretch.maxB]]
+            self.updateDirectRasterView(levels)
+        except Exception as e:
+            logger.error(f"Error in _onStretchChanged: {e}", exc_info=True)
+    
     def _onBandChanged(self):
         """Handle band changes by updating image items."""
         self._updateImageItems()
 
-    @guard_signals
-    def _onStretchChanged(self, minR, maxR, minG, maxG, minB, maxB):
-        """Handle stretch changes by updating histogram levels.
-        
-        Protected against recursive updates by the guard_signals decorator.
-        """
-        # Update all histogram levels at once using SignalBlocker
-        with SignalBlocker(self):
-            self.histogramR.histogram.item.setLevels(minR, maxR)
-            self.histogramG.histogram.item.setLevels(minG, maxG)
-            self.histogramB.histogram.item.setLevels(minB, maxB)
-    
     def updateUI(self):
         """Update the UI based on the current ViewModel state."""
+        # Update image data
+        self._updateImageItems()
+        
         # Get current stretch values
         stretch = self.viewModel.getSelectedStretch()
         
         # Use SignalBlocker to prevent recursive updates
         with SignalBlocker(self):
-            self.histogramR.histogram.item.setLevels(stretch.minR, stretch.maxR)
-            self.histogramG.histogram.item.setLevels(stretch.minG, stretch.maxG)
-            self.histogramB.histogram.item.setLevels(stretch.minB, stretch.maxB)
-            
-        # Update image data
-        self._updateImageItems()
+            try:
+                self.histogramR.histogram.item.setLevels(stretch.minR, stretch.maxR)
+                self.histogramG.histogram.item.setLevels(stretch.minG, stretch.maxG)
+                self.histogramB.histogram.item.setLevels(stretch.minB, stretch.maxB)
+                
+                # Update zoomed histograms too
+                self.histogramR.histogramZoomed.item.setHistogramRange(stretch.minR, stretch.maxR)
+                self.histogramG.histogramZoomed.item.setHistogramRange(stretch.minG, stretch.maxG)
+                self.histogramB.histogramZoomed.item.setHistogramRange(stretch.minB, stretch.maxB)
+            except Exception as e:
+                logger.error(f"Error updating histogram levels: {e}")
+        
+        # Direct update to raster view
+        levels = [[stretch.minR, stretch.maxR], [stretch.minG, stretch.maxG], [stretch.minB, stretch.maxB]]
+        self.updateDirectRasterView(levels)

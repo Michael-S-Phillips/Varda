@@ -33,9 +33,6 @@ class TIFFImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
             
         Returns:
             np.ndarray: The raster data with shape (height, width, bands)
-            
-        Raises:
-            ValueError: If the file cannot be read
         """
         try:
             # Check file size

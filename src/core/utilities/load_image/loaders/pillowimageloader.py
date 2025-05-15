@@ -23,21 +23,28 @@ class PillowImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-
     imageType = (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tga")
 
     @staticmethod
-    def loadRasterData(filePath) -> np.ndarray:
+    def loadRasterData(filePath, loading_mode='full') -> np.ndarray:
         """Load raster data from common image formats using Pillow.
         
         Args:
             filePath: Path to the image file
+            loading_mode: 'full', 'preview', or 'metadata'
             
         Returns:
             np.ndarray: The raster data with shape (height, width, bands)
-            
-        Raises:
-            ValueError: If the file cannot be read
         """
         try:
             # Open the image
             image = PILImage.open(filePath)
+            
+            # Handle preview mode for large images
+            if loading_mode == 'preview' and (image.width > 1000 or image.height > 1000):
+                # Calculate resize factor to get a reasonable preview size
+                max_dim = max(image.width, image.height)
+                resize_factor = max(1, max_dim // 1000)
+                new_size = (image.width // resize_factor, image.height // resize_factor)
+                image = image.resize(new_size, PILImage.LANCZOS)
+                logger.info(f"Loaded preview with resize factor {resize_factor}")
             
             # Convert to RGB if needed
             if image.mode == 'RGBA':
@@ -50,11 +57,6 @@ class PillowImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-
             else:
                 # Already RGB
                 data = np.array(image)
-            
-            # Ensure we have a 3D array (height, width, bands)
-            if len(data.shape) == 2:
-                # Single band (grayscale) - reshape to (height, width, 1)
-                data = data.reshape(data.shape[0], data.shape[1], 1)
             
             return data
             

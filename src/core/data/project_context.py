@@ -1,9 +1,10 @@
+# src/core/data/project_context.py
 # standard library
 import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Dict, Optional
 from enum import Enum
 import tempfile
 
@@ -22,20 +23,24 @@ from PyQt6.QtWidgets import (
 import numpy as np
 
 # local imports
-from core.entities import Image, Metadata, Band, Stretch, freehandROI, Plot
-from core.entities.freehandROI import FreehandROI
+from core.entities import Image, Metadata, Band, Stretch, FreehandROI, Plot
 from core.utilities.load_image import ImageLoadingService
+from core.utilities.signal_utils import guard_signals
 from gui.widgets import FilePathBox
 
 logger = logging.getLogger(__name__)
 
 
 class ProjectContext(QObject):
-    """TODO:"""
+    """
+    Central data manager for the Varda application.
+    
+    Handles all project data including images, ROIs, bands, stretches, and more.
+    Uses signals to notify views of data changes.
+    """
 
     class ChangeType(Enum):
         """Enumerator to represent the types of data that may be changed"""
-
         IMAGE = "image"
         BAND = "band"
         STRETCH = "stretch"
@@ -46,42 +51,50 @@ class ProjectContext(QObject):
 
     class ChangeModifier(Enum):
         """Enumerator to represent the ways in which data may be changed"""
-
         ADD = "add"
         REMOVE = "remove"
         UPDATE = "update"
 
-    # signal that emits when something writes to the projectContext.
-    # int argument is the index of the item that was changed.
-
-    # overloaded signal, to add support for a new argument without breaking existing code
-    sigDataChanged: pyqtSignal = pyqtSignal(
-        [int, ChangeType], [int, ChangeType, ChangeModifier]
-    )
-    sigProjectChanged: pyqtSignal = pyqtSignal()
+    # Signal that emits when something writes to the projectContext.
+    # Overloaded signal, to add support for a new argument without breaking existing code
+    sigDataChanged = pyqtSignal([int, ChangeType], [int, ChangeType, ChangeModifier])
+    sigProjectChanged = pyqtSignal()
 
     def __init__(self):
         super().__init__()
         self._images: List[Image] = []
         self.currentProj: Path = None
         self.isSaved: bool = True
-        self._controlPanels = {}
+        self._controlPanels: Dict[int, QObject] = {}
         self._imageLoadingService = ImageLoadingService()
+        self._handling_change = False  # Flag to prevent recursive signal handling
         
         # Initialize the ROI Manager
         from core.data.roi_manager import ROIManager
         self.roi_manager = ROIManager(self)
+        
+        # Flag for generating stretch presets during image creation
+        self._generate_stretch_presets = True
 
     def getProjectName(self):
+        """Get the name of the current project, or 'None' if no project is open."""
         if self.currentProj is None:
             return "None"
         return self.currentProj.name
 
+    @guard_signals
     def saveProject(self, saveAs=False):
-        """Safely writes project data to disk"""
-
-        # if we are not in an existing project, OR if the user wants to save to a new file,
-        #  prompt for a path and update currentProj
+        """
+        Safely writes project data to disk.
+        
+        Args:
+            saveAs: If True, prompt for a new file path regardless of current project.
+        
+        Returns:
+            bool: True if the save was successful, False otherwise.
+        """
+        # If we are not in an existing project, OR if the user wants to save to a new file,
+        # prompt for a path and update currentProj
         if self.currentProj is None or saveAs is True:
             fileName = QFileDialog.getSaveFileName(
                 None, "Save File", "../", "Varda project file (*.varda)"
@@ -90,10 +103,10 @@ class ProjectContext(QObject):
                 self.currentProj = Path(fileName[0])
                 self.sigProjectChanged.emit()
             else:
-                return
+                return False
 
-        # write new data to a temp file, then replace the original file only if the write operation was successful.
-        # this avoids losing data if the write operation fails somehow.
+        # Write new data to a temp file, then replace the original file only if the write operation was successful.
+        # This avoids losing data if the write operation fails somehow.
         saveData = self.serialize()
         try:
             with tempfile.NamedTemporaryFile(
@@ -109,15 +122,25 @@ class ProjectContext(QObject):
             os.replace(tempFile.name, self.currentProj)
             self.isSaved = True
             logger.info(f"Project saved to {self.currentProj}")
+            return True
         except Exception as e:
             logger.error(f"Failed to save project! {e}")
-            # cleanup temp file
-            if Path(tempFile.name).exists():
+            # Cleanup temp file
+            if tempFile and Path(tempFile.name).exists():
                 os.remove(tempFile.name)
+            return False
 
+    @guard_signals
     def loadProject(self, loadPath=None):
-        """Load a project from a file. If no path is provided, prompt the user to select a file."""
-
+        """
+        Load a project from a file. If no path is provided, prompt the user to select a file.
+        
+        Args:
+            loadPath: Optional path to load the project from.
+            
+        Returns:
+            bool: True if the project was loaded successfully, False otherwise.
+        """
         # Ask if user wants to save the current project
         if self.isSaved is False:
             msgBox = QMessageBox()
@@ -130,27 +153,40 @@ class ProjectContext(QObject):
             )
             ret = msgBox.exec()
             if ret == QMessageBox.StandardButton.Save:
-                self.saveProject()
+                if not self.saveProject():
+                    return False
             elif ret == QMessageBox.StandardButton.Cancel:
                 logger.info("Project load aborted.")
-                return
-            elif ret == QMessageBox.StandardButton.Discard:
-                # just let the function execution continue
-                pass
+                return False
 
         f: str = None
         if loadPath is None:
             f, _ = QFileDialog.getOpenFileName(
                 None, "Open File", "", "Varda project file (*.varda)"
             )
+            if not f:
+                return False
+                
         loadPath = f if f is not None else loadPath
-
-        with open(loadPath, "r") as file:
-            self.deserialize(file.name, json.load(file))
-        logger.info(f"Loaded project from {loadPath}")
-        self.sigProjectChanged.emit()
+        
+        try:
+            with open(loadPath, "r") as file:
+                self.deserialize(file.name, json.load(file))
+            logger.info(f"Loaded project from {loadPath}")
+            self.sigProjectChanged.emit()
+            return True
+        except Exception as e:
+            logger.error(f"Error loading project: {e}")
+            QMessageBox.critical(None, "Error", f"Failed to load project: {e}")
+            return False
 
     def serialize(self):
+        """
+        Serialize the project data into a JSON-compatible dictionary.
+        
+        Returns:
+            dict: The serialized project data.
+        """
         imageDictList = [
             {
                 "metadata": image.metadata.serialize(),
@@ -169,6 +205,17 @@ class ProjectContext(QObject):
         }
 
     def deserialize(self, projectName, data):
+        """
+        Deserialize project data from a dictionary and update the project state.
+        
+        Args:
+            projectName: The path to the project file.
+            data: The deserialized project data.
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        # Store current state to restore in case of failure
         imagesTemp = self._images
         projectNameTemp = self.currentProj
         roi_manager_temp = self.roi_manager if hasattr(self, 'roi_manager') else None
@@ -184,7 +231,7 @@ class ProjectContext(QObject):
                 ]
                 band = [Band.deserialize(band) for band in imageDict["band"]]
 
-                # check whether file paths exist. if not, prompt user for updated one.
+                # Check whether file paths exist. If not, prompt user for updated one.
                 oldPath = Path(metadata.filePath)
                 if not oldPath.exists():
                     logger.warning(f"Image {oldPath} does not exist!")
@@ -201,8 +248,8 @@ class ProjectContext(QObject):
                         logger.info(f"Skipping image {oldPath}")
                         continue
 
-                # this lambda is basically a custom version of loadNewImage, that passes in the data from the json.
-                # it's important that we "capture" the variables from the current loop iteration, via default vals
+                # This lambda is basically a custom version of loadNewImage, that passes in the data from the json.
+                # It's important that we "capture" the variables from the current loop iteration, via default vals
                 # because the lambda won't execute until later
                 self._imageLoadingService.loadImageData(
                     metadata.filePath,
@@ -222,31 +269,61 @@ class ProjectContext(QObject):
                 # If no ROI Manager in the data, create a new one
                 from core.data.roi_manager import ROIManager
                 self.roi_manager = ROIManager(self)
+            
+            return True
                 
         except Exception as e:
             logger.error(f"Project Load Aborted! Error: {e}")
-            # restore previous project state
+            # Restore previous project state
             self.currentProj = projectNameTemp
             self._images = imagesTemp
             if roi_manager_temp:
                 self.roi_manager = roi_manager_temp
+            return False
+    
     # Image Access
     def getImage(self, index) -> Image:
-        """Retrieve an image by index."""
+        """
+        Retrieve an image by index.
+        
+        Args:
+            index: The index of the image to retrieve.
+            
+        Returns:
+            Image: The requested image.
+            
+        Raises:
+            IndexError: If the index is out of range.
+        """
         return self._images[index]
 
+    @guard_signals
     def addImage(self, image: Image):
-        """Add a new image to the context."""
+        """
+        Add a new image to the context.
+        
+        Args:
+            image: The image to add.
+            
+        Returns:
+            int: The index of the added image.
+        """
         index = len(self._images)
-        image.metadata.name = (
-            f"Image {index}"  # Assign a unique name based on the index
-        )
+        image.metadata.name = f"Image {index}"  # Assign a unique name based on the index
         self._images.append(image)
         self._emitChange(index, self.ChangeType.IMAGE, self.ChangeModifier.ADD)
         return index
 
     def loadNewImage(self, path=None):
-        """Load an image from the given path."""
+        """
+        Load an image from the given path.
+        
+        Args:
+            path: Optional path to the image file. If None, a file dialog will be shown.
+            
+        Returns:
+            int: The index of the newly loaded image, or None if loading failed.
+        """
         self._imageLoadingService.loadImageData(path, self.createImage)
 
     def createImage(
@@ -259,9 +336,22 @@ class ProjectContext(QObject):
         plot: List[Plot] = None,
         ROIview: QWidget = None,
     ):
-        """Creates a new image with optional defaults for stretch, adding it to the
+        """
+        Creates a new image with optional defaults for stretch, adding it to the
         project. Unless we're loading from an existing project, a newly
-        loaded image usually won't have stretch and band data associated with it yet
+        loaded image usually won't have stretch and band data associated with it yet.
+        
+        Args:
+            raster: The image raster data.
+            metadata: The image metadata.
+            stretch: Optional list of stretch configurations.
+            band: Optional list of band configurations.
+            roi: Optional list of ROIs.
+            plot: Optional list of plots.
+            ROIview: Optional ROI view widget.
+            
+        Returns:
+            int: The index of the created image.
         """
         # If stretch is not provided, create default stretches
         if stretch is None:
@@ -271,7 +361,7 @@ class ProjectContext(QObject):
                 
                 # Only add a few basic presets if specifically requested
                 # This helps prevent recursion issues during initialization
-                if hasattr(self, '_generate_stretch_presets') and self._generate_stretch_presets:
+                if self._generate_stretch_presets:
                     # Import here to avoid circular import
                     from core.stretch.stretch_manager import StretchPresets
                     
@@ -288,30 +378,55 @@ class ProjectContext(QObject):
                 # Fallback to single default stretch
                 stretch = [Stretch.createDefault()]
         
-        # Continue with the rest of the method as before
+        # Ensure band configuration exists
+        if not band:
+            band = [Band.createDefault()]
+        
+        # Create the image
         image = Image(
             raster,
             metadata,
-            stretch if stretch else [Stretch.createDefault()],
-            band if band else [Band.createDefault()],
+            stretch,
+            band,
             roi if roi else [],
             plot if plot else [],
             ROIview if ROIview else None,
             len(self._images),
         )
+        
+        # Add validation warnings
         if len(image.stretch) == 0:
-            logger.warning("Image Stretch list is empty. this may cause errors.")
+            logger.warning("Image Stretch list is empty. This may cause errors.")
         if len(image.band) == 0:
-            logger.warning("Image Band list is empty. this may cause errors.")
+            logger.warning("Image Band list is empty. This may cause errors.")
+            
         return self.addImage(image)
 
+    @guard_signals
     def removeImage(self, index):
-        """Remove an image by index."""
+        """
+        Remove an image by index.
+        
+        Args:
+            index: The index of the image to remove.
+        """
+        # First remove all ROIs associated with this image
+        if hasattr(self, 'roi_manager'):
+            rois = self.roi_manager.get_rois_for_image(index)
+            for roi in rois:
+                self.roi_manager.remove_roi(roi.id)
+        
+        # Then remove the image
         self._images.pop(index)
         self._emitChange(index, self.ChangeType.IMAGE, self.ChangeModifier.REMOVE)
 
     def getAllImages(self):
-        """Retrieve a list of all the images in the project"""
+        """
+        Retrieve a list of all the images in the project.
+        
+        Returns:
+            List[Image]: List of all images.
+        """
         return self._images
 
     def getControlPanel(self, index, main_window):
@@ -320,6 +435,13 @@ class ProjectContext(QObject):
 
         If a control panel already exists for this image, return it.
         Otherwise, create a new one and store it.
+        
+        Args:
+            index: The image index.
+            main_window: The main window the control panel will be attached to.
+            
+        Returns:
+            ControlPanel: The control panel for the image.
         """
         from core.ui.controlpanel import ControlPanel
 
@@ -328,8 +450,16 @@ class ProjectContext(QObject):
         return self._controlPanels[index]
 
     # Metadata
+    @guard_signals
     def updateMetadata(self, index, key: str, value: Any):
-        """Update a metadata field."""
+        """
+        Update a metadata field.
+        
+        Args:
+            index: The image index.
+            key: The metadata key to update.
+            value: The new value.
+        """
         metadata = self._images[index].metadata
         if hasattr(metadata, f"_{key}"):
             setattr(metadata, f"_{key}", value)
@@ -338,19 +468,37 @@ class ProjectContext(QObject):
         self._emitChange(index, self.ChangeType.METADATA, self.ChangeModifier.UPDATE)
 
     # Stretch Management
+    @guard_signals
     def addStretch(self, index, stretch: Stretch = None):
-        """Add a stretch to an image. If no stretch is provided, use default. Returns index of the new stretch"""
+        """
+        Add a stretch to an image. If no stretch is provided, use default.
+        
+        Args:
+            index: The image index.
+            stretch: Optional stretch configuration to add.
+            
+        Returns:
+            int: The index of the new stretch.
+        """
         if stretch is None:
             stretch = Stretch.createDefault()
         self._images[index].stretch.append(stretch)
         self._emitChange(index, self.ChangeType.STRETCH, self.ChangeModifier.ADD)
         return len(self._images[index].stretch) - 1
 
+    @guard_signals
     def removeStretch(self, index, stretchIndex):
-        """Remove a stretch by index from an image."""
+        """
+        Remove a stretch by index from an image.
+        
+        Args:
+            index: The image index.
+            stretchIndex: The index of the stretch to remove.
+        """
         self._images[index].stretch.pop(stretchIndex)
         self._emitChange(index, self.ChangeType.STRETCH, self.ChangeModifier.REMOVE)
 
+    @guard_signals
     def updateStretch(
         self,
         imageIndex: int,
@@ -363,43 +511,71 @@ class ProjectContext(QObject):
         minB: float = None,
         maxB: float = None,
     ):
-        """Update the stretch parameters for a specific image and stretch index.
+        """
+        Update the stretch parameters for a specific image and stretch index.
 
         When calling this method, only include the arguments you want to change. The
-        rest will maintain their current values
+        rest will maintain their current values.
+        
+        Args:
+            imageIndex: The index of the image.
+            stretchIndex: The index of the stretch.
+            name: Optional new name for the stretch.
+            minR, maxR, minG, maxG, minB, maxB: Optional new stretch values.
         """
-        oldStretch = self.getImage(imageIndex).stretch[stretchIndex]
+        try:
+            oldStretch = self.getImage(imageIndex).stretch[stretchIndex]
 
-        # Create the updated Stretch using existing values as fallbacks
-        newStretch = Stretch(
-            name=name if name is not None else oldStretch.name,
-            minR=float(minR) if minR is not None else oldStretch.minR,
-            maxR=float(maxR) if maxR is not None else oldStretch.maxR,
-            minG=float(minG) if minG is not None else oldStretch.minG,
-            maxG=float(maxG) if maxG is not None else oldStretch.maxG,
-            minB=float(minB) if minB is not None else oldStretch.minB,
-            maxB=float(maxB) if maxB is not None else oldStretch.maxB,
-        )
-        # replace the Stretch
-        self._images[imageIndex].stretch[stretchIndex] = newStretch
-        self._emitChange(
-            imageIndex, self.ChangeType.STRETCH, self.ChangeModifier.UPDATE
-        )
+            # Create the updated Stretch using existing values as fallbacks
+            newStretch = Stretch(
+                name=name if name is not None else oldStretch.name,
+                minR=float(minR) if minR is not None else oldStretch.minR,
+                maxR=float(maxR) if maxR is not None else oldStretch.maxR,
+                minG=float(minG) if minG is not None else oldStretch.minG,
+                maxG=float(maxG) if maxG is not None else oldStretch.maxG,
+                minB=float(minB) if minB is not None else oldStretch.minB,
+                maxB=float(maxB) if maxB is not None else oldStretch.maxB,
+            )
+            # Replace the Stretch
+            self._images[imageIndex].stretch[stretchIndex] = newStretch
+            self._emitChange(
+                imageIndex, self.ChangeType.STRETCH, self.ChangeModifier.UPDATE
+            )
+        except Exception as e:
+            logger.error(f"Error updating stretch: {e}")
 
     # Band Management
+    @guard_signals
     def addBand(self, index, band: Band = None):
-        """Add a band to an image. If no band is provided, use default. Returns index of the new band"""
+        """
+        Add a band to an image. If no band is provided, use default.
+        
+        Args:
+            index: The image index.
+            band: Optional band configuration to add.
+            
+        Returns:
+            int: The index of the new band.
+        """
         if band is None:
             band = Band.createDefault()
         self._images[index].band.append(band)
         self._emitChange(index, self.ChangeType.BAND, self.ChangeModifier.ADD)
         return len(self._images[index].band) - 1
 
+    @guard_signals
     def removeBand(self, index, bandIndex):
-        """Remove a band by index from an image."""
+        """
+        Remove a band by index from an image.
+        
+        Args:
+            index: The image index.
+            bandIndex: The index of the band to remove.
+        """
         self._images[index].band.pop(bandIndex)
         self._emitChange(index, self.ChangeType.BAND, self.ChangeModifier.REMOVE)
 
+    @guard_signals
     def updateBand(
         self,
         index,
@@ -409,36 +585,299 @@ class ProjectContext(QObject):
         g: int = None,
         b: int = None,
     ):
-        """Update the band parameters for a specific image and band index.
+        """
+        Update the band parameters for a specific image and band index.
 
         When calling this method, only include the arguments you want to change. The
-        rest will maintain their current values
+        rest will maintain their current values.
+        
+        Args:
+            index: The image index.
+            bandIndex: The band index.
+            name: Optional new name for the band.
+            r, g, b: Optional new band values.
         """
-        image = self.getImage(index)
-        oldBand = image.band[bandIndex]
-        newBand = Band(
-            name=name if name else oldBand.name,
-            r=int(r) if r is not None else oldBand.r,
-            g=int(g) if g is not None else oldBand.g,
-            b=int(b) if b is not None else oldBand.b,
-        )
-        # Replace the band
-        self._images[index].band[bandIndex] = newBand
-        self._emitChange(index, self.ChangeType.BAND, self.ChangeModifier.UPDATE)
-        logger.debug(
-            f"Updated Band.\n"
-            f"  old: {oldBand.r}, {oldBand.g}, {oldBand.b}\n"
-            f"  new: {newBand.r}, {newBand.g}, {newBand.b}"
-        )
+        try:
+            image = self.getImage(index)
+            oldBand = image.band[bandIndex]
+            newBand = Band(
+                name=name if name else oldBand.name,
+                r=int(r) if r is not None else oldBand.r,
+                g=int(g) if g is not None else oldBand.g,
+                b=int(b) if b is not None else oldBand.b,
+            )
+            # Replace the band
+            self._images[index].band[bandIndex] = newBand
+            self._emitChange(index, self.ChangeType.BAND, self.ChangeModifier.UPDATE)
+            logger.debug(
+                f"Updated Band.\n"
+                f"  old: {oldBand.r}, {oldBand.g}, {oldBand.b}\n"
+                f"  new: {newBand.r}, {newBand.g}, {newBand.b}"
+            )
+        except Exception as e:
+            logger.error(f"Error updating band: {e}")
 
     # --------------------------------------------------------
     # ROI methods that delegate to ROI Manager
     # --------------------------------------------------------
+    
+    # New ROI Manager API methods
+    @guard_signals
+    def add_roi(self, roi, image_indices=None):
+        """
+        Add an ROI to the project.
+        
+        Args:
+            roi: The ROI to add.
+            image_indices: Optional list of image indices to associate with this ROI.
+            
+        Returns:
+            str: The ID of the added ROI.
+        """
+        roi_id = self.roi_manager.add_roi(roi, image_indices)
+        if roi_id and image_indices:
+            self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.ADD)
+        return roi_id
+
+    @guard_signals
+    def remove_roi(self, roi_id):
+        """
+        Remove an ROI from the project.
+        
+        Args:
+            roi_id: The ID of the ROI to remove.
+            
+        Returns:
+            bool: True if the ROI was removed, False otherwise.
+        """
+        roi = self.roi_manager.get_roi(roi_id)
+        image_indices = roi.image_indices if roi else []
+        result = self.roi_manager.remove_roi(roi_id)
+        if result and image_indices:
+            self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.REMOVE)
+        return result
+
+    @guard_signals
+    def update_roi(self, roi_id, **properties):
+        """
+        Update an ROI's properties.
+        
+        Args:
+            roi_id: The ID of the ROI to update.
+            **properties: The properties to update.
+            
+        Returns:
+            bool: True if the ROI was updated, False otherwise.
+        """
+        roi = self.roi_manager.get_roi(roi_id)
+        image_indices = roi.image_indices if roi else []
+        result = self.roi_manager.update_roi(roi_id, **properties)
+        if result and image_indices:
+            self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+        return result
+
+    def get_roi(self, roi_id):
+        """
+        Get an ROI by ID.
+        
+        Args:
+            roi_id: The ID of the ROI to get.
+            
+        Returns:
+            FreehandROI: The requested ROI, or None if not found.
+        """
+        return self.roi_manager.get_roi(roi_id)
+
+    def get_all_rois(self):
+        """
+        Get all ROIs in the project.
+        
+        Returns:
+            Dict[str, FreehandROI]: Dictionary of ROI IDs to ROI objects.
+        """
+        return self.roi_manager.get_all_rois()
+
+    def get_rois_for_image(self, image_index):
+        """
+        Get all ROIs associated with an image.
+        
+        Args:
+            image_index: The image index.
+            
+        Returns:
+            List[FreehandROI]: List of ROIs associated with the image.
+        """
+        return self.roi_manager.get_rois_for_image(image_index)
+
+    @guard_signals
+    def associate_roi_with_image(self, roi_id, image_index):
+        """
+        Associate an ROI with an image.
+        
+        Args:
+            roi_id: The ID of the ROI.
+            image_index: The image index.
+            
+        Returns:
+            bool: True if the association was created, False otherwise.
+        """
+        result = self.roi_manager.associate_roi_with_image(roi_id, image_index)
+        if result:
+            self._emitChange(image_index, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+        return result
+
+    @guard_signals
+    def dissociate_roi_from_image(self, roi_id, image_index):
+        """
+        Dissociate an ROI from an image.
+        
+        Args:
+            roi_id: The ID of the ROI.
+            image_index: The image index.
+            
+        Returns:
+            bool: True if the association was removed, False otherwise.
+        """
+        result = self.roi_manager.dissociate_roi_from_image(roi_id, image_index)
+        if result:
+            self._emitChange(image_index, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+        return result
+
+    # ROI Table Column methods
+    @guard_signals
+    def add_roi_column(self, name, data_type, formula=None):
+        """
+        Add a new column to the ROI table.
+        
+        Args:
+            name: Column name.
+            data_type: Column data type.
+            formula: Optional calculation formula.
+            
+        Returns:
+            ROITableColumn: The created column, or None if an error occurred.
+        """
+        column = self.roi_manager.add_column(name, data_type, formula)
+        if column:
+            # Signal that ROI table structure has changed
+            self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+        return column
+
+    @guard_signals
+    def remove_roi_column(self, name):
+        """
+        Remove a column from the ROI table.
+        
+        Args:
+            name: Column name.
+            
+        Returns:
+            bool: True if the column was removed, False otherwise.
+        """
+        result = self.roi_manager.remove_column(name)
+        if result:
+            # Signal that ROI table structure has changed
+            self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+        return result
+
+    @guard_signals
+    def update_roi_column(self, name, **properties):
+        """
+        Update a column's properties.
+        
+        Args:
+            name: Column name.
+            **properties: Properties to update.
+            
+        Returns:
+            bool: True if the column was updated, False otherwise.
+        """
+        result = self.roi_manager.update_column(name, **properties)
+        if result:
+            # Signal that ROI table structure has changed
+            self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+        return result
+
+    def get_roi_column(self, name):
+        """
+        Get a column by name.
+        
+        Args:
+            name: Column name.
+            
+        Returns:
+            ROITableColumn: The column, or None if not found.
+        """
+        return self.roi_manager.get_column(name)
+
+    def get_all_roi_columns(self):
+        """
+        Get all columns in the ROI table.
+        
+        Returns:
+            List[ROITableColumn]: List of all columns.
+        """
+        return self.roi_manager.get_all_columns()
+
+    @guard_signals
+    def calculate_roi_formulas(self):
+        """Calculate all formula columns."""
+        self.roi_manager.calculate_formula_columns()
+        # Signal that ROI data has changed
+        self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+
+    @guard_signals
+    def set_roi_custom_value(self, roi_id, column_name, value):
+        """
+        Set a custom value for an ROI.
+        
+        Args:
+            roi_id: The ID of the ROI.
+            column_name: The name of the column.
+            value: The value to set.
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        roi = self.roi_manager.get_roi(roi_id)
+        if roi:
+            roi.set_custom_value(column_name, value)
+            image_indices = roi.image_indices
+            if image_indices:
+                self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+            return True
+        return False
+
+    def get_roi_custom_value(self, roi_id, column_name, default=None):
+        """
+        Get a custom value for an ROI.
+        
+        Args:
+            roi_id: The ID of the ROI.
+            column_name: The name of the column.
+            default: Default value to return if the value is not found.
+            
+        Returns:
+            Any: The custom value, or the default if not found.
+        """
+        roi = self.roi_manager.get_roi(roi_id)
+        if roi:
+            return roi.get_custom_value(column_name, default)
+        return default
+
     # Legacy ROI methods - these are updated to use the new ROI Manager
+    @guard_signals
     def addROI(self, index, roi: Any):
         """
         Legacy method to add an ROI to an image.
         Now uses the ROI Manager.
+        
+        Args:
+            index: The image index.
+            roi: The ROI to add.
+            
+        Returns:
+            str or int: The ID of the added ROI, or its index for legacy ROIs.
         """
         # Handle both new-style FreehandROI and legacy ROIs
         if isinstance(roi, FreehandROI):
@@ -467,10 +906,18 @@ class ProjectContext(QObject):
                 self._emitChange(index, self.ChangeType.ROI, self.ChangeModifier.ADD)
                 return len(self._images[index].rois) - 1
 
+    @guard_signals
     def removeROI(self, index, roiIndex):
         """
         Legacy method to remove an ROI from an image.
         Now uses the ROI Manager.
+        
+        Args:
+            index: The image index.
+            roiIndex: The index of the ROI to remove.
+            
+        Returns:
+            bool: True if the ROI was removed, False otherwise.
         """
         try:
             # Try to handle as a new-style ROI first
@@ -491,6 +938,12 @@ class ProjectContext(QObject):
         """
         Legacy method to get ROIs for an image.
         Now uses the ROI Manager.
+        
+        Args:
+            index: The image index.
+            
+        Returns:
+            List[FreehandROI]: List of ROIs for the image.
         """
         try:
             # Try to get new-style ROIs first
@@ -503,125 +956,25 @@ class ProjectContext(QObject):
         except Exception as e:
             logger.error(f"Error in getROIs: {e}")
             return []
-        
-    def add_roi(self, roi, image_indices=None):
-        """Add an ROI to the project"""
-        roi_id = self.roi_manager.add_roi(roi, image_indices)
-        if roi_id:
-            self._emitChange(image_indices[0] if image_indices else 0, self.ChangeType.ROI, self.ChangeModifier.ADD)
-        return roi_id
-
-    def remove_roi(self, roi_id):
-        """Remove an ROI from the project"""
-        roi = self.roi_manager.get_roi(roi_id)
-        image_indices = roi.image_indices if roi else []
-        result = self.roi_manager.remove_roi(roi_id)
-        if result and image_indices:
-            self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.REMOVE)
-        return result
-
-    def update_roi(self, roi_id, **properties):
-        """Update an ROI's properties"""
-        roi = self.roi_manager.get_roi(roi_id)
-        image_indices = roi.image_indices if roi else []
-        result = self.roi_manager.update_roi(roi_id, **properties)
-        if result and image_indices:
-            self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.UPDATE)
-        return result
-
-    def get_roi(self, roi_id):
-        """Get an ROI by ID"""
-        return self.roi_manager.get_roi(roi_id)
-
-    def get_all_rois(self):
-        """Get all ROIs in the project"""
-        return self.roi_manager.get_all_rois()
-
-    def get_rois_for_image(self, image_index):
-        """Get all ROIs associated with an image"""
-        return self.roi_manager.get_rois_for_image(image_index)
-
-    def associate_roi_with_image(self, roi_id, image_index):
-        """Associate an ROI with an image"""
-        result = self.roi_manager.associate_roi_with_image(roi_id, image_index)
-        if result:
-            self._emitChange(image_index, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
-        return result
-
-    def dissociate_roi_from_image(self, roi_id, image_index):
-        """Dissociate an ROI from an image"""
-        result = self.roi_manager.dissociate_roi_from_image(roi_id, image_index)
-        if result:
-            self._emitChange(image_index, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
-        return result
-
-    # ROI Table Column methods
-    def add_roi_column(self, name, data_type, formula=None):
-        """Add a new column to the ROI table"""
-        column = self.roi_manager.add_column(name, data_type, formula)
-        if column:
-            # Signal that ROI table structure has changed
-            self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
-        return column
-
-    def remove_roi_column(self, name):
-        """Remove a column from the ROI table"""
-        result = self.roi_manager.remove_column(name)
-        if result:
-            # Signal that ROI table structure has changed
-            self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
-        return result
-
-    def update_roi_column(self, name, **properties):
-        """Update a column's properties"""
-        result = self.roi_manager.update_column(name, **properties)
-        if result:
-            # Signal that ROI table structure has changed
-            self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
-        return result
-
-    def get_roi_column(self, name):
-        """Get a column by name"""
-        return self.roi_manager.get_column(name)
-
-    def get_all_roi_columns(self):
-        """Get all columns in the ROI table"""
-        return self.roi_manager.get_all_columns()
-
-    def calculate_roi_formulas(self):
-        """Calculate all formula columns"""
-        self.roi_manager.calculate_formula_columns()
-        # Signal that ROI data has changed
-        self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
-
-    def set_roi_custom_value(self, roi_id, column_name, value):
-        """Set a custom value for an ROI"""
-        roi = self.roi_manager.get_roi(roi_id)
-        if roi:
-            roi.set_custom_value(column_name, value)
-            image_indices = roi.image_indices
-            if image_indices:
-                self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.UPDATE)
-            return True
-        return False
-
-    def get_roi_custom_value(self, roi_id, column_name, default=None):
-        """Get a custom value for an ROI"""
-        roi = self.roi_manager.get_roi(roi_id)
-        if roi:
-            return roi.get_custom_value(column_name, default)
-        return default
     
     # -------------------------------------------------------
     # metadata editor
     # -------------------------------------------------------
     def openMetadataEditor(self, index):
-        """Opens the metadata editor for the specified image."""
+        """
+        Opens the metadata editor for the specified image.
+        
+        Args:
+            index: The image index.
+            
+        Returns:
+            bool: True if the metadata was updated, False otherwise.
+        """
         from gui.widgets.metadata_editor import MetadataEditor
         
         if index < 0 or index >= len(self._images):
             logger.warning(f"Invalid image index for metadata editor: {index}")
-            return
+            return False
             
         editor = MetadataEditor(
             self._images[index].metadata,
@@ -641,43 +994,74 @@ class ProjectContext(QObject):
         
         return False
 
-    # TODO: add data param
+    @guard_signals
     def addPlot(self, roi):
         """
-        Save a new plot for the image at the given index.
+        Save a new plot for the image.
+        
+        Args:
+            roi: The ROI to create a plot from.
         """
         plot = Plot.create(roi)
         self._images[roi.image_indices[0]].plots.append(plot)
-        self.sigDataChanged.emit(roi.image_indices[0], self.ChangeType.PLOT)
+        self._emitChange(roi.image_indices[0], self.ChangeType.PLOT, self.ChangeModifier.ADD)
 
     def getPlots(self, index):
-        """Retrieve all saved plots for an image."""
+        """
+        Retrieve all saved plots for an image.
+        
+        Args:
+            index: The image index.
+            
+        Returns:
+            List[Plot]: List of plots for the image.
+        """
         if index not in range(len(self._images)):
             return []
         return self._images[index].plots
 
+    @guard_signals
     def setROIView(self, index, view: QObject):
         """
-        Retrieve or create the ROI Table for a given image.
+        Set the ROI Table for a given image.
         Ensures each image has only one ROI Table open at a time.
+        
+        Args:
+            index: The image index.
+            view: The ROI view to set.
+            
+        Returns:
+            QObject: The ROI view.
         """
         if self._images[index].ROIview is None:
             self._images[index].ROIview = view
+            self._emitChange(index, self.ChangeType.ROIView, self.ChangeModifier.UPDATE)
 
         return self._images[index].ROIview
 
     # Helper methods
-    def _emitChange(self, index, changeType, changeModifier):
+    def _emitChange(self, index, changeType, changeModifier=None):
+        """
+        Emit a data change signal.
+        
+        Args:
+            index: The index of the changed item.
+            changeType: The type of change.
+            changeModifier: Optional modifier for the change.
+        """
         self.isSaved = False
 
-        # to support existing code which expects 2 arguments, we simply emit both versions of the signal
-        self.sigDataChanged[int, self.ChangeType, self.ChangeModifier].emit(
-            index, changeType, changeModifier
-        )
+        # To support existing code which expects 2 arguments, we simply emit both versions of the signal
+        if changeModifier is not None:
+            self.sigDataChanged[int, self.ChangeType, self.ChangeModifier].emit(
+                index, changeType, changeModifier
+            )
         self.sigDataChanged[int, self.ChangeType].emit(index, changeType)
 
 
 class FileInputDialog(QDialog):
+    """Dialog for requesting a file path from the user."""
+    
     def __init__(
         self, message="Select a file:", defaultPath="", fileFilter=None, parent=None
     ):
@@ -714,6 +1098,15 @@ class FileInputDialog(QDialog):
     ):
         """
         Static method to show the dialog and return the selected file path.
+        
+        Args:
+            message: The message to display.
+            default_path: The default path to show.
+            fileFilter: Optional filter for file types.
+            parent: Optional parent widget.
+            
+        Returns:
+            str: The selected file path, or None if canceled.
         """
         dialog = FileInputDialog(message, default_path, fileFilter, parent)
         if dialog.exec():

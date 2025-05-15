@@ -5,36 +5,41 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def guard_signals(method):
-    """Decorator to prevent recursive signal handling.
+def guard_signals(force_critical=False):
+    """Decorator to prevent recursive signal handling with option to force critical updates.
     
-    This decorator automatically handles preventing recursive signal updates
-    by setting a '_handling_change' flag on the object instance. Use it
-    on methods that update UI elements in response to signals.
-    
-    Example:
-        @guard_signals
-        def _handleDataChanged(self, index, changeType):
-            # Update UI elements...
+    Args:
+        force_critical: If True, allows certain critical signals to propagate despite recursion
     """
-    @functools.wraps(method)
-    def wrapper(self, *args, **kwargs):
-        # Check if we're already handling a change
-        if getattr(self, '_handling_change', False):
-            logger.debug(f"Prevented recursive call to {method.__name__}")
-            return None
-            
-        # Set the flag before handling
-        setattr(self, '_handling_change', True)
-        try:
-            # Call the original method
-            result = method(self, *args, **kwargs)
-            return result
-        finally:
-            # Always reset the flag, even if an exception occurs
-            setattr(self, '_handling_change', False)
-            
-    return wrapper
+    def decorator(method):
+        @functools.wraps(method)
+        def wrapper(self, *args, **kwargs):
+            # Check if we're already handling a change
+            if getattr(self, '_handling_change', False) and not force_critical:
+                logger.debug(f"Prevented recursive call to {method.__name__}")
+                return None
+                
+            # Set the flag before handling
+            prev_state = getattr(self, '_handling_change', False)
+            setattr(self, '_handling_change', True)
+            try:
+                # Call the original method
+                result = method(self, *args, **kwargs)
+                return result
+            finally:
+                # Always reset the flag, even if an exception occurs
+                setattr(self, '_handling_change', prev_state)
+        return wrapper
+    
+    # Handle both @guard_signals and @guard_signals(force_critical=True) syntax
+    if callable(force_critical):
+        # Used as @guard_signals without parameters
+        method = force_critical
+        force_critical = False
+        return decorator(method)
+    else:
+        # Used as @guard_signals(force_critical=...)
+        return decorator
 
 class SignalBlocker:
     """Context manager to temporarily block signal handling.
