@@ -1,3 +1,5 @@
+# src/features/image_view_stretch/stretch_view.py
+
 """
 This module contains the ImageBasicStretchEditor class,
 which is a custom widget that allows the user to edit the stretch.
@@ -19,9 +21,11 @@ from PyQt6.QtCore import Qt
 # local imports
 from .stretch_viewmodel import StretchViewModel
 from ..shared.selection_controls import StretchSelector
+from core.utilities.signal_utils import SignalBlocker, guard_signals
+from features.shared.base_view import BaseView
 
 
-class StretchView(QWidget):
+class StretchView(BaseView):
     """A custom widget that allows the user to view and edit stretch configurations.
 
     I'm going to skip having detailed documentation here because this will probably be
@@ -37,18 +41,15 @@ class StretchView(QWidget):
     stretchSelector: StretchSelector
 
     def __init__(self, viewModel: StretchViewModel, parent):
-        super().__init__(parent=parent)
-        self.viewModel = viewModel
-        self._handling_change = False
+        super().__init__(viewModel, parent)
+        self.setWindowTitle("Stretch Editor")
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint)
 
         self.initUI()
         self.connectSignals()
         self.show()
 
     def initUI(self):
-        self.setWindowTitle("Stretch Editor")
-        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint)
-
         layout = QVBoxLayout(self)
 
         rLayout, self.minRInput, self.maxRInput = self.setupStretchLayout("Red", 0, 1)
@@ -88,6 +89,7 @@ class StretchView(QWidget):
         self.maxBInput.valueChanged.connect(self.updateStretch)
 
     def updateStretch(self):
+        """Update the stretch configuration in the ViewModel."""
         self.viewModel.updateStretch(
             self.minRInput.value(),
             self.maxRInput.value(),
@@ -97,18 +99,32 @@ class StretchView(QWidget):
             self.maxBInput.value(),
         )
 
+    @guard_signals
     def onStretchChanged(self):
-        if self._handling_change:
-            return
-            
-        self._handling_change = True
-        try:
-            stretch = self.viewModel.getSelectedStretch()
-            self.minRInput.setValue(stretch.minR)
-            self.maxRInput.setValue(stretch.maxR)
-            self.minGInput.setValue(stretch.minG)
-            self.maxGInput.setValue(stretch.maxG)
-            self.minBInput.setValue(stretch.minB)
-            self.maxBInput.setValue(stretch.maxB)
-        finally:
-            self._handling_change = False
+        """Handle stretch changes from the ViewModel.
+        
+        This method updates the UI with new stretch values.
+        The @guard_signals decorator prevents recursive updates when
+        the UI change triggers valueChanged signals.
+        """
+        stretch = self.viewModel.getSelectedStretch()
+        self.minRInput.setValue(stretch.minR)
+        self.maxRInput.setValue(stretch.maxR)
+        self.minGInput.setValue(stretch.minG)
+        self.maxGInput.setValue(stretch.maxG)
+        self.minBInput.setValue(stretch.minB)
+        self.maxBInput.setValue(stretch.maxB)
+
+    def updateMultipleValues(self, values):
+        """Example method showing how to use SignalBlocker for multiple UI updates."""
+        # This prevents UI updates from triggering more signal handling
+        with SignalBlocker(self):
+            self.minRInput.setValue(values[0])
+            self.maxRInput.setValue(values[1])
+            self.minGInput.setValue(values[2])
+            self.maxGInput.setValue(values[3])
+            self.minBInput.setValue(values[4])
+            self.maxBInput.setValue(values[5])
+        
+        # Now that all values are updated, we can refresh the UI once
+        # This would typically call some method to update the display

@@ -5,6 +5,7 @@
 # third party imports
 from PyQt6.QtCore import QObject, pyqtSignal
 from core.data import ProjectContext
+from core.utilities.signal_utils import guard_signals
 
 # local imports
 
@@ -49,9 +50,13 @@ class StretchViewModel(QObject):
             maxB=maxB,
         )
 
-    def _handleDataChanged(self, index, changeType):
+    @guard_signals
+    def _handleDataChanged(self, index, changeType, changeModifier=None):
         if index != self.index:
             return
         if changeType != ProjectContext.ChangeType.STRETCH:
             return
+            
+        # guarded signal
+        stretch = self.getSelectedStretch()
         self.sigStretchChanged.emit()

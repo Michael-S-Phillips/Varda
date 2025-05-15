@@ -1,7 +1,10 @@
+# src/core/utilities/load_image/loaders/abstractimageloader.py
+
 # standard library
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict, Type
 import logging
+from pathlib import Path
 
 # third party imports
 import numpy as np
@@ -11,6 +14,8 @@ from core.entities.metadata import Metadata
 
 logger = logging.getLogger(__name__)
 
+# Registry of loaders
+LOADER_REGISTRY: Dict[str, Type['AbstractImageLoader']] = {}
 
 class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
     """
@@ -22,6 +27,7 @@ class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
 
     # dictionary of all subclasses of AbstractImageLoader, mapped to their associated keyword
     subclasses = []
+    imageType = ()  # Should be overridden by subclasses
 
     def __init_subclass__(cls, **kwargs):
         """
@@ -30,6 +36,12 @@ class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
         super().__init_subclass__(**kwargs)
         logger.info(f"Adding {cls.__name__} to subclasses")
         AbstractImageLoader.subclasses.append(cls)
+        
+        # Register the loader for its supported types
+        if hasattr(cls, 'imageType'):
+            for ext in cls.imageType:
+                if isinstance(ext, str):
+                    LOADER_REGISTRY[ext.lower()] = cls
 
     def __init__(self):
         self._filePath = None
@@ -55,7 +67,8 @@ class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
         self._loadErrors = []
 
         try:
-            self._rasterData = self.loadRasterData(self._filePath) #self.loading_mode
+            load_mode = getattr(self, 'loading_mode', 'full')
+            self._rasterData = self.loadRasterData(self._filePath, loading_mode=load_mode)
         except Exception as e:
             logger.error(f"Failed to load raster data: {e}")
             raise ValueError(f"Failed to load raster data: {e}")
@@ -103,10 +116,72 @@ class AbstractImageLoader(ABC):  # pylint: disable=too-few-public-methods
 
     @staticmethod
     @abstractmethod
-    def loadRasterData(filePath) -> np.ndarray:
+    def loadRasterData(filePath, loading_mode='full') -> np.ndarray:
         pass
 
     @staticmethod
     @abstractmethod
     def loadMetadata(raster, filePath) -> Metadata:
         pass
+    
+    @classmethod
+    def get_loader_for_file(cls, file_path: str) -> 'AbstractImageLoader':
+        """Get the appropriate loader for a given file path.
+        
+        Args:
+            file_path: Path to the image file
+            
+        Returns:
+            An instance of the appropriate loader
+            
+        Raises:
+            ValueError: If no suitable loader is found
+        """
+        ext = Path(file_path).suffix.lower()
+        
+        # Try exact match with registered extensions
+        if ext in LOADER_REGISTRY:
+            return LOADER_REGISTRY[ext]()
+            
+        # Fall back to trying content-based detection
+        try:
+            import magic
+            file_mime = magic.from_file(file_path, mime=True)
+            
+            # Map mime types to potential loaders
+            from importlib import import_module
+            
+            # Map common mime types to loaders
+            mime_map = {
+                'image/tiff': 'tiffimageloader.TIFFImageLoader',
+                'image/jpeg': 'pillowimageloader.PillowImageLoader',
+                'image/png': 'pillowimageloader.PillowImageLoader',
+                'image/bmp': 'pillowimageloader.PillowImageLoader',
+                'image/gif': 'pillowimageloader.PillowImageLoader',
+                'application/x-hdf': 'hdf5imageloader.HDF5ImageLoader'
+            }
+            
+            if file_mime in mime_map:
+                module_path, class_name = mime_map[file_mime].split('.')
+                # Import the module and get the class
+                try:
+                    module = import_module(f'core.utilities.load_image.loaders.{module_path}')
+                    loader_class = getattr(module, class_name)
+                    return loader_class()
+                except (ImportError, AttributeError) as e:
+                    logger.warning(f"Could not import loader for {file_mime}: {e}")
+        except ImportError:
+            logger.warning("python-magic not available, using extension-based detection only")
+        except Exception as e:
+            logger.warning(f"Error during content-based detection: {e}")
+        
+        # Last resort: try each loader's static method to see if it works
+        for loader_class in cls.subclasses:
+            try:
+                # Just try to read a tiny bit to see if it works
+                loader_class.loadRasterData(file_path, loading_mode='preview')
+                return loader_class()
+            except Exception:
+                continue
+                
+        raise ValueError(f"Unsupported file type: {ext}")

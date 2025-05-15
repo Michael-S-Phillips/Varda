@@ -1,19 +1,23 @@
 # src/core/utilities/load_image/loaders/__init__.py
-from os import listdir
-from os.path import dirname, basename
+from .abstractimageloader import AbstractImageLoader, LOADER_REGISTRY
+
+# Importing all loader implementations so they register themselves
 from .enviimageloader import ENVIImageLoader
-from .hdf5imageloader import HDF5ImageLoader
 from .tiffimageloader import TIFFImageLoader
+from .hdf5imageloader import HDF5ImageLoader
 from .pillowimageloader import PillowImageLoader
-from .abstractimageloader import AbstractImageLoader
 
-# This dynamically imports all the modules in this package. ty StackOverflow
+# Re-export the get_loader_for_file function
+from .abstractimageloader import AbstractImageLoader as _AbstractImageLoader
+get_loader_for_file = _AbstractImageLoader.get_loader_for_file
+
+# Export key names
 __all__ = [
-    basename(f)[:-3]
-    for f in listdir(dirname(__file__))
-    if f[-3:] == ".py"
-    and not f.endswith("__init__.py")
-    and not f.endswith("abstractimageloader.py")
+    'AbstractImageLoader',
+    'ENVIImageLoader',
+    'TIFFImageLoader',
+    'HDF5ImageLoader',
+    'PillowImageLoader',
+    'get_loader_for_file',
+    'LOADER_REGISTRY'
 ]
-
-print("imageloaders __init__.py: ", __all__)

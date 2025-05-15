@@ -1,3 +1,5 @@
+# src/features/image_view_histogram/histogram_view.py
+
 # standard library
 import logging
 # third-party imports
@@ -11,6 +13,8 @@ from pyqtgraph import HistogramLUTItem
 from features.shared.selection_controls import StretchSelector, BandSelector
 from .histogram_viewmodel import HistogramViewModel
 from core.stretch.stretch_manager import StretchPresets
+from features.shared.base_view import BaseView
+from core.utilities.signal_utils import guard_signals, SignalBlocker
 
 logger = logging.getLogger(__name__)
 
@@ -57,13 +61,12 @@ class DualHistogram(QWidget):
         mn, mx = self.histogram.item.getLevels()
         self.histogramZoomed.item.setHistogramRange(mn, mx)
 
-class HistogramView(QWidget):
+class HistogramView(BaseView):
     """A basic view for editing band configurations of an image with selectable RGB histograms."""
 
     def __init__(self, viewModel: HistogramViewModel = None, parent=None):
-        super().__init__(parent)
+        super().__init__(viewModel, parent)
         self.setWindowTitle("Histogram")
-        self.viewModel = viewModel
 
         # To link the histograms to the image, we use an ImageItem.
         # This is just to leverage the existing functionality of the HistogramLUTWidget.
@@ -72,9 +75,8 @@ class HistogramView(QWidget):
         self.imageItemB = pg.ImageItem()
         self._updateImageItems()
 
-        self._updatingHistograms = False
         self._initUI()
-        self._connectSignals()
+        self.connectViewModelSignals()
         
     def _initUI(self):
         self.tabWidget = QTabWidget()
@@ -114,7 +116,8 @@ class HistogramView(QWidget):
         layout.addWidget(self.tabWidget)
         self.setLayout(layout)
 
-    def _connectSignals(self):
+    def connectViewModelSignals(self):
+        """Connect to signals from the ViewModel."""
         self.viewModel.sigBandChanged.connect(self._onBandChanged)
         self.viewModel.sigStretchChanged.connect(self._onStretchChanged)
 
@@ -123,6 +126,7 @@ class HistogramView(QWidget):
         self.histogramB.histogram.item.sigLevelsChanged.connect(self._onHistogramLevelsChanged)
 
     def _updateImageItems(self):
+        """Update the image items with current raster data."""
         data = self.viewModel.getRasterFromBand()
         self.imageItemR.setImage(data[:, :, 0], autoLevels=False)
         self.imageItemG.setImage(data[:, :, 1], autoLevels=False)
@@ -158,25 +162,46 @@ class HistogramView(QWidget):
                 QMessageBox.StandardButton.Ok
             )
 
-    @pyqtSlot()
+    @guard_signals
     def _onHistogramLevelsChanged(self):
-        if self._updatingHistograms:
-            return
+        """Handle changes to histogram levels.
+        
+        Updates the stretch parameters in the ViewModel based on 
+        the current histogram levels. Protected against recursive
+        updates by the guard_signals decorator.
+        """
         minR, maxR = self.histogramR.histogram.item.getLevels()
         minG, maxG = self.histogramG.histogram.item.getLevels()
         minB, maxB = self.histogramB.histogram.item.getLevels()
 
         self.viewModel.updateStretch(minR=minR, maxR=maxR, minG=minG, maxG=maxG, minB=minB, maxB=maxB)
 
-    @pyqtSlot()
     def _onBandChanged(self):
+        """Handle band changes by updating image items."""
         self._updateImageItems()
 
-    @pyqtSlot(float, float, float, float, float, float)
+    @guard_signals
     def _onStretchChanged(self, minR, maxR, minG, maxG, minB, maxB):
-
-        self._updatingHistograms = True
-        self.histogramR.histogram.item.setLevels(minR, maxR)
-        self.histogramG.histogram.item.setLevels(minG, maxG)
-        self.histogramB.histogram.item.setLevels(minB, maxB)
-        self._updatingHistograms = False
+        """Handle stretch changes by updating histogram levels.
+        
+        Protected against recursive updates by the guard_signals decorator.
+        """
+        # Update all histogram levels at once using SignalBlocker
+        with SignalBlocker(self):
+            self.histogramR.histogram.item.setLevels(minR, maxR)
+            self.histogramG.histogram.item.setLevels(minG, maxG)
+            self.histogramB.histogram.item.setLevels(minB, maxB)
+    
+    def updateUI(self):
+        """Update the UI based on the current ViewModel state."""
+        # Get current stretch values
+        stretch = self.viewModel.getSelectedStretch()
+        
+        # Use SignalBlocker to prevent recursive updates
+        with SignalBlocker(self):
+            self.histogramR.histogram.item.setLevels(stretch.minR, stretch.maxR)
+            self.histogramG.histogram.item.setLevels(stretch.minG, stretch.maxG)
+            self.histogramB.histogram.item.setLevels(stretch.minB, stretch.maxB)
+            
+        # Update image data
+        self._updateImageItems()

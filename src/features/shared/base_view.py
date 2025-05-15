@@ -1,4 +1,4 @@
-# src/features/shared/base_view.py (new file)
+# src/features/shared/base_view.py
 
 from PyQt6.QtWidgets import QWidget
 import logging
@@ -31,3 +31,13 @@ class BaseView(QWidget):
     def updateUI(self):
         """Update UI from ViewModel state - override in subclasses."""
         pass
+    
+    def showEvent(self, event):
+        """Handle show event - update UI when view becomes visible."""
+        super().showEvent(event)
+        self.updateUI()
+    
+    def closeEvent(self, event):
+        """Handle close event - perform cleanup when view is closed."""
+        # Override in subclasses for specific cleanup
+        super().closeEvent(event)

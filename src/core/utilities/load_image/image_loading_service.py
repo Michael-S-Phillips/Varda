@@ -445,10 +445,19 @@ class ImageLoadingService:
         Raises:
             ValueError: If the file type is not supported
         """
+        from core.utilities.load_image.loaders import (
+            AbstractImageLoader, LOADER_REGISTRY, 
+            TIFFImageLoader, PillowImageLoader, HDF5ImageLoader
+        )
+        
         image_path = Path(filePath)
         file_extension = image_path.suffix.lower()
         
-        # First try exact match with extensions
+        # First check the registry for a direct extension match
+        if file_extension in LOADER_REGISTRY:
+            return LOADER_REGISTRY[file_extension]()
+        
+        # Then try checking all registered loader types
         for loader_class in AbstractImageLoader.subclasses:
             loaderTypes = loader_class.imageType
             if isinstance(loaderTypes, str):
@@ -491,6 +500,17 @@ class ImageLoadingService:
                 pass
         except ImportError:
             logger.warning("PIL not available for fallback detection")
+        
+        # Last resort: try each loader's static method to see if it works
+        for loader_class in AbstractImageLoader.subclasses:
+            try:
+                # Just try to read a tiny bit to see if it works
+                test_mode = getattr(loader_class, 'supports_preview', False)
+                if test_mode:
+                    loader_class.loadRasterData(filePath, loading_mode='preview')
+                    return loader_class()
+            except Exception:
+                continue
         
         raise ValueError(f"Unsupported file type: {file_extension}")
 

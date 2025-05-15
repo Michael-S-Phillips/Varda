@@ -1,12 +1,12 @@
-# src/core/roi/roi_manager.py (new consolidated file)
+# src/core/roi/roi_manager.py
 
-from typing import List, Dict, Optional, Any, Set
+from typing import List, Dict, Tuple, Optional, Any, Set
 import uuid
 import numpy as np
+from datetime import datetime
 import logging
-from PyQt6.QtCore import QObject, pyqtSignal
 
-from core.entities.freehandROI import FreehandROI
+from core.entities.freehandROI import FreehandROI, ROICustomData
 
 logger = logging.getLogger(__name__)
 
@@ -56,23 +56,46 @@ class ROITableColumn:
         column.options = data.get("options", [])
         return column
 
-class ROIManager(QObject):
-    """Unified manager for all ROI operations across the application."""
-    
-    # Signals
-    roiAdded = pyqtSignal(str)       # Emitted when an ROI is added (passes ROI ID)
-    roiRemoved = pyqtSignal(str)     # Emitted when an ROI is removed (passes ROI ID)
-    roiUpdated = pyqtSignal(str)     # Emitted when an ROI is updated (passes ROI ID)
-    roiVisibilityChanged = pyqtSignal(str, bool)  # Emits ROI ID and visibility status
+
+class ROIManager:
+    """Manages regions of interest (ROIs) across all images"""
     
     def __init__(self, project_context):
-        super().__init__()
+        """
+        Initialize the ROI manager
+        
+        Args:
+            project_context: The ProjectContext this manager belongs to
+        """
         self.proj = project_context
         self.rois: Dict[str, FreehandROI] = {}  # Dictionary of ROI ID to ROI object
         self.image_roi_map: Dict[int, List[str]] = {}  # Map of image index to list of ROI IDs
         
+        # Initialize columns
+        self.columns: List[ROITableColumn] = []
+        self.default_columns = [
+            ROITableColumn("ID", "text", visible=True),
+            ROITableColumn("Name", "text", visible=True),
+            ROITableColumn("Color", "color", visible=True),
+            ROITableColumn("Images", "text", visible=True),
+            ROITableColumn("Points", "number", visible=True),
+            ROITableColumn("Description", "text", visible=True)
+        ]
+        self.columns.extend(self.default_columns)
+        
+        logger.info("ROI Manager initialized")
+    
     def add_roi(self, roi: FreehandROI, image_indices: Optional[List[int]] = None) -> str:
-        """Add an ROI and associate it with specified images."""
+        """
+        Add an ROI to the manager
+        
+        Args:
+            roi: The ROI to add
+            image_indices: List of image indices to associate with this ROI
+            
+        Returns:
+            The ID of the ROI
+        """
         if not isinstance(roi, FreehandROI):
             logger.warning(f"Invalid ROI type: {type(roi).__name__}")
             return None
@@ -90,12 +113,9 @@ class ROIManager(QObject):
                 self.associate_roi_with_image(roi.id, idx)
                 roi.add_image_index(idx)
         
-        # Emit signal
-        self.roiAdded.emit(roi.id)
-        
         logger.info(f"Added ROI {roi.id} to manager")
         return roi.id
-        
+    
     def remove_roi(self, roi_id: str) -> bool:
         """
         Remove an ROI from the manager
