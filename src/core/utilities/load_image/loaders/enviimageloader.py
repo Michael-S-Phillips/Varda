@@ -37,7 +37,6 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
         Returns:
             np.ndarray: The raster data
         """
-    def loadRasterData(filePath, loading_mode='full') -> np.ndarray:
         path = filePath.replace(".hdr", ".img")
         timeStarted = time.time()
 
