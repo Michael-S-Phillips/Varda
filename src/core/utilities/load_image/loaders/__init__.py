@@ -9,7 +9,6 @@ from .pillowimageloader import PillowImageLoader
 
 # Re-export the get_loader_for_file function
 from .abstractimageloader import AbstractImageLoader as _AbstractImageLoader
-get_loader_for_file = _AbstractImageLoader.get_loader_for_file
 
 # Export key names
 __all__ = [
@@ -18,6 +17,5 @@ __all__ = [
     'TIFFImageLoader',
     'HDF5ImageLoader',
     'PillowImageLoader',
-    'get_loader_for_file',
     'LOADER_REGISTRY'
 ]

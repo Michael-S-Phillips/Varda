@@ -35,6 +35,14 @@ def initLogging():
 
     logFolder = "../logs"
     os.makedirs(logFolder, exist_ok=True)
+
+    # Limit the number of log files
+    max_logs = 10
+    log_files = sorted(Path(logFolder).glob("Varda.log.*"), key=os.path.getmtime)
+    while len(log_files) >= max_logs:
+        log_files[0].unlink()  # Delete the oldest log file
+        log_files.pop(0)
+
     logTime = datetime.now().strftime("%Y-%m-%d_%I-%M-%S-%p")
     logName = Path(f"{logFolder}/Varda.log.{logTime}")
     logging.basicConfig(

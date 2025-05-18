@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog, QApplicat
 from core.entities import Metadata
 
 # local imports
-from core.utilities.load_image.loaders import AbstractImageLoader, PillowImageLoader, TIFFImageLoader, HDF5ImageLoader
+from core.utilities.load_image.loaders import LOADER_REGISTRY, AbstractImageLoader, PillowImageLoader, TIFFImageLoader, HDF5ImageLoader
 
 
 logger = logging.getLogger(__name__)
@@ -49,46 +49,6 @@ class ImageLoadingService:
             return os.path.getsize(filePath) / (1024 * 1024)  # Convert to MB
         except:
             return 0
-
-    # Modify the loadImageData method to adjust timeout based on file size
-    def loadImageData(self, filePath=None, onSuccessCallback=None, onFailureCallback=None):
-        """Loads a new image and adds it to the project.
-
-        If filePath is None, prompts the user to select a file using a file dialog.
-        Calls onSuccessCallback after the image is loaded.
-        onSuccessCallback should accept two arguments: the array of raster data, and a Metadata Object.
-        
-        Args:
-            filePath: Path to the image file. If None, prompts user to select a file.
-            onSuccessCallback: Function to call on successful load, receives (raster, metadata).
-            onFailureCallback: Function to call on load failure, receives error message.
-            
-        Returns:
-            (raster, metadata): Data from the image file, or None if loading fails
-        """
-        if filePath is None:
-            filePath = self._requestFilePath()
-            if filePath is None:
-                # if user closed file dialog without selecting a file.
-                logger.info("No file path provided.")
-                return
-        
-        # Check file size and adjust timeout
-        file_size_mb = self._getFileSize(filePath)
-        timeout_ms = self.loadTimeoutMs
-        if file_size_mb > self.largeFileThresholdMB:
-            timeout_ms = self.largeFileTimeoutMs
-            logger.info(f"Large file detected ({file_size_mb:.2f} MB), using extended timeout")
-        
-        try:
-            loader = self._getLoader(filePath)
-            self._createNewLoadProcess(loader, filePath, onSuccessCallback, onFailureCallback, timeout_ms)
-        except ValueError as e:
-            logger.error(f"Error loading image: {e}")
-            if onFailureCallback:
-                onFailureCallback(str(e))
-            else:
-                self._showErrorMessage(f"Error loading image: {e}")
 
     def loadImageData(self, filePath=None, onSuccessCallback=None, onFailureCallback=None):
         """Loads a new image and adds it to the project.
@@ -123,7 +83,6 @@ class ImageLoadingService:
             
             # Show progress dialog for large files
             progress_dialog = self._showLargeFileLoadingDialog(filePath, timeout_ms)
-        
         try:
             loader = self._getLoader(filePath)
             
@@ -146,6 +105,8 @@ class ImageLoadingService:
                     self._showErrorMessage(error_msg)
             
             self._createNewLoadProcess(loader, filePath, success_with_dialog, failure_with_dialog, timeout_ms)
+            progress_dialog.exec() # Show the progress dialog and wait for it to finish
+
         except ValueError as e:
             if progress_dialog:
                 progress_dialog.close()
@@ -201,13 +162,8 @@ class ImageLoadingService:
     def getImageTypeFilter():
         """Returns a list of file filters for the image file dialog."""
         filters = "Image File ("
-        for loader in AbstractImageLoader.subclasses:
-            for imageType in loader.imageType:
-                if isinstance(imageType, str):
-                    filters += f"*{imageType} "
-                elif isinstance(imageType, tuple):
-                    for imgType in imageType:
-                        filters += f"*{imgType} "
+        for extension in LOADER_REGISTRY.keys():
+             filters += f"*{extension} "
         filters = filters.strip() + ")"
         return filters
 
@@ -342,7 +298,7 @@ class ImageLoadingService:
     
     def _showLargeFileLoadingDialog(self, filePath, timeout_ms):
         """Show a dialog with progress information for large files"""
-        
+        logger.info(f"Showing large file loading dialog for {filePath}")
         file_name = os.path.basename(filePath)
         file_size_mb = self._getFileSize(filePath)
         
@@ -370,7 +326,6 @@ class ImageLoadingService:
             f"{file_name}\n\n"
             f"This may take up to {estimated_seconds:.0f} seconds for large files."
         )
-        
         return dialog
     
     def _showErrorMessage(self, message):
@@ -445,10 +400,6 @@ class ImageLoadingService:
         Raises:
             ValueError: If the file type is not supported
         """
-        from core.utilities.load_image.loaders import (
-            AbstractImageLoader, LOADER_REGISTRY, 
-            TIFFImageLoader, PillowImageLoader, HDF5ImageLoader
-        )
         
         image_path = Path(filePath)
         file_extension = image_path.suffix.lower()
@@ -456,16 +407,11 @@ class ImageLoadingService:
         # First check the registry for a direct extension match
         if file_extension in LOADER_REGISTRY:
             return LOADER_REGISTRY[file_extension]()
-        
-        # Then try checking all registered loader types
-        for loader_class in AbstractImageLoader.subclasses:
-            loaderTypes = loader_class.imageType
-            if isinstance(loaderTypes, str):
-                loaderTypes = [loaderTypes]
-            
-            if any(file_extension == t.lower() for t in loaderTypes):
-                return loader_class()
-        
+        logger.warning(f"Could not find match in loader registry for {file_extension}")
+
+        # NOTE: under normal circumstances, the below code will never run
+        # since the user isn't allowed to select a file extension that isn't already in the registry
+
         # If no exact match, try content-based detection for common formats
         try:
             import magic
