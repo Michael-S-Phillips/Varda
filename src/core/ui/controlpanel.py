@@ -9,7 +9,7 @@ import csv
 
 from features.image_view_band import BandManager
 from features.image_view_stretch import StretchManager, getStretchView
-from gui.widgets.PixelPlotWidget import PixelPlotWidget
+from gui.widgets.pixel_plot_widget import PixelPlotWidget
 
 class ControlPanel(QMainWindow):
     """

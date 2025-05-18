@@ -25,7 +25,7 @@ import spectral
 
 # local imports
 from . import ROIWindow
-from .statusbar import StatusBar
+from .status_bar import StatusBar
 
 logger = logging.getLogger(__name__)
 

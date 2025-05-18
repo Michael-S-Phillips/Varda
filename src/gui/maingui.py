@@ -2,14 +2,16 @@ from pathlib import Path
 import logging
 import sys
 import asyncio
+from typing import Dict
 
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QObject
 from qasync import QEventLoop, QApplication
 
 from core.data import ProjectContext
 from core.ui import ControlPanel
+from features.image_view_raster.raster_view import RasterView
 from gui.widgets import StatusBar, MainMenuBar
 from features import (
     image_view_raster,
@@ -35,8 +37,8 @@ class MainGUI(QtWidgets.QMainWindow):
         self.selectedImage = None
         self.imageList = None
         self.currControlPanel = None
-        self.controlPanels = {}  # image index -> ControlPanel
-        self.rasterViews = {}  # image index -> RasterView
+        self.controlPanels: Dict[int, ControlPanel] = {}  # image index -> ControlPanel
+        self.rasterViews: Dict[int, RasterView] = {}  # image index -> RasterView
         self.roiViews = {}
         
         # Track all open windows

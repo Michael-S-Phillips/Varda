@@ -4,20 +4,15 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, List, Dict, Optional
+from typing import Any, List, Dict
 from enum import Enum
 import tempfile
 
 # third party imports
-from PyQt6.QtCore import QObject, pyqtSignal, QFileSelector
+from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget,
     QFileDialog,
-    QDialog,
-    QLabel,
-    QPushButton,
-    QHBoxLayout,
-    QVBoxLayout,
     QMessageBox,
 )
 import numpy as np
@@ -26,7 +21,7 @@ import numpy as np
 from core.entities import Image, Metadata, Band, Stretch, FreehandROI, Plot
 from core.utilities.load_image import ImageLoadingService
 from core.utilities.signal_utils import guard_signals
-from gui.widgets import FilePathBox
+from gui.widgets import FileInputDialog
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +60,6 @@ class ProjectContext(QObject):
         self._images: List[Image] = []
         self.currentProj: Path = None
         self.isSaved: bool = True
-        self._controlPanels: Dict[int, QObject] = {}
         self._imageLoadingService = ImageLoadingService()
         self._handling_change = False  # Flag to prevent recursive signal handling
         
@@ -428,26 +422,6 @@ class ProjectContext(QObject):
             List[Image]: List of all images.
         """
         return self._images
-
-    def getControlPanel(self, index, main_window):
-        """
-        Get or create a control panel for the given image index.
-
-        If a control panel already exists for this image, return it.
-        Otherwise, create a new one and store it.
-        
-        Args:
-            index: The image index.
-            main_window: The main window the control panel will be attached to.
-            
-        Returns:
-            ControlPanel: The control panel for the image.
-        """
-        from core.ui.controlpanel import ControlPanel
-
-        if index not in self._controlPanels:
-            self._controlPanels[index] = ControlPanel(main_window)
-        return self._controlPanels[index]
 
     # Metadata
     @guard_signals
@@ -956,43 +930,6 @@ class ProjectContext(QObject):
         except Exception as e:
             logger.error(f"Error in getROIs: {e}")
             return []
-    
-    # -------------------------------------------------------
-    # metadata editor
-    # -------------------------------------------------------
-    def openMetadataEditor(self, index):
-        """
-        Opens the metadata editor for the specified image.
-        
-        Args:
-            index: The image index.
-            
-        Returns:
-            bool: True if the metadata was updated, False otherwise.
-        """
-        from gui.widgets.metadata_editor import MetadataEditor
-        
-        if index < 0 or index >= len(self._images):
-            logger.warning(f"Invalid image index for metadata editor: {index}")
-            return False
-            
-        editor = MetadataEditor(
-            self._images[index].metadata,
-            self,
-            index
-        )
-        
-        # Show the dialog
-        if editor.exec():
-            # Dialog was accepted - metadata has been updated via direct calls
-            # to updateMetadata() by the dialog itself
-            logger.info(f"Metadata updated for image {index}")
-            
-            # Make sure the GUI knows the data changed
-            self._emitChange(index, self.ChangeType.METADATA, self.ChangeModifier.UPDATE)
-            return True
-        
-        return False
 
     @guard_signals
     def addPlot(self, roi):
@@ -1057,58 +994,3 @@ class ProjectContext(QObject):
                 index, changeType, changeModifier
             )
         self.sigDataChanged[int, self.ChangeType].emit(index, changeType)
-
-
-class FileInputDialog(QDialog):
-    """Dialog for requesting a file path from the user."""
-    
-    def __init__(
-        self, message="Select a file:", defaultPath="", fileFilter=None, parent=None
-    ):
-        super().__init__(parent)
-        self.setWindowTitle("File Selection")
-
-        # Message label
-        self.label = QLabel(message)
-
-        self.fileInput = FilePathBox(defaultPath, fileFilter, parent=self)
-
-        # OK and Cancel buttons
-        self.ok_button = QPushButton("OK")
-        self.ok_button.clicked.connect(self.accept)
-
-        self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.clicked.connect(self.reject)
-
-        # Layouts
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(self.ok_button)
-        button_layout.addWidget(self.cancel_button)
-
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(self.label)
-        main_layout.addWidget(self.fileInput)
-        main_layout.addLayout(button_layout)
-
-        self.setLayout(main_layout)
-
-    @staticmethod
-    def getFilePath(
-        message="Select a file:", default_path="", fileFilter=None, parent=None
-    ):
-        """
-        Static method to show the dialog and return the selected file path.
-        
-        Args:
-            message: The message to display.
-            default_path: The default path to show.
-            fileFilter: Optional filter for file types.
-            parent: Optional parent widget.
-            
-        Returns:
-            str: The selected file path, or None if canceled.
-        """
-        dialog = FileInputDialog(message, default_path, fileFilter, parent)
-        if dialog.exec():
-            return dialog.fileInput.result  # Return the selected path
-        return None  # Return None if cancelled

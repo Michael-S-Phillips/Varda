@@ -10,7 +10,7 @@ from skimage.draw import polygon
 
 from features.shared.selection_controls import StretchSelector, BandSelector
 from features.image_view_roi.roi_drawing_manager import ROIDrawingManager
-from gui.widgets.ROI_selector import ROISelector
+from gui.widgets.roi_selector import ROISelector
 from core.entities.freehandROI import FreehandROI
 from .raster_viewmodel import RasterViewModel
 

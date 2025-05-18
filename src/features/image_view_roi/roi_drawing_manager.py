@@ -12,7 +12,7 @@ from PyQt6.QtCore import QObject, pyqtSignal, QPointF, QTimer
 from PyQt6.QtWidgets import QMenu, QToolBar, QLabel
 from PyQt6.QtGui import QAction
 
-from gui.widgets.ROI_selector import ROISelector, ROIMode
+from gui.widgets.roi_selector import ROISelector, ROIMode
 from core.entities.freehandROI import FreehandROI
 
 logger = logging.getLogger(__name__)

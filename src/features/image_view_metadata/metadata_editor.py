@@ -30,11 +30,12 @@ class MetadataEditor(QDialog):
     
     metadataUpdated = pyqtSignal(Metadata)
     
-    def __init__(self, metadata, proj=None, imageIndex=None, parent=None):
+    def __init__(self, proj: ProjectContext = None, imageIndex=None, parent=None):
         super().__init__(parent)
-        self.metadata = metadata
         self.proj = proj
         self.imageIndex = imageIndex
+        self.metadata = proj.getImage(imageIndex).metadata
+
         self.initUI()
         
     def initUI(self):
