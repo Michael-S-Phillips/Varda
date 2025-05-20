@@ -68,7 +68,8 @@ class HistogramView(BaseView):
     def __init__(self, viewModel: HistogramViewModel = None, parent=None):
         super().__init__(viewModel, parent)
         self.setWindowTitle("Histogram")
-        
+
+        # TODO: The histogram view should not require direct access to the raster view. refactor this later.
         # Find the raster view for direct updates
         self.rasterView = None
         if hasattr(viewModel, 'proj') and hasattr(viewModel, 'index'):
