@@ -114,6 +114,9 @@ class RasterView(QWidget):
         self.contextView = self._initViewBox("Context View", self.contextImage)
         self.zoomView = self._initViewBox("Zoom View", self.zoomImage)
 
+        # Initialize with consistent stretch values
+        self.current_stretch_levels = None
+
         # Configure zoom view
         self.zoomView.setMouseEnabled(x=True, y=True)
 
@@ -218,8 +221,12 @@ class RasterView(QWidget):
 
         self.freehandROIs[-1].sigDrawingComplete.connect(self._onROIDrawn)
 
+        # Make sure stretch changes are properly handled
         self.viewModel.sigStretchChanged.connect(self._onStretchChanged)
         self.viewModel.sigBandChanged.connect(self._onBandChanged)
+
+        # Add logging to better understand what's happening
+        logger.debug("Connected signals in RasterView")
 
 
     def _initROIS(self):
@@ -250,6 +257,7 @@ class RasterView(QWidget):
         """Update all views."""
         self._updateImageItem(self.contextImage, self.viewModel.getRasterFromBand())
         self._updateMainView()
+        self._updateZoomView()
 
     def _updateMainView(self):
         """Update the main view based on context ROI."""
@@ -282,16 +290,34 @@ class RasterView(QWidget):
 
     def _updateImageItem(self, imageItem, rasterData):
         """Update an image item with new raster data."""
-        levels = self.viewModel.getSelectedStretch().toList()
-        imageItem.setImage(rasterData, levels=levels)
+        # If it's the context image, get fresh stretch values
+        if imageItem == self.contextImage:
+            self.current_stretch_levels = self.viewModel.getSelectedStretch().toList()
+            logger.debug(f"Updating context image with new levels: {self.current_stretch_levels}")
+        
+        # Always use the current stretch levels for consistency
+        if self.current_stretch_levels is None:
+            self.current_stretch_levels = self.viewModel.getSelectedStretch().toList()
+            logger.debug(f"Initializing stretch levels: {self.current_stretch_levels}")
+        
+        logger.debug(f"Updating {imageItem} with levels: {self.current_stretch_levels}")
+        imageItem.setImage(rasterData, levels=self.current_stretch_levels)
+        
+        # Verify the levels were actually set
+        logger.debug(f"After update, {imageItem} levels: {imageItem.levels}")
 
     def _onStretchChanged(self):
         """Handle stretch changes."""
-        # Get the current stretch values
-        levels = self.viewModel.getSelectedStretch().toList()
-        logger.debug(f"RasterView received stretch change: {levels}")
+        # Get the current stretch values directly from the view model
+        stretch = self.viewModel.getSelectedStretch()
+        levels = stretch.toList()
         
-        # Update the image items with the new levels
+        # Update our cached stretch levels and log
+        self.current_stretch_levels = levels
+        logger.debug(f"RasterView received stretch change: {levels}, type: {type(levels[0][0])}")
+        
+        # Update the image items with the new levels - explicitly convert to ensure correct types
+        # Note: It's important that we pass the exact same levels object to all images
         self.mainImage.setLevels(levels)
         self.contextImage.setLevels(levels)
         self.zoomImage.setLevels(levels)
@@ -300,6 +326,8 @@ class RasterView(QWidget):
         self.mainView.update()
         self.contextView.update()
         self.zoomView.update()
+        
+        logger.debug(f"After update, contextImage levels: {self.contextImage.levels}")
 
     def _onBandChanged(self):
         """Handle band changes."""

@@ -38,6 +38,10 @@ class RasterViewModel(QObject):
         self.bandIndex = 0
         self.stretchIndex = 0
 
+        # Initialize stretchIndex to 0 if it exists, otherwise use a default
+        image = self.proj.getImage(imageIndex)
+        self.stretchIndex = 0 if image.stretch and len(image.stretch) > 0 else 0
+
         # Connect to project context signals
         self._connectSignals()
 

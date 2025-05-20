@@ -194,17 +194,26 @@ class HistogramView(BaseView):
                     self.rasterView = main_window.rasterViews.get(self.viewModel.index)
             except Exception:
                 pass
-                
+                    
         # Update the image items directly if we found the view
         if self.rasterView is not None:
             logger.debug(f"Direct update to raster view: {levels}")
             try:
+                # Important: Make sure the levels have the correct type - convert to plain lists
+                # This ensures consistent handling between Python objects and Qt
+                levels_clean = [[float(val) for val in band] for band in levels]
+                logger.debug(f"Cleaned levels: {levels_clean}")
+                
+                if hasattr(self.rasterView, 'current_stretch_levels'):
+                    self.rasterView.current_stretch_levels = levels_clean
+                    
                 if hasattr(self.rasterView, 'mainImage'):
-                    self.rasterView.mainImage.setLevels(levels)
+                    self.rasterView.mainImage.setLevels(levels_clean)
                 if hasattr(self.rasterView, 'contextImage'):
-                    self.rasterView.contextImage.setLevels(levels)
+                    self.rasterView.contextImage.setLevels(levels_clean)
                 if hasattr(self.rasterView, 'zoomImage'):
-                    self.rasterView.zoomImage.setLevels(levels)
+                    self.rasterView.zoomImage.setLevels(levels_clean)
+                    
                 self.rasterView.update()
             except Exception as e:
                 logger.error(f"Error during direct raster view update: {e}")
