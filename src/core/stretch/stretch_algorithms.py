@@ -68,17 +68,17 @@ class MinMaxStretch(StretchAlgorithm):
         """Compute min/max values for the full range of data."""
         if image_data.ndim != 3 or image_data.shape[2] < 3:
             # Handle grayscale or invalid data
-            min_val = np.min(image_data)
-            max_val = np.max(image_data)
+            min_val = np.nanmin(image_data)
+            max_val = np.nanmax(image_data)
             return min_val, max_val, min_val, max_val, min_val, max_val
 
         # Compute min/max for each channel
-        minR = np.min(image_data[:, :, 0])
-        maxR = np.max(image_data[:, :, 0])
-        minG = np.min(image_data[:, :, 1])
-        maxG = np.max(image_data[:, :, 1])
-        minB = np.min(image_data[:, :, 2])
-        maxB = np.max(image_data[:, :, 2])
+        minR = np.nanmin(image_data[:, :, 0])
+        maxR = np.nanmax(image_data[:, :, 0])
+        minG = np.nanmin(image_data[:, :, 1])
+        maxG = np.nanmax(image_data[:, :, 1])
+        minB = np.nanmin(image_data[:, :, 2])
+        maxB = np.nanmax(image_data[:, :, 2])
 
         return minR, maxR, minG, maxG, minB, maxB
 
@@ -123,17 +123,17 @@ class PercentileStretch(StretchAlgorithm):
 
         if image_data.ndim != 3 or image_data.shape[2] < 3:
             # Handle grayscale or invalid data
-            p_low = np.percentile(image_data, low_percentile)
-            p_high = np.percentile(image_data, high_percentile)
+            p_low = np.nanpercentile(image_data, low_percentile)
+            p_high = np.nanpercentile(image_data, high_percentile)
             return p_low, p_high, p_low, p_high, p_low, p_high
 
         # Compute percentiles for each channel
-        minR = np.percentile(image_data[:, :, 0], low_percentile)
-        maxR = np.percentile(image_data[:, :, 0], high_percentile)
-        minG = np.percentile(image_data[:, :, 1], low_percentile)
-        maxG = np.percentile(image_data[:, :, 1], high_percentile)
-        minB = np.percentile(image_data[:, :, 2], low_percentile)
-        maxB = np.percentile(image_data[:, :, 2], high_percentile)
+        minR = np.nanpercentile(image_data[:, :, 0], low_percentile)
+        maxR = np.nanpercentile(image_data[:, :, 0], high_percentile)
+        minG = np.nanpercentile(image_data[:, :, 1], low_percentile)
+        maxG = np.nanpercentile(image_data[:, :, 1], high_percentile)
+        minB = np.nanpercentile(image_data[:, :, 2], low_percentile)
+        maxB = np.nanpercentile(image_data[:, :, 2], high_percentile)
 
         return minR, maxR, minG, maxG, minB, maxB
 
@@ -170,27 +170,27 @@ class GaussianStretch(StretchAlgorithm):
 
         if image_data.ndim != 3 or image_data.shape[2] < 3:
             # Handle grayscale or invalid data
-            mean = np.mean(image_data)
-            std = np.std(image_data)
-            min_val = max(np.min(image_data), mean - sigma_factor * std)
-            max_val = min(np.max(image_data), mean + sigma_factor * std)
+            mean = np.nanmean(image_data)
+            std = np.nanstd(image_data)
+            min_val = max(np.nanmin(image_data), mean - sigma_factor * std)
+            max_val = min(np.nanmax(image_data), mean + sigma_factor * std)
             return min_val, max_val, min_val, max_val, min_val, max_val
 
         # Compute mean and std for each channel
-        meanR = np.mean(image_data[:, :, 0])
-        stdR = np.std(image_data[:, :, 0])
-        meanG = np.mean(image_data[:, :, 1])
-        stdG = np.std(image_data[:, :, 1])
-        meanB = np.mean(image_data[:, :, 2])
-        stdB = np.std(image_data[:, :, 2])
+        meanR = np.nanmean(image_data[:, :, 0])
+        stdR = np.nanstd(image_data[:, :, 0])
+        meanG = np.nanmean(image_data[:, :, 1])
+        stdG = np.nanstd(image_data[:, :, 1])
+        meanB = np.nanmean(image_data[:, :, 2])
+        stdB = np.nanstd(image_data[:, :, 2])
 
         # Calculate min/max values based on mean and std
-        minR = max(np.min(image_data[:, :, 0]), meanR - sigma_factor * stdR)
-        maxR = min(np.max(image_data[:, :, 0]), meanR + sigma_factor * stdR)
-        minG = max(np.min(image_data[:, :, 1]), meanG - sigma_factor * stdG)
-        maxG = min(np.max(image_data[:, :, 1]), meanG + sigma_factor * stdG)
-        minB = max(np.min(image_data[:, :, 2]), meanB - sigma_factor * stdB)
-        maxB = min(np.max(image_data[:, :, 2]), meanB + sigma_factor * stdB)
+        minR = max(np.nanmin(image_data[:, :, 0]), meanR - sigma_factor * stdR)
+        maxR = min(np.nanmax(image_data[:, :, 0]), meanR + sigma_factor * stdR)
+        minG = max(np.nanmin(image_data[:, :, 1]), meanG - sigma_factor * stdG)
+        maxG = min(np.nanmax(image_data[:, :, 1]), meanG + sigma_factor * stdG)
+        minB = max(np.nanmin(image_data[:, :, 2]), meanB - sigma_factor * stdB)
+        maxB = min(np.nanmax(image_data[:, :, 2]), meanB + sigma_factor * stdB)
 
         return minR, maxR, minG, maxG, minB, maxB
 
@@ -218,8 +218,8 @@ class SquareRootStretch(StretchAlgorithm):
         # We need to shift the data to be non-negative for square root
         if image_data.ndim != 3 or image_data.shape[2] < 3:
             # Handle grayscale or invalid data
-            min_val = np.min(image_data)
-            max_val = np.max(image_data)
+            min_val = np.nanmin(image_data)
+            max_val = np.nanmax(image_data)
 
             # Apply square root transform to the max to simulate stretching effect
             transformed_max = np.sqrt(max_val - min_val)
@@ -233,12 +233,12 @@ class SquareRootStretch(StretchAlgorithm):
             )
 
         # Compute min/max for each channel
-        minR = np.min(image_data[:, :, 0])
-        maxR = np.max(image_data[:, :, 0])
-        minG = np.min(image_data[:, :, 1])
-        maxG = np.max(image_data[:, :, 1])
-        minB = np.min(image_data[:, :, 2])
-        maxB = np.max(image_data[:, :, 2])
+        minR = np.nanmin(image_data[:, :, 0])
+        maxR = np.nanmax(image_data[:, :, 0])
+        minG = np.nanmin(image_data[:, :, 1])
+        maxG = np.nanmax(image_data[:, :, 1])
+        minB = np.nanmin(image_data[:, :, 2])
+        maxB = np.nanmax(image_data[:, :, 2])
 
         # Apply square root transform to the max to simulate stretching effect
         transformed_maxR = np.sqrt(maxR - minR)
@@ -288,8 +288,8 @@ class LogarithmicStretch(StretchAlgorithm):
         # Compute min-max first
         if image_data.ndim != 3 or image_data.shape[2] < 3:
             # Handle grayscale or invalid data
-            min_val = np.min(image_data)
-            max_val = np.max(image_data)
+            min_val = np.nanmin(image_data)
+            max_val = np.nanmax(image_data)
 
             # Apply log transform to the max to simulate stretching effect
             log_max = np.log1p((max_val - min_val) * gain)
@@ -303,12 +303,12 @@ class LogarithmicStretch(StretchAlgorithm):
             )
 
         # Compute min/max for each channel
-        minR = np.min(image_data[:, :, 0])
-        maxR = np.max(image_data[:, :, 0])
-        minG = np.min(image_data[:, :, 1])
-        maxG = np.max(image_data[:, :, 1])
-        minB = np.min(image_data[:, :, 2])
-        maxB = np.max(image_data[:, :, 2])
+        minR = np.nanmin(image_data[:, :, 0])
+        maxR = np.nanmax(image_data[:, :, 0])
+        minG = np.nanmin(image_data[:, :, 1])
+        maxG = np.nanmax(image_data[:, :, 1])
+        minB = np.nanmin(image_data[:, :, 2])
+        maxB = np.nanmax(image_data[:, :, 2])
 
         # Apply log transform to the max to simulate stretching effect
         log_maxR = np.log1p((maxR - minR) * gain)
@@ -392,7 +392,7 @@ class DecorrelationStretch(StretchAlgorithm):
                 reshaped_data = reshaped_data[valid_pixels]
 
             # Compute mean and covariance
-            mean_vec = np.mean(reshaped_data, axis=0)
+            mean_vec = np.nanmean(reshaped_data, axis=0)
             cov_mat = np.cov(reshaped_data, rowvar=False)
 
             # Compute eigenvalues and eigenvectors
