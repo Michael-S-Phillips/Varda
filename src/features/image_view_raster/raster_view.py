@@ -18,38 +18,6 @@ from .raster_viewmodel import RasterViewModel
 logger = logging.getLogger(__name__)
 
 
-# class PixelPlotWindow(QtWidgets.QMainWindow):
-#     """Separate window for displaying pixel spectrum plots."""
-#
-#     def __init__(self):
-#         super().__init__()
-#         self.setWindowTitle("Pixel Spectrum")
-#         # Set window flags to keep the window on top
-#         self.setWindowFlags(
-#             QtCore.Qt.WindowType.Window |
-#             QtCore.Qt.WindowType.WindowStaysOnTopHint
-#         )
-#         # Initialize the plot widget
-#         self.plot_widget = pg.PlotWidget(title="Pixel Spectrum")
-#         self.plot_widget.setMinimumSize(600, 300)
-#         self.plot_widget.setLabels(left="Intensity", bottom="Wavelength (nm)")
-#         self.plot_widget.addLegend()
-#         self.setCentralWidget(self.plot_widget)
-#         self.hide()  # Initially hidden
-#
-#     def update_plot(self, wavelengths, spectral_data, coords):
-#         """Update the plot with new spectral data."""
-#         self.plot_widget.clear()
-#         logger.debug(f"Plotting spectrum for coordinates: {coords}")
-#         logger.debug(f"Wavelength range: {wavelengths.min():.2f} - {wavelengths.max():.2f} nm")
-#         logger.debug(f"Spectral data range: {spectral_data.min():.2f} - {spectral_data.max():.2f}")
-#
-#         self.plot_widget.plot(wavelengths, spectral_data, pen='y')
-#         self.plot_widget.setTitle(f"Pixel Spectrum at ({coords[0]}, {coords[1]})")
-#         if not self.isVisible():
-#             self.show()
-
-
 class RasterView(QWidget):
     """Main widget for displaying and interacting with raster images."""
     sigImageClicked = pyqtSignal(int, int)
