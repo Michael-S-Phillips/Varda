@@ -19,6 +19,7 @@ import numpy as np
 
 # local imports
 from core.entities import Image, Metadata, Band, Stretch, FreehandROI, Plot
+from core.entities.geo_referencer import GeoReferencer
 from core.utilities.load_image import ImageLoadingService
 from core.utilities.signal_utils import guard_signals
 from gui.widgets import FileInputDialog
@@ -378,14 +379,14 @@ class ProjectContext(QObject):
         
         # Create the image
         image = Image(
-            raster,
-            metadata,
-            stretch,
-            band,
-            roi if roi else [],
-            plot if plot else [],
-            ROIview if ROIview else None,
-            len(self._images),
+            raster=raster,
+            metadata=metadata,
+            stretch=stretch,
+            band=band,
+            rois=roi if roi else [],
+            plots=plot if plot else [],
+            ROIview=ROIview if ROIview else None,
+            index=len(self._images),
         )
         
         # Add validation warnings
@@ -889,7 +890,7 @@ class ProjectContext(QObject):
         Args:
             index: The image index.
             roiIndex: The index of the ROI to remove.
-            
+
         Returns:
             bool: True if the ROI was removed, False otherwise.
         """

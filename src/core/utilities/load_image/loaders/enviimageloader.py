@@ -6,13 +6,17 @@ import logging
 import os
 from pathlib import Path
 
+import affine
 # third party imports
 import numpy as np
 import rasterio as rio
+from affine import Affine
+from pyproj import CRS
 
+from core.entities import GeoReferencer
 # local imports
 from core.utilities.load_image.loaders.abstractimageloader import AbstractImageLoader
-from core.entities.metadata import Metadata
+from core.entities import Metadata
 from core.entities import Band
 from core.utilities import debug
 
@@ -105,6 +109,15 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                 metadata_dict["resolution"] = src.res
                 metadata_dict["filePath"] = filePath
 
+                # TODO: Im not totally sure if these are the correct conditions to be looking for
+                if src.transform != affine.identity and src.crs is not None:
+                    transform = src.transform
+                    logger.debug(f"Transform:\n{transform}")
+                    crs = CRS.from_wkt(src.crs.to_wkt())
+                    logger.debug(f"crs:\n{crs}")
+                    metadata_dict["geoReferencer"] = GeoReferencer(transform=transform, crs=crs)
+                else:
+                    logger.debug(f"Image does not contain geospatial information.")
                 # Optional metadata that might not be available
                 try:
                     metadata_dict["dtype"] = src.dtypes[0]
@@ -218,13 +231,6 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                     metadata_dict["wavelengths"] = np.arange(bandCount)
                     metadata_dict["wavelengths_type"] = int
                     errors.append(f"Error extracting wavelengths: {e}, using band indices")
-
-                # Extract geospatial info
-                try:
-                    geospatialInfo = enviData.get("geospatial_info")
-                    metadata_dict["geospatialInfo"] = geospatialInfo
-                except:
-                    errors.append("Could not parse geospatial info")
 
                 # Add extra metadata fields
                 extraMetadata = {}

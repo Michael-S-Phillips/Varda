@@ -158,6 +158,9 @@ class RasterViewModel(QObject):
         """
         return self.proj.getImage(self.index).raster
 
+    def getImage(self):
+        return self.proj.getImage(self.index)
+
     def _logImageInfo(self):
         """Log information about the image being viewed."""
         try:

@@ -6,13 +6,17 @@ from pathlib import Path
 
 # third party imports
 import os
+
+import affine
 import numpy as np
 import rasterio
+from pyproj import CRS
 from rasterio.errors import RasterioIOError
 
+from core.entities import GeoReferencer
 # local imports
 from core.utilities.load_image.loaders.abstractimageloader import AbstractImageLoader
-from core.entities.metadata import Metadata
+from core.entities import Metadata
 from core.entities import Band
 
 logger = logging.getLogger(__name__)
@@ -115,6 +119,15 @@ class TIFFImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                 metadata_dict["dataIgnore"] = src.nodata if src.nodata is not None else 0
                 
                 # CRS and transform (for georeferenced images)
+                if src.transform != affine.identity and src.crs is not None:
+                    transform = src.transform
+                    logger.debug(f"Transform:\n{transform}")
+                    crs = CRS.from_wkt(src.crs.to_wkt())
+                    logger.debug(f"crs:\n{crs}")
+                    metadata_dict["geoReferencer"] = GeoReferencer(transform=transform, crs=crs)
+                else:
+                    logger.debug(f"Image does not contain geospatial information.")
+
                 if src.crs:
                     metadata_dict["crs"] = src.crs.to_string()
                 

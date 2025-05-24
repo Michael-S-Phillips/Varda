@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import rasterio
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtCore import QEvent, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor
@@ -17,36 +18,36 @@ from .raster_viewmodel import RasterViewModel
 logger = logging.getLogger(__name__)
 
 
-class PixelPlotWindow(QtWidgets.QMainWindow):
-    """Separate window for displaying pixel spectrum plots."""
-
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Pixel Spectrum")
-        # Set window flags to keep the window on top
-        self.setWindowFlags(
-            QtCore.Qt.WindowType.Window |
-            QtCore.Qt.WindowType.WindowStaysOnTopHint
-        )
-        # Initialize the plot widget
-        self.plot_widget = pg.PlotWidget(title="Pixel Spectrum")
-        self.plot_widget.setMinimumSize(600, 300)
-        self.plot_widget.setLabels(left="Intensity", bottom="Wavelength (nm)")
-        self.plot_widget.addLegend()
-        self.setCentralWidget(self.plot_widget)
-        self.hide()  # Initially hidden
-
-    def update_plot(self, wavelengths, spectral_data, coords):
-        """Update the plot with new spectral data."""
-        self.plot_widget.clear()
-        logger.debug(f"Plotting spectrum for coordinates: {coords}")
-        logger.debug(f"Wavelength range: {wavelengths.min():.2f} - {wavelengths.max():.2f} nm")
-        logger.debug(f"Spectral data range: {spectral_data.min():.2f} - {spectral_data.max():.2f}")
-
-        self.plot_widget.plot(wavelengths, spectral_data, pen='y')
-        self.plot_widget.setTitle(f"Pixel Spectrum at ({coords[0]}, {coords[1]})")
-        if not self.isVisible():
-            self.show()
+# class PixelPlotWindow(QtWidgets.QMainWindow):
+#     """Separate window for displaying pixel spectrum plots."""
+#
+#     def __init__(self):
+#         super().__init__()
+#         self.setWindowTitle("Pixel Spectrum")
+#         # Set window flags to keep the window on top
+#         self.setWindowFlags(
+#             QtCore.Qt.WindowType.Window |
+#             QtCore.Qt.WindowType.WindowStaysOnTopHint
+#         )
+#         # Initialize the plot widget
+#         self.plot_widget = pg.PlotWidget(title="Pixel Spectrum")
+#         self.plot_widget.setMinimumSize(600, 300)
+#         self.plot_widget.setLabels(left="Intensity", bottom="Wavelength (nm)")
+#         self.plot_widget.addLegend()
+#         self.setCentralWidget(self.plot_widget)
+#         self.hide()  # Initially hidden
+#
+#     def update_plot(self, wavelengths, spectral_data, coords):
+#         """Update the plot with new spectral data."""
+#         self.plot_widget.clear()
+#         logger.debug(f"Plotting spectrum for coordinates: {coords}")
+#         logger.debug(f"Wavelength range: {wavelengths.min():.2f} - {wavelengths.max():.2f} nm")
+#         logger.debug(f"Spectral data range: {spectral_data.min():.2f} - {spectral_data.max():.2f}")
+#
+#         self.plot_widget.plot(wavelengths, spectral_data, pen='y')
+#         self.plot_widget.setTitle(f"Pixel Spectrum at ({coords[0]}, {coords[1]})")
+#         if not self.isVisible():
+#             self.show()
 
 
 class RasterView(QWidget):
@@ -195,6 +196,15 @@ class RasterView(QWidget):
 
             self._updateCrosshair(x, y)
             self.sigImageClicked.emit(final_x, final_y)
+
+            # test geospatial info
+            if self.viewModel.getImage().metadata.geoReferencer is not None:
+                lon, lat = self.viewModel.getImage().metadata.geoReferencer.pixelToCoordinates(final_x, final_y)
+                noCRS_lon, noCRS_lat = rasterio.transform.xy(self.viewModel.getImage().metadata.geoReferencer.transform, final_x, final_y)
+                new_x, new_y = self.viewModel.getImage().metadata.geoReferencer.coordinatesToPixel(lon, lat)
+                logger.debug(f"Zoom Image clicked. \n   Pixel Coords: {final_x}, {final_y} \n   Geospatial Coords: {lon}, {lat}\n   Geospatial before applying CRS: {noCRS_lon}, {noCRS_lat}\n   Converted Geospatial Coords back to Pixel Coords: {new_x}, {new_y}")
+            else:
+                logger.debug("Image does not contain geospatial info!")
         event.accept()
 
     def _zoomCoordsToAbsolute(self, xZoom, yZoom):
@@ -300,11 +310,11 @@ class RasterView(QWidget):
             self.current_stretch_levels = self.viewModel.getSelectedStretch().toList()
             logger.debug(f"Initializing stretch levels: {self.current_stretch_levels}")
         
-        logger.debug(f"Updating {imageItem} with levels: {self.current_stretch_levels}")
+        #logger.debug(f"Updating {imageItem} with levels: {self.current_stretch_levels}")
         imageItem.setImage(rasterData, levels=self.current_stretch_levels)
         
         # Verify the levels were actually set
-        logger.debug(f"After update, {imageItem} levels: {imageItem.levels}")
+        #logger.debug(f"After update, {imageItem} levels: {imageItem.levels}")
 
     def _onStretchChanged(self):
         """Handle stretch changes."""
