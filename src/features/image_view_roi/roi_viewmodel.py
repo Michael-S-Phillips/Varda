@@ -1,6 +1,5 @@
 import logging
-import numpy as np
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 
 from core.data import ProjectContext
@@ -237,11 +236,11 @@ class ROIViewModel(QObject):
             
             # Create or reuse the pixel plot window
             if not hasattr(self, 'pixelPlotWindow') or self.pixelPlotWindow is None:
-                from features.image_view_raster.PixelPlotWindow import PixelPlotWindow
-                self.pixelPlotWindow = PixelPlotWindow()
+                from gui.widgets.image_plot_widget import ImagePlotWidget
+                self.pixelPlotWindow = ImagePlotWidget()
                 
             # Update the plot with ROI data
-            self.pixelPlotWindow.update_plot(wavelengths, roi.mean_spectrum, f"ROI {roi.name}")
+            self.pixelPlotWindow.updatePlot(wavelengths, roi.mean_spectrum, f"ROI {roi.name}")
             self.pixelPlotWindow.show()
             self.pixelPlotWindow.raise_()  # Bring to front
             

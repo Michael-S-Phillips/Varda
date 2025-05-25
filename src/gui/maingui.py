@@ -40,7 +40,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.controlPanels: Dict[int, ControlPanel] = {}  # image index -> ControlPanel
         self.rasterViews: Dict[int, RasterView] = {}  # image index -> RasterView
         self.roiViews = {}
-        
+
         # Track all open windows
         self.childWindows = []  # List of all child windows/widgets we need to track
         self.pixelPlotWindows = []  # Track all pixel plot windows specifically
@@ -102,13 +102,16 @@ class MainGUI(QtWidgets.QMainWindow):
 
         print(f"[DEBUG] Selected new image: {self.selectedImage.metadata.name} (index {self.selectedImage.index})")
 
+        # Raster View
+        rasterView = self.showRasterView(index)
+
         # Control Panel
         if self.currControlPanel:
             self.currControlPanel.tabsDock.hide()
 
         if index not in self.controlPanels:
-            panel = ControlPanel(self)
-            panel.updateActiveImage(self.selectedImage.index)
+            panel = ControlPanel(self.proj, index, rasterView)
+            # panel.updateActiveImage(self.selectedImage.index)
             self.controlPanels[index] = panel
             self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, panel.tabsDock)
         else:
@@ -116,9 +119,6 @@ class MainGUI(QtWidgets.QMainWindow):
 
         self.currControlPanel = panel
         panel.tabsDock.show()
-
-        # Raster View
-        self.showRasterView(index)
 
         # Update any open ROI views
         self.updateAllROIViews(index)
@@ -130,6 +130,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
         if index not in self.rasterViews:
             view = image_view_raster.getRasterView(self.proj, index, self)
+            logger.debug("New RasterView created!")
             self.rasterContainer.addWidget(view)
             self.rasterViews[index] = view
         else:
@@ -138,10 +139,11 @@ class MainGUI(QtWidgets.QMainWindow):
         self.rasterContainer.setCurrentWidget(view)
         view.show()
 
-        # 🔗 Connect pixel click to control panel
-        if self.currControlPanel:
-            view.sigImageClicked.connect(self.currControlPanel.updatePixelPlotFromCrosshair)
+        return view
 
+    # TODO: I think we can delete the context menu stuff since we have the control panel. Relevant methods tagged below
+
+    # TODO: Delete?
     def contextMenuEvent(self, event):
         localPos = self.imageList.mapFromGlobal(event.globalPos())
         item = self.imageList.itemAt(localPos)
@@ -152,6 +154,7 @@ class MainGUI(QtWidgets.QMainWindow):
         else:
             print("No item selected")
 
+    # TODO: Delete?
     def createContextMenu(self, index):
         contextMenu = QtWidgets.QMenu(self)
         openView = contextMenu.addMenu("Open View")
@@ -172,6 +175,7 @@ class MainGUI(QtWidgets.QMainWindow):
         histogramView.triggered.connect(lambda: self.openHistogramView(imageIndex))
         return contextMenu
 
+    # TODO: Delete?
     def openROIView(self, image_index):
         """Open ROI view and properly connect it to RasterView"""
         print(f"[DEBUG] openROIView called with index: {image_index}")
@@ -181,11 +185,11 @@ class MainGUI(QtWidgets.QMainWindow):
         if image_index in self.rasterViews:
             raster_view = self.rasterViews[image_index]
             view.viewModel.setRasterView(raster_view)
-            
+
             # Connect signals/slots for updates in both directions
             if hasattr(view, 'roiSelectionChanged'):
                 view.roiSelectionChanged.connect(
-                    lambda roi_index: raster_view.highlightROI(roi_index) 
+                    lambda roi_index: raster_view.highlightROI(roi_index)
                     if hasattr(raster_view, 'highlightROI') else None
                 )
 
@@ -193,13 +197,13 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.setWidget(view)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
         dock.setFloating(True)
-        
+
         # Store the view and track the dock widget
         self.childWindows.append(dock)
         if not hasattr(self, 'roiViews'):
             self.roiViews = {}
         self.roiViews[image_index] = view
-        
+
         # Connect close event to remove from tracking when dock is closed
         dock.destroyed.connect(lambda: self.removeChildWindow(dock))
 
@@ -218,11 +222,12 @@ class MainGUI(QtWidgets.QMainWindow):
                 widget = window.widget()
                 if hasattr(widget, 'viewModel') and hasattr(widget.viewModel, 'updateImageIndex'):
                     widget.viewModel.updateImageIndex(current_image_index)
-                    
+
                     # Update raster view reference if available
                     if hasattr(widget.viewModel, 'setRasterView') and current_image_index in self.rasterViews:
                         widget.viewModel.setRasterView(self.rasterViews[current_image_index])
 
+    # TODO: Delete?
     def openBandView(self, image_index):
         from features.image_view_band import BandManager
         view = BandManager(self.proj, image_index, self)
@@ -230,11 +235,12 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.setWidget(view)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
         dock.setFloating(True)
-        
+
         # Track the dock widget
         self.childWindows.append(dock)
         dock.destroyed.connect(lambda: self.removeChildWindow(dock))
 
+    # TODO: Delete?
     def openStretchView(self, image_index):
         from features.image_view_stretch import getStretchView
         view = getStretchView(self.proj, image_index, self)
@@ -242,11 +248,12 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.setWidget(view)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
         dock.setFloating(True)
-        
+
         # Track the dock widget
         self.childWindows.append(dock)
         dock.destroyed.connect(lambda: self.removeChildWindow(dock))
 
+    # TODO: Delete?
     def openHistogramView(self, image_index):
         from features.image_view_histogram import getHistogramView
         view = getHistogramView(self.proj, image_index, self)
@@ -254,66 +261,68 @@ class MainGUI(QtWidgets.QMainWindow):
         dock.setWidget(view)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
         dock.setFloating(True)
-        
+
         # Track the dock widget
         self.childWindows.append(dock)
         dock.destroyed.connect(lambda: self.removeChildWindow(dock))
-    
+
+    # TODO: Delete?
     def trackPixelPlotWindow(self, window):
         """Track a pixel plot window."""
         if window not in self.pixelPlotWindows:
             self.pixelPlotWindows.append(window)
             # Connect close event to remove from tracking
             window.destroyed.connect(lambda: self.removePixelPlotWindow(window))
-    
+
+    # TODO: Delete?
     def removePixelPlotWindow(self, window):
         """Remove a pixel plot window from tracking."""
         if window in self.pixelPlotWindows:
             self.pixelPlotWindows.remove(window)
-    
+
     def closeAllChildWindows(self):
         """Close all child windows before shutting down."""
         # Close all tracked child windows
         for window in self.childWindows[:]:  # Use a copy of the list since it will be modified during iteration
             if window and window.isVisible():
                 window.close()
-                
+
         # Close all pixel plot windows
         for window in self.pixelPlotWindows[:]:
             if window and window.isVisible():
                 window.close()
-                
+
         # Close any control panels
         for panel in self.controlPanels.values():
             if hasattr(panel, 'pixelPlotPopup') and panel.pixelPlotPopup:
                 panel.pixelPlotPopup.close()
-                
+
         # Clear tracking lists
         self.childWindows.clear()
         self.pixelPlotWindows.clear()
-        
+
         logger.info("All child windows closed")
 
     def exitApp(self):
         """Properly shut down the application by closing all windows."""
         logger.info("Exiting application...")
-        
+
         # Close all child windows first
         self.closeAllChildWindows()
-        
+
         # Then close the main window
         self.close()
-        
+
         # Force application to quit after a short delay if it hasn't already
         QtCore.QTimer.singleShot(500, lambda: QtWidgets.QApplication.quit())
 
     def closeEvent(self, event):
         """Handle the window close event to ensure proper cleanup."""
         logger.info("Main window close event triggered")
-        
+
         # Close all child windows first
         self.closeAllChildWindows()
-        
+
         # Accept the close event to allow the window to close
         event.accept()
 

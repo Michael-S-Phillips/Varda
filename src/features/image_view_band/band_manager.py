@@ -95,6 +95,7 @@ class BandManager(QWidget):
         self.disableProjectUpdating = True
         bands = self.proj.getImage(self.imageIndex).band
         self.table.setRowCount(len(bands))
+        self.table.setMinimumHeight(self.table.verticalHeader().defaultSectionSize() * (len(bands) + 1))
         for row, band in enumerate(bands):
 
             self.table.setItem(row, 0, QTableWidgetItem(band.name))

@@ -1,18 +1,16 @@
 import logging
-from typing import List, Dict, Optional, Any, Tuple, NamedTuple
-from datetime import datetime
+from typing import Any, NamedTuple
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QToolButton, QMenu, QHeaderView, QLabel,
-    QComboBox, QCheckBox, QColorDialog, QInputDialog, QMessageBox,
-    QTabWidget, QSplitter, QLineEdit, QGroupBox, QFormLayout,
-    QSlider, QTextEdit, QDialog, QListWidget, QListWidgetItem
+    QPushButton, QMenu, QHeaderView, QLabel,
+    QCheckBox, QColorDialog, QInputDialog, QMessageBox,
+    QSplitter, QLineEdit, QGroupBox, QFormLayout,
+    QSlider, QDialog, QListWidget, QListWidgetItem
 )
-from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot, QTimer
-from PyQt6.QtGui import QColor, QBrush, QIcon, QPixmap, QAction
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QColor, QBrush, QAction
 
-from core.data import ProjectContext
 from core.entities.freehandROI import FreehandROI
 from .roi_viewmodel import ROIViewModel
 
@@ -593,8 +591,8 @@ class EnhancedROIView(QWidget):
             
             # Create or get the pixel plot window
             if not hasattr(self, 'pixelPlotWindow') or self.pixelPlotWindow is None:
-                from features.image_view_raster.PixelPlotWindow import PixelPlotWindow
-                self.pixelPlotWindow = PixelPlotWindow()
+                from gui.widgets.image_plot_widget import ImagePlotWidget
+                self.pixelPlotWindow = ImagePlotWidget()
                 
                 # Track the window so it gets cleaned up properly
                 if hasattr(self.viewModel.proj, 'main_window'):
@@ -602,7 +600,7 @@ class EnhancedROIView(QWidget):
             
             # Update the plot with ROI data
             coords_label = f"ROI {roi.name}" if hasattr(roi, 'name') else f"ROI {roi_index}"
-            self.pixelPlotWindow.update_plot(wavelengths, roi.mean_spectrum, coords_label)
+            self.pixelPlotWindow.updatePlot(wavelengths, roi.mean_spectrum, coords_label)
             self.pixelPlotWindow.show()
             self.pixelPlotWindow.raise_()  # Bring to front
     

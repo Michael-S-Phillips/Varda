@@ -5,7 +5,7 @@
 import logging
 
 # third party imports
-from PyQt6.QtCore import pyqtSlot, Qt, QSize
+from PyQt6.QtCore import pyqtSlot, Qt, QSize, pyqtSignal
 from PyQt6.QtGui import QDoubleValidator
 from PyQt6.QtWidgets import (
     QWidget,
@@ -19,8 +19,8 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QHeaderView,
     QHBoxLayout,
-    QLayout, QStyle, QToolButton,
-    QGroupBox, QLabel, QMessageBox, QDialog,
+    QToolButton,
+    QGroupBox, QMessageBox, QDialog,
 )
 
 # local imports
@@ -37,6 +37,7 @@ class StretchManager(QWidget):
     This includes being able to create, delete, and modify stretch configurations.
     Each stretch has a name, and minimum/maximum values for R, G, and B channels.
     """
+    sigStretchSelected = pyqtSignal(int)
 
     def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
         super().__init__(parent)
@@ -63,13 +64,13 @@ class StretchManager(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
-
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(
             QAbstractItemView.EditTrigger.AnyKeyPressed
             | QAbstractItemView.EditTrigger.DoubleClicked
         )
+        self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.toggleButton = QToolButton(self)
         self.toggleButton.setText("Show/Hide Table")
         self.toggleButton.setCheckable(True)
@@ -137,7 +138,7 @@ class StretchManager(QWidget):
         self.disableProjectUpdating = True
         stretches = self.proj.getImage(self.imageIndex).stretch
         self.table.setRowCount(len(stretches))
-
+        self.table.setMinimumHeight(self.table.verticalHeader().defaultSectionSize() * (len(stretches) + 1))
         for row, stretch in enumerate(stretches):
             self.table.setItem(row, 0, QTableWidgetItem(stretch.name))
             self.table.setItem(row, 1, QTableWidgetItem(str(stretch.minR)))
@@ -238,6 +239,7 @@ class StretchManager(QWidget):
             row = selectedItems[0].row()
             print("row selected!", row)
             self.histogramView.viewModel.selectStretch(row)
+            self.sigStretchSelected.emit(row)
 
     @pyqtSlot(int, ProjectContext.ChangeType)
     def _onProjectDataChanged(self, index, changeType):
@@ -266,6 +268,7 @@ class StretchManager(QWidget):
             self.proj.addStretch(self.imageIndex, stretch)
             
             # Select the new stretch
+            self.table.selectRow(len(image.stretch) - 1)
             self.histogramView.viewModel.selectStretch(len(image.stretch) - 1)
             
         except Exception as e:

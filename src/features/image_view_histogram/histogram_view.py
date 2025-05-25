@@ -69,18 +69,6 @@ class HistogramView(BaseView):
         super().__init__(viewModel, parent)
         self.setWindowTitle("Histogram")
 
-        # TODO: The histogram view should not require direct access to the raster view. refactor this later.
-        # Find the raster view for direct updates
-        self.rasterView = None
-        if hasattr(viewModel, 'proj') and hasattr(viewModel, 'index'):
-            # Try to get from parent window
-            try:
-                main_window = self.window()
-                if hasattr(main_window, 'rasterViews'):
-                    self.rasterView = main_window.rasterViews.get(viewModel.index)
-            except Exception as e:
-                logger.warning(f"Could not find raster view: {e}")
-
         # To link the histograms to the image, we use an ImageItem.
         # This is just to leverage the existing functionality of the HistogramLUTWidget.
         self.imageItemR = pg.ImageItem()
@@ -185,40 +173,6 @@ class HistogramView(BaseView):
                 QMessageBox.StandardButton.Ok
             )
 
-    def updateDirectRasterView(self, levels):
-        """Directly update the raster view with new stretch levels."""
-        if self.rasterView is None:
-            # Try to find the raster view if not already set
-            try:
-                main_window = self.window()
-                if hasattr(main_window, 'rasterViews'):
-                    self.rasterView = main_window.rasterViews.get(self.viewModel.index)
-            except Exception:
-                pass
-                    
-        # Update the image items directly if we found the view
-        if self.rasterView is not None:
-            logger.debug(f"Direct update to raster view: {levels}")
-            try:
-                # Important: Make sure the levels have the correct type - convert to plain lists
-                # This ensures consistent handling between Python objects and Qt
-                levels_clean = [[float(val) for val in band] for band in levels]
-                logger.debug(f"Cleaned levels: {levels_clean}")
-                
-                if hasattr(self.rasterView, 'current_stretch_levels'):
-                    self.rasterView.current_stretch_levels = levels_clean
-                    
-                if hasattr(self.rasterView, 'mainImage'):
-                    self.rasterView.mainImage.setLevels(levels_clean)
-                if hasattr(self.rasterView, 'contextImage'):
-                    self.rasterView.contextImage.setLevels(levels_clean)
-                if hasattr(self.rasterView, 'zoomImage'):
-                    self.rasterView.zoomImage.setLevels(levels_clean)
-                    
-                self.rasterView.update()
-            except Exception as e:
-                logger.error(f"Error during direct raster view update: {e}")
-
     @guard_signals
     def _onHistogramLevelsChanged(self, channel=None):
         """Handle changes to histogram levels."""
@@ -233,11 +187,9 @@ class HistogramView(BaseView):
             
             # Update the ViewModel's stretch
             self.viewModel.updateStretch(minR=minR, maxR=maxR, minG=minG, maxG=maxG, minB=minB, maxB=maxB)
-            
-            # Direct update to the raster view
-            levels = [[minR, maxR], [minG, maxG], [minB, maxB]]
-            self.updateDirectRasterView(levels)
-            
+
+
+
             # Force a refresh of the current stretch selection to ensure signals propagate
             current_index = self.viewModel.stretchIndex
             self.viewModel.selectStretch(current_index)
@@ -264,10 +216,7 @@ class HistogramView(BaseView):
                 self.histogramR.histogramZoomed.item.setHistogramRange(stretch.minR, stretch.maxR)
                 self.histogramG.histogramZoomed.item.setHistogramRange(stretch.minG, stretch.maxG)
                 self.histogramB.histogramZoomed.item.setHistogramRange(stretch.minB, stretch.maxB)
-            
-            # Direct update to raster view
-            levels = [[stretch.minR, stretch.maxR], [stretch.minG, stretch.maxG], [stretch.minB, stretch.maxB]]
-            self.updateDirectRasterView(levels)
+
         except Exception as e:
             logger.error(f"Error in _onStretchChanged: {e}", exc_info=True)
     
@@ -296,7 +245,3 @@ class HistogramView(BaseView):
                 self.histogramB.histogramZoomed.item.setHistogramRange(stretch.minB, stretch.maxB)
             except Exception as e:
                 logger.error(f"Error updating histogram levels: {e}")
-        
-        # Direct update to raster view
-        levels = [[stretch.minR, stretch.maxR], [stretch.minG, stretch.maxG], [stretch.minB, stretch.maxB]]
-        self.updateDirectRasterView(levels)

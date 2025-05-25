@@ -98,14 +98,6 @@ class RasterView(QWidget):
         # Connect zoom image click handler
         self.zoomImage.mouseClickEvent = self.zoomImageClicked
 
-        # Initialize selectors
-        self.stretchSelector = StretchSelector(
-            self.viewModel.proj, self.viewModel.index, self
-        )
-        self.bandSelector = BandSelector(
-            self.viewModel.proj, self.viewModel.index, self
-        )
-
         # Build the layout
         self._buildLayout()
 
@@ -130,11 +122,6 @@ class RasterView(QWidget):
         horizontalSplitter.addWidget(mainGraphicsView)
         horizontalSplitter.addWidget(verticalSplitter)
 
-        # Create selector layout
-        selectorLayout = QtWidgets.QHBoxLayout()
-        selectorLayout.addWidget(self.stretchSelector)
-        selectorLayout.addWidget(self.bandSelector)
-
         first_roi = ROISelector(None)
         first_roi.setImageIndex(self.viewModel.index)
         self.freehandROIs.append(first_roi)
@@ -142,7 +129,6 @@ class RasterView(QWidget):
 
         # Create main layout
         layout = QtWidgets.QVBoxLayout()
-        layout.addLayout(selectorLayout)
         layout.addWidget(horizontalSplitter)
         self.setLayout(layout)
         
@@ -283,6 +269,10 @@ class RasterView(QWidget):
         
         # Verify the levels were actually set
         #logger.debug(f"After update, {imageItem} levels: {imageItem.levels}")
+
+    def selectStretch(self, stretchIndex):
+        """Select a new stretch to apply to the image."""
+        self.viewModel.selectStretch(stretchIndex)
 
     def _onStretchChanged(self):
         """Handle stretch changes."""
