@@ -1,5 +1,5 @@
 """
-fileexplorer.py
+file_explorer.py
 """
 
 from PyQt6 import QtCore, QtGui, QtWidgets

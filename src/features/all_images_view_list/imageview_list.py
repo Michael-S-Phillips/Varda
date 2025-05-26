@@ -40,7 +40,7 @@ class ImageListWidget(QListWidget):
             item.setText("Image")
             item.setData(Qt.ItemDataRole.UserRole, image)
             pixmap = QPixmap(64, 64)
-            pixmap.fill(Qt.GlobalColor.blue)  # Example placeholder image
+            pixmap.fill(QtGui.QColor("blue"))  # Example placeholder image
             item.setIcon(QIcon(pixmap))
             self.addItem(item)
         self.update()

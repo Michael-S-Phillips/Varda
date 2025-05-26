@@ -23,7 +23,7 @@ class PixelPlot(QWidget):
     def _initUI(self):
         self.setWindowTitle("Pixel Spectrum")
         self.plotWidget = pg.PlotWidget(title="Pixel Spectrum")
-        #self.plotWidget.setMinimumSize(600, 300)
+        # self.plotWidget.setMinimumSize(600, 300)
         self.plotWidget.setLabels(left="Intensity", bottom="Wavelength (nm)")
         self.plotWidget.addLegend()
 
@@ -39,17 +39,29 @@ class PixelPlot(QWidget):
         spectral_data = raster_data[coords[1], coords[0], :]
 
         wavelengths = image.metadata.wavelengths
-        if wavelengths is None or len(wavelengths) == 0 or len(wavelengths) != raster_data.shape[2]:
-            logger.warning(f"Invalid wavelength data detected. Using band numbers instead.")
+        if (
+            wavelengths is None
+            or len(wavelengths) == 0
+            or len(wavelengths) != raster_data.shape[2]
+        ):
+            logger.warning(
+                f"Invalid wavelength data detected. Using band numbers instead."
+            )
             wavelengths = np.arange(raster_data.shape[2])
         else:
-            logger.info(f"Using wavelength range: {wavelengths.min():.2f} - {wavelengths.max():.2f} nm")
+            logger.info(
+                f"Using wavelength range: {wavelengths.min():.2f} - {wavelengths.max():.2f} nm"
+            )
 
         logger.debug(f"Plotting spectrum for coordinates: {coords}")
-        logger.debug(f"Wavelength range: {wavelengths.min():.2f} - {wavelengths.max():.2f} nm")
-        logger.debug(f"Spectral data range: {spectral_data.min():.2f} - {spectral_data.max():.2f}")
+        logger.debug(
+            f"Wavelength range: {wavelengths.min():.2f} - {wavelengths.max():.2f} nm"
+        )
+        logger.debug(
+            f"Spectral data range: {spectral_data.min():.2f} - {spectral_data.max():.2f}"
+        )
 
-        self.plotWidget.plot(wavelengths, spectral_data, pen='y')
+        self.plotWidget.plot(wavelengths, spectral_data, pen="y")
         self.plotWidget.setTitle(f"Pixel Spectrum at ({coords[0]}, {coords[1]})")
         if not self.isVisible():
             self.show()

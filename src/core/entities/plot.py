@@ -7,7 +7,8 @@ Represents a saved plot in Varda.
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
-from .freehandROI import FreeHandROI
+from .freehandROI import FreehandROI
+
 
 @dataclass
 class Plot:
@@ -17,12 +18,13 @@ class Plot:
         timestamp (str): The time when the plot was saved.
         data (Any): Data needed to reconstruct the plot.
     """
+
     plot_type: str
     timestamp: str
-    data: Any  
+    data: Any
 
     @staticmethod
-    def create(roi: FreeHandROI):
+    def create(roi: FreehandROI):
         """Factory method to create a new plot with a timestamp."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        return Plot("ROI", timestamp, roi.meanSpectrum)
+        return Plot("ROI", timestamp, roi.mean_spectrum)

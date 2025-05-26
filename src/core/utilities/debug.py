@@ -1,6 +1,13 @@
 import time
 import json
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTextEdit, QTreeWidget, QTreeWidgetItem, QLineEdit
+from PyQt6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QTextEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QLineEdit,
+)
 from PyQt6.QtCore import Qt
 
 DEBUG = True
@@ -48,8 +55,6 @@ class Profiler:  # pylint: disable=too-few-public-methods
         self.timeStarted = time.perf_counter()
 
 
-
-
 class ProjectContextDataTable(QWidget):
     """A debugging widget for displaying all project context data."""
 
@@ -86,8 +91,6 @@ class ProjectContextDataTable(QWidget):
         data = self.proj.serialize()
         self._populateTree(data, self.treeWidget.invisibleRootItem())
 
-
-
     def _populateTree(self, data, parent):
         """Recursively populate the tree widget with data."""
         if isinstance(data, dict):
@@ -117,7 +120,9 @@ class ProjectContextDataTable(QWidget):
 
     def _filterItem(self, item, text):
         """Recursively filter the tree widget items."""
-        match = text.lower() in item.text(0).lower() or text.lower() in item.text(1).lower()
+        match = (
+            text.lower() in item.text(0).lower() or text.lower() in item.text(1).lower()
+        )
         for i in range(item.childCount()):
             child = item.child(i)
             childMatch = self._filterItem(child, text)

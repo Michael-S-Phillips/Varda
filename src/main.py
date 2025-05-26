@@ -9,9 +9,11 @@ from datetime import datetime
 import logging
 import sys
 import os
+import atexit
 
 # third party imports
 import pyqtgraph as pg
+from PyQt6.QtWidgets import QApplication
 
 # local imports
 from gui import maingui
@@ -33,6 +35,14 @@ def initLogging():
 
     logFolder = "../logs"
     os.makedirs(logFolder, exist_ok=True)
+
+    # Limit the number of log files
+    max_logs = 10
+    log_files = sorted(Path(logFolder).glob("Varda.log.*"), key=os.path.getmtime)
+    while len(log_files) >= max_logs:
+        log_files[0].unlink()  # Delete the oldest log file
+        log_files.pop(0)
+
     logTime = datetime.now().strftime("%Y-%m-%d_%I-%M-%S-%p")
     logName = Path(f"{logFolder}/Varda.log.{logTime}")
     logging.basicConfig(
@@ -46,9 +56,25 @@ def setupConfig():
     pg.setConfigOptions(imageAxisOrder="row-major")
 
 
+def cleanup():
+    """Clean up resources before application exit."""
+    logging.info("Application exiting, performing cleanup...")
+    # Force any remaining QApplication instances to quit
+    app = QApplication.instance()
+    if app:
+        app.quit()
+
+
 if __name__ == "__main__":
     initLogging()
     setupConfig()
-    proj = ProjectContext()
 
-    maingui.startGui(proj)
+    # Register cleanup function to be called on exit
+    atexit.register(cleanup)
+
+    proj = ProjectContext()
+    try:
+        maingui.startGui(proj)
+    except Exception as e:
+        logging.error(f"Error in main application: {e}", exc_info=True)
+        sys.exit(1)

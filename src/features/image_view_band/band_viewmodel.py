@@ -6,6 +6,7 @@ from PyQt6.QtCore import QObject, pyqtSignal, QTimer, pyqtSlot
 from core.data import ProjectContext
 from core.entities import Metadata
 
+
 class BandViewModel(QObject):
     """Simple ViewModel for the band view/editor.
 
@@ -56,9 +57,11 @@ class BandViewModel(QObject):
         """returns the index of the given wavelength."""
         # if the wavelengths are strings, then the value is already the index
         if self.getMetadata().wavelengths_type == str:
-            return  int(wavelength)
+            return int(wavelength)
         # otherwise the slider value is a float and we need to find the closest wavelength
-        return np.abs(self.proj.getImage(self.imageIndex).metadata.wavelengths - wavelength).argmin()
+        return np.abs(
+            self.proj.getImage(self.imageIndex).metadata.wavelengths - wavelength
+        ).argmin()
 
     def selectBand(self, bandIndex):
         """selects a new band from the image."""
@@ -69,6 +72,7 @@ class BandViewModel(QObject):
     def getBounds(self):
         """returns the bounds of the image."""
         return self.bounds
+
     def getSelectedBand(self):
         """requests the band corresponding to bandIndex, and returns it."""
         return self.proj.getImage(self.imageIndex).band[self.bandIndex]
@@ -97,7 +101,10 @@ class BandViewModel(QObject):
         self.isDragging = False
         self._ignoreProjectUpdates = True
 
-        r, g, b = [self.getIndexOfWavelength(value) if value is not None else None for value in self._pendingBandValues]
+        r, g, b = [
+            self.getIndexOfWavelength(value) if value is not None else None
+            for value in self._pendingBandValues
+        ]
         self.proj.updateBand(self.imageIndex, self.bandIndex, r=r, g=g, b=b)
 
     @pyqtSlot(int, ProjectContext.ChangeType, ProjectContext.ChangeModifier)

@@ -1,5 +1,6 @@
 # __init__.py
-from .roiwindow import ROIWindow
-from .statusbar import StatusBar
-from .mainmenubar import MainMenuBar
-from .filepath_box import FilePathBox
+from .roi_window import ROIWindow
+from .status_bar import StatusBar
+from .main_menu_bar import MainMenuBar
+from .file_path_box import FilePathBox
+from .file_input_dialog import FileInputDialog

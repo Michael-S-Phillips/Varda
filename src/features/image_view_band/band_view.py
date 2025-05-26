@@ -12,6 +12,7 @@ from .band_viewmodel import BandViewModel
 
 logger = logging.getLogger(__name__)
 
+
 class BandView(QWidget):
     """A basic view for editing band configurations of an image. Cannot create new
     parameters at the moment. only edit existing ones.
@@ -60,9 +61,9 @@ class BandView(QWidget):
         self.bBandSlider = pg.InfiniteLine(0, 90, "b", True, self.viewModel.bounds)
 
         # initialize labels for each slider
-        self.MyInfLineLabel(self.viewModel, self.rBandSlider, "{value}", False, 0.5 )
-        self.MyInfLineLabel(self.viewModel, self.gBandSlider, "{value}", False, 0.5 )
-        self.MyInfLineLabel(self.viewModel, self.bBandSlider, "{value}", False, 0.5 )
+        self.MyInfLineLabel(self.viewModel, self.rBandSlider, "{value}", False, 0.5)
+        self.MyInfLineLabel(self.viewModel, self.gBandSlider, "{value}", False, 0.5)
+        self.MyInfLineLabel(self.viewModel, self.bBandSlider, "{value}", False, 0.5)
 
         # Add sliders to the ViewBox
         vbox.addItem(self.rBandSlider)
@@ -75,7 +76,7 @@ class BandView(QWidget):
 
         # Layout setup
         layout = QVBoxLayout()
-        #layout.setContentsMargins(0, 20, 0, 20)
+        # layout.setContentsMargins(0, 20, 0, 20)
         layout.addWidget(view)
         self.setLayout(layout)
 
@@ -98,7 +99,6 @@ class BandView(QWidget):
         logger.debug(f"minValue: {minValue} maxValue {maxValue}")
         slider.setValue(max(min(slider.value(), maxValue), minValue))
 
-
         # update the correct band
         if slider is self.rBandSlider:
             self.viewModel.updateBand(r=slider.value())
@@ -117,6 +117,7 @@ class BandView(QWidget):
     class MyInfLineLabel(pg.InfLineLabel):
         """Custom label for InfiniteLine, just so we can round the displayed value to an
         integer"""
+
         def __init__(self, viewModel, line, text, movable, position, **kwargs):
             self.bandViewModel = viewModel
             super().__init__(line, text, movable, position, **kwargs)
