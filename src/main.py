@@ -68,10 +68,10 @@ def cleanup():
 if __name__ == "__main__":
     initLogging()
     setupConfig()
-    
+
     # Register cleanup function to be called on exit
     atexit.register(cleanup)
-    
+
     proj = ProjectContext()
     try:
         maingui.startGui(proj)

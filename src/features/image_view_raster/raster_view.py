@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class RasterView(QWidget):
     """Main widget for displaying and interacting with raster images."""
+
     sigImageClicked = pyqtSignal(int, int)
 
     def __init__(self, viewmodel: RasterViewModel, parent=None):
@@ -49,12 +50,12 @@ class RasterView(QWidget):
             (0, 255, 255, 100),  # Cyan
         ]
         self.colorIndex = 0
-        
+
         # Initialize the UI
         self._initUI()
         self._initROIS()
         self._connectSignals()
-        
+
         # Log initial image information
         self._logImageInfo()
 
@@ -63,10 +64,13 @@ class RasterView(QWidget):
         try:
             image = self.viewModel.proj.getImage(self.viewModel.index)
             logger.debug(f"Image shape: {image.raster.shape}")
-            logger.debug(f"Metadata wavelength shape: {image.metadata.wavelengths.shape}")
+            logger.debug(
+                f"Metadata wavelength shape: {image.metadata.wavelengths.shape}"
+            )
             logger.debug(f"First few wavelengths: {image.metadata.wavelengths[:5]}")
             logger.debug(
-                f"Wavelength range: {image.metadata.wavelengths.min():.2f} - {image.metadata.wavelengths.max():.2f} nm")
+                f"Wavelength range: {image.metadata.wavelengths.min():.2f} - {image.metadata.wavelengths.max():.2f} nm"
+            )
         except Exception as e:
             logger.error(f"Error logging image info: {str(e)}")
 
@@ -90,8 +94,8 @@ class RasterView(QWidget):
         self.zoomView.setMouseEnabled(x=True, y=True)
 
         # Add crosshairs to zoom view
-        self.crosshair_v = pg.InfiniteLine(angle=90, movable=False, pen='r')
-        self.crosshair_h = pg.InfiniteLine(angle=0, movable=False, pen='r')
+        self.crosshair_v = pg.InfiniteLine(angle=90, movable=False, pen="r")
+        self.crosshair_h = pg.InfiniteLine(angle=0, movable=False, pen="r")
         self.zoomView.addItem(self.crosshair_v)
         self.zoomView.addItem(self.crosshair_h)
 
@@ -131,9 +135,9 @@ class RasterView(QWidget):
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(horizontalSplitter)
         self.setLayout(layout)
-        
+
         # Add ROI toolbar if available
-        if hasattr(self, 'roi_drawing_manager'):
+        if hasattr(self, "roi_drawing_manager"):
             roi_toolbar = self.roi_drawing_manager.getToolbar()
             if roi_toolbar:
                 layout.addWidget(roi_toolbar)
@@ -144,7 +148,7 @@ class RasterView(QWidget):
             # Get click position in image coordinates
             pos = self.zoomImage.mapFromScene(event.scenePos())
             x, y = int(pos.x()), int(pos.y())
-            
+
             # Convert to absolute image coordinates
             final_x, final_y = self._zoomCoordsToAbsolute(x, y)
 
@@ -153,10 +157,26 @@ class RasterView(QWidget):
 
             # test geospatial info
             if self.viewModel.getImage().metadata.geoReferencer is not None:
-                lon, lat = self.viewModel.getImage().metadata.geoReferencer.pixelToCoordinates(final_x, final_y)
-                noCRS_lon, noCRS_lat = rasterio.transform.xy(self.viewModel.getImage().metadata.geoReferencer.transform, final_x, final_y)
-                new_x, new_y = self.viewModel.getImage().metadata.geoReferencer.coordinatesToPixel(lon, lat)
-                logger.debug(f"Zoom Image clicked. \n   Pixel Coords: {final_x}, {final_y} \n   Geospatial Coords: {lon}, {lat}\n   Geospatial before applying CRS: {noCRS_lon}, {noCRS_lat}\n   Converted Geospatial Coords back to Pixel Coords: {new_x}, {new_y}")
+                (
+                    lon,
+                    lat,
+                ) = self.viewModel.getImage().metadata.geoReferencer.pixelToCoordinates(
+                    final_x, final_y
+                )
+                noCRS_lon, noCRS_lat = rasterio.transform.xy(
+                    self.viewModel.getImage().metadata.geoReferencer.transform,
+                    final_x,
+                    final_y,
+                )
+                (
+                    new_x,
+                    new_y,
+                ) = self.viewModel.getImage().metadata.geoReferencer.coordinatesToPixel(
+                    lon, lat
+                )
+                logger.debug(
+                    f"Zoom Image clicked. \n   Pixel Coords: {final_x}, {final_y} \n   Geospatial Coords: {lon}, {lat}\n   Geospatial before applying CRS: {noCRS_lon}, {noCRS_lat}\n   Converted Geospatial Coords back to Pixel Coords: {new_x}, {new_y}"
+                )
             else:
                 logger.debug("Image does not contain geospatial info!")
         event.accept()
@@ -191,7 +211,6 @@ class RasterView(QWidget):
 
         # Add logging to better understand what's happening
         logger.debug("Connected signals in RasterView")
-
 
     def _initROIS(self):
         """Initialize Region of Interest elements."""
@@ -257,18 +276,20 @@ class RasterView(QWidget):
         # If it's the context image, get fresh stretch values
         if imageItem == self.contextImage:
             self.current_stretch_levels = self.viewModel.getSelectedStretch().toList()
-            logger.debug(f"Updating context image with new levels: {self.current_stretch_levels}")
-        
+            logger.debug(
+                f"Updating context image with new levels: {self.current_stretch_levels}"
+            )
+
         # Always use the current stretch levels for consistency
         if self.current_stretch_levels is None:
             self.current_stretch_levels = self.viewModel.getSelectedStretch().toList()
             logger.debug(f"Initializing stretch levels: {self.current_stretch_levels}")
-        
-        #logger.debug(f"Updating {imageItem} with levels: {self.current_stretch_levels}")
+
+        # logger.debug(f"Updating {imageItem} with levels: {self.current_stretch_levels}")
         imageItem.setImage(rasterData, levels=self.current_stretch_levels)
-        
+
         # Verify the levels were actually set
-        #logger.debug(f"After update, {imageItem} levels: {imageItem.levels}")
+        # logger.debug(f"After update, {imageItem} levels: {imageItem.levels}")
 
     def selectStretch(self, stretchIndex):
         """Select a new stretch to apply to the image."""
@@ -279,28 +300,30 @@ class RasterView(QWidget):
         # Get the current stretch values directly from the view model
         stretch = self.viewModel.getSelectedStretch()
         levels = stretch.toList()
-        
+
         # Update our cached stretch levels and log
         self.current_stretch_levels = levels
-        logger.debug(f"RasterView received stretch change: {levels}, type: {type(levels[0][0])}")
-        
+        logger.debug(
+            f"RasterView received stretch change: {levels}, type: {type(levels[0][0])}"
+        )
+
         # Update the image items with the new levels - explicitly convert to ensure correct types
         # Note: It's important that we pass the exact same levels object to all images
         self.mainImage.setLevels(levels)
         self.contextImage.setLevels(levels)
         self.zoomImage.setLevels(levels)
-        
+
         # Force a redraw
         self.mainView.update()
         self.contextView.update()
         self.zoomView.update()
-        
+
         logger.debug(f"After update, contextImage levels: {self.contextImage.levels}")
 
     def _onBandChanged(self):
         """Handle band changes."""
         self._updateViews()
-  
+
     # def startDrawingROI(self):
     #     """Start the ROI drawing process."""
     #     if self.freehandROI:
@@ -315,9 +338,13 @@ class RasterView(QWidget):
         Legacy method for backward compatibility.
         ROI data extraction is now handled by the ROI Drawing Manager.
         """
-        if hasattr(self, 'roi_drawing_manager'):
-            return self.roi_drawing_manager.getROIData(roi.id).array_slice if roi and hasattr(roi, 'id') else None
-        
+        if hasattr(self, "roi_drawing_manager"):
+            return (
+                self.roi_drawing_manager.getROIData(roi.id).array_slice
+                if roi and hasattr(roi, "id")
+                else None
+            )
+
         # Fallback to original implementation
         # (original code here - keeping the existing implementation as a fallback)
         """
@@ -332,29 +359,30 @@ class RasterView(QWidget):
         # Get raster data for the current image
         try:
             raster = self.viewModel.proj.getImage(roi.imageIndex).raster
-            
+
             # Get ROI points
             points = roi.getLinePts()
             if points is None or len(points[0]) < 3:
                 logger.warning("Not enough points to extract slice")
                 return None
-                
+
             # Convert points format to x,y pairs for polygon function
             polygon_points = np.array([points[0], points[1]]).T
-            
+
             # Create a mask for the ROI
             from skimage.draw import polygon
+
             try:
                 # Use polygon function with correct parameters
                 rows, cols = raster.shape[:2]
                 mask = np.zeros((rows, cols), dtype=bool)
                 # Convert to integer values for polygon function
-                r_coords = np.clip(np.array(points[1], dtype=int), 0, rows-1)
-                c_coords = np.clip(np.array(points[0], dtype=int), 0, cols-1)
-                
+                r_coords = np.clip(np.array(points[1], dtype=int), 0, rows - 1)
+                c_coords = np.clip(np.array(points[0], dtype=int), 0, cols - 1)
+
                 rr, cc = polygon(r_coords, c_coords, mask.shape)
                 mask[rr, cc] = True
-                
+
                 # Extract all bands from the masked area
                 if mask.sum() > 0:
                     # Take all bands for each masked pixel
@@ -369,7 +397,7 @@ class RasterView(QWidget):
         except Exception as e:
             logger.error(f"Error getting raster data: {str(e)}")
             return None
-        
+
     def highlightROI(self, roi_index):
         """Highlight a specific ROI using the drawing manager"""
         try:
@@ -383,7 +411,7 @@ class RasterView(QWidget):
 
     def remove_polygons_from_display(self):
         """Remove all polygons from the display"""
-        if hasattr(self, 'roi_items'):
+        if hasattr(self, "roi_items"):
             for item in self.roi_items:
                 self.mainView.removeItem(item)
                 self.contextView.removeItem(item)
@@ -395,27 +423,31 @@ class RasterView(QWidget):
         rois = self.viewModel.proj.get_rois_for_image(self.viewModel.index)
         if not rois:
             return
-            
+
         for i, roi in enumerate(rois):
             # Get color and points from the ROI
-            color = roi.color if hasattr(roi, 'color') else (255, 0, 0, 128)
-            highlighted = hasattr(self, 'highlighted_roi_index') and self.highlighted_roi_index == i
-            
+            color = roi.color if hasattr(roi, "color") else (255, 0, 0, 128)
+            highlighted = (
+                hasattr(self, "highlighted_roi_index")
+                and self.highlighted_roi_index == i
+            )
+
             # Get points - handle different ROI formats
-            if hasattr(roi, 'points') and roi.points is not None:
+            if hasattr(roi, "points") and roi.points is not None:
                 # FreehandROI style - points is [x_coords, y_coords]
                 if isinstance(roi.points, list) and len(roi.points) == 2:
                     points = [(x, y) for x, y in zip(roi.points[0], roi.points[1])]
                 else:
                     points = roi.points
-                    
+
                 # Create a polygon with the points
                 polygon = pg.Qt.QtGui.QPolygonF()
                 for x, y in zip(*points):
                     polygon.append(pg.Qt.QtCore.QPointF(x, y))
-                    
+
                 # Create a polygon item with the color
                 from PyQt6.QtGui import QPen, QBrush
+
                 pen_width = 2
                 if highlighted:
                     pen = QPen(QColor(255, 255, 0))  # Yellow for highlight
@@ -423,26 +455,34 @@ class RasterView(QWidget):
                 else:
                     pen = QPen(QColor(color[0], color[1], color[2]))
                     pen.setWidth(pen_width)
-                    
-                brush = QBrush(QColor(color[0], color[1], color[2], 
-                                    color[3] if len(color) >= 4 else 128))
-                    
+
+                brush = QBrush(
+                    QColor(
+                        color[0],
+                        color[1],
+                        color[2],
+                        color[3] if len(color) >= 4 else 128,
+                    )
+                )
+
                 polygon_item = pg.Qt.QtWidgets.QGraphicsPolygonItem(polygon)
                 polygon_item.setPen(pen)
                 polygon_item.setBrush(brush)
-                
+
                 # Add to the view
                 self.mainView.addItem(polygon_item)
-                cloned_polygon_item = pg.Qt.QtWidgets.QGraphicsPolygonItem(polygon_item.polygon())
+                cloned_polygon_item = pg.Qt.QtWidgets.QGraphicsPolygonItem(
+                    polygon_item.polygon()
+                )
                 cloned_polygon_item.setPen(polygon_item.pen())
                 cloned_polygon_item.setBrush(polygon_item.brush())
                 self.contextView.addItem(cloned_polygon_item)
-                
+
                 # Store references to remove them later
-                if not hasattr(self, 'roi_items'):
+                if not hasattr(self, "roi_items"):
                     self.roi_items = []
                 self.roi_items.append(polygon_item)
-        
+
     def _onROIDrawn(self):
         """
         Legacy method for backward compatibility.
@@ -453,11 +493,10 @@ class RasterView(QWidget):
     def closeEvent(self, event):
         """Clean up resources when the view is closed"""
         # Clean up ROI resources
-        if hasattr(self, 'roi_drawing_manager'):
+        if hasattr(self, "roi_drawing_manager"):
             self.roi_drawing_manager.cleanupROIs()
-        
-        super().closeEvent(event)
 
+        super().closeEvent(event)
 
     @staticmethod
     def _initImageItem():
@@ -467,14 +506,12 @@ class RasterView(QWidget):
     @staticmethod
     def _initViewBox(name, imageItem):
         """Initialize a new view box."""
-        viewBox = pg.ViewBox(
-            name=name, lockAspect=True, invertY=True
-        )
+        viewBox = pg.ViewBox(name=name, lockAspect=True, invertY=True)
         viewBox.addItem(imageItem)
-        
+
         # Enable mouse interaction for panning and zooming
         viewBox.setMouseEnabled(x=True, y=True)
-        
+
         return viewBox
 
     @staticmethod

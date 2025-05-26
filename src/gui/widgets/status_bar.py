@@ -3,6 +3,7 @@ import time
 from PyQt6 import QtWidgets, QtCore
 from PyQt6.QtWidgets import QLabel
 
+
 class StatusBar(QtWidgets.QStatusBar):
     """A custom widget for the statusbar.
 

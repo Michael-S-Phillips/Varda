@@ -1,5 +1,12 @@
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import QWidget, QLineEdit, QVBoxLayout, QPushButton, QFileDialog, QHBoxLayout
+from PyQt6.QtWidgets import (
+    QWidget,
+    QLineEdit,
+    QVBoxLayout,
+    QPushButton,
+    QFileDialog,
+    QHBoxLayout,
+)
 
 
 class FilePathBox(QWidget):
@@ -15,7 +22,7 @@ class FilePathBox(QWidget):
 
     def _initUI(self, defaultPath):
         self.filePathText = QLineEdit(defaultPath)
-        self.openFileSelectorButton = QPushButton('Browse Files...')
+        self.openFileSelectorButton = QPushButton("Browse Files...")
         layout = QHBoxLayout()
         layout.addWidget(self.filePathText)
         layout.addWidget(self.openFileSelectorButton)
@@ -30,7 +37,8 @@ class FilePathBox(QWidget):
             None,
             "Select Image File",
             "",
-            self.fileFilter,)
+            self.fileFilter,
+        )
         if filename:
             self.filePathText.setText(filename)
 

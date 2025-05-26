@@ -3,7 +3,13 @@ from typing import override
 
 # third-party imports
 import pyqtgraph as pg
-from PyQt6.QtWidgets import QVBoxLayout, QWidget, QTableWidget, QTableWidgetItem, QPushButton
+from PyQt6.QtWidgets import (
+    QVBoxLayout,
+    QWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QPushButton,
+)
 from PyQt6.QtCore import Qt, QTimer
 
 # local imports
@@ -18,7 +24,9 @@ class ROIView(QWidget):
         self.viewModel.setView(self)  # <-- Important!
         self.table = QTableWidget()
         self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Index", "Color", "Slice Shape", "Actions"])
+        self.table.setHorizontalHeaderLabels(
+            ["Index", "Color", "Slice Shape", "Actions"]
+        )
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
 
         self.draw_roi_button = QPushButton("Draw ROI", self)

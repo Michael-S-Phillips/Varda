@@ -4,12 +4,14 @@ import rasterio
 from affine import Affine
 from pyproj import Transformer, CRS
 
+
 class GeoReferencer:
     """
     A class to handle georeferencing operations,
     converting between pixel coordinates and geographic coordinates (longitude/latitude)
     using a given affine transform and coordinate reference system (CRS).
     """
+
     def __init__(self, transform: Affine, crs: CRS):
         """
         Initializes the GeoReferencer with a given affine transform and CRS.
@@ -22,9 +24,13 @@ class GeoReferencer:
         # Ensure the CRS is properly initialized from its WKT representation
         self.crs = CRS.from_wkt(crs.to_wkt())
         # transformer: map coordinates (meters) → geographic coordinates (longitude/latitude)
-        self.toGeo = Transformer.from_crs(self.crs, self.crs.geodetic_crs, always_xy=True)
+        self.toGeo = Transformer.from_crs(
+            self.crs, self.crs.geodetic_crs, always_xy=True
+        )
         # transformer: geographic coordinates → map coordinates
-        self.fromGeo = Transformer.from_crs(self.crs.geodetic_crs, self.crs, always_xy=True)
+        self.fromGeo = Transformer.from_crs(
+            self.crs.geodetic_crs, self.crs, always_xy=True
+        )
 
     def pixelToCoordinates(self, px: int, py: int) -> Tuple[float, float]:
         """

@@ -1,8 +1,14 @@
 import logging
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QDockWidget, QLabel,
-    QWidget, QScrollArea
+    QMainWindow,
+    QVBoxLayout,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QDockWidget,
+    QLabel,
+    QWidget,
+    QScrollArea,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 import numpy as np
@@ -16,10 +22,12 @@ from gui.widgets.image_plot_widget import ImagePlotWidget
 
 logger = logging.getLogger(__name__)
 
+
 class ControlPanel(QWidget):
     """
     Control panel tied dynamically to the currently selected image.
     """
+
     sigPixelPlotClicked = pyqtSignal()
 
     def __init__(self, proj: ProjectContext, imageIndex: int, rasterView, parent=None):
@@ -54,8 +62,12 @@ class ControlPanel(QWidget):
         self.toolSectionContainer = QWidget()
         self.toolSectionContainer.setLayout(self.toolSectionLayout)
         self.toolSection = QScrollArea()
-        self.toolSection.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.toolSection.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.toolSection.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOn
+        )
+        self.toolSection.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         self.toolSection.setWidgetResizable(True)
         self.toolSection.setWidget(self.toolSectionContainer)
 
@@ -66,7 +78,9 @@ class ControlPanel(QWidget):
 
         self.stretchView = getStretchView(self.project_context, self.imageIndex, self)
 
-        self.pixelPlot = ImagePlotWidget(self.project_context, self.imageIndex, parent=self)
+        self.pixelPlot = ImagePlotWidget(
+            self.project_context, self.imageIndex, parent=self
+        )
         self.pixelPlot.sigClicked.connect(self.handlePixelPlotClicked)
 
         self.pixelPlotPopup = None  # Will be created on first click
@@ -79,8 +93,11 @@ class ControlPanel(QWidget):
         # Connect signals/slots for updates in both directions
         # TODO: This should be moved to the roi view model or something
         self.ROITable.roiSelectionChanged.connect(
-            lambda roi_index: self.rasterView.highlightROI(roi_index)
-            if hasattr(rasterView, 'highlightROI') else None
+            lambda roi_index: (
+                self.rasterView.highlightROI(roi_index)
+                if hasattr(rasterView, "highlightROI")
+                else None
+            )
         )
 
         self.toolSectionLayout.addWidget(self.ROITable)
@@ -118,7 +135,12 @@ class ControlPanel(QWidget):
 
         # Only create once
         if self.pixelPlotPopup is None:
-            self.pixelPlotPopup = ImagePlotWidget(self.project_context, self.image.index, isWindow=True, parent=self.parent())
+            self.pixelPlotPopup = ImagePlotWidget(
+                self.project_context,
+                self.image.index,
+                isWindow=True,
+                parent=self.parent(),
+            )
             self.pixelPlotPopup.destroyed.connect(self.removePixelPlotPopup)
             logger.debug("PixelPlotPopup created")
 

@@ -30,13 +30,14 @@ logger = logging.getLogger(__name__)
 class ProjectContext(QObject):
     """
     Central data manager for the Varda application.
-    
+
     Handles all project data including images, ROIs, bands, stretches, and more.
     Uses signals to notify views of data changes.
     """
 
     class ChangeType(Enum):
         """Enumerator to represent the types of data that may be changed"""
+
         IMAGE = "image"
         BAND = "band"
         STRETCH = "stretch"
@@ -47,6 +48,7 @@ class ProjectContext(QObject):
 
     class ChangeModifier(Enum):
         """Enumerator to represent the ways in which data may be changed"""
+
         ADD = "add"
         REMOVE = "remove"
         UPDATE = "update"
@@ -63,11 +65,12 @@ class ProjectContext(QObject):
         self.isSaved: bool = True
         self._imageLoadingService = ImageLoadingService()
         self._handling_change = False  # Flag to prevent recursive signal handling
-        
+
         # Initialize the ROI Manager
         from core.data.roi_manager import ROIManager
+
         self.roi_manager = ROIManager(self)
-        
+
         # Flag for generating stretch presets during image creation
         self._generate_stretch_presets = True
 
@@ -81,10 +84,10 @@ class ProjectContext(QObject):
     def saveProject(self, saveAs=False):
         """
         Safely writes project data to disk.
-        
+
         Args:
             saveAs: If True, prompt for a new file path regardless of current project.
-        
+
         Returns:
             bool: True if the save was successful, False otherwise.
         """
@@ -129,10 +132,10 @@ class ProjectContext(QObject):
     def loadProject(self, loadPath=None):
         """
         Load a project from a file. If no path is provided, prompt the user to select a file.
-        
+
         Args:
             loadPath: Optional path to load the project from.
-            
+
         Returns:
             bool: True if the project was loaded successfully, False otherwise.
         """
@@ -161,9 +164,9 @@ class ProjectContext(QObject):
             )
             if not f:
                 return False
-                
+
         loadPath = f if f is not None else loadPath
-        
+
         try:
             with open(loadPath, "r") as file:
                 self.deserialize(file.name, json.load(file))
@@ -178,7 +181,7 @@ class ProjectContext(QObject):
     def serialize(self):
         """
         Serialize the project data into a JSON-compatible dictionary.
-        
+
         Returns:
             dict: The serialized project data.
         """
@@ -190,31 +193,30 @@ class ProjectContext(QObject):
             }
             for image in self._images
         ]
-        
+
         # Serialize the ROI Manager
-        roi_manager_data = self.roi_manager.serialize() if hasattr(self, 'roi_manager') else {}
-        
-        return {
-            "images": imageDictList,
-            "roi_manager": roi_manager_data
-        }
+        roi_manager_data = (
+            self.roi_manager.serialize() if hasattr(self, "roi_manager") else {}
+        )
+
+        return {"images": imageDictList, "roi_manager": roi_manager_data}
 
     def deserialize(self, projectName, data):
         """
         Deserialize project data from a dictionary and update the project state.
-        
+
         Args:
             projectName: The path to the project file.
             data: The deserialized project data.
-            
+
         Returns:
             bool: True if successful, False otherwise.
         """
         # Store current state to restore in case of failure
         imagesTemp = self._images
         projectNameTemp = self.currentProj
-        roi_manager_temp = self.roi_manager if hasattr(self, 'roi_manager') else None
-        
+        roi_manager_temp = self.roi_manager if hasattr(self, "roi_manager") else None
+
         try:
             self.currentProj = Path(projectName)
             self._images = []
@@ -255,18 +257,20 @@ class ProjectContext(QObject):
                         band=b,
                     ),
                 )
-            
+
             # Deserialize ROI Manager
             if "roi_manager" in data:
                 from core.data.roi_manager import ROIManager
+
                 self.roi_manager = ROIManager.deserialize(data["roi_manager"], self)
             else:
                 # If no ROI Manager in the data, create a new one
                 from core.data.roi_manager import ROIManager
+
                 self.roi_manager = ROIManager(self)
-            
+
             return True
-                
+
         except Exception as e:
             logger.error(f"Project Load Aborted! Error: {e}")
             # Restore previous project state
@@ -275,18 +279,18 @@ class ProjectContext(QObject):
             if roi_manager_temp:
                 self.roi_manager = roi_manager_temp
             return False
-    
+
     # Image Access
     def getImage(self, index) -> Image:
         """
         Retrieve an image by index.
-        
+
         Args:
             index: The index of the image to retrieve.
-            
+
         Returns:
             Image: The requested image.
-            
+
         Raises:
             IndexError: If the index is out of range.
         """
@@ -296,15 +300,17 @@ class ProjectContext(QObject):
     def addImage(self, image: Image):
         """
         Add a new image to the context.
-        
+
         Args:
             image: The image to add.
-            
+
         Returns:
             int: The index of the added image.
         """
         index = len(self._images)
-        image.metadata.name = f"Image {index}"  # Assign a unique name based on the index
+        image.metadata.name = (
+            f"Image {index}"  # Assign a unique name based on the index
+        )
         self._images.append(image)
         self._emitChange(index, self.ChangeType.IMAGE, self.ChangeModifier.ADD)
         return index
@@ -312,10 +318,10 @@ class ProjectContext(QObject):
     def loadNewImage(self, path=None):
         """
         Load an image from the given path.
-        
+
         Args:
             path: Optional path to the image file. If None, a file dialog will be shown.
-            
+
         Returns:
             int: The index of the newly loaded image, or None if loading failed.
         """
@@ -335,7 +341,7 @@ class ProjectContext(QObject):
         Creates a new image with optional defaults for stretch, adding it to the
         project. Unless we're loading from an existing project, a newly
         loaded image usually won't have stretch and band data associated with it yet.
-        
+
         Args:
             raster: The image raster data.
             metadata: The image metadata.
@@ -344,7 +350,7 @@ class ProjectContext(QObject):
             roi: Optional list of ROIs.
             plot: Optional list of plots.
             ROIview: Optional ROI view widget.
-            
+
         Returns:
             int: The index of the created image.
         """
@@ -353,30 +359,34 @@ class ProjectContext(QObject):
             try:
                 # Start with just a default stretch to avoid too many updates at once
                 stretch = [Stretch.createDefault()]
-                
+
                 # Only add a few basic presets if specifically requested
                 # This helps prevent recursion issues during initialization
                 if self._generate_stretch_presets:
                     # Import here to avoid circular import
                     from core.stretch.stretch_manager import StretchPresets
-                    
+
                     # Add a few common presets
-                    basic_presets = ["min_max", "percentile_2"] 
+                    basic_presets = ["min_max", "percentile_2"]
                     for preset_id in basic_presets:
                         try:
-                            preset_stretch = StretchPresets.create_stretch_from_preset(preset_id, raster)
+                            preset_stretch = StretchPresets.create_stretch_from_preset(
+                                preset_id, raster
+                            )
                             stretch.append(preset_stretch)
                         except Exception as e:
-                            logger.warning(f"Failed to create preset stretch {preset_id}: {e}")
+                            logger.warning(
+                                f"Failed to create preset stretch {preset_id}: {e}"
+                            )
             except Exception as e:
                 logger.warning(f"Failed to create preset stretches: {e}")
                 # Fallback to single default stretch
                 stretch = [Stretch.createDefault()]
-        
+
         # Ensure band configuration exists
         if not band:
             band = [Band.createDefault()]
-        
+
         # Create the image
         image = Image(
             raster=raster,
@@ -388,29 +398,29 @@ class ProjectContext(QObject):
             ROIview=ROIview if ROIview else None,
             index=len(self._images),
         )
-        
+
         # Add validation warnings
         if len(image.stretch) == 0:
             logger.warning("Image Stretch list is empty. This may cause errors.")
         if len(image.band) == 0:
             logger.warning("Image Band list is empty. This may cause errors.")
-            
+
         return self.addImage(image)
 
     @guard_signals
     def removeImage(self, index):
         """
         Remove an image by index.
-        
+
         Args:
             index: The index of the image to remove.
         """
         # First remove all ROIs associated with this image
-        if hasattr(self, 'roi_manager'):
+        if hasattr(self, "roi_manager"):
             rois = self.roi_manager.get_rois_for_image(index)
             for roi in rois:
                 self.roi_manager.remove_roi(roi.id)
-        
+
         # Then remove the image
         self._images.pop(index)
         self._emitChange(index, self.ChangeType.IMAGE, self.ChangeModifier.REMOVE)
@@ -418,7 +428,7 @@ class ProjectContext(QObject):
     def getAllImages(self):
         """
         Retrieve a list of all the images in the project.
-        
+
         Returns:
             List[Image]: List of all images.
         """
@@ -429,7 +439,7 @@ class ProjectContext(QObject):
     def updateMetadata(self, index, key: str, value: Any):
         """
         Update a metadata field.
-        
+
         Args:
             index: The image index.
             key: The metadata key to update.
@@ -447,11 +457,11 @@ class ProjectContext(QObject):
     def addStretch(self, index, stretch: Stretch = None):
         """
         Add a stretch to an image. If no stretch is provided, use default.
-        
+
         Args:
             index: The image index.
             stretch: Optional stretch configuration to add.
-            
+
         Returns:
             int: The index of the new stretch.
         """
@@ -465,7 +475,7 @@ class ProjectContext(QObject):
     def removeStretch(self, index, stretchIndex):
         """
         Remove a stretch by index from an image.
-        
+
         Args:
             index: The image index.
             stretchIndex: The index of the stretch to remove.
@@ -491,7 +501,7 @@ class ProjectContext(QObject):
 
         When calling this method, only include the arguments you want to change. The
         rest will maintain their current values.
-        
+
         Args:
             imageIndex: The index of the image.
             stretchIndex: The index of the stretch.
@@ -524,11 +534,11 @@ class ProjectContext(QObject):
     def addBand(self, index, band: Band = None):
         """
         Add a band to an image. If no band is provided, use default.
-        
+
         Args:
             index: The image index.
             band: Optional band configuration to add.
-            
+
         Returns:
             int: The index of the new band.
         """
@@ -542,7 +552,7 @@ class ProjectContext(QObject):
     def removeBand(self, index, bandIndex):
         """
         Remove a band by index from an image.
-        
+
         Args:
             index: The image index.
             bandIndex: The index of the band to remove.
@@ -565,7 +575,7 @@ class ProjectContext(QObject):
 
         When calling this method, only include the arguments you want to change. The
         rest will maintain their current values.
-        
+
         Args:
             index: The image index.
             bandIndex: The band index.
@@ -595,33 +605,35 @@ class ProjectContext(QObject):
     # --------------------------------------------------------
     # ROI methods that delegate to ROI Manager
     # --------------------------------------------------------
-    
+
     # New ROI Manager API methods
     @guard_signals
     def add_roi(self, roi, image_indices=None):
         """
         Add an ROI to the project.
-        
+
         Args:
             roi: The ROI to add.
             image_indices: Optional list of image indices to associate with this ROI.
-            
+
         Returns:
             str: The ID of the added ROI.
         """
         roi_id = self.roi_manager.add_roi(roi, image_indices)
         if roi_id and image_indices:
-            self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.ADD)
+            self._emitChange(
+                image_indices[0], self.ChangeType.ROI, self.ChangeModifier.ADD
+            )
         return roi_id
 
     @guard_signals
     def remove_roi(self, roi_id):
         """
         Remove an ROI from the project.
-        
+
         Args:
             roi_id: The ID of the ROI to remove.
-            
+
         Returns:
             bool: True if the ROI was removed, False otherwise.
         """
@@ -629,18 +641,20 @@ class ProjectContext(QObject):
         image_indices = roi.image_indices if roi else []
         result = self.roi_manager.remove_roi(roi_id)
         if result and image_indices:
-            self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.REMOVE)
+            self._emitChange(
+                image_indices[0], self.ChangeType.ROI, self.ChangeModifier.REMOVE
+            )
         return result
 
     @guard_signals
     def update_roi(self, roi_id, **properties):
         """
         Update an ROI's properties.
-        
+
         Args:
             roi_id: The ID of the ROI to update.
             **properties: The properties to update.
-            
+
         Returns:
             bool: True if the ROI was updated, False otherwise.
         """
@@ -648,16 +662,18 @@ class ProjectContext(QObject):
         image_indices = roi.image_indices if roi else []
         result = self.roi_manager.update_roi(roi_id, **properties)
         if result and image_indices:
-            self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+            self._emitChange(
+                image_indices[0], self.ChangeType.ROI, self.ChangeModifier.UPDATE
+            )
         return result
 
     def get_roi(self, roi_id):
         """
         Get an ROI by ID.
-        
+
         Args:
             roi_id: The ID of the ROI to get.
-            
+
         Returns:
             FreehandROI: The requested ROI, or None if not found.
         """
@@ -666,7 +682,7 @@ class ProjectContext(QObject):
     def get_all_rois(self):
         """
         Get all ROIs in the project.
-        
+
         Returns:
             Dict[str, FreehandROI]: Dictionary of ROI IDs to ROI objects.
         """
@@ -675,10 +691,10 @@ class ProjectContext(QObject):
     def get_rois_for_image(self, image_index):
         """
         Get all ROIs associated with an image.
-        
+
         Args:
             image_index: The image index.
-            
+
         Returns:
             List[FreehandROI]: List of ROIs associated with the image.
         """
@@ -688,34 +704,38 @@ class ProjectContext(QObject):
     def associate_roi_with_image(self, roi_id, image_index):
         """
         Associate an ROI with an image.
-        
+
         Args:
             roi_id: The ID of the ROI.
             image_index: The image index.
-            
+
         Returns:
             bool: True if the association was created, False otherwise.
         """
         result = self.roi_manager.associate_roi_with_image(roi_id, image_index)
         if result:
-            self._emitChange(image_index, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+            self._emitChange(
+                image_index, self.ChangeType.ROI, self.ChangeModifier.UPDATE
+            )
         return result
 
     @guard_signals
     def dissociate_roi_from_image(self, roi_id, image_index):
         """
         Dissociate an ROI from an image.
-        
+
         Args:
             roi_id: The ID of the ROI.
             image_index: The image index.
-            
+
         Returns:
             bool: True if the association was removed, False otherwise.
         """
         result = self.roi_manager.dissociate_roi_from_image(roi_id, image_index)
         if result:
-            self._emitChange(image_index, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+            self._emitChange(
+                image_index, self.ChangeType.ROI, self.ChangeModifier.UPDATE
+            )
         return result
 
     # ROI Table Column methods
@@ -723,12 +743,12 @@ class ProjectContext(QObject):
     def add_roi_column(self, name, data_type, formula=None):
         """
         Add a new column to the ROI table.
-        
+
         Args:
             name: Column name.
             data_type: Column data type.
             formula: Optional calculation formula.
-            
+
         Returns:
             ROITableColumn: The created column, or None if an error occurred.
         """
@@ -742,10 +762,10 @@ class ProjectContext(QObject):
     def remove_roi_column(self, name):
         """
         Remove a column from the ROI table.
-        
+
         Args:
             name: Column name.
-            
+
         Returns:
             bool: True if the column was removed, False otherwise.
         """
@@ -759,11 +779,11 @@ class ProjectContext(QObject):
     def update_roi_column(self, name, **properties):
         """
         Update a column's properties.
-        
+
         Args:
             name: Column name.
             **properties: Properties to update.
-            
+
         Returns:
             bool: True if the column was updated, False otherwise.
         """
@@ -776,10 +796,10 @@ class ProjectContext(QObject):
     def get_roi_column(self, name):
         """
         Get a column by name.
-        
+
         Args:
             name: Column name.
-            
+
         Returns:
             ROITableColumn: The column, or None if not found.
         """
@@ -788,7 +808,7 @@ class ProjectContext(QObject):
     def get_all_roi_columns(self):
         """
         Get all columns in the ROI table.
-        
+
         Returns:
             List[ROITableColumn]: List of all columns.
         """
@@ -805,12 +825,12 @@ class ProjectContext(QObject):
     def set_roi_custom_value(self, roi_id, column_name, value):
         """
         Set a custom value for an ROI.
-        
+
         Args:
             roi_id: The ID of the ROI.
             column_name: The name of the column.
             value: The value to set.
-            
+
         Returns:
             bool: True if successful, False otherwise.
         """
@@ -819,19 +839,21 @@ class ProjectContext(QObject):
             roi.set_custom_value(column_name, value)
             image_indices = roi.image_indices
             if image_indices:
-                self._emitChange(image_indices[0], self.ChangeType.ROI, self.ChangeModifier.UPDATE)
+                self._emitChange(
+                    image_indices[0], self.ChangeType.ROI, self.ChangeModifier.UPDATE
+                )
             return True
         return False
 
     def get_roi_custom_value(self, roi_id, column_name, default=None):
         """
         Get a custom value for an ROI.
-        
+
         Args:
             roi_id: The ID of the ROI.
             column_name: The name of the column.
             default: Default value to return if the value is not found.
-            
+
         Returns:
             Any: The custom value, or the default if not found.
         """
@@ -846,11 +868,11 @@ class ProjectContext(QObject):
         """
         Legacy method to add an ROI to an image.
         Now uses the ROI Manager.
-        
+
         Args:
             index: The image index.
             roi: The ROI to add.
-            
+
         Returns:
             str or int: The ID of the added ROI, or its index for legacy ROIs.
         """
@@ -861,18 +883,20 @@ class ProjectContext(QObject):
         else:
             # Legacy ROI format - convert to new format
             try:
-                points = np.array(roi.points) if hasattr(roi, 'points') else np.array([])
-                color = roi.color if hasattr(roi, 'color') else (255, 0, 0, 128)
-                
+                points = (
+                    np.array(roi.points) if hasattr(roi, "points") else np.array([])
+                )
+                color = roi.color if hasattr(roi, "color") else (255, 0, 0, 128)
+
                 # Create a new ROI with data from the legacy one
                 new_roi = FreehandROI(
                     points=points,
                     image_indices=[index],
                     color=color,
-                    array_slice=getattr(roi, 'arraySlice', None),
-                    mean_spectrum=getattr(roi, 'meanSpectrum', None)
+                    array_slice=getattr(roi, "arraySlice", None),
+                    mean_spectrum=getattr(roi, "meanSpectrum", None),
                 )
-                
+
                 return self.add_roi(new_roi, [index])
             except Exception as e:
                 logger.error(f"Failed to convert legacy ROI: {e}")
@@ -886,7 +910,7 @@ class ProjectContext(QObject):
         """
         Legacy method to remove an ROI from an image.
         Now uses the ROI Manager.
-        
+
         Args:
             index: The image index.
             roiIndex: The index of the ROI to remove.
@@ -913,10 +937,10 @@ class ProjectContext(QObject):
         """
         Legacy method to get ROIs for an image.
         Now uses the ROI Manager.
-        
+
         Args:
             index: The image index.
-            
+
         Returns:
             List[FreehandROI]: List of ROIs for the image.
         """
@@ -927,7 +951,11 @@ class ProjectContext(QObject):
                 return rois
             else:
                 # Fall back to old behavior
-                return self._images[index].rois if index in range(len(self._images)) else []
+                return (
+                    self._images[index].rois
+                    if index in range(len(self._images))
+                    else []
+                )
         except Exception as e:
             logger.error(f"Error in getROIs: {e}")
             return []
@@ -936,21 +964,23 @@ class ProjectContext(QObject):
     def addPlot(self, roi):
         """
         Save a new plot for the image.
-        
+
         Args:
             roi: The ROI to create a plot from.
         """
         plot = Plot.create(roi)
         self._images[roi.image_indices[0]].plots.append(plot)
-        self._emitChange(roi.image_indices[0], self.ChangeType.PLOT, self.ChangeModifier.ADD)
+        self._emitChange(
+            roi.image_indices[0], self.ChangeType.PLOT, self.ChangeModifier.ADD
+        )
 
     def getPlots(self, index):
         """
         Retrieve all saved plots for an image.
-        
+
         Args:
             index: The image index.
-            
+
         Returns:
             List[Plot]: List of plots for the image.
         """
@@ -963,11 +993,11 @@ class ProjectContext(QObject):
         """
         Set the ROI Table for a given image.
         Ensures each image has only one ROI Table open at a time.
-        
+
         Args:
             index: The image index.
             view: The ROI view to set.
-            
+
         Returns:
             QObject: The ROI view.
         """
@@ -981,7 +1011,7 @@ class ProjectContext(QObject):
     def _emitChange(self, index, changeType, changeModifier=None):
         """
         Emit a data change signal.
-        
+
         Args:
             index: The index of the changed item.
             changeType: The type of change.

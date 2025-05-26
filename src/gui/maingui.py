@@ -71,7 +71,9 @@ class MainGUI(QtWidgets.QMainWindow):
         self.rasterContainer.addWidget(self.startingScreen)
 
     def getStartingScreenWidget(self):
-        label = QtWidgets.QLabel("Go to File->Import to open your first image!", parent=self)
+        label = QtWidgets.QLabel(
+            "Go to File->Import to open your first image!", parent=self
+        )
         label.setStyleSheet("font-size: 20px;")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         return label
@@ -88,7 +90,9 @@ class MainGUI(QtWidgets.QMainWindow):
         self.menuBar().sigExitApp.connect(self.exitApp)
         self.menuBar().sigSaveProject.connect(self.proj.saveProject)
         self.menuBar().sigOpenProject.connect(self.proj.loadProject)
-        self.menuBar().sigDumpProjectData.connect(lambda: debug.ProjectContextDataTable(self.proj, self))
+        self.menuBar().sigDumpProjectData.connect(
+            lambda: debug.ProjectContextDataTable(self.proj, self)
+        )
 
         self.imageList.itemClicked.connect(self.onSelectedImageChanged)
 
@@ -100,7 +104,9 @@ class MainGUI(QtWidgets.QMainWindow):
         index = self.imageList.row(item)
         self.selectedImage = self.proj.getImage(index)
 
-        print(f"[DEBUG] Selected new image: {self.selectedImage.metadata.name} (index {self.selectedImage.index})")
+        print(
+            f"[DEBUG] Selected new image: {self.selectedImage.metadata.name} (index {self.selectedImage.index})"
+        )
 
         # Raster View
         rasterView = self.showRasterView(index)
@@ -187,10 +193,13 @@ class MainGUI(QtWidgets.QMainWindow):
             view.viewModel.setRasterView(raster_view)
 
             # Connect signals/slots for updates in both directions
-            if hasattr(view, 'roiSelectionChanged'):
+            if hasattr(view, "roiSelectionChanged"):
                 view.roiSelectionChanged.connect(
-                    lambda roi_index: raster_view.highlightROI(roi_index)
-                    if hasattr(raster_view, 'highlightROI') else None
+                    lambda roi_index: (
+                        raster_view.highlightROI(roi_index)
+                        if hasattr(raster_view, "highlightROI")
+                        else None
+                    )
                 )
 
         dock = QtWidgets.QDockWidget("ROI Table", self)
@@ -200,7 +209,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
         # Store the view and track the dock widget
         self.childWindows.append(dock)
-        if not hasattr(self, 'roiViews'):
+        if not hasattr(self, "roiViews"):
             self.roiViews = {}
         self.roiViews[image_index] = view
 
@@ -213,23 +222,33 @@ class MainGUI(QtWidgets.QMainWindow):
         """Remove a window from tracking when it's closed."""
         if window in self.childWindows:
             self.childWindows.remove(window)
-            logger.debug(f"Removed window from tracking. Remaining windows: {len(self.childWindows)}")
+            logger.debug(
+                f"Removed window from tracking. Remaining windows: {len(self.childWindows)}"
+            )
 
     def updateAllROIViews(self, current_image_index):
         """Update all open ROI views to show data for the current image."""
         for window in self.childWindows:
-            if hasattr(window, 'widget') and window.widget():
+            if hasattr(window, "widget") and window.widget():
                 widget = window.widget()
-                if hasattr(widget, 'viewModel') and hasattr(widget.viewModel, 'updateImageIndex'):
+                if hasattr(widget, "viewModel") and hasattr(
+                    widget.viewModel, "updateImageIndex"
+                ):
                     widget.viewModel.updateImageIndex(current_image_index)
 
                     # Update raster view reference if available
-                    if hasattr(widget.viewModel, 'setRasterView') and current_image_index in self.rasterViews:
-                        widget.viewModel.setRasterView(self.rasterViews[current_image_index])
+                    if (
+                        hasattr(widget.viewModel, "setRasterView")
+                        and current_image_index in self.rasterViews
+                    ):
+                        widget.viewModel.setRasterView(
+                            self.rasterViews[current_image_index]
+                        )
 
     # TODO: Delete?
     def openBandView(self, image_index):
         from features.image_view_band import BandManager
+
         view = BandManager(self.proj, image_index, self)
         dock = QtWidgets.QDockWidget("Band View", self)
         dock.setWidget(view)
@@ -243,6 +262,7 @@ class MainGUI(QtWidgets.QMainWindow):
     # TODO: Delete?
     def openStretchView(self, image_index):
         from features.image_view_stretch import getStretchView
+
         view = getStretchView(self.proj, image_index, self)
         dock = QtWidgets.QDockWidget("Stretch View", self)
         dock.setWidget(view)
@@ -256,6 +276,7 @@ class MainGUI(QtWidgets.QMainWindow):
     # TODO: Delete?
     def openHistogramView(self, image_index):
         from features.image_view_histogram import getHistogramView
+
         view = getHistogramView(self.proj, image_index, self)
         dock = QtWidgets.QDockWidget("Histogram View", self)
         dock.setWidget(view)
@@ -283,7 +304,9 @@ class MainGUI(QtWidgets.QMainWindow):
     def closeAllChildWindows(self):
         """Close all child windows before shutting down."""
         # Close all tracked child windows
-        for window in self.childWindows[:]:  # Use a copy of the list since it will be modified during iteration
+        for window in self.childWindows[
+            :
+        ]:  # Use a copy of the list since it will be modified during iteration
             if window and window.isVisible():
                 window.close()
 
@@ -294,7 +317,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
         # Close any control panels
         for panel in self.controlPanels.values():
-            if hasattr(panel, 'pixelPlotPopup') and panel.pixelPlotPopup:
+            if hasattr(panel, "pixelPlotPopup") and panel.pixelPlotPopup:
                 panel.pixelPlotPopup.close()
 
         # Clear tracking lists
@@ -333,30 +356,31 @@ class MainGUI(QtWidgets.QMainWindow):
         self.statusBar().showLoadingMessage()
         self.proj.loadNewImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
 
+
 def startGui(proj: ProjectContext):
     app = QApplication(sys.argv)
-    
+
     # Set the application name and organization
     app.setApplicationName("Varda")
     app.setOrganizationName("Varda")
-    
+
     # Set up a signal handler for graceful shutdown
     def signal_handler(sig, frame):
         logger.info(f"Received signal {sig}. Shutting down...")
         app.quit()
-    
+
     # Set up the event loop
     eventLoop = QEventLoop(app)
     asyncio.set_event_loop(eventLoop)
-    
+
     # Create and show the main window
     window = MainGUI(proj)
     window.showMaximized()
     window.show()
-    
+
     # Register the cleanup handler for when the application is about to quit
     app.aboutToQuit.connect(lambda: logger.info("Application is about to quit"))
-    
+
     # Run the event loop until it's stopped
     with eventLoop:
         eventLoop.run_forever()

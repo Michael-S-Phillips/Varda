@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
 
 from core.data import ProjectContext
 
+
 class BandSelector(QComboBox):
     """Basic utility widget for listing the band configurations of an image and
     selecting one.
@@ -34,7 +35,7 @@ class BandSelector(QComboBox):
     def _onProjectDataChanged(self, index, changeType):
         if self._handling_change:
             return
-            
+
         if index == self.imageIndex and changeType == ProjectContext.ChangeType.STRETCH:
             self._handling_change = True
             try:
@@ -78,4 +79,3 @@ class StretchSelector(QComboBox):
     def _onProjectDataChanged(self, index, changeType):
         if index == self.imageIndex and changeType == ProjectContext.ChangeType.STRETCH:
             self._populateComboBox()
-

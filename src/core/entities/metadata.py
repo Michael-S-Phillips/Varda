@@ -7,10 +7,12 @@ import numpy as np
 import logging
 
 from .geo_referencer import GeoReferencer
+
 # local imports
 from .band import Band
 
 logger = logging.getLogger(__name__)
+
 
 # pylint: disable=too-many-instance-attributes
 @dataclass
@@ -58,8 +60,12 @@ class Metadata:
             raise self.BadMetadataError("defaultBand", "Band", self.defaultBand)
         if not isinstance(self.wavelengths, np.ndarray):
             raise self.BadMetadataError("wavelengths", "np.ndarray", self.wavelengths)
-        if self.geoReferencer is not None and not isinstance(self.geoReferencer, GeoReferencer):
-            raise self.BadMetadataError("geoReference", "GeoReference", self.geoReferencer)
+        if self.geoReferencer is not None and not isinstance(
+            self.geoReferencer, GeoReferencer
+        ):
+            raise self.BadMetadataError(
+                "geoReference", "GeoReference", self.geoReferencer
+            )
         if not isinstance(self.extraMetadata, dict):
             raise self.BadMetadataError("extraMetadata", "dict", self.extraMetadata)
         for key, value in self.extraMetadata.items():
@@ -79,18 +85,20 @@ class Metadata:
         """
         # Get the list of expected field names from the dataclass
         expected_fields = [f.name for f in self.__dataclass_fields__.values()]
-        
+
         # Handle expected fields
         for field in expected_fields:
             if field in kwargs:
                 setattr(self, field, kwargs.pop(field))
-            elif field == 'extraMetadata':
+            elif field == "extraMetadata":
                 # Initialize extraMetadata if not provided
-                self.extraMetadata = kwargs.pop('extraMetadata', {})
-        
+                self.extraMetadata = kwargs.pop("extraMetadata", {})
+
         # Move any remaining unexpected kwargs to extraMetadata
         for key, value in kwargs.items():
-            logger.warning(f"Unexpected keyword argument '{key}' moved to extraMetadata")
+            logger.warning(
+                f"Unexpected keyword argument '{key}' moved to extraMetadata"
+            )
             self.extraMetadata[key] = value
 
     def _checkExtraMetadata(self, item):

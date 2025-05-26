@@ -5,6 +5,7 @@ from features.image_view_metadata.metadata_editor import MetadataEditor
 
 logger = logging.getLogger(__name__)
 
+
 def openMetadataEditor(proj: ProjectContext, imageIndex, parent):
     """
     Opens the metadata editor for the specified image.

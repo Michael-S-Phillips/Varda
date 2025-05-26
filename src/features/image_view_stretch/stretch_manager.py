@@ -20,7 +20,9 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QHBoxLayout,
     QToolButton,
-    QGroupBox, QMessageBox, QDialog,
+    QGroupBox,
+    QMessageBox,
+    QDialog,
 )
 
 # local imports
@@ -31,12 +33,14 @@ from features.image_view_stretch.custom_stretch_dialog import CustomStretchDialo
 
 logger = logging.getLogger(__name__)
 
+
 class StretchManager(QWidget):
     """A widget to display a list of all the stretches associated with an image, and manage them.
 
     This includes being able to create, delete, and modify stretch configurations.
     Each stretch has a name, and minimum/maximum values for R, G, and B channels.
     """
+
     sigStretchSelected = pyqtSignal(int)
 
     def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
@@ -70,7 +74,9 @@ class StretchManager(QWidget):
             QAbstractItemView.EditTrigger.AnyKeyPressed
             | QAbstractItemView.EditTrigger.DoubleClicked
         )
-        self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.table.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         self.toggleButton = QToolButton(self)
         self.toggleButton.setText("Show/Hide Table")
         self.toggleButton.setCheckable(True)
@@ -96,25 +102,27 @@ class StretchManager(QWidget):
         # Add a section for preset stretches
         self.presetsGroup = QGroupBox("Preset Stretches", self)
         self.presetsLayout = QVBoxLayout()
-        
+
         # Create a button for each preset
         self.presetButtons = {}
         for preset_id, preset_name in StretchPresets.get_preset_names():
             button = QPushButton(preset_name, self)
-            button.clicked.connect(lambda checked, pid=preset_id: self._onPresetClicked(pid))
+            button.clicked.connect(
+                lambda checked, pid=preset_id: self._onPresetClicked(pid)
+            )
             self.presetsLayout.addWidget(button)
             self.presetButtons[preset_id] = button
-        
+
         # Add a button for custom stretches
         self.customStretchButton = QPushButton("Custom Stretch...", self)
         self.customStretchButton.clicked.connect(self._onCustomStretchClicked)
         self.presetsLayout.addWidget(self.customStretchButton)
-        
+
         # Add a button to create all preset stretches
         self.createAllPresetsButton = QPushButton("Create All Presets", self)
         self.createAllPresetsButton.clicked.connect(self._onCreateAllPresetsClicked)
         self.presetsLayout.addWidget(self.createAllPresetsButton)
-        
+
         self.presetsGroup.setLayout(self.presetsLayout)
 
         self.layout = QVBoxLayout(self)
@@ -138,7 +146,9 @@ class StretchManager(QWidget):
         self.disableProjectUpdating = True
         stretches = self.proj.getImage(self.imageIndex).stretch
         self.table.setRowCount(len(stretches))
-        self.table.setMinimumHeight(self.table.verticalHeader().defaultSectionSize() * (len(stretches) + 1))
+        self.table.setMinimumHeight(
+            self.table.verticalHeader().defaultSectionSize() * (len(stretches) + 1)
+        )
         for row, stretch in enumerate(stretches):
             self.table.setItem(row, 0, QTableWidgetItem(stretch.name))
             self.table.setItem(row, 1, QTableWidgetItem(str(stretch.minR)))
@@ -246,41 +256,41 @@ class StretchManager(QWidget):
         # Guard against recursion
         if self._handling_change:
             return
-            
+
         if index == self.imageIndex and changeType is ProjectContext.ChangeType.STRETCH:
             self._handling_change = True
             try:
                 self._populateTable()
             finally:
                 self._handling_change = False
-            
+
     def _onPresetClicked(self, preset_id):
         """Handle click on a preset stretch button."""
         try:
             # Get the image data
             image = self.proj.getImage(self.imageIndex)
             image_data = image.raster
-            
+
             # Create a stretch from the preset
             stretch = StretchPresets.create_stretch_from_preset(preset_id, image_data)
-            
+
             # Add the stretch to the project
             self.proj.addStretch(self.imageIndex, stretch)
-            
+
             # Select the new stretch
             self.table.selectRow(len(image.stretch) - 1)
             self.histogramView.viewModel.selectStretch(len(image.stretch) - 1)
-            
+
         except Exception as e:
             logger.error(f"Error applying preset stretch {preset_id}: {e}")
             # Show an error message
             QMessageBox.warning(
-                self, 
+                self,
                 "Stretch Error",
                 f"Error applying stretch preset: {str(e)}",
-                QMessageBox.StandardButton.Ok
+                QMessageBox.StandardButton.Ok,
             )
-            
+
     def _onCustomStretchClicked(self):
         """Show dialog for creating a custom stretch."""
         dialog = CustomStretchDialog(self)
@@ -289,16 +299,18 @@ class StretchManager(QWidget):
                 # Get the parameters from the dialog
                 params = dialog.getParameters()
                 algorithm_id = params.pop("algorithm_id", "percentile")
-                
+
                 # Get the image data
                 image = self.proj.getImage(self.imageIndex)
                 image_data = image.raster
-                
+
                 # Compute the stretch values
                 from core.stretch.stretch_algorithms import compute_stretch
+
                 minR, maxR, minG, maxG, minB, maxB = compute_stretch(
-                    algorithm_id, image_data, **params)
-                
+                    algorithm_id, image_data, **params
+                )
+
                 # Create a name for the stretch
                 if algorithm_id == "percentile":
                     low = params.get("low_percentile", 2.0)
@@ -318,53 +330,54 @@ class StretchManager(QWidget):
                     name = f"Adaptive Eq. (clip={clip})"
                 else:
                     name = "Custom Stretch"
-                
+
                 # Create and add the stretch
                 from core.entities.stretch import Stretch
+
                 stretch = Stretch(name, minR, maxR, minG, maxG, minB, maxB)
                 self.proj.addStretch(self.imageIndex, stretch)
-                
+
                 # Select the new stretch
                 self.histogramView.viewModel.selectStretch(len(image.stretch) - 1)
-                
+
             except Exception as e:
                 logger.error(f"Error creating custom stretch: {e}")
                 # Show an error message
                 QMessageBox.warning(
-                    self, 
+                    self,
                     "Stretch Error",
                     f"Error creating custom stretch: {str(e)}",
-                    QMessageBox.StandardButton.Ok
+                    QMessageBox.StandardButton.Ok,
                 )
-                
+
     def _onCreateAllPresetsClicked(self):
         """Create a stretch for each available preset."""
         try:
             # Get the image data
             image = self.proj.getImage(self.imageIndex)
             image_data = image.raster
-            
+
             # Create stretches for all presets
             stretches = StretchPresets.create_all_preset_stretches(image_data)
-            
+
             # Add each stretch to the project
             for stretch in stretches:
                 self.proj.addStretch(self.imageIndex, stretch)
-            
+
             # Select the first new stretch
             if stretches:
                 self.histogramView.viewModel.selectStretch(
                     len(image.stretch) - len(stretches)
                 )
-                
+
         except Exception as e:
             logger.error(f"Error creating all preset stretches: {e}")
             # Show an error message
             QMessageBox.warning(
-                self, 
+                self,
                 "Stretch Error",
                 f"Error creating preset stretches: {str(e)}",
-                QMessageBox.StandardButton.Ok
+                QMessageBox.StandardButton.Ok,
             )
 
     class FloatDelegate(QStyledItemDelegate):

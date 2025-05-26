@@ -12,10 +12,10 @@ from .abstractimageloader import AbstractImageLoader as _AbstractImageLoader
 
 # Export key names
 __all__ = [
-    'AbstractImageLoader',
-    'ENVIImageLoader',
-    'TIFFImageLoader',
-    'HDF5ImageLoader',
-    'PillowImageLoader',
-    'LOADER_REGISTRY'
+    "AbstractImageLoader",
+    "ENVIImageLoader",
+    "TIFFImageLoader",
+    "HDF5ImageLoader",
+    "PillowImageLoader",
+    "LOADER_REGISTRY",
 ]

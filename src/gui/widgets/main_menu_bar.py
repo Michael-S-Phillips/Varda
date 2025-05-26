@@ -64,5 +64,7 @@ class MainMenuBar(QMenuBar):
     def _initDebugMenu(self):
         debugMenu = QMenu("Debug", self)
         # debugMenu.addAction("Load Debug Project", QKeySequence("F10"), self.sigLoadDebugProject)
-        debugMenu.addAction("Project Data Dump", QKeySequence("F12"), self.sigDumpProjectData)
+        debugMenu.addAction(
+            "Project Data Dump", QKeySequence("F12"), self.sigDumpProjectData
+        )
         return debugMenu

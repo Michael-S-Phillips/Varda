@@ -2,10 +2,21 @@
 
 # standard library
 import logging
+
 # third-party imports
 import pyqtgraph as pg
 from PyQt6.QtCore import pyqtSlot
-from PyQt6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout, QTabWidget, QMessageBox, QGroupBox, QComboBox, QPushButton, QLabel
+from PyQt6.QtWidgets import (
+    QVBoxLayout,
+    QWidget,
+    QHBoxLayout,
+    QTabWidget,
+    QMessageBox,
+    QGroupBox,
+    QComboBox,
+    QPushButton,
+    QLabel,
+)
 from PyQt6.QtGui import QColor
 from pyqtgraph import HistogramLUTItem
 
@@ -18,6 +29,7 @@ from core.utilities.signal_utils import guard_signals, SignalBlocker
 from core.data import ProjectContext
 
 logger = logging.getLogger(__name__)
+
 
 class DualHistogram(QWidget):
     def __init__(self, parent=None, image=None, color=(255, 255, 255)):
@@ -62,6 +74,7 @@ class DualHistogram(QWidget):
         mn, mx = self.histogram.item.getLevels()
         self.histogramZoomed.item.setHistogramRange(mn, mx)
 
+
 class HistogramView(BaseView):
     """A basic view for editing band configurations of an image with selectable RGB histograms."""
 
@@ -78,7 +91,7 @@ class HistogramView(BaseView):
 
         self._initUI()
         self.connectViewModelSignals()
-        
+
     def _initUI(self):
         self.tabWidget = QTabWidget()
 
@@ -93,21 +106,21 @@ class HistogramView(BaseView):
         # Add stretch preset options
         self.presetsGroup = QGroupBox("Preset Stretches")
         self.presetsLayout = QVBoxLayout()
-        
+
         # Add a dropdown for selecting presets
         self.presetCombo = QComboBox()
         for _, preset_name in StretchPresets.get_preset_names():
             self.presetCombo.addItem(preset_name)
-        
+
         self.applyPresetButton = QPushButton("Apply Selected Preset")
         self.applyPresetButton.clicked.connect(self._onApplyPresetClicked)
-        
+
         self.presetsLayout.addWidget(QLabel("Select a preset stretch:"))
         self.presetsLayout.addWidget(self.presetCombo)
         self.presetsLayout.addWidget(self.applyPresetButton)
-        
+
         self.presetsGroup.setLayout(self.presetsLayout)
-        
+
         selectorLayout = QVBoxLayout()
         selectorLayout.addWidget(self.presetsGroup)
 
@@ -149,28 +162,28 @@ class HistogramView(BaseView):
             # Get the selected preset
             preset_index = self.presetCombo.currentIndex()
             preset_id = StretchPresets.get_preset_names()[preset_index][0]
-            
+
             # Get the image data
             image = self.viewModel.proj.getImage(self.viewModel.index)
             image_data = image.raster
-            
+
             # Create a stretch from the preset
             stretch = StretchPresets.create_stretch_from_preset(preset_id, image_data)
-            
+
             # Add the stretch to the project
             self.viewModel.proj.addStretch(self.viewModel.index, stretch)
-            
+
             # Select the new stretch
             self.viewModel.selectStretch(len(image.stretch) - 1)
-            
+
         except Exception as e:
             logger.error(f"Error applying preset stretch: {e}")
             # Show an error message
             QMessageBox.warning(
-                self, 
+                self,
                 "Stretch Error",
                 f"Error applying stretch preset: {str(e)}",
-                QMessageBox.StandardButton.Ok
+                QMessageBox.StandardButton.Ok,
             )
 
     @guard_signals
@@ -181,14 +194,16 @@ class HistogramView(BaseView):
             minR, maxR = self.histogramR.histogram.item.getLevels()
             minG, maxG = self.histogramG.histogram.item.getLevels()
             minB, maxB = self.histogramB.histogram.item.getLevels()
-            
+
             # Log the changes
-            logger.debug(f"Histogram levels changed via {channel}: R({minR},{maxR}) G({minG},{maxG}) B({minB},{maxB})")
-            
+            logger.debug(
+                f"Histogram levels changed via {channel}: R({minR},{maxR}) G({minG},{maxG}) B({minB},{maxB})"
+            )
+
             # Update the ViewModel's stretch
-            self.viewModel.updateStretch(minR=minR, maxR=maxR, minG=minG, maxG=maxG, minB=minB, maxB=maxB)
-
-
+            self.viewModel.updateStretch(
+                minR=minR, maxR=maxR, minG=minG, maxG=maxG, minB=minB, maxB=maxB
+            )
 
             # Force a refresh of the current stretch selection to ensure signals propagate
             current_index = self.viewModel.stretchIndex
@@ -202,24 +217,32 @@ class HistogramView(BaseView):
         try:
             # Get current stretch values
             stretch = self.viewModel.getSelectedStretch()
-            
+
             # Log the stretch values
-            logger.debug(f"Updating histogram display: R({stretch.minR},{stretch.maxR}) G({stretch.minG},{stretch.maxG}) B({stretch.minB},{stretch.maxB})")
-            
+            logger.debug(
+                f"Updating histogram display: R({stretch.minR},{stretch.maxR}) G({stretch.minG},{stretch.maxG}) B({stretch.minB},{stretch.maxB})"
+            )
+
             # Update histogram levels with signal blocking to prevent loops
             with SignalBlocker(self):
                 self.histogramR.histogram.item.setLevels(stretch.minR, stretch.maxR)
                 self.histogramG.histogram.item.setLevels(stretch.minG, stretch.maxG)
                 self.histogramB.histogram.item.setLevels(stretch.minB, stretch.maxB)
-                
+
                 # Update the zoomed histograms
-                self.histogramR.histogramZoomed.item.setHistogramRange(stretch.minR, stretch.maxR)
-                self.histogramG.histogramZoomed.item.setHistogramRange(stretch.minG, stretch.maxG)
-                self.histogramB.histogramZoomed.item.setHistogramRange(stretch.minB, stretch.maxB)
+                self.histogramR.histogramZoomed.item.setHistogramRange(
+                    stretch.minR, stretch.maxR
+                )
+                self.histogramG.histogramZoomed.item.setHistogramRange(
+                    stretch.minG, stretch.maxG
+                )
+                self.histogramB.histogramZoomed.item.setHistogramRange(
+                    stretch.minB, stretch.maxB
+                )
 
         except Exception as e:
             logger.error(f"Error in _onStretchChanged: {e}", exc_info=True)
-    
+
     def _onBandChanged(self):
         """Handle band changes by updating image items."""
         self._updateImageItems()
@@ -228,20 +251,26 @@ class HistogramView(BaseView):
         """Update the UI based on the current ViewModel state."""
         # Update image data
         self._updateImageItems()
-        
+
         # Get current stretch values
         stretch = self.viewModel.getSelectedStretch()
-        
+
         # Use SignalBlocker to prevent recursive updates
         with SignalBlocker(self):
             try:
                 self.histogramR.histogram.item.setLevels(stretch.minR, stretch.maxR)
                 self.histogramG.histogram.item.setLevels(stretch.minG, stretch.maxG)
                 self.histogramB.histogram.item.setLevels(stretch.minB, stretch.maxB)
-                
+
                 # Update zoomed histograms too
-                self.histogramR.histogramZoomed.item.setHistogramRange(stretch.minR, stretch.maxR)
-                self.histogramG.histogramZoomed.item.setHistogramRange(stretch.minG, stretch.maxG)
-                self.histogramB.histogramZoomed.item.setHistogramRange(stretch.minB, stretch.maxB)
+                self.histogramR.histogramZoomed.item.setHistogramRange(
+                    stretch.minR, stretch.maxR
+                )
+                self.histogramG.histogramZoomed.item.setHistogramRange(
+                    stretch.minG, stretch.maxG
+                )
+                self.histogramB.histogramZoomed.item.setHistogramRange(
+                    stretch.minB, stretch.maxB
+                )
             except Exception as e:
                 logger.error(f"Error updating histogram levels: {e}")

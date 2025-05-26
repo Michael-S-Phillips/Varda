@@ -52,7 +52,9 @@ class RasterViewModel(QObject):
     def _connectSignals(self):
         """Connect to signals from the ProjectContext."""
         # Connect to project context signals with the correct signal version
-        self.proj.sigDataChanged[int, ProjectContext.ChangeType].connect(self._handleDataChanged)
+        self.proj.sigDataChanged[int, ProjectContext.ChangeType].connect(
+            self._handleDataChanged
+        )
 
         # Connect our internal signals to update the general data signal
         self.sigBandChanged.connect(self.sigDataUpdated)

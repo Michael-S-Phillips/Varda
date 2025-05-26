@@ -13,7 +13,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-
 class StretchViewModel(QObject):
     """Simple ViewModel for the stretch view/editor. This handles all the business
     logic and interaction with the ProjectContext.
@@ -42,7 +41,7 @@ class StretchViewModel(QObject):
 
     def updateStretch(self, minR, maxR, minG, maxG, minB, maxB):
         """Update the stretch configuration.
-        
+
         Args:
             minR, maxR: Red channel min/max values
             minG, maxG: Green channel min/max values
@@ -50,16 +49,22 @@ class StretchViewModel(QObject):
         """
         # Log the current stretch
         old_stretch = self.getSelectedStretch()
-        logger.debug(f"Updating stretch: Old: ({old_stretch.minR:.6f}, {old_stretch.maxR:.6f}, {old_stretch.minG:.6f}, {old_stretch.maxG:.6f}, {old_stretch.minB:.6f}, {old_stretch.maxB:.6f})")
-        logger.debug(f"Updating stretch: New: ({minR:.6f}, {maxR:.6f}, {minG:.6f}, {maxG:.6f}, {minB:.6f}, {maxB:.6f})")
-        
+        logger.debug(
+            f"Updating stretch: Old: ({old_stretch.minR:.6f}, {old_stretch.maxR:.6f}, {old_stretch.minG:.6f}, {old_stretch.maxG:.6f}, {old_stretch.minB:.6f}, {old_stretch.maxB:.6f})"
+        )
+        logger.debug(
+            f"Updating stretch: New: ({minR:.6f}, {maxR:.6f}, {minG:.6f}, {maxG:.6f}, {minB:.6f}, {maxB:.6f})"
+        )
+
         # Check if there's an actual change
-        if (abs(old_stretch.minR - minR) < 1e-6 and 
-            abs(old_stretch.maxR - maxR) < 1e-6 and
-            abs(old_stretch.minG - minG) < 1e-6 and
-            abs(old_stretch.maxG - maxG) < 1e-6 and
-            abs(old_stretch.minB - minB) < 1e-6 and
-            abs(old_stretch.maxB - maxB) < 1e-6):
+        if (
+            abs(old_stretch.minR - minR) < 1e-6
+            and abs(old_stretch.maxR - maxR) < 1e-6
+            and abs(old_stretch.minG - minG) < 1e-6
+            and abs(old_stretch.maxG - maxG) < 1e-6
+            and abs(old_stretch.minB - minB) < 1e-6
+            and abs(old_stretch.maxB - maxB) < 1e-6
+        ):
             logger.debug("No significant change in stretch values, skipping update")
             return
 
@@ -75,7 +80,7 @@ class StretchViewModel(QObject):
             minB=minB,
             maxB=maxB,
         )
-        
+
         # Explicitly emit the change signal
         self.sigStretchChanged.emit()
 
@@ -85,7 +90,7 @@ class StretchViewModel(QObject):
             return
         if changeType != ProjectContext.ChangeType.STRETCH:
             return
-            
+
         # guarded signal
         stretch = self.getSelectedStretch()
         self.sigStretchChanged.emit()

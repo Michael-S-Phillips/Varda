@@ -102,7 +102,7 @@ class StretchView(BaseView):
     @guard_signals
     def onStretchChanged(self):
         """Handle stretch changes from the ViewModel.
-        
+
         This method updates the UI with new stretch values.
         The @guard_signals decorator prevents recursive updates when
         the UI change triggers valueChanged signals.
@@ -125,6 +125,6 @@ class StretchView(BaseView):
             self.maxGInput.setValue(values[3])
             self.minBInput.setValue(values[4])
             self.maxBInput.setValue(values[5])
-        
+
         # Now that all values are updated, we can refresh the UI once
         # This would typically call some method to update the display

@@ -8,17 +8,25 @@ from core.data import ProjectContext
 
 logger = logging.getLogger(__name__)
 
+
 class ImagePlotWidget(QWidget):
     """
     A widget for plotting data from an image.
      Right now this is just the spectral data for a certain pixel, but later we could add methods for other types of plots.
      It Can be used either as a small embedded widget or a popup window.
     """
+
     sigClicked = pyqtSignal()
 
     _pressPos = None  # Store the position of the mouse press for click detection
 
-    def __init__(self, proj: ProjectContext = None, imageIndex = None, isWindow: bool = False, parent=None):
+    def __init__(
+        self,
+        proj: ProjectContext = None,
+        imageIndex=None,
+        isWindow: bool = False,
+        parent=None,
+    ):
         super().__init__(parent)
         self.isWindow = isWindow
 
@@ -54,9 +62,8 @@ class ImagePlotWidget(QWidget):
         self.show()
         logger.debug("PixelPlotWindow initialized")
 
-
     def eventFilter(self, obj, event):
-        """ Filter events for the plot widget to handle clicks and mouse releases."""
+        """Filter events for the plot widget to handle clicks and mouse releases."""
         # handle mouse press
         if event.type() == QEvent.Type.GraphicsSceneMousePress:
             self._pressPos = event.scenePos()
@@ -65,7 +72,9 @@ class ImagePlotWidget(QWidget):
         # handle mouse release
         if event.type() == QEvent.Type.GraphicsSceneMouseRelease:
             logger.debug("Mouse release event")
-            if (QPoint(event.scenePos().toPoint()) - self._pressPos.toPoint()).manhattanLength() < 5:
+            if (
+                QPoint(event.scenePos().toPoint()) - self._pressPos.toPoint()
+            ).manhattanLength() < 5:
                 logger.debug("PixelPlotWidget clicked!")
                 self.sigClicked.emit()
             else:
@@ -98,14 +107,17 @@ class ImagePlotWidget(QWidget):
         image = self.proj.getImage(self.imageIndex)
 
         try:
-            wavelengths = np.char.strip(image.metadata.wavelengths.astype(str)).astype(float)
+            wavelengths = np.char.strip(image.metadata.wavelengths.astype(str)).astype(
+                float
+            )
         except ValueError as e:
-            logger.warning(f"Wavelengths appear to be categorical. Generating a numeric vector of the same length.")
+            logger.warning(
+                f"Wavelengths appear to be categorical. Generating a numeric vector of the same length."
+            )
             wavelengths = np.arange(len(image.metadata.wavelengths), dtype=float)
 
         spectrum = image.raster[y, x, :]
         self.updatePlot(wavelengths, spectrum, (x, y))
-
 
     def updatePlot(self, wavelengths, spectrum, coords):
         """Update the plot with new spectral data."""
@@ -115,16 +127,24 @@ class ImagePlotWidget(QWidget):
             try:
                 wavelengths = np.asarray(wavelengths, dtype=float)
             except ValueError as e:
-                logger.warning(f"Wavelengths appear to be categorical. Generating a numeric vector of the same length.")
+                logger.warning(
+                    f"Wavelengths appear to be categorical. Generating a numeric vector of the same length."
+                )
                 wavelengths = np.arange(len(wavelengths), dtype=float)
             spectrum = np.asarray(spectrum, dtype=float)
-            logger.debug(f"Wavelength range: {wavelengths.min() if len(wavelengths) > 0 else 'N/A'} - " + 
-                        f"{wavelengths.max() if len(wavelengths) > 0 else 'N/A'} nm")
-            logger.debug(f"Spectral data range: {spectrum.min() if len(spectrum) > 0 else 'N/A'} - " + 
-                        f"{spectrum.max() if len(spectrum) > 0 else 'N/A'}")
+            logger.debug(
+                f"Wavelength range: {wavelengths.min() if len(wavelengths) > 0 else 'N/A'} - "
+                + f"{wavelengths.max() if len(wavelengths) > 0 else 'N/A'} nm"
+            )
+            logger.debug(
+                f"Spectral data range: {spectrum.min() if len(spectrum) > 0 else 'N/A'} - "
+                + f"{spectrum.max() if len(spectrum) > 0 else 'N/A'}"
+            )
         except ValueError as e:
             logger.error(f"Error converting data to numeric types: {e}")
             return
 
-        self.plot_widget.plot(wavelengths, spectrum, pen='y', name=f"({coords[0]}, {coords[1]})")
+        self.plot_widget.plot(
+            wavelengths, spectrum, pen="y", name=f"({coords[0]}, {coords[1]})"
+        )
         self.plot_widget.setTitle(f"Pixel Spectrum at {coords}")

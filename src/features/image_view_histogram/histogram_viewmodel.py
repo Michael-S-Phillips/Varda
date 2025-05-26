@@ -46,7 +46,11 @@ class HistogramViewModel(QObject):
     def selectStretch(self, stretchIndex):
         """selects a new stretch from the image."""
         self.stretchIndex = stretchIndex
-        self._handleDataChanged(self.index, ProjectContext.ChangeType.STRETCH, ProjectContext.ChangeModifier.UPDATE)
+        self._handleDataChanged(
+            self.index,
+            ProjectContext.ChangeType.STRETCH,
+            ProjectContext.ChangeModifier.UPDATE,
+        )
 
     def getSelectedBand(self):
         """requests the stretch corresponding to stretchIndex, and returns it."""
@@ -88,7 +92,7 @@ class HistogramViewModel(QObject):
         # Guard against recursion
         if self._handling_change:
             return
-            
+
         self._handling_change = True
         try:
             if changeType is ProjectContext.ChangeType.BAND:
@@ -97,10 +101,19 @@ class HistogramViewModel(QObject):
                 try:
                     stretch = self.getSelectedStretch()
                     minR, maxR, minG, maxG, minB, maxB = [
-                        float(value) for subList in stretch.toList() for value in subList
+                        float(value)
+                        for subList in stretch.toList()
+                        for value in subList
                     ]
-                    logger.debug("Stretch changed: (%.6f, %.6f, %.6f, %.6f, %.6f, %.6f)", 
-                            minR, maxR, minG, maxG, minB, maxB)
+                    logger.debug(
+                        "Stretch changed: (%.6f, %.6f, %.6f, %.6f, %.6f, %.6f)",
+                        minR,
+                        maxR,
+                        minG,
+                        maxG,
+                        minB,
+                        maxB,
+                    )
                     self.sigStretchChanged.emit(minR, maxR, minG, maxG, minB, maxB)
                 except Exception as e:
                     logger.error(f"Error handling stretch change: {e}")

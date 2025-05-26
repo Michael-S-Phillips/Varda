@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 import affine
+
 # third party imports
 import numpy as np
 import rasterio as rio
@@ -14,6 +15,7 @@ from affine import Affine
 from pyproj import CRS
 
 from core.entities import GeoReferencer
+
 # local imports
 from core.utilities.load_image.loaders.abstractimageloader import AbstractImageLoader
 from core.entities import Metadata
@@ -31,13 +33,13 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
     imageType = (".hdr", ".img")
 
     @staticmethod
-    def loadRasterData(filePath, loading_mode='full') -> np.ndarray:
+    def loadRasterData(filePath, loading_mode="full") -> np.ndarray:
         """Load raster data from an ENVI image file.
-        
+
         Args:
             filePath: Path to the ENVI header file
             loading_mode: Mode to control how the data is loaded ('full', 'preview', or 'metadata')
-            
+
         Returns:
             np.ndarray: The raster data
         """
@@ -49,25 +51,29 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                 logger.debug("time to open file: %s", time.time() - timeStarted)
 
                 # Check if we should load a downsampled version for preview mode
-                if loading_mode == 'preview':
+                if loading_mode == "preview":
                     # Calculate dimensions for preview
                     file_size_mb = os.path.getsize(path) / (1024 * 1024)
-                    downsample_factor = max(1, int(file_size_mb / 100))  # Adjust divisor as needed
-                    
-                    logger.info(f"Loading preview with downsample factor {downsample_factor}")
-                    
+                    downsample_factor = max(
+                        1, int(file_size_mb / 100)
+                    )  # Adjust divisor as needed
+
+                    logger.info(
+                        f"Loading preview with downsample factor {downsample_factor}"
+                    )
+
                     # Calculate new dimensions
                     out_shape = (
                         src.count,
                         max(1, int(src.height / downsample_factor)),
-                        max(1, int(src.width / downsample_factor))
+                        max(1, int(src.width / downsample_factor)),
                     )
-                    
+
                     # Read with decimation
                     data = src.read(
                         out_shape=out_shape,
                         masked=True,
-                        resampling=rio.enums.Resampling.average
+                        resampling=rio.enums.Resampling.average,
                     )
                 else:
                     # Full resolution data
@@ -77,9 +83,9 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
 
                 # Transpose to match expected format (height, width, bands)
                 data = data.transpose(1, 2, 0)
-                
+
                 return data
-                
+
         except Exception as e:
             logger.error(f"Failed to load raster data from {path}: {e}")
             raise ValueError(f"Could not read image file: {e}")
@@ -87,11 +93,11 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
     @staticmethod
     def loadMetadata(raster, filePath) -> Metadata:  # pylint: disable=too-many-locals
         """Load metadata from an ENVI image file.
-        
+
         Args:
             raster: The raster data
             filePath: Path to the ENVI header file
-            
+
         Returns:
             Metadata: The image metadata
         """
@@ -115,7 +121,9 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                     logger.debug(f"Transform:\n{transform}")
                     crs = CRS.from_wkt(src.crs.to_wkt())
                     logger.debug(f"crs:\n{crs}")
-                    metadata_dict["geoReferencer"] = GeoReferencer(transform=transform, crs=crs)
+                    metadata_dict["geoReferencer"] = GeoReferencer(
+                        transform=transform, crs=crs
+                    )
                 else:
                     logger.debug(f"Image does not contain geospatial information.")
                 # Optional metadata that might not be available
@@ -123,10 +131,14 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                     metadata_dict["dtype"] = src.dtypes[0]
                 except (IndexError, AttributeError):
                     metadata_dict["dtype"] = str(raster.dtype)
-                    errors.append("Could not determine dtype from source, using raster dtype")
+                    errors.append(
+                        "Could not determine dtype from source, using raster dtype"
+                    )
 
                 try:
-                    metadata_dict["dataIgnore"] = src.nodata if src.nodata is not None else 0
+                    metadata_dict["dataIgnore"] = (
+                        src.nodata if src.nodata is not None else 0
+                    )
                 except (AttributeError, IndexError):
                     metadata_dict["dataIgnore"] = 0
                     errors.append("Could not determine nodata value, using 0")
@@ -165,8 +177,9 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                             int(band)
                             for band in enviData["default_bands"].strip("{}").split(",")
                         ]
-                        metadata_dict["defaultBand"] = Band("default", defaultBands[0], 
-                                                       defaultBands[1], defaultBands[2])
+                        metadata_dict["defaultBand"] = Band(
+                            "default", defaultBands[0], defaultBands[1], defaultBands[2]
+                        )
                     else:
                         # Set reasonable default bands if not specified
                         if raster.shape[2] >= 3:
@@ -204,7 +217,9 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                         wavelengths = np.asarray(
                             [
                                 float(wavelength)
-                                for wavelength in enviData["wavelength"].strip("{}").split(",")
+                                for wavelength in enviData["wavelength"]
+                                .strip("{}")
+                                .split(",")
                             ]
                         )
                         metadata_dict["wavelengths"] = wavelengths
@@ -212,36 +227,50 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                     elif bandNames is not None:
                         # Try to extract numeric values from band names if they look like wavelengths
                         try:
-                            wavelengths = np.asarray([float(name) for name in bandNames])
+                            wavelengths = np.asarray(
+                                [float(name) for name in bandNames]
+                            )
                             metadata_dict["wavelengths"] = wavelengths
                             metadata_dict["wavelengths_type"] = float
                         except ValueError:
                             # Band names don't look like wavelengths, use them as is
-                            metadata_dict["wavelengths"] = np.asarray(bandNames, dtype="S")
+                            metadata_dict["wavelengths"] = np.asarray(
+                                bandNames, dtype="S"
+                            )
                             metadata_dict["wavelengths_type"] = str
                     else:
                         # If all else fails, use band indices
                         bandCount = metadata_dict["bandCount"]
                         metadata_dict["wavelengths"] = np.arange(bandCount)
                         metadata_dict["wavelengths_type"] = int
-                        errors.append("No wavelength information found, using band indices")
+                        errors.append(
+                            "No wavelength information found, using band indices"
+                        )
                 except Exception as e:
                     # Last resort fallback for wavelengths
                     bandCount = metadata_dict["bandCount"]
                     metadata_dict["wavelengths"] = np.arange(bandCount)
                     metadata_dict["wavelengths_type"] = int
-                    errors.append(f"Error extracting wavelengths: {e}, using band indices")
+                    errors.append(
+                        f"Error extracting wavelengths: {e}, using band indices"
+                    )
 
                 # Add extra metadata fields
                 extraMetadata = {}
                 for key, value in enviData.items():
-                    if key not in ["description", "default_bands", "wavelength_units", 
-                                  "band_names", "wavelength", "geospatial_info"]:
+                    if key not in [
+                        "description",
+                        "default_bands",
+                        "wavelength_units",
+                        "band_names",
+                        "wavelength",
+                        "geospatial_info",
+                    ]:
                         extraMetadata[key] = value
-                
+
                 if errors:
                     extraMetadata["loadErrors"] = errors
-                
+
                 metadata_dict["extraMetadata"] = extraMetadata
 
         except Exception as e:

@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Any
 from .freehandROI import FreehandROI
 
+
 @dataclass
 class Plot:
     """
@@ -17,9 +18,10 @@ class Plot:
         timestamp (str): The time when the plot was saved.
         data (Any): Data needed to reconstruct the plot.
     """
+
     plot_type: str
     timestamp: str
-    data: Any  
+    data: Any
 
     @staticmethod
     def create(roi: FreehandROI):
