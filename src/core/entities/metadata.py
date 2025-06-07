@@ -2,9 +2,13 @@
 from typing import Any, Dict, Type
 from dataclasses import dataclass, field
 
+import affine
 # third-party imports
 import numpy as np
 import logging
+
+from affine import Affine
+from pyproj import CRS
 
 from .geo_referencer import GeoReferencer
 
@@ -37,7 +41,8 @@ class Metadata:
     wavelengths: np.ndarray = field(default_factory=lambda: np.zeros(0))
     wavelengths_type: Type = float
     name: str = ""  # Added a name field for display purposes
-
+    transform: Affine = affine.identity
+    crs: CRS = None
     geoReferencer: GeoReferencer = None
 
     extraMetadata: Dict[str, str | int | float] = field(default_factory=dict)

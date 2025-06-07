@@ -1,5 +1,8 @@
+import logging
+
+import numpy as np
 from PyQt6.QtCore import pyqtSlot, Qt
-from PyQt6.QtGui import QIntValidator
+from PyQt6.QtGui import QIntValidator, QStandardItemModel
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -13,12 +16,13 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QHBoxLayout,
     QLayout,
-    QToolButton,
+    QToolButton, QComboBox, QCheckBox,
 )
 
 from core.data import ProjectContext
 from features.image_view_band import getBandView
 
+logger = logging.getLogger(__name__)
 
 class BandManager(QWidget):
     """A widget to display a list of all the bands associated with an image, and manage them.
@@ -31,19 +35,22 @@ class BandManager(QWidget):
         self.setWindowTitle("Band Manager")
         self.proj = proj
         self.imageIndex = imageIndex
+        self.useWavelengthValues = False
+        self.disableProjectUpdating = False
         self._initUI()
         self._connectSignals()
         self._populateTable()
 
-        self.disableProjectUpdating = False
-
     def _initUI(self):
+        self.modeToggle = QCheckBox("Use Wavelength Values", self)
+        self.modeToggle.setChecked(False)
+        self.modeToggle.setToolTip("If checked, the table will be populated with the true wavelength values. Otherwise, it will use the index of the wavelengths.")
+        self.modeToggle.clicked.connect(self._onModeChanged)
+
         self.table = QTableWidget(self)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["Name", "R", "G", "B"])
-        self.table.setItemDelegateForColumn(1, self.IntegerDelegate(self))
-        self.table.setItemDelegateForColumn(2, self.IntegerDelegate(self))
-        self.table.setItemDelegateForColumn(3, self.IntegerDelegate(self))
+        self._setTableDelegates()
         self.table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
@@ -79,6 +86,7 @@ class BandManager(QWidget):
         self.layout = QVBoxLayout(self)
         self.layout.addWidget(self.toggleButton)
         self.layout.addLayout(self.buttonLayout)
+        self.layout.addWidget(self.modeToggle)
         self.layout.addWidget(self.table)
         self.layout.addWidget(self.bandView)
 
@@ -94,19 +102,52 @@ class BandManager(QWidget):
 
     def _populateTable(self):
         self.disableProjectUpdating = True
+        self.table.clearContents()
         bands = self.proj.getImage(self.imageIndex).band
         self.table.setRowCount(len(bands))
         self.table.setMinimumHeight(
             self.table.verticalHeader().defaultSectionSize() * (len(bands) + 1)
         )
-        for row, band in enumerate(bands):
 
+        wavelengths = self.proj.getImage(self.imageIndex).metadata.wavelengths
+        for row, band in enumerate(bands):
             self.table.setItem(row, 0, QTableWidgetItem(band.name))
-            self.table.setItem(row, 1, QTableWidgetItem(str(band.r)))
-            self.table.setItem(row, 2, QTableWidgetItem(str(band.g)))
-            self.table.setItem(row, 3, QTableWidgetItem(str(band.b)))
+            if self.useWavelengthValues:
+                for col, idx in enumerate([band.r, band.g, band.b], start=1):
+                    combo = QComboBox(self.table)
+                    combo.addItems([str(w) for w in wavelengths])
+                    combo.setCurrentIndex(idx)
+                    combo.currentIndexChanged.connect(
+                        lambda value, r=row, c=col: self._onComboChanged(r, c, value)
+                    )
+                    self.table.setCellWidget(row, col, combo)
+            else:
+                self.table.setItem(row, 1, QTableWidgetItem(str(band.r)))
+                self.table.setItem(row, 2, QTableWidgetItem(str(band.g)))
+                self.table.setItem(row, 3, QTableWidgetItem(str(band.b)))
 
         self.disableProjectUpdating = False
+
+    def _onComboChanged(self, row, col, value):
+        if self.disableProjectUpdating:
+            return
+        if col == 1:
+            self.proj.updateBand(self.imageIndex, row, r=value)
+        elif col == 2:
+            self.proj.updateBand(self.imageIndex, row, g=value)
+        elif col == 3:
+            self.proj.updateBand(self.imageIndex, row, b=value)
+
+    def _setTableDelegates(self):
+        if self.useWavelengthValues:
+            wavelengths = self.proj.getImage(self.imageIndex).metadata.wavelengths
+            self.table.setItemDelegateForColumn(1, None)
+            self.table.setItemDelegateForColumn(2, None)
+            self.table.setItemDelegateForColumn(3, None)
+        else:
+            self.table.setItemDelegateForColumn(1, self.IntegerDelegate(self))
+            self.table.setItemDelegateForColumn(2, self.IntegerDelegate(self))
+            self.table.setItemDelegateForColumn(3, self.IntegerDelegate(self))
 
     @pyqtSlot()
     def _toggleTable(self):
@@ -145,18 +186,19 @@ class BandManager(QWidget):
         row = item.row()
         column = item.column()
         value = item.text()
-        # if updating name, we can stop here
         if column == 0:
             self.proj.updateBand(self.imageIndex, row, name=item.text())
             return
 
-        # otherwise, we need to convert the value to an int, and clamp it to the range of the image wavelengths
         metadata = self.proj.getImage(self.imageIndex).metadata
-        range = len(metadata.wavelengths) - 1
+        if self.useWavelengthValues:
+            wavelengths = metadata.wavelengths
+            idx = int(value)
+            clampedValue = idx
+        else:
+            range_ = len(metadata.wavelengths) - 1
+            clampedValue = max(min(int(value), range_), 0)
 
-        clampedValue = max(min(int(value), range), 0)
-        # make sure that the table item is updated to the clamped value
-        # item.setText(str(clampedValue))
         if column == 1:
             self.proj.updateBand(self.imageIndex, row, r=clampedValue)
         elif column == 2:
@@ -177,8 +219,38 @@ class BandManager(QWidget):
         if index == self.imageIndex and changeType == ProjectContext.ChangeType.BAND:
             self._populateTable()
 
+    @pyqtSlot()
+    def _onModeChanged(self):
+        self.useWavelengthValues = self.modeToggle.isChecked()
+        self._setTableDelegates()
+        self._populateTable()
+
     class IntegerDelegate(QStyledItemDelegate):
         def createEditor(self, parent, option, index):
             editor = QLineEdit(parent)
             editor.setValidator(QIntValidator())
             return editor
+
+    class WavelengthDelegate(QStyledItemDelegate):
+        def __init__(self, parent, wavelengths):
+            super().__init__(parent)
+            self.wavelengths = wavelengths
+
+        def createEditor(self, parent, option, index):
+            combo = QComboBox(parent)
+            # Convert all wavelengths to string for display
+            combo.addItems([str(w) for w in self.wavelengths])
+            return combo
+
+        def setEditorData(self, editor, index):
+            idx = int(index.model().data(index, Qt.ItemDataRole.EditRole))
+            editor.setCurrentIndex(idx)
+
+        def setModelData(self, editor, model, index):
+            selected_idx = editor.currentIndex()
+            model.setData(index, selected_idx, Qt.ItemDataRole.EditRole)
+
+        def displayText(self, value, locale):
+            # Show the wavelength value if value is a valid index
+            idx = int(value)
+            return str(self.wavelengths[idx])

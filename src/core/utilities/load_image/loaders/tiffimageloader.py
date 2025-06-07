@@ -124,19 +124,22 @@ class TIFFImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                 )
 
                 # CRS and transform (for georeferenced images)
-                if src.transform != affine.identity and src.crs is not None:
-                    transform = src.transform
-                    logger.debug(f"Transform:\n{transform}")
-                    crs = CRS.from_wkt(src.crs.to_wkt())
-                    logger.debug(f"crs:\n{crs}")
-                    metadata_dict["geoReferencer"] = GeoReferencer(
-                        transform=transform, crs=crs
-                    )
-                else:
-                    logger.debug(f"Image does not contain geospatial information.")
+                # if src.transform != affine.identity and src.crs is not None:
+                #     transform = src.transform
+                #     logger.debug(f"Transform:\n{transform}")
+                #     crs = src.crs.to_wkt()
+                #     logger.debug(f"crs:\n{crs}")
+                #     # metadata_dict["geoReferencer"] = GeoReferencer(
+                #     #     transform=transform, crs=crs
+                #     # )
+                #     metadata_dict["transform"] = transform
+                #     metadata_dict["crs"] = crs
+                # else:
+                #     logger.debug(f"Image does not contain geospatial information.")
+
 
                 if src.crs:
-                    metadata_dict["crs"] = src.crs.to_string()
+                    metadata_dict["crs"] = src.crs.to_wkt()
 
                 if src.transform:
                     metadata_dict["transform"] = [float(x) for x in src.transform]
