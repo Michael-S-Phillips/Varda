@@ -2,8 +2,8 @@ import logging
 import numpy as np
 import rasterio
 from PyQt6 import QtCore, QtWidgets
-from PyQt6.QtCore import QEvent, pyqtSignal, QPointF
-from PyQt6.QtGui import QPainter, QColor
+from PyQt6.QtCore import QEvent, pyqtSignal, QPointF, QRectF
+from PyQt6.QtGui import QPainter, QColor, QPolygonF
 from PyQt6.QtWidgets import QWidget
 import pyqtgraph as pg
 from scipy.spatial import ConvexHull
@@ -50,6 +50,7 @@ class RasterView(QWidget):
             (0, 255, 255, 100),  # Cyan
         ]
         self.colorIndex = 0
+        self.highlighted_roi_index = None
 
         self.roiItems = {"main": [], "context": []}
 
@@ -60,6 +61,9 @@ class RasterView(QWidget):
 
         # Log initial image information
         self._logImageInfo()
+
+        # Draw any existing ROIs
+        self._refresh_polygons()
 
     def _logImageInfo(self):
         """Log information about the loaded image."""
@@ -208,6 +212,7 @@ class RasterView(QWidget):
         # Make sure stretch changes are properly handled
         self.viewModel.sigStretchChanged.connect(self._onStretchChanged)
         self.viewModel.sigBandChanged.connect(self._onBandChanged)
+        self.viewModel.sigROIChanged.connect(self._refresh_polygons)
 
         # Add logging to better understand what's happening
         logger.debug("Connected signals in RasterView")
@@ -336,15 +341,9 @@ class RasterView(QWidget):
         self.roi_drawing_manager.startDrawingROI(self.mainImage)
 
     def highlightROI(self, roi_index):
-        """Highlight a specific ROI using the drawing manager"""
-        try:
-            # Get ROIs from the project
-            rois = self.viewModel.proj.get_rois_for_image(self.viewModel.index)
-            if rois and roi_index < len(rois):
-                roi = rois[roi_index]
-                self.roi_drawing_manager.highlightROI(roi.id)
-        except Exception as e:
-            logger.error(f"Error highlighting ROI: {e}")
+        """Highlight a specific ROI by index"""
+        self.highlighted_roi_index = roi_index
+        self._refresh_polygons()
 
     def remove_polygons_from_display(self):
         """Remove all polygons from the display"""
@@ -352,6 +351,13 @@ class RasterView(QWidget):
             self.mainView.removeItem(item)
         for item in self.roiItems["context"]:
             self.contextView.removeItem(item)
+        self.roiItems["main"].clear()
+        self.roiItems["context"].clear()
+
+    def _refresh_polygons(self):
+        """Redraw all ROI polygons"""
+        self.remove_polygons_from_display()
+        self.draw_all_polygons()
 
     # Update draw_all_polygons to support highlighting
     def draw_all_polygons(self):
@@ -382,11 +388,22 @@ class RasterView(QWidget):
                 # Create a polygon with the points
                 polygonForContext = pg.Qt.QtGui.QPolygonF()
                 polygonForMain = pg.Qt.QtGui.QPolygonF()
+
                 for x, y in zip(*points):
+                    # add points to context polygon
                     polygonForContext.append(pg.Qt.QtCore.QPointF(x, y))
-                    polygonForMain.append(pg.Qt.QtCore.QPointF(self.mainImage.getLocalCoords(QPointF(x, y))))
                     logger.debug("Adding point to polygon for context: ({}, {})".format(x, y))
-                    logger.debug("Adding point to polygon for main: ({}, {})".format(self.mainImage.getLocalCoords(QPointF(x, y)).x(), self.mainImage.getLocalCoords(QPointF(x, y)).y()))
+
+                    # add points to main polygon, clamping to bounds
+                    mainImageCoords = self.mainImage.getLocalCoords(QPointF(x, y))
+                    polygonForMain.append(pg.Qt.QtCore.QPointF(mainImageCoords))
+                    logger.debug("Adding point to polygon for main: ({}, {})".format(
+                        mainImageCoords.x(),
+                        mainImageCoords.y())
+                    )
+
+                # This clips the polygon to the bounds of the main image
+                polygonForMain = polygonForMain.intersected(QPolygonF(self.mainImage.boundingRect()))
 
                 # Create a polygon item with the color
                 from PyQt6.QtGui import QPen, QBrush
