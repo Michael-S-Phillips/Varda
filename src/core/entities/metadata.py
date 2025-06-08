@@ -162,7 +162,7 @@ class Metadata:
 
     # magic methods to add the ability to iterate through the items
     def __iter__(self):
-        items = self.toFlatDict()
+        items = self.toFlatDict().items()
         for attr, value in items:
             yield attr, value
 

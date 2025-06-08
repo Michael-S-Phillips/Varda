@@ -197,7 +197,7 @@ class ROIDrawingManager(QObject):
         if self.active_roi_selector:
             self.active_roi_selector.setMode(mode)
 
-    def startDrawingROI(self):
+    def startDrawingROI(self, imageItem=None):
         """Start drawing a new ROI"""
         # Cancel any active drawing
         if self.active_roi_selector:
@@ -212,13 +212,18 @@ class ROIDrawingManager(QObject):
         self.active_roi_selector.setImageIndex(self.view_model.imageIndex)
 
         # Anchor the ROI to the image
-        if hasattr(self.raster_view, "mainImage"):
-            # Link to the main image's transform
-            self.active_roi_selector.setParentItem(self.raster_view.mainImage)
+        if imageItem is None:
+            # TODO: fix all of this tight coupling to raster_view
+            if hasattr(self.raster_view, "mainImage"):
+                imageItem = self.raster_view.mainImage
+            else:
+                logger.error("No image item available for ROI drawing")
+                return
+        self.active_roi_selector.setTargetImageItem(imageItem)
 
         # Try to set geo transform if available
         image = self.view_model.proj.getImage(self.view_model.imageIndex)
-        if hasattr(image, "metadata") and hasattr(image.metadata, "transform"):
+        if hasattr(image.metadata, "transform"):
             self.active_roi_selector.setGeoTransform(image.metadata.transform)
 
         # Connect signals
@@ -331,6 +336,7 @@ class ROIDrawingManager(QObject):
         except Exception as e:
             logger.error(f"Error creating ROI: {e}")
             self.status_label.setText(f"Error creating ROI")
+        self.raster_view.draw_all_polygons()
 
     def onDrawingCanceled(self):
         """Handle cancellation of ROI drawing"""
