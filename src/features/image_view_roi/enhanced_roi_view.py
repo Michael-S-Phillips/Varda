@@ -371,6 +371,7 @@ class EnhancedROIView(QWidget):
             ROITableColumn("Index", True, 60, False),
             ROITableColumn("Color", True, 60, False),
             ROITableColumn("Points", True, 60, False),
+            ROITableColumn("Geospatial Points", True, 120, False),
             ROITableColumn("Image Index", True, 80, False),
             ROITableColumn("Mean Spectrum", True, 120, False),
             ROITableColumn("Actions", True, 120, False),
@@ -502,6 +503,11 @@ class EnhancedROIView(QWidget):
                 item.setText(str(len(roi.points[0])))
             else:
                 item.setText("0")
+        elif column_name == "Geospatial Points":
+            if roi.geo_points is not None:
+                item.setText(str(roi.geo_points))
+            else:
+                item.setText("Not availible")
         elif column_name == "Image Index":
             item.setText(str(self.viewModel.imageIndex))
         elif column_name == "Mean Spectrum":

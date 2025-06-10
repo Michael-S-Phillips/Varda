@@ -34,6 +34,10 @@ class ROISelector(pg.GraphicsObject):
         self.color = (
             color if color else (0, 0, 255, 100)
         )  # default: semi-transparent blue
+        
+        self.pixel_points = []  # existing points
+        self.geo_points = []    # new points
+
         self.imageIndex = None
 
         # Drawing state

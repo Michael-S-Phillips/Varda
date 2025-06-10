@@ -239,6 +239,10 @@ class ROIDrawingManager(QObject):
         self.status_label.setText(instructions[self.draw_mode])
 
     def onDrawingComplete(self, roi_data):
+        # update onDrawingComplete call to include the roi_data 
+        # pass the geo_points to the freehandROI class 
+        # update the table to inlcude the geo_points
+        # ask michael roi thresholds
         """Handle completion of ROI drawing"""
         # Reset active selector
         self.active_roi_selector = None
@@ -249,6 +253,9 @@ class ROIDrawingManager(QObject):
 
         points = roi_data["points"]
         geo_points = roi_data.get("geo_points")
+        print("\n")
+        print(roi_data)
+        print("\n")
         image_index = roi_data.get("image_index", self.view_model.imageIndex)
         color = roi_data.get("color", (255, 0, 0, 100))
 
@@ -533,6 +540,7 @@ class ROIDrawingManager(QObject):
     def hideAllROIs(self):
         """Hide all ROIs in the view"""
         for roi_id, selector in self.roi_lookup.items():
+            print(roi_id)
             selector.setVisible(False)
             self.roiVisibilityChanged.emit(roi_id, False)
         self.status_label.setText("All ROIs hidden")
