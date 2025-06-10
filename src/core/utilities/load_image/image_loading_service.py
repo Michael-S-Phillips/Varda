@@ -24,8 +24,8 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
 )
-
-from core.entities import Metadata
+import affine
+from core.entities import Metadata, GeoReferencer
 
 # local imports
 from core.utilities.load_image.loaders import (
@@ -131,7 +131,8 @@ class ImageLoadingService:
             self._createNewLoadProcess(
                 loader, filePath, success_with_dialog, failure_with_dialog, timeout_ms
             )
-            progress_dialog.exec()  # Show the progress dialog and wait for it to finish
+            if progress_dialog:
+                progress_dialog.exec()  # Show the progress dialog and wait for it to finish
 
         except ValueError as e:
             if progress_dialog:
@@ -311,6 +312,8 @@ class ImageLoadingService:
 
             if loadingProcess.status == ImageLoadingService.LoadStatus.SUCCESS:
                 raster, metadata = loadingProcess.result
+                if metadata.transform != affine.identity and metadata.crs is not None:
+                    metadata.geoReferencer = GeoReferencer(metadata.transform, metadata.crs)
                 logger.info(f"Done loading image: {metadata.filePath}")
 
                 # Check if there are load warnings

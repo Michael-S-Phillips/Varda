@@ -72,6 +72,18 @@ class ROISelector(pg.GraphicsObject):
 
         # GeoTransform (if available from image metadata)
         self.geoTransform = None
+        self.targetImageItem = None
+
+    def setTargetImageItem(self, targetImageItem):
+        """
+        Set the target image item this ROI should be linked to.
+        This is used to ensure the ROI stays anchored to image coordinates during pan/zoom.
+
+        Args:
+            targetItem: The image item this ROI should be anchored to
+        """
+        self.targetImageItem = targetImageItem
+        self.setParentItem(targetImageItem)
 
     def setTransformGroup(self, targetItem):
         """
@@ -168,9 +180,35 @@ class ROISelector(pg.GraphicsObject):
                     return True
             return False
 
+        # Mouse release events
+        elif ev.type() == ev.Type.GraphicsSceneMouseRelease:
+            if ev.button() == Qt.MouseButton.LeftButton:
+                if self.mode == ROIMode.FREEHAND:
+                    if self.pts is not None and len(self.pts[0]) >= 3:
+                        self.completeDrawing()
+                    else:
+                        self.cancelDrawing()
+
+                elif self.mode == ROIMode.RECTANGLE or self.mode == ROIMode.ELLIPSE:
+                    if (
+                        self.rect is not None
+                        and self.rect.width() > 5
+                        and self.rect.height() > 5
+                    ):
+                        # Convert rect to points
+                        if self.mode == ROIMode.RECTANGLE:
+                            self.convertRectToPoints()
+                        else:  # ELLIPSE
+                            self.convertEllipseToPoints()
+                        self.completeDrawing()
+                    else:
+                        self.cancelDrawing()
+
+                return True
+
         # Mouse press events
         if ev.type() == ev.Type.GraphicsSceneMousePress:
-            pos = self.mapFromScene(ev.scenePos())
+            pos = self.targetImageItem.getAbsoluteCoords(self.mapFromScene(ev.scenePos()))
 
             if ev.button() == Qt.MouseButton.LeftButton:
                 if self.mode == ROIMode.FREEHAND:
@@ -204,7 +242,7 @@ class ROISelector(pg.GraphicsObject):
 
         # Mouse move events
         elif ev.type() == ev.Type.GraphicsSceneMouseMove:
-            pos = self.mapFromScene(ev.scenePos())
+            pos = self.targetImageItem.getAbsoluteCoords(self.mapFromScene(ev.scenePos()))
 
             if self.isDrawing:
                 if self.mode == ROIMode.FREEHAND and self.pts is not None:
@@ -226,32 +264,6 @@ class ROISelector(pg.GraphicsObject):
                     self.prepareGeometryChange()
 
             return True
-
-        # Mouse release events
-        elif ev.type() == ev.Type.GraphicsSceneMouseRelease:
-            if ev.button() == Qt.MouseButton.LeftButton:
-                if self.mode == ROIMode.FREEHAND:
-                    if self.pts is not None and len(self.pts[0]) >= 3:
-                        self.completeDrawing()
-                    else:
-                        self.cancelDrawing()
-
-                elif self.mode == ROIMode.RECTANGLE or self.mode == ROIMode.ELLIPSE:
-                    if (
-                        self.rect is not None
-                        and self.rect.width() > 5
-                        and self.rect.height() > 5
-                    ):
-                        # Convert rect to points
-                        if self.mode == ROIMode.RECTANGLE:
-                            self.convertRectToPoints()
-                        else:  # ELLIPSE
-                            self.convertEllipseToPoints()
-                        self.completeDrawing()
-                    else:
-                        self.cancelDrawing()
-
-                return True
 
         return False
 

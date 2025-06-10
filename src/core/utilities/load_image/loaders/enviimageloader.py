@@ -115,17 +115,19 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                 metadata_dict["resolution"] = src.res
                 metadata_dict["filePath"] = filePath
 
-                # TODO: Im not totally sure if these are the correct conditions to be looking for
-                if src.transform != affine.identity and src.crs is not None:
-                    transform = src.transform
-                    logger.debug(f"Transform:\n{transform}")
-                    crs = CRS.from_wkt(src.crs.to_wkt())
-                    logger.debug(f"crs:\n{crs}")
-                    metadata_dict["geoReferencer"] = GeoReferencer(
-                        transform=transform, crs=crs
-                    )
-                else:
-                    logger.debug(f"Image does not contain geospatial information.")
+                # # TODO: Im not totally sure if these are the correct conditions to be looking for
+                # if src.transform != affine.identity and src.crs is not None:
+                #     transform = src.transform
+                #     logger.debug(f"Transform:\n{transform}")
+                #     crs = src.crs.to_wkt() if src.crs else None
+                #     logger.debug(f"crs:\n{crs}")
+                #     metadata_dict["transform"] = transform
+                #     metadata_dict["crs"] = crs
+                #     # metadata_dict["geoReferencer"] = GeoReferencer(
+                #     #     transform=transform, crs=crs
+                #     # )
+                # else:
+                #     logger.debug(f"Image does not contain geospatial information.")
                 # Optional metadata that might not be available
                 try:
                     metadata_dict["dtype"] = src.dtypes[0]
@@ -144,7 +146,7 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                     errors.append("Could not determine nodata value, using 0")
 
                 try:
-                    metadata_dict["crs"] = src.crs
+                    metadata_dict["crs"] = src.crs.to_wkt()
                 except (AttributeError, ValueError):
                     errors.append("Could not determine coordinate reference system")
 

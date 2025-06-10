@@ -21,11 +21,13 @@ class BandViewModel(QObject):
         self.proj = proj
         self.imageIndex = imageIndex
         self.bandIndex = 0
-
+        self.wavelengthType = self.proj.getImage(self.imageIndex).metadata.wavelengths_type
         if self.proj.getImage(self.imageIndex).metadata.wavelengths_type is str:
             self.bounds = (0, self.getBandCount() - 1)
+            self.useWavelengthIndeces = True
         else:
             self.bounds = (self.getWavelengthAt(0), self.getWavelengthAt(-1))
+            self.useWavelengthIndeces = False
 
         self._pendingBandValues = (None, None, None)
         self._updateInterval = 20

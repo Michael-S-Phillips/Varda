@@ -94,10 +94,16 @@ class BandView(QWidget):
 
     @pyqtSlot(pg.InfiniteLine)
     def _onSliderChanged(self, slider):
+        # snap slider to nearest wavelength value
+        index = self.viewModel.getIndexOfWavelength(slider.value())
+        if self.viewModel.wavelengthType is float:
+            finalVal = self.viewModel.getWavelengthAt(index)
+        else:
+            finalVal = index
         # clamp slider to the range of the image wavelengths
         minValue, maxValue = self.viewModel.bounds
         logger.debug(f"minValue: {minValue} maxValue {maxValue}")
-        slider.setValue(max(min(slider.value(), maxValue), minValue))
+        slider.setValue(max(min(finalVal, maxValue), minValue))
 
         # update the correct band
         if slider is self.rBandSlider:

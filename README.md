@@ -11,3 +11,64 @@ This app is a work in progress! Users are also encouraged to add their own custo
 in doing this, [this](https://www.notion.so/Feature-Development-Workflow-17002b23849580649788ff3e4b2adb6f) guide on Vardas code structure may
 be useful to you. 
 
+
+# Getting Started
+
+## Prerequisites:
+
+- Python 3.12+ installed
+- Git is installed on your computer, and you have [connected an ssh key to GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)
+
+## Clone the Repository:
+
+in your terminal, navigate to the directory you want to install the project in, and run the following commands
+
+```bash
+   git clone git@github.com:Michael-S-Phillips/Varda.git
+   cd Varda
+```
+
+## Create and activate a virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+.venv\Scripts\activate     # Windows
+```
+
+## Install dependencies:
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+if you are only interested in running the program and are not planning on doing any development, you may omit the `-r requirements-dev.txt` portion. It only contains tools to assist with development.
+
+## Run Varda:
+
+```bash
+python src/main.py
+```
+
+## Run pytest (unit testing):
+
+```bash
+pytest tests/
+# or...
+pytest
+```
+
+## Run Pylint (static code analyzer):
+
+```bash
+pylint src/
+```
+
+## Run Black (formatter):
+
+```bash
+# to simply check for formatting issues
+black --check src/
+# To actually apply formatting
+black src/
+```
