@@ -205,19 +205,9 @@ class RasterView(QWidget):
     def _connectSignals(self):
         """Connect ROI signals."""
         if self.contextROI:
-<<<<<<< HEAD
-            self.contextROI.sigRegionChanged.connect(self._updateMainView)
-            self.contextROI.sigRegionChanged.connect(self._refreshROIPositions)
-        if self.mainROI:
-            self.mainROI.sigRegionChanged.connect(self._updateZoomView)
-            self.mainROI.sigRegionChanged.connect(self._refreshROIPositions)
-
-        self.freehandROIs[-1].sigDrawingComplete.connect(self._onROIDrawn)
-=======
             self.contextROI.sigRegionChanged.connect(self._updateViews)
         if self.mainROI:
             self.mainROI.sigRegionChanged.connect(self._updateViews)
->>>>>>> d5f3170379a6f3190ccbff4f93c686bef99b56c9
 
         # Make sure stretch changes are properly handled
         self.viewModel.sigStretchChanged.connect(self._onStretchChanged)
@@ -351,44 +341,6 @@ class RasterView(QWidget):
         self.roi_drawing_manager.startDrawingROI(self.mainImage)
 
     def highlightROI(self, roi_index):
-<<<<<<< HEAD
-        """Highlight a specific ROI using the drawing manager"""
-        try:
-            # Get ROIs from the project - handle both new and legacy systems
-            rois = []
-            if hasattr(self.viewModel.proj, 'get_rois_for_image'):
-                rois = self.viewModel.proj.get_rois_for_image(self.viewModel.index)
-            else:
-                # Legacy method
-                rois = self.viewModel.proj.getROIs(self.viewModel.index)
-                
-            if rois and roi_index < len(rois):
-                roi = rois[roi_index]
-                if hasattr(roi, 'id'):
-                    self.roi_drawing_manager.highlightROI(roi.id)
-                else:
-                    # For legacy ROIs without IDs
-                    self.roi_drawing_manager.highlightROI(str(roi_index))
-        except Exception as e:
-            logger.error(f"Error highlighting ROI: {e}")
-
-    def remove_polygons_from_display(self):
-        """Remove all ROI polygons from the display"""
-        if hasattr(self, "roi_drawing_manager"):
-            # Use the ROI manager to clean up ROIs
-            self.roi_drawing_manager.hideAllROIs()
-        
-        # Legacy cleanup for any remaining polygon items
-        if hasattr(self, "roi_items"):
-            for item in self.roi_items:
-                try:
-                    self.mainView.removeItem(item)
-                    if hasattr(self, 'contextView'):
-                        self.contextView.removeItem(item)
-                except:
-                    pass  # Item might already be removed
-            self.roi_items = []
-=======
         """Highlight a specific ROI by index"""
         self.highlighted_roi_index = roi_index
         self._refresh_polygons()
@@ -407,34 +359,13 @@ class RasterView(QWidget):
         print("here")
         self.remove_polygons_from_display()
         self.draw_all_polygons()
->>>>>>> d5f3170379a6f3190ccbff4f93c686bef99b56c9
 
     def draw_all_polygons(self):
-<<<<<<< HEAD
-        """Draw all ROIs with proper positioning"""
-        if hasattr(self, "roi_drawing_manager"):
-            # Use the ROI manager to refresh all ROI displays
-            self.roi_drawing_manager.refreshROIDisplayPositions()
-            self.roi_drawing_manager.showAllROIs()
-            return
-        
-        # Legacy fallback code (keep existing implementation as backup)
-        rois = []
-        try:
-            if hasattr(self.viewModel.proj, 'get_rois_for_image'):
-                rois = self.viewModel.proj.get_rois_for_image(self.viewModel.index)
-            else:
-                rois = self.viewModel.proj.getROIs(self.viewModel.index)
-        except:
-            return
-            
-=======
         """Draw all ROIs with optional highlighting for the selected one"""
         # Get ROIs from the project
         self.remove_polygons_from_display()
 
         rois = self.viewModel.proj.get_rois_for_image(self.viewModel.index)
->>>>>>> d5f3170379a6f3190ccbff4f93c686bef99b56c9
         if not rois:
             return
 
@@ -459,32 +390,6 @@ class RasterView(QWidget):
                     # Create polygon for context view
                     self._createPolygonItem(context_points, color, highlighted, self.contextView)
 
-<<<<<<< HEAD
-    def _convertROIToViewCoordinates(self, absolute_points):
-        """Convert ROI absolute coordinates to current view coordinates"""
-        try:
-            if not hasattr(self, 'contextROI') or not hasattr(self, 'mainROI'):
-                return absolute_points
-                
-            context_pos = self.contextROI.pos() if self.contextROI else (0, 0)
-            main_pos = self.mainROI.pos() if self.mainROI else (0, 0)
-            
-            if isinstance(absolute_points, np.ndarray) and absolute_points.ndim == 2:
-                # Points format: [[x1, x2, ...], [y1, y2, ...]]
-                x_coords = absolute_points[0] - main_pos.x() - context_pos.x()
-                y_coords = absolute_points[1] - main_pos.y() - context_pos.y()
-                return [x_coords.tolist(), y_coords.tolist()]
-            elif isinstance(absolute_points, list) and len(absolute_points) == 2:
-                # Already in correct format
-                x_coords = [x - main_pos.x() - context_pos.x() for x in absolute_points[0]]
-                y_coords = [y - main_pos.y() - context_pos.y() for y in absolute_points[1]]
-                return [x_coords, y_coords]
-                
-        except Exception as e:
-            logger.error(f"Error converting ROI coordinates: {e}")
-        
-        return absolute_points
-=======
                 # Create a polygon with the points
                 polygonForContext = pg.Qt.QtGui.QPolygonF()
                 polygonForMain = pg.Qt.QtGui.QPolygonF()
@@ -504,7 +409,6 @@ class RasterView(QWidget):
 
                 # This clips the polygon to the bounds of the main image
                 polygonForMain = polygonForMain.intersected(QPolygonF(self.mainImage.boundingRect()))
->>>>>>> d5f3170379a6f3190ccbff4f93c686bef99b56c9
 
     def _createPolygonItem(self, points, color, highlighted, view):
         """Create a polygon item and add it to the specified view"""
