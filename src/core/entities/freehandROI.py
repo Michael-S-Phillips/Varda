@@ -63,7 +63,7 @@ class FreehandROI:
         default_factory=list
     )  # This should be a list by default
     color: Tuple[int, int, int, int] = (255, 0, 0, 128)  # RGBA
-    line_width: float = 2.0
+    line_width: float = 1.0
     fill_opacity: float = 0.5
     visible: bool = True
     creation_time: datetime = field(default_factory=datetime.now)
@@ -137,6 +137,10 @@ class FreehandROI:
     def update_color(self, color):
         """Update the ROI color"""
         self.color = color
+
+    def update_opacity(self, op):
+        # update fill opacity (to hide roi)
+        self.fill_opacity = op
 
     def update_properties(self, **kwargs):
         """Update multiple ROI properties at once"""
@@ -284,6 +288,7 @@ class FreehandROI:
             mean_spectrum=mean_spectrum,
             custom_data=custom_data,
         )
+    
 
     def __str__(self):
         return f"ROI '{self.name}' ({self.id}) with {len(self.points)} points"

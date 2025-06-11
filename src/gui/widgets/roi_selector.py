@@ -49,11 +49,11 @@ class ROISelector(pg.GraphicsObject):
         self.startPoint = None  # For rectangle/ellipse modes
 
         # Line styling
-        self.penWidth = 2
+        self.penWidth = 1
         self.pen = pg.mkPen(color=self.color[:3], width=self.penWidth)
         self.brush = pg.mkBrush(*self.color)
         self.hoverPen = pg.mkPen(
-            color=(255, 255, 0), width=self.penWidth + 1
+            color=(255, 255, 0), width=self.penWidth
         )  # Yellow highlight
 
         # Instructions displayed during drawing

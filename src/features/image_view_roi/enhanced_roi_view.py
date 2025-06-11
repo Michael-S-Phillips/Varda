@@ -48,6 +48,7 @@ class ROITableWidget(QTableWidget):
 
     roiSelectionChanged = pyqtSignal(int)  # Emits ROI index when selection changes
     roiDoubleClicked = pyqtSignal(int)  # Emits ROI index when double-clicked
+    roiVisibilityChanged = pyqtSignal(str, int) # emits when we hide/show roi
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -365,6 +366,7 @@ class EnhancedROIView(QWidget):
         self.selectedRoiIndex = None
         self.blinkState = False
         self.blinkTimer = None
+        self.raster_view = self.window().rasterView
 
         # Define default columns
         self.columns = [
@@ -529,16 +531,16 @@ class EnhancedROIView(QWidget):
 
     def showAllROIs(self):
         """Show all ROIs (currently a placeholder)"""
-        QMessageBox.information(
-            self, "Show All ROIs", "This feature would show all ROIs."
-        )
+        self.raster_view.draw_all_polygons()
+        self.status_label.setText("All ROIs visible")
+        # change the opacity of each ROI object such that it becomes invisible
         # In a complete implementation, this would update ROI visibility
 
     def hideAllROIs(self):
         """Hide all ROIs (currently a placeholder)"""
-        QMessageBox.information(
-            self, "Hide All ROIs", "This feature would hide all ROIs."
-        )
+        self.raster_view.remove_polygons_from_display()
+        self.status_label.setText("All ROIs hidden")
+        # change the opacity of each ROI object such that it becomes visible
         # In a complete implementation, this would update ROI visibility
 
     def toggleBlinkROIs(self, checked):
@@ -557,10 +559,14 @@ class EnhancedROIView(QWidget):
             self.showAllROIs()
 
     def blinkROIs(self):
-        """Blink ROIs by toggling visibility (placeholder implementation)"""
+        """Blink ROIs by toggling visibility"""
         self.blinkState = not self.blinkState
         logger.debug(f"Blinking ROIs: {'visible' if self.blinkState else 'hidden'}")
         # In a complete implementation, this would toggle ROI visibility in the view
+        if self.blinkState:
+            self.raster_view.remove_polygons_from_display()
+        else:
+            self.raster_view.draw_all_polygons()
 
     def showManageColumnsDialog(self):
         """Show the manage columns dialog"""

@@ -356,6 +356,7 @@ class RasterView(QWidget):
 
     def _refresh_polygons(self):
         """Redraw all ROI polygons"""
+        print("here")
         self.remove_polygons_from_display()
         self.draw_all_polygons()
 

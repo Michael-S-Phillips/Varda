@@ -156,7 +156,7 @@ class ROIDrawingManager(QObject):
         self.action_show_all.triggered.connect(self.showAllROIs)
         self.toolbar.addAction(self.action_show_all)
 
-        self.action_hide_all = QAction("Hide All ROIs", self.toolbar)
+        self.action_hide_all = QAction("Hide All ROIs!!", self.toolbar)
         self.action_hide_all.triggered.connect(self.hideAllROIs)
         self.toolbar.addAction(self.action_hide_all)
 
@@ -259,7 +259,7 @@ class ROIDrawingManager(QObject):
         points = roi_data["points"]
         geo_points = roi_data.get("geo_points")
         print("\n")
-        print(roi_data)
+        print(type(roi_data))
         print("\n")
         image_index = roi_data.get("image_index", self.view_model.imageIndex)
         color = roi_data.get("color", (255, 0, 0, 100))
@@ -538,17 +538,12 @@ class ROIDrawingManager(QObject):
 
     def showAllROIs(self):
         """Show all ROIs in the view"""
-        for roi_id, selector in self.roi_lookup.items():
-            selector.setVisible(True)
-            self.roiVisibilityChanged.emit(roi_id, True)
+        self.raster_view.draw_all_polygons()
         self.status_label.setText("All ROIs visible")
 
     def hideAllROIs(self):
         """Hide all ROIs in the view"""
-        for roi_id, selector in self.roi_lookup.items():
-            print(roi_id)
-            selector.setVisible(False)
-            self.roiVisibilityChanged.emit(roi_id, False)
+        self.raster_view.remove_polygons_from_display()
         self.status_label.setText("All ROIs hidden")
 
     def toggleROIVisibility(self, roi_id):
