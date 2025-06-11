@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QDockWidget,
     QLabel,
     QWidget,
-    QScrollArea,
+    QScrollArea, QPushButton,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 import numpy as np
@@ -17,7 +17,7 @@ from core.data import ProjectContext
 from features.image_view_roi import getROIView
 from features.image_view_band import BandManager
 from features.image_view_stretch import StretchManager, getStretchView
-
+from features.image_view_metadata import openMetadataEditor
 from gui.widgets.image_plot_widget import ImagePlotWidget
 
 logger = logging.getLogger(__name__)
@@ -54,9 +54,6 @@ class ControlPanel(QWidget):
         self.activeImageLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.activeImageLabel.setStyleSheet("font-size: 14px; font-weight: bold;")
 
-        self.treeWidget = QTreeWidget()
-        self.treeWidget.setHeaderLabel("Options")
-
         # setup scrollable area for the tools
         self.toolSectionLayout = QVBoxLayout()
         self.toolSectionContainer = QWidget()
@@ -70,6 +67,9 @@ class ControlPanel(QWidget):
         )
         self.toolSection.setWidgetResizable(True)
         self.toolSection.setWidget(self.toolSectionContainer)
+
+        self.editMetadataButton = QPushButton("View and edit Metadata")
+        self.editMetadataButton.clicked.connect(lambda: openMetadataEditor(self.project_context, self.imageIndex, self))
 
         self.bandView = BandManager(self.project_context, self.imageIndex, self)
 
@@ -100,6 +100,7 @@ class ControlPanel(QWidget):
             )
         )
 
+        self.toolSectionLayout.addWidget(self.editMetadataButton)
         self.toolSectionLayout.addWidget(self.ROITable)
         self.toolSectionLayout.addWidget(self.bandView)
         self.toolSectionLayout.addWidget(self.histogramView)

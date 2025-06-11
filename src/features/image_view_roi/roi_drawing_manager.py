@@ -156,7 +156,7 @@ class ROIDrawingManager(QObject):
         self.action_show_all.triggered.connect(self.showAllROIs)
         self.toolbar.addAction(self.action_show_all)
 
-        self.action_hide_all = QAction("Hide All ROIs", self.toolbar)
+        self.action_hide_all = QAction("Hide All ROIs!!", self.toolbar)
         self.action_hide_all.triggered.connect(self.hideAllROIs)
         self.toolbar.addAction(self.action_hide_all)
 
@@ -197,7 +197,7 @@ class ROIDrawingManager(QObject):
         if self.active_roi_selector:
             self.active_roi_selector.setMode(mode)
 
-    def startDrawingROI(self):
+    def startDrawingROI(self, imageItem=None):
         """Start drawing a new ROI"""
         # Cancel any active drawing
         if self.active_roi_selector:
@@ -212,13 +212,18 @@ class ROIDrawingManager(QObject):
         self.active_roi_selector.setImageIndex(self.view_model.imageIndex)
 
         # Anchor the ROI to the image
-        if hasattr(self.raster_view, "mainImage"):
-            # Link to the main image's transform
-            self.active_roi_selector.setParentItem(self.raster_view.mainImage)
+        if imageItem is None:
+            # TODO: fix all of this tight coupling to raster_view
+            if hasattr(self.raster_view, "mainImage"):
+                imageItem = self.raster_view.mainImage
+            else:
+                logger.error("No image item available for ROI drawing")
+                return
+        self.active_roi_selector.setTargetImageItem(imageItem)
 
         # Try to set geo transform if available
         image = self.view_model.proj.getImage(self.view_model.imageIndex)
-        if hasattr(image, "metadata") and hasattr(image.metadata, "transform"):
+        if hasattr(image.metadata, "transform"):
             self.active_roi_selector.setGeoTransform(image.metadata.transform)
 
         # Connect signals
@@ -239,6 +244,10 @@ class ROIDrawingManager(QObject):
         self.status_label.setText(instructions[self.draw_mode])
 
     def onDrawingComplete(self, roi_data):
+        # update onDrawingComplete call to include the roi_data 
+        # pass the geo_points to the freehandROI class 
+        # update the table to inlcude the geo_points
+        # ask michael roi thresholds
         """Handle completion of ROI drawing"""
         # Reset active selector
         self.active_roi_selector = None
@@ -249,6 +258,9 @@ class ROIDrawingManager(QObject):
 
         points = roi_data["points"]
         geo_points = roi_data.get("geo_points")
+        print("\n")
+        print(type(roi_data))
+        print("\n")
         image_index = roi_data.get("image_index", self.view_model.imageIndex)
         color = roi_data.get("color", (255, 0, 0, 100))
 
@@ -338,6 +350,7 @@ class ROIDrawingManager(QObject):
         except Exception as e:
             logger.error(f"Error creating ROI: {e}")
             self.status_label.setText(f"Error creating ROI")
+        self.raster_view.draw_all_polygons()
 
     def onDrawingCanceled(self):
         """Handle cancellation of ROI drawing"""
@@ -562,29 +575,13 @@ class ROIDrawingManager(QObject):
                 self.roiSelected.emit(roi_id)
 
     def showAllROIs(self):
-        """Show all ROIs in both views"""
-        for roi_id, roi_selectors in self.roi_lookup.items():
-            if isinstance(roi_selectors, dict):
-                if 'main' in roi_selectors:
-                    roi_selectors['main'].setVisible(True)
-                if 'context' in roi_selectors:
-                    roi_selectors['context'].setVisible(True)
-            else:
-                roi_selectors.setVisible(True)
-            self.roiVisibilityChanged.emit(roi_id, True)
+        """Show all ROIs in the view"""
+        self.raster_view.draw_all_polygons()
         self.status_label.setText("All ROIs visible")
 
     def hideAllROIs(self):
-        """Hide all ROIs in both views"""
-        for roi_id, roi_selectors in self.roi_lookup.items():
-            if isinstance(roi_selectors, dict):
-                if 'main' in roi_selectors:
-                    roi_selectors['main'].setVisible(False)
-                if 'context' in roi_selectors:
-                    roi_selectors['context'].setVisible(False)
-            else:
-                roi_selectors.setVisible(False)
-            self.roiVisibilityChanged.emit(roi_id, False)
+        """Hide all ROIs in the view"""
+        self.raster_view.remove_polygons_from_display()
         self.status_label.setText("All ROIs hidden")
 
     def toggleROIVisibility(self, roi_id):

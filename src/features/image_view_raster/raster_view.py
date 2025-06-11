@@ -2,8 +2,8 @@ import logging
 import numpy as np
 import rasterio
 from PyQt6 import QtCore, QtWidgets
-from PyQt6.QtCore import QEvent, pyqtSignal
-from PyQt6.QtGui import QPainter, QColor
+from PyQt6.QtCore import QEvent, pyqtSignal, QPointF, QRectF
+from PyQt6.QtGui import QPainter, QColor, QPolygonF
 from PyQt6.QtWidgets import QWidget
 import pyqtgraph as pg
 from scipy.spatial import ConvexHull
@@ -50,6 +50,9 @@ class RasterView(QWidget):
             (0, 255, 255, 100),  # Cyan
         ]
         self.colorIndex = 0
+        self.highlighted_roi_index = None
+
+        self.roiItems = {"main": [], "context": []}
 
         # Initialize the UI
         self._initUI()
@@ -58,6 +61,9 @@ class RasterView(QWidget):
 
         # Log initial image information
         self._logImageInfo()
+
+        # Draw any existing ROIs
+        self._refresh_polygons()
 
     def _logImageInfo(self):
         """Log information about the loaded image."""
@@ -199,6 +205,7 @@ class RasterView(QWidget):
     def _connectSignals(self):
         """Connect ROI signals."""
         if self.contextROI:
+<<<<<<< HEAD
             self.contextROI.sigRegionChanged.connect(self._updateMainView)
             self.contextROI.sigRegionChanged.connect(self._refreshROIPositions)
         if self.mainROI:
@@ -206,10 +213,16 @@ class RasterView(QWidget):
             self.mainROI.sigRegionChanged.connect(self._refreshROIPositions)
 
         self.freehandROIs[-1].sigDrawingComplete.connect(self._onROIDrawn)
+=======
+            self.contextROI.sigRegionChanged.connect(self._updateViews)
+        if self.mainROI:
+            self.mainROI.sigRegionChanged.connect(self._updateViews)
+>>>>>>> d5f3170379a6f3190ccbff4f93c686bef99b56c9
 
         # Make sure stretch changes are properly handled
         self.viewModel.sigStretchChanged.connect(self._onStretchChanged)
         self.viewModel.sigBandChanged.connect(self._onBandChanged)
+        self.viewModel.sigROIChanged.connect(self._refresh_polygons)
 
         # Add logging to better understand what's happening
         logger.debug("Connected signals in RasterView")
@@ -240,9 +253,24 @@ class RasterView(QWidget):
 
     def _updateViews(self):
         """Update all views."""
+        self._updateContextView()
         self._updateImageItem(self.contextImage, self.viewModel.getRasterFromBand())
         self._updateMainView()
         self._updateZoomView()
+        self.draw_all_polygons()
+
+    def _updateContextView(self):
+        """Update the context view based on the current image."""
+
+        self.current_stretch_levels = self.viewModel.getSelectedStretch().toList()
+        logger.debug(
+            f"Updating context image with new levels: {self.current_stretch_levels}"
+        )
+        rasterData = self.viewModel.getRasterFromBand()
+        self.contextImage.setImage(rasterData, levels=self.current_stretch_levels)
+
+        # Update the context image with the current raster data
+        self._updateImageItem(self.contextImage, self.viewModel.getRasterFromBand())
 
     def _updateMainView(self):
         """Update the main view based on context ROI."""
@@ -251,17 +279,10 @@ class RasterView(QWidget):
 
         self._makeROISquare(self.contextROI)
 
-        image = self.contextROI.getArrayRegion(
-            self.contextImage.image, self.contextImage
-        )
-        self._updateImageItem(self.mainImage, image)
+        self.mainImage.setRegion(self.contextImage.image, self.contextROI, self.contextImage)
 
         if self.mainROI is not None:
             self.mainROI.maxBounds = self.mainImage.boundingRect()
-            currentPos = self.mainROI.pos()
-            self.mainROI.setPos(currentPos + QtCore.QPointF(1, 1))
-            self.mainROI.setPos(currentPos)
-        self._updateZoomView()
 
     def _updateZoomView(self):
         """Update the zoom view based on main ROI."""
@@ -270,8 +291,7 @@ class RasterView(QWidget):
 
         self._makeROISquare(self.mainROI)
 
-        image = self.mainROI.getArrayRegion(self.mainImage.image, self.mainImage)
-        self._updateImageItem(self.zoomImage, image)
+        self.zoomImage.setRegion(self.mainImage.image, self.mainROI, self.mainImage)
 
     def _updateImageItem(self, imageItem, rasterData):
         """Update an image item with new raster data."""
@@ -286,12 +306,7 @@ class RasterView(QWidget):
         if self.current_stretch_levels is None:
             self.current_stretch_levels = self.viewModel.getSelectedStretch().toList()
             logger.debug(f"Initializing stretch levels: {self.current_stretch_levels}")
-
-        # logger.debug(f"Updating {imageItem} with levels: {self.current_stretch_levels}")
         imageItem.setImage(rasterData, levels=self.current_stretch_levels)
-
-        # Verify the levels were actually set
-        # logger.debug(f"After update, {imageItem} levels: {imageItem.levels}")
 
     def selectStretch(self, stretchIndex):
         """Select a new stretch to apply to the image."""
@@ -333,74 +348,10 @@ class RasterView(QWidget):
 
     def startNewROI(self):
         """Create and start a new ROI using the drawing manager"""
-        self.roi_drawing_manager.startDrawingROI()
-
-    def extractArraySlice(self, roi):
-        """
-        Legacy method for backward compatibility.
-        ROI data extraction is now handled by the ROI Drawing Manager.
-        """
-        if hasattr(self, "roi_drawing_manager"):
-            return (
-                self.roi_drawing_manager.getROIData(roi.id).array_slice
-                if roi and hasattr(roi, "id")
-                else None
-            )
-
-        # Fallback to original implementation
-        # (original code here - keeping the existing implementation as a fallback)
-        """
-        Extract the raster data slice bounded by the given ROI points.
-        
-        Args:
-            roi (ROISelector): The ROI object containing points.
-
-        Returns:
-            np.ndarray: The raster slice bounded by the ROI.
-        """
-        # Get raster data for the current image
-        try:
-            raster = self.viewModel.proj.getImage(roi.imageIndex).raster
-
-            # Get ROI points
-            points = roi.getLinePts()
-            if points is None or len(points[0]) < 3:
-                logger.warning("Not enough points to extract slice")
-                return None
-
-            # Convert points format to x,y pairs for polygon function
-            polygon_points = np.array([points[0], points[1]]).T
-
-            # Create a mask for the ROI
-            from skimage.draw import polygon
-
-            try:
-                # Use polygon function with correct parameters
-                rows, cols = raster.shape[:2]
-                mask = np.zeros((rows, cols), dtype=bool)
-                # Convert to integer values for polygon function
-                r_coords = np.clip(np.array(points[1], dtype=int), 0, rows - 1)
-                c_coords = np.clip(np.array(points[0], dtype=int), 0, cols - 1)
-
-                rr, cc = polygon(r_coords, c_coords, mask.shape)
-                mask[rr, cc] = True
-
-                # Extract all bands from the masked area
-                if mask.sum() > 0:
-                    # Take all bands for each masked pixel
-                    extracted_slice = raster[mask]
-                    return extracted_slice
-                else:
-                    logger.warning("ROI mask contains no pixels")
-                    return None
-            except Exception as e:
-                logger.error(f"Error creating ROI mask: {str(e)}")
-                return None
-        except Exception as e:
-            logger.error(f"Error getting raster data: {str(e)}")
-            return None
+        self.roi_drawing_manager.startDrawingROI(self.mainImage)
 
     def highlightROI(self, roi_index):
+<<<<<<< HEAD
         """Highlight a specific ROI using the drawing manager"""
         try:
             # Get ROIs from the project - handle both new and legacy systems
@@ -437,8 +388,29 @@ class RasterView(QWidget):
                 except:
                     pass  # Item might already be removed
             self.roi_items = []
+=======
+        """Highlight a specific ROI by index"""
+        self.highlighted_roi_index = roi_index
+        self._refresh_polygons()
+
+    def remove_polygons_from_display(self):
+        """Remove all polygons from the display"""
+        for item in self.roiItems["main"]:
+            self.mainView.removeItem(item)
+        for item in self.roiItems["context"]:
+            self.contextView.removeItem(item)
+        self.roiItems["main"].clear()
+        self.roiItems["context"].clear()
+
+    def _refresh_polygons(self):
+        """Redraw all ROI polygons"""
+        print("here")
+        self.remove_polygons_from_display()
+        self.draw_all_polygons()
+>>>>>>> d5f3170379a6f3190ccbff4f93c686bef99b56c9
 
     def draw_all_polygons(self):
+<<<<<<< HEAD
         """Draw all ROIs with proper positioning"""
         if hasattr(self, "roi_drawing_manager"):
             # Use the ROI manager to refresh all ROI displays
@@ -456,6 +428,13 @@ class RasterView(QWidget):
         except:
             return
             
+=======
+        """Draw all ROIs with optional highlighting for the selected one"""
+        # Get ROIs from the project
+        self.remove_polygons_from_display()
+
+        rois = self.viewModel.proj.get_rois_for_image(self.viewModel.index)
+>>>>>>> d5f3170379a6f3190ccbff4f93c686bef99b56c9
         if not rois:
             return
 
@@ -480,6 +459,7 @@ class RasterView(QWidget):
                     # Create polygon for context view
                     self._createPolygonItem(context_points, color, highlighted, self.contextView)
 
+<<<<<<< HEAD
     def _convertROIToViewCoordinates(self, absolute_points):
         """Convert ROI absolute coordinates to current view coordinates"""
         try:
@@ -504,6 +484,27 @@ class RasterView(QWidget):
             logger.error(f"Error converting ROI coordinates: {e}")
         
         return absolute_points
+=======
+                # Create a polygon with the points
+                polygonForContext = pg.Qt.QtGui.QPolygonF()
+                polygonForMain = pg.Qt.QtGui.QPolygonF()
+
+                for x, y in zip(*points):
+                    # add points to context polygon
+                    polygonForContext.append(pg.Qt.QtCore.QPointF(x, y))
+                    logger.debug("Adding point to polygon for context: ({}, {})".format(x, y))
+
+                    # add points to main polygon, clamping to bounds
+                    mainImageCoords = self.mainImage.getLocalCoords(QPointF(x, y))
+                    polygonForMain.append(pg.Qt.QtCore.QPointF(mainImageCoords))
+                    logger.debug("Adding point to polygon for main: ({}, {})".format(
+                        mainImageCoords.x(),
+                        mainImageCoords.y())
+                    )
+
+                # This clips the polygon to the bounds of the main image
+                polygonForMain = polygonForMain.intersected(QPolygonF(self.mainImage.boundingRect()))
+>>>>>>> d5f3170379a6f3190ccbff4f93c686bef99b56c9
 
     def _createPolygonItem(self, points, color, highlighted, view):
         """Create a polygon item and add it to the specified view"""
@@ -534,35 +535,19 @@ class RasterView(QWidget):
                     color[2],
                     color[3] if len(color) >= 4 else 128,
                 )
-            )
+                contextPolygonItem = pg.Qt.QtWidgets.QGraphicsPolygonItem(polygonForContext)
+                contextPolygonItem.setPen(pen)
+                contextPolygonItem.setBrush(brush)
+                self.contextView.addItem(contextPolygonItem)
 
-            polygon_item = pg.Qt.QtWidgets.QGraphicsPolygonItem(polygon)
-            polygon_item.setPen(pen)
-            polygon_item.setBrush(brush)
+                mainPolygonItem = pg.Qt.QtWidgets.QGraphicsPolygonItem(polygonForMain)
+                mainPolygonItem.setPen(pen)
+                mainPolygonItem.setBrush(brush)
+                self.mainView.addItem(mainPolygonItem)
 
-            # Add to the view
-            view.addItem(polygon_item)
-
-            # Store references to remove them later
-            if not hasattr(self, "roi_items"):
-                self.roi_items = []
-            self.roi_items.append(polygon_item)
-            
-        except Exception as e:
-            logger.error(f"Error creating polygon item: {e}")
-
-    def _refreshROIPositions(self):
-        """Refresh ROI positions when views are moved."""
-        if hasattr(self, 'roi_drawing_manager'):
-            # Tell the ROI manager to refresh all ROI positions
-            self.roi_drawing_manager.refreshROIDisplayPositions()
-        
-    def _onROIDrawn(self):
-        """
-        Legacy method for backward compatibility.
-        ROI drawing is now handled by the ROI Drawing Manager.
-        """
-        pass
+                # Store references to remove them later
+                self.roiItems["main"].append(mainPolygonItem)
+                self.roiItems["context"].append(contextPolygonItem)
 
     def closeEvent(self, event):
         """Clean up resources when the view is closed"""
@@ -575,7 +560,7 @@ class RasterView(QWidget):
     @staticmethod
     def _initImageItem():
         """Initialize a new image item."""
-        return pg.ImageItem(axisOrder="row-major", autoLevels=False, levels=(0, 1))
+        return RasterView.ImageRegionItem(axisOrder="row-major", autoLevels=False, levels=(0, 1))
 
     @staticmethod
     def _initViewBox(name, imageItem):
@@ -604,3 +589,43 @@ class RasterView(QWidget):
         roi.setSize([minDim, minDim], update=False)
         handle = roi.handles[0]["item"]
         handle.setPos(minDim, minDim)
+
+    class ImageRegionItem(pg.ImageItem):
+        """
+        Custom ImageItem that supports only displaying a region of the image,
+        with a convenience method to get the absolute image coordinates.
+        """
+
+        def __init__(self, image=None, **kwargs):
+            super().__init__(image=image, **kwargs)
+            self.region = None
+
+        def setRegion(self, image: pg.ImageItem, region: pg.ROI, sourceImageItem: pg.ImageItem):
+            """Set the region of interest for zooming."""
+            self.region = region
+            rasterData = self.region.getArrayRegion(image, sourceImageItem)
+            self.setImage(rasterData, autoLevels=False)
+
+        def getAbsoluteCoords(self, point: QPointF):
+            """Convert local zoomed coordinates to absolute image coordinates."""
+            if self.region is None:
+                return point
+            # Calculate absolute coordinates based on the region
+            abs_x = int(self.region.pos().x() + point.x())
+            abs_y = int(self.region.pos().y() + point.y())
+            return QPointF(abs_x, abs_y)
+
+        def getLocalCoords(self, point: QPointF):
+            """Convert absolute image coordinates to local zoomed coordinates."""
+            if self.region is None:
+                return point
+            # Calculate local coordinates based on the region
+            local_x = int(point.x() - self.region.pos().x())
+            local_y = int(point.y() - self.region.pos().y())
+            return QPointF(local_x, local_y)
+
+        def getOffset(self):
+            """Get the offset of the image item."""
+            if self.region is None:
+                return QtCore.QPointF(0, 0)
+            return self.region.pos()

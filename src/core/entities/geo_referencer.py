@@ -12,7 +12,7 @@ class GeoReferencer:
     using a given affine transform and coordinate reference system (CRS).
     """
 
-    def __init__(self, transform: Affine, crs: CRS):
+    def __init__(self, transform: Affine, crs: str):
         """
         Initializes the GeoReferencer with a given affine transform and CRS.
 
@@ -22,7 +22,7 @@ class GeoReferencer:
         """
         self.transform = transform
         # Ensure the CRS is properly initialized from its WKT representation
-        self.crs = CRS.from_wkt(crs.to_wkt())
+        self.crs = CRS.from_wkt(crs)
         # transformer: map coordinates (meters) → geographic coordinates (longitude/latitude)
         self.toGeo = Transformer.from_crs(
             self.crs, self.crs.geodetic_crs, always_xy=True
