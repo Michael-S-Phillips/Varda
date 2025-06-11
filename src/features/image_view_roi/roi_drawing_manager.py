@@ -252,22 +252,29 @@ class ROIDrawingManager(QObject):
         image_index = roi_data.get("image_index", self.view_model.imageIndex)
         color = roi_data.get("color", (255, 0, 0, 100))
 
+        # Convert points from view coordinates to absolute image coordinates
+        absolute_points = self._convertToAbsoluteCoordinates(points)
+        if absolute_points is None:
+            logger.error("Failed to convert ROI points to absolute coordinates")
+            self.status_label.setText("Error: Invalid ROI coordinates")
+            return
+
         # Extract image data for the ROI
         array_slice = None
         try:
             # Use the view model to get the image data
             image = self.view_model.proj.getImage(image_index)
             if image and hasattr(image, "raster"):
-                # Create a mask from the ROI points
+                # Create a mask from the ROI points using absolute coordinates
                 from skimage.draw import polygon
 
                 mask = np.zeros(
                     (image.raster.shape[0], image.raster.shape[1]), dtype=bool
                 )
 
-                # Convert point arrays to row/col format
-                y_coords = np.array(points[1], dtype=int)
-                x_coords = np.array(points[0], dtype=int)
+                # Use absolute coordinates for mask creation
+                y_coords = np.array(absolute_points[1], dtype=int)
+                x_coords = np.array(absolute_points[0], dtype=int)
 
                 # Clip coordinates to image bounds
                 y_coords = np.clip(y_coords, 0, image.raster.shape[0] - 1)
@@ -285,9 +292,9 @@ class ROIDrawingManager(QObject):
                     np.nanmean(array_slice, axis=0) if array_slice.size > 0 else None
                 )
 
-                # Create the ROI object
+                # Create the ROI object with absolute coordinates
                 roi = FreehandROI(
-                    points=np.array(points),
+                    points=np.array(absolute_points),
                     geo_points=np.array(geo_points) if geo_points else None,
                     image_indices=[image_index],
                     color=color,
@@ -338,53 +345,61 @@ class ROIDrawingManager(QObject):
         self.status_label.setText("ROI drawing canceled")
 
     def displayROI(self, roi):
-        """Display an existing ROI on the view"""
+        """Display an existing ROI on the view using absolute coordinates"""
         if not roi or not hasattr(roi, "points") or roi.points is None:
             return
 
         try:
-            # Create a selector to display this ROI
+            # Create a selector to display this ROI in main view
             selector = ROISelector(roi.color)
             selector.setImageIndex(self.view_model.imageIndex)
 
-            # Set the points
-            selector.pts = (
-                [roi.points[0].tolist(), roi.points[1].tolist()]
-                if isinstance(roi.points, np.ndarray)
-                else roi.points
-            )
+            # Convert absolute coordinates to current view coordinates for main view display
+            view_points = self._convertToViewCoordinates(roi.points)
+            if view_points is None:
+                logger.error("Failed to convert ROI to view coordinates")
+                return None
+
+            # Set the points in view coordinates for main view
+            selector.pts = view_points
             selector.updatePath()
 
-            # Anchor the ROI to the image
-            if hasattr(self.raster_view, "mainImage"):
-                # Link to the main image's transform
-                selector.setParentItem(self.raster_view.mainImage)
-
-            # Add to the view
+            # Add to the main view (not anchored to image)
             self.raster_view.mainView.addItem(selector)
 
-            # Cache for lookup
-            self.roi_lookup[roi.id] = selector
-
-            # Add to context view as well (scaled down version)
-            if hasattr(self.raster_view, "contextView") and hasattr(
-                self.raster_view, "contextImage"
-            ):
-                context_selector = ROISelector(roi.color)
-                context_selector.pts = (
-                    selector.pts.copy()
-                    if hasattr(selector, "pts") and selector.pts is not None
-                    else None
-                )
-                context_selector.updatePath()
+            # Create separate selector for context view with absolute coordinates
+            context_selector = ROISelector(roi.color)
+            context_selector.setImageIndex(self.view_model.imageIndex)
+            
+            # For context view, use absolute coordinates directly
+            # Context view shows the full image, so ROI coordinates should be absolute
+            if isinstance(roi.points, np.ndarray):
+                context_points = [roi.points[0].tolist(), roi.points[1].tolist()]
+            else:
+                context_points = roi.points
+                
+            context_selector.pts = context_points
+            context_selector.updatePath()
+            
+            # Anchor context ROI to the context image for proper scaling
+            if hasattr(self.raster_view, 'contextImage') and self.raster_view.contextImage:
                 context_selector.setParentItem(self.raster_view.contextImage)
+            
+            # Add to context view
+            if hasattr(self.raster_view, 'contextView') and self.raster_view.contextView:
                 self.raster_view.contextView.addItem(context_selector)
+
+            # Cache both selectors for lookup
+            self.roi_lookup[roi.id] = {
+                'main': selector,
+                'context': context_selector
+            }
 
             return selector
         except Exception as e:
             logger.error(f"Error displaying ROI: {e}")
             return None
-
+        
     def setupViewChangeHandlers(self):
         """Set up handlers for view transformation changes"""
         # Check if views exist before connecting
@@ -428,12 +443,20 @@ class ROIDrawingManager(QObject):
 
     def onRoiRemoved(self, roi_id):
         """Handle removal of an ROI"""
-        # Remove the ROI selector from the view
+        # Remove the ROI selectors from both views
         if roi_id in self.roi_lookup:
-            selector = self.roi_lookup[roi_id]
-
-            # Remove from views
-            self.raster_view.mainView.removeItem(selector)
+            roi_selectors = self.roi_lookup[roi_id]
+            
+            # Handle both old format (single selector) and new format (dict with main/context)
+            if isinstance(roi_selectors, dict):
+                # New format with separate selectors for main and context
+                if 'main' in roi_selectors:
+                    self.raster_view.mainView.removeItem(roi_selectors['main'])
+                if 'context' in roi_selectors and hasattr(self.raster_view, 'contextView'):
+                    self.raster_view.contextView.removeItem(roi_selectors['context'])
+            else:
+                # Old format with single selector
+                self.raster_view.mainView.removeItem(roi_selectors)
 
             # Remove from lookup
             del self.roi_lookup[roi_id]
@@ -492,16 +515,23 @@ class ROIDrawingManager(QObject):
     def highlightROI(self, roi_id):
         """Highlight a specific ROI"""
         # Reset highlight on all ROIs
-        for sel_id, selector in self.roi_lookup.items():
-            # Try to get the ROI through different methods
+        for sel_id, roi_selectors in self.roi_lookup.items():
+            # Get the ROI through different methods
             roi = self.getRoiById(sel_id)
 
             if roi and hasattr(roi, "color"):
-                selector.setColor(roi.color)
+                # Handle both old and new selector formats
+                if isinstance(roi_selectors, dict):
+                    if 'main' in roi_selectors:
+                        roi_selectors['main'].setColor(roi.color)
+                    if 'context' in roi_selectors:
+                        roi_selectors['context'].setColor(roi.color)
+                else:
+                    roi_selectors.setColor(roi.color)
 
         # Highlight the requested ROI
         if roi_id in self.roi_lookup:
-            selector = self.roi_lookup[roi_id]
+            roi_selectors = self.roi_lookup[roi_id]
 
             # Get the original color
             roi = self.getRoiById(roi_id)
@@ -515,35 +545,68 @@ class ROIDrawingManager(QObject):
                     min(b + 80, 255),
                     min(a + 50, 255),
                 )
-                selector.setColor(highlight_color)
-
-                # Ensure the ROI is visible
-                selector.setVisible(True)
+                
+                # Apply highlight to both selectors
+                if isinstance(roi_selectors, dict):
+                    if 'main' in roi_selectors:
+                        roi_selectors['main'].setColor(highlight_color)
+                        roi_selectors['main'].setVisible(True)
+                    if 'context' in roi_selectors:
+                        roi_selectors['context'].setColor(highlight_color)
+                        roi_selectors['context'].setVisible(True)
+                else:
+                    roi_selectors.setColor(highlight_color)
+                    roi_selectors.setVisible(True)
 
                 # Emit selection signal
                 self.roiSelected.emit(roi_id)
 
     def showAllROIs(self):
-        """Show all ROIs in the view"""
-        for roi_id, selector in self.roi_lookup.items():
-            selector.setVisible(True)
+        """Show all ROIs in both views"""
+        for roi_id, roi_selectors in self.roi_lookup.items():
+            if isinstance(roi_selectors, dict):
+                if 'main' in roi_selectors:
+                    roi_selectors['main'].setVisible(True)
+                if 'context' in roi_selectors:
+                    roi_selectors['context'].setVisible(True)
+            else:
+                roi_selectors.setVisible(True)
             self.roiVisibilityChanged.emit(roi_id, True)
         self.status_label.setText("All ROIs visible")
 
     def hideAllROIs(self):
-        """Hide all ROIs in the view"""
-        for roi_id, selector in self.roi_lookup.items():
-            selector.setVisible(False)
+        """Hide all ROIs in both views"""
+        for roi_id, roi_selectors in self.roi_lookup.items():
+            if isinstance(roi_selectors, dict):
+                if 'main' in roi_selectors:
+                    roi_selectors['main'].setVisible(False)
+                if 'context' in roi_selectors:
+                    roi_selectors['context'].setVisible(False)
+            else:
+                roi_selectors.setVisible(False)
             self.roiVisibilityChanged.emit(roi_id, False)
         self.status_label.setText("All ROIs hidden")
 
     def toggleROIVisibility(self, roi_id):
-        """Toggle visibility of a specific ROI"""
+        """Toggle visibility of a specific ROI in both views"""
         if roi_id in self.roi_lookup:
-            selector = self.roi_lookup[roi_id]
-            visible = not selector.isVisible()
-            selector.setVisible(visible)
-            self.roiVisibilityChanged.emit(roi_id, visible)
+            roi_selectors = self.roi_lookup[roi_id]
+            
+            # Determine current visibility from main selector
+            if isinstance(roi_selectors, dict):
+                current_visible = roi_selectors.get('main', roi_selectors.get('context')).isVisible()
+                new_visible = not current_visible
+                
+                if 'main' in roi_selectors:
+                    roi_selectors['main'].setVisible(new_visible)
+                if 'context' in roi_selectors:
+                    roi_selectors['context'].setVisible(new_visible)
+            else:
+                current_visible = roi_selectors.isVisible()
+                new_visible = not current_visible
+                roi_selectors.setVisible(new_visible)
+                
+            self.roiVisibilityChanged.emit(roi_id, new_visible)
 
     def updateROIPositions(self):
         """Update ROI positions when the view transform changes"""
@@ -652,9 +715,124 @@ class ROIDrawingManager(QObject):
             self.active_roi_selector.cancelDrawing()
             self.active_roi_selector = None
 
-        # Remove all ROI selectors from views
-        for roi_id, selector in self.roi_lookup.items():
-            self.raster_view.mainView.removeItem(selector)
+        # Remove all ROI selectors from both views
+        for roi_id, roi_selectors in self.roi_lookup.items():
+            try:
+                if isinstance(roi_selectors, dict):
+                    if 'main' in roi_selectors:
+                        self.raster_view.mainView.removeItem(roi_selectors['main'])
+                    if 'context' in roi_selectors and hasattr(self.raster_view, 'contextView'):
+                        self.raster_view.contextView.removeItem(roi_selectors['context'])
+                else:
+                    self.raster_view.mainView.removeItem(roi_selectors)
+            except Exception as e:
+                logger.debug(f"Error removing ROI selector during cleanup: {e}")
 
         # Clear lookup
         self.roi_lookup.clear()
+
+    def refreshROIDisplayPositions(self):
+        """Refresh the display positions of all ROIs when views change."""
+        try:
+            # Remove existing ROI displays
+            for roi_id, selector in list(self.roi_lookup.items()):
+                self.raster_view.mainView.removeItem(selector)
+                if hasattr(self.raster_view, 'contextView'):
+                    # Remove from context view too (though context ROIs should be persistent)
+                    pass
+            
+            # Clear the lookup and reload all ROIs with updated positions
+            self.roi_lookup.clear()
+            self.loadExistingROIs()
+            
+        except Exception as e:
+            logger.error(f"Error refreshing ROI positions: {e}")
+
+    def _convertToAbsoluteCoordinates(self, view_points):
+        """Convert points from current view coordinates to absolute image coordinates.
+        
+        Args:
+            view_points: Points in current view coordinate system [x_coords, y_coords]
+            
+        Returns:
+            Absolute image coordinates [x_coords, y_coords] or None if conversion fails
+        """
+        try:
+            if not hasattr(self.raster_view, 'contextROI') or not hasattr(self.raster_view, 'mainROI'):
+                logger.warning("ROI references not available for coordinate conversion")
+                return view_points  # Fallback to original points
+                
+            # Get the current position offsets from the ROI system
+            context_pos = self.raster_view.contextROI.pos() if self.raster_view.contextROI else (0, 0)
+            main_pos = self.raster_view.mainROI.pos() if self.raster_view.mainROI else (0, 0)
+            
+            # Convert view coordinates to absolute image coordinates
+            x_coords = []
+            y_coords = []
+            
+            for i in range(len(view_points[0])):
+                # Add the offsets to get absolute coordinates
+                abs_x = view_points[0][i] + main_pos.x() + context_pos.x()
+                abs_y = view_points[1][i] + main_pos.y() + context_pos.y()
+                
+                x_coords.append(abs_x)
+                y_coords.append(abs_y)
+                
+            return [x_coords, y_coords]
+            
+        except Exception as e:
+            logger.error(f"Error converting coordinates: {e}")
+            return None
+        
+    def _convertToViewCoordinates(self, absolute_points):
+        """Convert absolute image coordinates to current view coordinates.
+        
+        Args:
+            absolute_points: Points in absolute image coordinates [x_coords, y_coords]
+            
+        Returns:
+            View coordinates [x_coords, y_coords] or None if conversion fails
+        """
+        try:
+            if not hasattr(self.raster_view, 'contextROI') or not hasattr(self.raster_view, 'mainROI'):
+                return absolute_points  # Fallback
+                
+            # Get the current position offsets
+            context_pos = self.raster_view.contextROI.pos() if self.raster_view.contextROI else (0, 0)
+            main_pos = self.raster_view.mainROI.pos() if self.raster_view.mainROI else (0, 0)
+            
+            # Convert absolute coordinates to view coordinates
+            x_coords = []
+            y_coords = []
+            
+            for i in range(len(absolute_points[0])):
+                # Subtract the offsets to get view coordinates
+                view_x = absolute_points[0][i] - main_pos.x() - context_pos.x()
+                view_y = absolute_points[1][i] - main_pos.y() - context_pos.y()
+                
+                x_coords.append(view_x)
+                y_coords.append(view_y)
+                
+            return [x_coords, y_coords]
+            
+        except Exception as e:
+            logger.error(f"Error converting to view coordinates: {e}")
+            return None
+
+    def _convertToContextCoordinates(self, absolute_points):
+        """Convert absolute image coordinates to context view coordinates.
+        
+        Args:
+            absolute_points: Points in absolute image coordinates [x_coords, y_coords]
+            
+        Returns:
+            Context view coordinates [x_coords, y_coords] or None if conversion fails
+        """
+        try:
+            # For context view, points should be in absolute image coordinates
+            # but we may need to scale them if the context view is scaled
+            return [list(absolute_points[0]), list(absolute_points[1])]
+            
+        except Exception as e:
+            logger.error(f"Error converting to context coordinates: {e}")
+            return None

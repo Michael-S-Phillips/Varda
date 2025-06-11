@@ -112,35 +112,80 @@ class ROITableWidget(QTableWidget):
         selected = self.selectedItems()
         if selected:
             row = selected[0].row()
-            self.parent().toggle_roi_visibility(row)
+            if hasattr(self.parent(), 'toggle_roi_visibility'):
+                self.parent().toggle_roi_visibility(row)
 
     def onPlotSpectrum(self):
         """Plot the spectrum of the selected ROI"""
         selected = self.selectedItems()
         if selected:
             row = selected[0].row()
-            self.parent().plot_roi_spectrum(row)
-
-    def onRemoveROI(self):
-        """Remove the selected ROI"""
-        selected = self.selectedItems()
-        if selected:
-            row = selected[0].row()
-            self.parent().remove_roi(row)
+            if hasattr(self.parent(), 'plotRoiSpectrum'):
+                self.parent().plotRoiSpectrum(row)
 
     def onRenameROI(self):
         """Rename the selected ROI"""
         selected = self.selectedItems()
         if selected:
             row = selected[0].row()
-            self.parent().rename_roi(row)
+            if hasattr(self.parent(), 'renameRoi'):
+                self.parent().renameRoi(row)
 
     def onChangeColor(self):
         """Change the color of the selected ROI"""
         selected = self.selectedItems()
         if selected:
             row = selected[0].row()
-            self.parent().change_roi_color(row)
+            if hasattr(self.parent(), 'change_roi_color'):
+                self.parent().change_roi_color(row)
+    
+    def onRemoveROI(self):
+        """Remove the selected ROI"""
+        selected = self.selectedItems()
+        if selected:
+            row = selected[0].row()
+            self.removeRoi(row)
+
+    def removeRoi(self, roi_index):
+        """Remove an ROI"""
+        confirm = QMessageBox.question(
+            self,
+            "Remove ROI",
+            f"Are you sure you want to remove ROI #{roi_index}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+
+        if confirm == QMessageBox.StandardButton.Yes:
+            # Get all ROIs for the current image to find the correct ROI
+            rois = self.viewModel.getROIs(self.viewModel.imageIndex)
+            
+            if roi_index < len(rois):
+                roi = rois[roi_index]
+                
+                # Try to remove using the ROI ID if available
+                if hasattr(roi, 'id'):
+                    success = self.viewModel.removeRoi(roi.id)
+                else:
+                    # Fallback to index-based removal for legacy ROIs
+                    success = self.viewModel.proj.removeROI(self.viewModel.imageIndex, roi_index)
+                
+                if success:
+                    self.updateROITable()
+                    if self.selectedRoiIndex == roi_index:
+                        self.selectedRoiIndex = None
+                        self.property_editor.setRoi(None, None)
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "Remove Error",
+                        f"Failed to remove ROI #{roi_index}",
+                    )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Remove Error",
+                    f"ROI #{roi_index} not found",
+                )
 
 
 class ROIPropertyEditor(QWidget):
@@ -221,7 +266,7 @@ class ROIPropertyEditor(QWidget):
         self.setLayout(layout)
         self.setEnabled(False)  # Disable until an ROI is selected
 
-    def set_roi(self, roi: FreehandROI, index: int):
+    def setRoi(self, roi: FreehandROI, index: int):
         """Set the ROI to edit"""
         if roi is None:
             self.current_roi_index = None
@@ -235,7 +280,7 @@ class ROIPropertyEditor(QWidget):
         self.blockSignals(True)
 
         self.name_edit.setText(f"ROI {index}")
-        self.update_color_button(roi.color)
+        self.updateColorButton(roi.color)
         self.opacity_slider.setValue(50)  # Default 50% opacity
         self.visible_checkbox.setChecked(True)  # Default visible
 
@@ -262,7 +307,7 @@ class ROIPropertyEditor(QWidget):
 
         self.blockSignals(False)
 
-    def update_color_button(self, color: str):
+    def updateColorButton(self, color: str):
         """Update the color button with the given color"""
         if isinstance(color, str):
             qcolor = QColor(color)
@@ -288,7 +333,7 @@ class ROIPropertyEditor(QWidget):
         )
 
         if color.isValid():
-            self.update_color_button(color.name())
+            self.updateColorButton(color.name())
             self.onPropertyChanged("color", color.name())
 
     def onPropertyChanged(self, property_name: str, value: Any):
@@ -573,7 +618,7 @@ class EnhancedROIView(QWidget):
             rois = self.viewModel.getROIs(self.viewModel.imageIndex)
             if roi_index < len(rois):
                 roi = rois[roi_index]
-                self.property_editor.set_roi(roi, roi_index)
+                self.property_editor.setRoi(roi, roi_index)
                 self.roiSelectionChanged.emit(roi_index)
 
                 # Also highlight the ROI in the raster view
@@ -589,7 +634,7 @@ class EnhancedROIView(QWidget):
 
     def onRoiDoubleClicked(self, roi_index):
         """Handle ROI double-click"""
-        self.plot_roi_spectrum(roi_index)
+        self.plotRoiSpectrum(roi_index)
 
     def onRoiPropertyChanged(self, roi_index, property_name, value):
         """Handle property change from property editor"""
@@ -620,7 +665,7 @@ class EnhancedROIView(QWidget):
         logger.debug(f"Toggle visibility for ROI {roi_index}")
         # In a complete implementation, this would update ROI visibility
 
-    def plot_roi_spectrum(self, roi_index):
+    def plotRoiSpectrum(self, roi_index):
         """Plot the spectrum of an ROI"""
         rois = self.viewModel.getROIs(self.viewModel.imageIndex)
         if roi_index < len(rois):
@@ -661,7 +706,7 @@ class EnhancedROIView(QWidget):
             self.pixelPlotWindow.show()
             self.pixelPlotWindow.raise_()  # Bring to front
 
-    def remove_roi(self, roi_index):
+    def removeRoi(self, roi_index):
         """Remove an ROI"""
         confirm = QMessageBox.question(
             self,
@@ -671,13 +716,38 @@ class EnhancedROIView(QWidget):
         )
 
         if confirm == QMessageBox.StandardButton.Yes:
-            self.viewModel.removeRoi(self.viewModel.imageIndex, roi_index)
-            self.updateROITable()
-            if self.selectedRoiIndex == roi_index:
-                self.selectedRoiIndex = None
-                self.property_editor.set_roi(None, None)
+            # Get all ROIs for the current image to find the correct ROI
+            rois = self.viewModel.getROIs(self.viewModel.imageIndex)
+            
+            if roi_index < len(rois):
+                roi = rois[roi_index]
+                
+                # Try to remove using the ROI ID if available
+                if hasattr(roi, 'id'):
+                    success = self.viewModel.removeRoi(roi.id)
+                else:
+                    # Fallback to index-based removal for legacy ROIs
+                    success = self.viewModel.proj.removeROI(self.viewModel.imageIndex, roi_index)
+                
+                if success:
+                    self.updateROITable()
+                    if self.selectedRoiIndex == roi_index:
+                        self.selectedRoiIndex = None
+                        self.property_editor.setRoi(None, None)
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "Remove Error",
+                        f"Failed to remove ROI #{roi_index}",
+                    )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Remove Error",
+                    f"ROI #{roi_index} not found",
+                )
 
-    def rename_roi(self, roi_index):
+    def renameRoi(self, roi_index):
         """Rename an ROI (placeholder implementation)"""
         new_name, ok = QInputDialog.getText(
             self,
