@@ -439,19 +439,23 @@ class RasterView(QWidget):
                     color[2],
                     color[3] if len(color) >= 4 else 128,
                 )
-                contextPolygonItem = pg.Qt.QtWidgets.QGraphicsPolygonItem(polygonForContext)
-                contextPolygonItem.setPen(pen)
-                contextPolygonItem.setBrush(brush)
-                self.contextView.addItem(contextPolygonItem)
+            )
 
-                mainPolygonItem = pg.Qt.QtWidgets.QGraphicsPolygonItem(polygonForMain)
-                mainPolygonItem.setPen(pen)
-                mainPolygonItem.setBrush(brush)
-                self.mainView.addItem(mainPolygonItem)
+            contextPolygonItem = pg.Qt.QtWidgets.QGraphicsPolygonItem(polygon)
+            contextPolygonItem.setPen(pen)
+            contextPolygonItem.setBrush(brush)
+            self.contextView.addItem(contextPolygonItem)
 
-                # Store references to remove them later
-                self.roiItems["main"].append(mainPolygonItem)
-                self.roiItems["context"].append(contextPolygonItem)
+            mainPolygonItem = pg.Qt.QtWidgets.QGraphicsPolygonItem(polygon)
+            mainPolygonItem.setPen(pen)
+            mainPolygonItem.setBrush(brush)
+            self.mainView.addItem(mainPolygonItem)
+
+            # Store references to remove them later
+            self.roiItems["main"].append(mainPolygonItem)
+            self.roiItems["context"].append(contextPolygonItem)
+        except Exception as e:
+            logger.error(f"Error creating polygon item: {e}")
 
     def closeEvent(self, event):
         """Clean up resources when the view is closed"""
