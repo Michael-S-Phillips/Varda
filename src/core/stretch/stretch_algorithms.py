@@ -121,19 +121,30 @@ class PercentileStretch(StretchAlgorithm):
         low_percentile = kwargs.get("low_percentile", 2.0)
         high_percentile = kwargs.get("high_percentile", 98.0)
 
+        def safe_percentile(data, percentile):
+            """Safely compute percentile for masked or regular arrays."""
+            if np.ma.is_masked(data):
+                # Use compressed() to get only non-masked values
+                valid_data = data.compressed()
+                if len(valid_data) == 0:
+                    return 0.0  # or some default value
+                return np.percentile(valid_data, percentile)
+            else:
+                return np.nanpercentile(data, percentile)
+
         if image_data.ndim != 3 or image_data.shape[2] < 3:
             # Handle grayscale or invalid data
-            p_low = np.nanpercentile(image_data, low_percentile)
-            p_high = np.nanpercentile(image_data, high_percentile)
+            p_low = safe_percentile(image_data, low_percentile)
+            p_high = safe_percentile(image_data, high_percentile)
             return p_low, p_high, p_low, p_high, p_low, p_high
 
         # Compute percentiles for each channel
-        minR = np.nanpercentile(image_data[:, :, 0], low_percentile)
-        maxR = np.nanpercentile(image_data[:, :, 0], high_percentile)
-        minG = np.nanpercentile(image_data[:, :, 1], low_percentile)
-        maxG = np.nanpercentile(image_data[:, :, 1], high_percentile)
-        minB = np.nanpercentile(image_data[:, :, 2], low_percentile)
-        maxB = np.nanpercentile(image_data[:, :, 2], high_percentile)
+        minR = safe_percentile(image_data[:, :, 0], low_percentile)
+        maxR = safe_percentile(image_data[:, :, 0], high_percentile)
+        minG = safe_percentile(image_data[:, :, 1], low_percentile)
+        maxG = safe_percentile(image_data[:, :, 1], high_percentile)
+        minB = safe_percentile(image_data[:, :, 2], low_percentile)
+        maxB = safe_percentile(image_data[:, :, 2], high_percentile)
 
         return minR, maxR, minG, maxG, minB, maxB
 
