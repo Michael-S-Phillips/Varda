@@ -348,11 +348,18 @@ class RasterView(QWidget):
     def remove_polygons_from_display(self):
         """Remove all polygons from the display"""
         for item in self.roiItems["main"]:
+            
             self.mainView.removeItem(item)
+            
         for item in self.roiItems["context"]:
             self.contextView.removeItem(item)
-        self.roiItems["main"].clear()
-        self.roiItems["context"].clear()
+        print("\n")
+        for item in self.mainView.allChildren():
+            if isinstance(item, ROISelector):
+                self.mainView.removeItem(item)
+                print(item)
+        print("\n")
+
 
     def _refresh_polygons(self):
         """Redraw all ROI polygons"""
