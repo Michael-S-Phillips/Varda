@@ -1,19 +1,45 @@
-[tool.poetry]
-name = "speclab"
-version = "0.1.0"
-description = ""
-authors = ["Jaysterr <j4ysterr@gmail.com>"]
+[project]
+name = "varda"
+version = "0.0.1"
+description = "An extensible GUI application for analyzing hyperspectral images."
 readme = "README.md"
+requires-python = ">=3.12"
+authors = [{"name" = "Michael Phillips", "email" = "phillipsm@arizona.edu"},
+           {"name" = "Jesse Oved", "email" = "jesseoved@arizona.edu"},
+           {"name" = "Emma Elliott", "email" = "emmae@arizona.edu"},
+           {"name" = "Hamad Ayaz", "email" = "hamadayaz@arizona.edu"}]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-
-[tool.pytest.ini_options]
-pythonpath = ["src"]
-testpaths = ["tests"]
-
+dependencies = [
+    "PyQt6~=6.7.1",
+    "numpy~=2.1.1",
+    "matplotlib~=3.9.2",
+    "spectral~=0.23.1",
+    "rasterio~=1.4.0",
+    "scikit-image>=0.21.0",
+    "pyqtgraph~=0.13.7",
+    "h5py~=3.12.1",
+    "opencv-python~=4.10.0.84",
+    "affine~=2.4.0",
+    "asyncio~=3.4.3",
+    "qasync~=0.27.1",
+    "scipy~=1.15.1",
+    "pillow>=10.1.0",
+    "pyproj~=3.7.1",
+    "pluggy~=1.6.0",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project.gui-scripts]
+varda-gui = "varda.main:main"
+
+[project.entry-points."varda.plugins"]
+
+
+[tool.pytest.ini_options]
+pythonpath = ["varda"]
+testpaths = ["tests"]
+
 

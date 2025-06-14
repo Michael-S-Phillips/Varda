@@ -1,13 +1,10 @@
 import pytest
 import numpy as np
-from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QCoreApplication
 
-from core.data import ProjectContext
-from core.entities import Stretch, Metadata
-from features.image_view_stretch import getStretchView
-from features.image_view_stretch.stretch_viewmodel import StretchViewModel
-from features.image_view_stretch.stretch_view import StretchView
+from core import ProjectContext
+from core import Stretch, Metadata
+from varda.features.image_view_stretch.stretch_viewmodel import StretchViewModel
 
 
 @pytest.fixture

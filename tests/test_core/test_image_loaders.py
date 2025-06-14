@@ -3,11 +3,10 @@
 import os
 import pytest
 import numpy as np
-from pathlib import Path
 
-from core.utilities.load_image.loaders.tiffimageloader import TIFFImageLoader
-from core.utilities.load_image.loaders.pillowimageloader import PillowImageLoader
-from core.utilities.load_image import ImageLoadingService
+from core import TIFFImageLoader
+from varda.core.utilities.load_image.loaders.pillowimageloader import PillowImageLoader
+from core import ImageLoadingService
 
 
 def create_test_images():

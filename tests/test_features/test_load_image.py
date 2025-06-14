@@ -1,10 +1,7 @@
-import os
-
-import pytest
 from pathlib import Path
-import features.image_load as image_loader
-from core.data import ProjectContext
-from core.entities import Image, Metadata
+import varda.features as image_loader
+from varda.core.data import ProjectContext
+from varda.core.entities import Image, Metadata
 import numpy as np
 import os
 import asyncio

@@ -47,7 +47,7 @@ if you are only interested in running the program and are not planning on doing 
 ## Run Varda:
 
 ```bash
-python src/main.py
+python varda/main.py
 ```
 
 ## Run pytest (unit testing):
@@ -61,14 +61,14 @@ pytest
 ## Run Pylint (static code analyzer):
 
 ```bash
-pylint src/
+pylint varda/
 ```
 
 ## Run Black (formatter):
 
 ```bash
 # to simply check for formatting issues
-black --check src/
+black --check varda/
 # To actually apply formatting
-black src/
+black varda/
 ```

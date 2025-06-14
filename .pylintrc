@@ -1,5 +1,5 @@
 [MASTER]
-source-root = src/
+source-root = varda/
 
 [MAIN]
 extension-pkg-allow-list=PyQt6
