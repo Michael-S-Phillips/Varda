@@ -20,12 +20,11 @@ dependencies = [
     "h5py~=3.12.1",
     "opencv-python~=4.10.0.84",
     "affine~=2.4.0",
-    "asyncio~=3.4.3",
-    "qasync~=0.27.1",
     "scipy~=1.15.1",
     "pillow>=10.1.0",
     "pyproj~=3.7.1",
     "pluggy~=1.6.0",
+    "appdirs~=1.4.4",
 ]
 
 [build-system]
@@ -33,7 +32,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project.gui-scripts]
-varda-gui = "varda.main:main"
+varda = "varda.main:main"
 
 [project.entry-points."varda.plugins"]
 

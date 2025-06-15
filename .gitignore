@@ -11,7 +11,8 @@ $py.class
 
 # Builds
 build/
-
+dist/
+*.egg*
 # Environments
 .venv
 venv

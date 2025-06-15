@@ -1,0 +1,9 @@
+[project]
+name = "varda-print_on_startup"
+version = "0.0.1"
+description = ""
+dependencies = [
+    "varda",
+]
+[project.entry-points."varda.plugins"]
+print_on_startup = "print_on_startup"

@@ -1,7 +1,0 @@
-[project]
-name = "print on startup plugin"
-dependencies = [
-    "varda",
-]
-[project.entry-points."varda.plugins"]
-print_on_startup = "print_on_startup.print_on_startup"
