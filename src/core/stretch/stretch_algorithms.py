@@ -127,7 +127,7 @@ class PercentileStretch(StretchAlgorithm):
                 # Use compressed() to get only non-masked values
                 valid_data = data.compressed()
                 if len(valid_data) == 0:
-                    return 0.0  # or some default value
+                    return 0.0  # some default value
                 return np.percentile(valid_data, percentile)
             else:
                 return np.nanpercentile(data, percentile)
