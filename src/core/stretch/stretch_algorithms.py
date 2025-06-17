@@ -114,6 +114,18 @@ class PercentileStretch(StretchAlgorithm):
         }
 
     @staticmethod
+    def safe_percentile(data, percentile):
+        """Safely compute percentile for masked or regular arrays."""
+        if np.ma.is_masked(data):
+            # Use compressed() to get only non-masked values
+            valid_data = data.compressed()
+            if len(valid_data) == 0:
+                return 0.0  # some default value
+            return np.percentile(valid_data, percentile)
+        else:
+            return np.nanpercentile(data, percentile)
+
+    @staticmethod
     def compute_stretch(
         image_data: np.ndarray, **kwargs
     ) -> Tuple[float, float, float, float, float, float]:
@@ -121,30 +133,19 @@ class PercentileStretch(StretchAlgorithm):
         low_percentile = kwargs.get("low_percentile", 2.0)
         high_percentile = kwargs.get("high_percentile", 98.0)
 
-        def safe_percentile(data, percentile):
-            """Safely compute percentile for masked or regular arrays."""
-            if np.ma.is_masked(data):
-                # Use compressed() to get only non-masked values
-                valid_data = data.compressed()
-                if len(valid_data) == 0:
-                    return 0.0  # some default value
-                return np.percentile(valid_data, percentile)
-            else:
-                return np.nanpercentile(data, percentile)
-
         if image_data.ndim != 3 or image_data.shape[2] < 3:
             # Handle grayscale or invalid data
-            p_low = safe_percentile(image_data, low_percentile)
-            p_high = safe_percentile(image_data, high_percentile)
+            p_low = PercentileStretch.safe_percentile(image_data, low_percentile)
+            p_high = PercentileStretch.safe_percentile(image_data, high_percentile)
             return p_low, p_high, p_low, p_high, p_low, p_high
 
         # Compute percentiles for each channel
-        minR = safe_percentile(image_data[:, :, 0], low_percentile)
-        maxR = safe_percentile(image_data[:, :, 0], high_percentile)
-        minG = safe_percentile(image_data[:, :, 1], low_percentile)
-        maxG = safe_percentile(image_data[:, :, 1], high_percentile)
-        minB = safe_percentile(image_data[:, :, 2], low_percentile)
-        maxB = safe_percentile(image_data[:, :, 2], high_percentile)
+        minR = PercentileStretch.safe_percentile(image_data[:, :, 0], low_percentile)
+        maxR = PercentileStretch.safe_percentile(image_data[:, :, 0], high_percentile)
+        minG = PercentileStretch.safe_percentile(image_data[:, :, 1], low_percentile)
+        maxG = PercentileStretch.safe_percentile(image_data[:, :, 1], high_percentile)
+        minB = PercentileStretch.safe_percentile(image_data[:, :, 2], low_percentile)
+        maxB = PercentileStretch.safe_percentile(image_data[:, :, 2], high_percentile)
 
         return minR, maxR, minG, maxG, minB, maxB
 

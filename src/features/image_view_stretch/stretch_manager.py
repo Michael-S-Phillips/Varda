@@ -103,7 +103,6 @@ class StretchManager(QWidget):
         self.layout.addWidget(self.toggleButton)
         self.layout.addLayout(self.buttonLayout)
         self.layout.addWidget(self.table)
-        # self.layout.addWidget(self.presetsGroup)  # Add the presets group
         self.layout.addWidget(self.histogramView)
 
         self.setLayout(self.layout)

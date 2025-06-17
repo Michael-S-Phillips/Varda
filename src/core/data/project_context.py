@@ -468,14 +468,14 @@ class ProjectContext(QObject):
         if stretch is None:
             stretch = Stretch.createDefault()
         # Check if the stretch already exists (by comparing all attributes)
-        for existing_stretch in self._images[index].stretch:
+        for i, existing_stretch in enumerate(self._images[index].stretch):
             if stretch == existing_stretch:
                 QMessageBox.warning(
                     None,
                     "Duplicate Stretch",
                     "This stretch has already been calculated for this image.",
                 )
-                return len(self._images[index].stretch) - 1
+                return i
         self._images[index].stretch.append(stretch)
         self._emitChange(index, self.ChangeType.STRETCH, self.ChangeModifier.ADD)
         return len(self._images[index].stretch) - 1
