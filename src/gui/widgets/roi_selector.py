@@ -34,9 +34,9 @@ class ROISelector(pg.GraphicsObject):
         self.color = (
             color if color else (0, 0, 255, 100)
         )  # default: semi-transparent blue
-        
+
         self.pixel_points = []  # existing points
-        self.geo_points = []    # new points
+        self.geo_points = []  # new points
 
         self.imageIndex = None
 
@@ -208,7 +208,9 @@ class ROISelector(pg.GraphicsObject):
 
         # Mouse press events
         if ev.type() == ev.Type.GraphicsSceneMousePress:
-            pos = self.targetImageItem.getAbsoluteCoords(self.mapFromScene(ev.scenePos()))
+            pos = self.targetImageItem.getAbsoluteCoords(
+                self.mapFromScene(ev.scenePos())
+            )
 
             if ev.button() == Qt.MouseButton.LeftButton:
                 if self.mode == ROIMode.FREEHAND:
@@ -242,7 +244,9 @@ class ROISelector(pg.GraphicsObject):
 
         # Mouse move events
         elif ev.type() == ev.Type.GraphicsSceneMouseMove:
-            pos = self.targetImageItem.getAbsoluteCoords(self.mapFromScene(ev.scenePos()))
+            pos = self.targetImageItem.getAbsoluteCoords(
+                self.mapFromScene(ev.scenePos())
+            )
 
             if self.isDrawing:
                 if self.mode == ROIMode.FREEHAND and self.pts is not None:

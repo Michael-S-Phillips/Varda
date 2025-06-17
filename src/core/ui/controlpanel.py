@@ -8,7 +8,8 @@ from PyQt6.QtWidgets import (
     QDockWidget,
     QLabel,
     QWidget,
-    QScrollArea, QPushButton,
+    QScrollArea,
+    QPushButton,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 import numpy as np
@@ -69,7 +70,9 @@ class ControlPanel(QWidget):
         self.toolSection.setWidget(self.toolSectionContainer)
 
         self.editMetadataButton = QPushButton("View and edit Metadata")
-        self.editMetadataButton.clicked.connect(lambda: openMetadataEditor(self.project_context, self.imageIndex, self))
+        self.editMetadataButton.clicked.connect(
+            lambda: openMetadataEditor(self.project_context, self.imageIndex, self)
+        )
 
         self.bandView = BandManager(self.project_context, self.imageIndex, self)
 

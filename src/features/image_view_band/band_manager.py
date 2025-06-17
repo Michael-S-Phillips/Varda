@@ -16,13 +16,16 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QHBoxLayout,
     QLayout,
-    QToolButton, QComboBox, QCheckBox,
+    QToolButton,
+    QComboBox,
+    QCheckBox,
 )
 
 from core.data import ProjectContext
 from features.image_view_band import getBandView
 
 logger = logging.getLogger(__name__)
+
 
 class BandManager(QWidget):
     """A widget to display a list of all the bands associated with an image, and manage them.
@@ -44,7 +47,9 @@ class BandManager(QWidget):
     def _initUI(self):
         self.modeToggle = QCheckBox("Use Wavelength Values", self)
         self.modeToggle.setChecked(False)
-        self.modeToggle.setToolTip("If checked, the table will be populated with the true wavelength values. Otherwise, it will use the index of the wavelengths.")
+        self.modeToggle.setToolTip(
+            "If checked, the table will be populated with the true wavelength values. Otherwise, it will use the index of the wavelengths."
+        )
         self.modeToggle.clicked.connect(self._onModeChanged)
 
         self.table = QTableWidget(self)

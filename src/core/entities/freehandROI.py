@@ -288,7 +288,6 @@ class FreehandROI:
             mean_spectrum=mean_spectrum,
             custom_data=custom_data,
         )
-    
 
     def __str__(self):
         return f"ROI '{self.name}' ({self.id}) with {len(self.points)} points"
