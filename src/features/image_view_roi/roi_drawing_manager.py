@@ -244,8 +244,8 @@ class ROIDrawingManager(QObject):
         self.status_label.setText(instructions[self.draw_mode])
 
     def onDrawingComplete(self, roi_data):
-        # update onDrawingComplete call to include the roi_data 
-        # pass the geo_points to the freehandROI class 
+        # update onDrawingComplete call to include the roi_data
+        # pass the geo_points to the freehandROI class
         # update the table to inlcude the geo_points
         # ask michael roi thresholds
         """Handle completion of ROI drawing"""

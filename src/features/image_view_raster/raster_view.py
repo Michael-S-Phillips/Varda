@@ -269,7 +269,9 @@ class RasterView(QWidget):
 
         self._makeROISquare(self.contextROI)
 
-        self.mainImage.setRegion(self.contextImage.image, self.contextROI, self.contextImage)
+        self.mainImage.setRegion(
+            self.contextImage.image, self.contextROI, self.contextImage
+        )
 
         if self.mainROI is not None:
             self.mainROI.maxBounds = self.mainImage.boundingRect()
@@ -348,9 +350,9 @@ class RasterView(QWidget):
     def remove_polygons_from_display(self):
         """Remove all polygons from the display"""
         for item in self.roiItems["main"]:
-            
+
             self.mainView.removeItem(item)
-            
+
         for item in self.roiItems["context"]:
             self.contextView.removeItem(item)
         print("\n")
@@ -359,7 +361,6 @@ class RasterView(QWidget):
                 self.mainView.removeItem(item)
                 print(item)
         print("\n")
-
 
     def _refresh_polygons(self):
         """Redraw all ROI polygons"""
@@ -400,18 +401,23 @@ class RasterView(QWidget):
                 for x, y in zip(*points):
                     # add points to context polygon
                     polygonForContext.append(pg.Qt.QtCore.QPointF(x, y))
-                    logger.debug("Adding point to polygon for context: ({}, {})".format(x, y))
+                    logger.debug(
+                        "Adding point to polygon for context: ({}, {})".format(x, y)
+                    )
 
                     # add points to main polygon, clamping to bounds
                     mainImageCoords = self.mainImage.getLocalCoords(QPointF(x, y))
                     polygonForMain.append(pg.Qt.QtCore.QPointF(mainImageCoords))
-                    logger.debug("Adding point to polygon for main: ({}, {})".format(
-                        mainImageCoords.x(),
-                        mainImageCoords.y())
+                    logger.debug(
+                        "Adding point to polygon for main: ({}, {})".format(
+                            mainImageCoords.x(), mainImageCoords.y()
+                        )
                     )
 
                 # This clips the polygon to the bounds of the main image
-                polygonForMain = polygonForMain.intersected(QPolygonF(self.mainImage.boundingRect()))
+                polygonForMain = polygonForMain.intersected(
+                    QPolygonF(self.mainImage.boundingRect())
+                )
 
                 # Create a polygon item with the color
                 from PyQt6.QtGui import QPen, QBrush
@@ -432,7 +438,9 @@ class RasterView(QWidget):
                         color[3] if len(color) >= 4 else 128,
                     )
                 )
-                contextPolygonItem = pg.Qt.QtWidgets.QGraphicsPolygonItem(polygonForContext)
+                contextPolygonItem = pg.Qt.QtWidgets.QGraphicsPolygonItem(
+                    polygonForContext
+                )
                 contextPolygonItem.setPen(pen)
                 contextPolygonItem.setBrush(brush)
                 self.contextView.addItem(contextPolygonItem)
@@ -457,7 +465,9 @@ class RasterView(QWidget):
     @staticmethod
     def _initImageItem():
         """Initialize a new image item."""
-        return RasterView.ImageRegionItem(axisOrder="row-major", autoLevels=False, levels=(0, 1))
+        return RasterView.ImageRegionItem(
+            axisOrder="row-major", autoLevels=False, levels=(0, 1)
+        )
 
     @staticmethod
     def _initViewBox(name, imageItem):
@@ -497,7 +507,9 @@ class RasterView(QWidget):
             super().__init__(image=image, **kwargs)
             self.region = None
 
-        def setRegion(self, image: pg.ImageItem, region: pg.ROI, sourceImageItem: pg.ImageItem):
+        def setRegion(
+            self, image: pg.ImageItem, region: pg.ROI, sourceImageItem: pg.ImageItem
+        ):
             """Set the region of interest for zooming."""
             self.region = region
             rasterData = self.region.getArrayRegion(image, sourceImageItem)
