@@ -1,6 +1,4 @@
-from varda.core.utilities.load_image import ImageLoadingService
-from varda.core import entities
-from .api import hookimpl, proj
+from .api import hookimpl
 
 from . import _hookspecs
 
