@@ -366,12 +366,15 @@ class ProjectContext(QObject):
                     # Import here to avoid circular import
                     from core.stretch.stretch_manager import StretchPresets
 
+                    # Get the default band configuration to use for stretch calculations
+                    default_band = band[0] if band else Band.createDefault()
+
                     # Add a few common presets
                     basic_presets = ["min_max", "percentile_2"]
                     for preset_id in basic_presets:
                         try:
                             preset_stretch = StretchPresets.create_stretch_from_preset(
-                                preset_id, raster
+                                preset_id, raster, default_band
                             )
                             stretch.append(preset_stretch)
                         except Exception as e:
