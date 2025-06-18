@@ -30,6 +30,9 @@ class ImageListWidget(QListWidget):
 
         delegate = ImageItemDelegate(self)
         self.setItemDelegate(delegate)
+        
+        self._updateItems()
+        self.proj.sigDataChanged.connect(self._updateItems)
 
     def _updateItems(self):
         self.clear()
