@@ -75,6 +75,11 @@ class ProcessDialog(QDialog):
     def processImage(self, process):
         """Execute the image process and create a new image."""
         if self.image is None:
+            QMessageBox.warning(self, "Error", "No image selected for processing.")
+            return
+            
+        if self.project_context is None:
+            QMessageBox.critical(self, "Error", "No project context available.")
             return
             
         try:
@@ -93,47 +98,55 @@ class ProcessDialog(QDialog):
             if self.current_dialog:
                 self.current_dialog.accept()
             
-            # Create and execute the process directly
+            print(f"Processing {process.name} with parameters: {kwargs}")
+            
+            # Create process instance
             process_instance = process()
             
-            # Execute process with image raster data
-            processed_raster = process_instance.execute(self.image.raster, **kwargs)
+            # Get the appropriate input data for this process type
+            input_data = process.get_input_data(self.image)
+            print(f"Input data shape for {process.name}: {input_data.shape}")
+            
+            if process.input_data_type == "current_rgb":
+                current_band = self.image.band[0]
+                print(f"Using RGB bands: R={current_band.r}, G={current_band.g}, B={current_band.b}")
+            
+            # Execute process with appropriate input data
+            processed_raster = process_instance.execute(input_data, **kwargs)
+            
+            print(f"Processing completed. New raster shape: {processed_raster.shape}")
             
             # Create new metadata using dataclasses.replace
-            # this might need updated in the future to replace other fields as well
             original_name = self.image.metadata.name or "Image"
             new_metadata = replace(
                 self.image.metadata,
                 name=f"{original_name} - {process.name}"
             )
             
-            # Get the project context from the image
-            project_context = self._getProjectContext()
-            if project_context:
-                # Create new image in the project
-                new_index = project_context.createImage(
-                    raster=processed_raster,
-                    metadata=new_metadata
-                )
-                
-                QMessageBox.information(
-                    self,
-                    "Process Complete",
-                    f"{process.name} completed successfully!\n"
-                    f"New image created: {new_metadata.name}"
-                )
-            else:
-                QMessageBox.warning(
-                    self,
-                    "Warning",
-                    "Could not add processed image to workspace. "
-                    "Processing completed but image may not appear in the list."
-                )
+            print(f"Creating new image: {new_metadata.name}")
+            
+            # Create new image in the project
+            new_index = self.project_context.createImage(
+                raster=processed_raster,
+                metadata=new_metadata
+            )
+            
+            print(f"New image created at index: {new_index}")
+            
+            QMessageBox.information(
+                self,
+                "Process Complete",
+                f"{process.name} completed successfully!\n"
+                f"New image created: {new_metadata.name}"
+            )
             
             # Emit signal that processing is finished
             self.sigProcessFinished.emit()
                 
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"Processing error: {error_details}")
             QMessageBox.critical(
                 self,
                 "Process Error", 

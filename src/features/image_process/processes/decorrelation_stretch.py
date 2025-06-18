@@ -17,6 +17,9 @@ class DecorrelationStretch(ImageProcess):
     """
 
     name = "Decorrelation Stretch"
+    
+    # Specify that this process needs current RGB bands
+    input_data_type = "current_rgb"
 
     # categorization path for the processing menu
     path = "Color Enhancement/Decorrelation Stretch"
