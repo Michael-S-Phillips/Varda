@@ -69,7 +69,8 @@ class ControlPanel(QWidget):
         self.toolSection.setWidgetResizable(True)
         self.toolSection.setWidget(self.toolSectionContainer)
 
-        self.editMetadataButton = QPushButton("View and edit Metadata")
+        self.editMetadataButton = QPushButton("Metadata")
+        self.editMetadataButton.setToolTip("View and edit image metadata properties")
         self.editMetadataButton.clicked.connect(
             lambda: openMetadataEditor(self.project_context, self.imageIndex, self)
         )
