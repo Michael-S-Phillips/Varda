@@ -17,7 +17,7 @@ import numpy as np
 from core.data import ProjectContext
 from features.image_view_roi import getROIView
 from features.image_view_band import BandManager
-from features.image_view_stretch import StretchManager, getStretchView
+from features.image_view_stretch import StretchManager
 from features.image_view_metadata import openMetadataEditor
 from gui.widgets.image_plot_widget import ImagePlotWidget
 
@@ -80,8 +80,6 @@ class ControlPanel(QWidget):
         self.histogramView = StretchManager(self.project_context, self.imageIndex, self)
         self.histogramView.sigStretchSelected.connect(self.rasterView.selectStretch)
 
-        self.stretchView = getStretchView(self.project_context, self.imageIndex, self)
-
         self.pixelPlot = ImagePlotWidget(
             self.project_context, self.imageIndex, parent=self
         )
@@ -108,7 +106,6 @@ class ControlPanel(QWidget):
         self.toolSectionLayout.addWidget(self.ROITable)
         self.toolSectionLayout.addWidget(self.bandView)
         self.toolSectionLayout.addWidget(self.histogramView)
-        self.toolSectionLayout.addWidget(self.stretchView)
         self.toolSectionLayout.addWidget(self.pixelPlot)
 
         # create layout and add widgets

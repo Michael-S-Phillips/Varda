@@ -174,7 +174,6 @@ class MainGUI(QtWidgets.QMainWindow):
         rasterView = openView.addAction("RasterData View")
         bandView = openView.addAction("Band View")
         roiView = openView.addAction("ROI Table View")
-        stretchView = openView.addAction("Stretch View")
         histogramView = openView.addAction("Histogram View")
 
         image = index.data(QtCore.Qt.ItemDataRole.UserRole)
@@ -184,7 +183,6 @@ class MainGUI(QtWidgets.QMainWindow):
         rasterView.triggered.connect(lambda: self.showRasterView(imageIndex))
         bandView.triggered.connect(lambda: self.openBandView(imageIndex))
         roiView.triggered.connect(lambda: self.openROIView(imageIndex))
-        stretchView.triggered.connect(lambda: self.openStretchView(imageIndex))
         histogramView.triggered.connect(lambda: self.openHistogramView(imageIndex))
         return contextMenu
 
@@ -258,20 +256,6 @@ class MainGUI(QtWidgets.QMainWindow):
 
         view = BandManager(self.proj, image_index, self)
         dock = QtWidgets.QDockWidget("Band View", self)
-        dock.setWidget(view)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-        dock.setFloating(True)
-
-        # Track the dock widget
-        self.childWindows.append(dock)
-        dock.destroyed.connect(lambda: self.removeChildWindow(dock))
-
-    # TODO: Delete?
-    def openStretchView(self, image_index):
-        from features.image_view_stretch import getStretchView
-
-        view = getStretchView(self.proj, image_index, self)
-        dock = QtWidgets.QDockWidget("Stretch View", self)
         dock.setWidget(view)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
         dock.setFloating(True)
