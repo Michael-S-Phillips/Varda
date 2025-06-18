@@ -61,9 +61,15 @@ class BandView(QWidget):
         self.bBandSlider = pg.InfiniteLine(0, 90, "b", True, self.viewModel.bounds)
 
         # initialize labels for each slider
-        self.MyInfLineLabel(self.viewModel, self.rBandSlider, "{value}", False, 0.5)
-        self.MyInfLineLabel(self.viewModel, self.gBandSlider, "{value}", False, 0.5)
-        self.MyInfLineLabel(self.viewModel, self.bBandSlider, "{value}", False, 0.5)
+        self.rLabel = self.MyInfLineLabel(
+            self.viewModel, self.rBandSlider, "{value}", False, 0.5
+        )
+        self.gLabel = self.MyInfLineLabel(
+            self.viewModel, self.gBandSlider, "{value}", False, 0.5
+        )
+        self.bLabel = self.MyInfLineLabel(
+            self.viewModel, self.bBandSlider, "{value}", False, 0.5
+        )
 
         # Add sliders to the ViewBox
         vbox.addItem(self.rBandSlider)
@@ -76,7 +82,6 @@ class BandView(QWidget):
 
         # Layout setup
         layout = QVBoxLayout()
-        # layout.setContentsMargins(0, 20, 0, 20)
         layout.addWidget(view)
         self.setLayout(layout)
 
@@ -115,9 +120,54 @@ class BandView(QWidget):
 
     @pyqtSlot(float, float, float)
     def _onBandChanged(self, r, g, b):
-        self.rBandSlider.setValue(self.viewModel.getIndexOfWavelength(r))
-        self.gBandSlider.setValue(self.viewModel.getIndexOfWavelength(g))
-        self.bBandSlider.setValue(self.viewModel.getIndexOfWavelength(b))
+        logger.debug(f"BandView: Received band changed signal with r={r}, g={g}, b={b}")
+
+        # Block signals temporarily to prevent recursive updates
+        self.rBandSlider.blockSignals(True)
+        self.gBandSlider.blockSignals(True)
+        self.bBandSlider.blockSignals(True)
+
+        try:
+            # The r, g, b values are already band indices, not wavelength values
+            # We need to convert them to the slider coordinate system
+            if self.viewModel.useWavelengthIndeces:
+                # If using wavelength indices, the values are already indices
+                r_slider_pos = int(r)
+                g_slider_pos = int(g)
+                b_slider_pos = int(b)
+            else:
+                # If using wavelength values, convert band indices to wavelength values for slider
+                r_slider_pos = self.viewModel.getWavelengthAt(int(r))
+                g_slider_pos = self.viewModel.getWavelengthAt(int(g))
+                b_slider_pos = self.viewModel.getWavelengthAt(int(b))
+
+            logger.debug(
+                f"BandView: Setting slider values to r={r_slider_pos}, g={g_slider_pos}, b={b_slider_pos}"
+            )
+
+            self.rBandSlider.setValue(r_slider_pos)
+            self.gBandSlider.setValue(g_slider_pos)
+            self.bBandSlider.setValue(b_slider_pos)
+
+            # Manually trigger label updates
+            logger.debug("BandView: Manually triggering label updates")
+            if hasattr(self, "rLabel"):
+                self.rLabel.valueChanged()
+            if hasattr(self, "gLabel"):
+                self.gLabel.valueChanged()
+            if hasattr(self, "bLabel"):
+                self.bLabel.valueChanged()
+
+            # Force a repaint of the view to ensure visual update
+            self.update()
+
+            logger.debug("BandView: Slider positions updated successfully")
+
+        finally:
+            # Always restore signal connections
+            self.rBandSlider.blockSignals(False)
+            self.gBandSlider.blockSignals(False)
+            self.bBandSlider.blockSignals(False)
 
     # pylint: disable=abstract-method
     class MyInfLineLabel(pg.InfLineLabel):
@@ -133,7 +183,27 @@ class BandView(QWidget):
             if not self.isVisible():
                 return
 
-            index = self.bandViewModel.getIndexOfWavelength(self.line.value())
-            text = self.bandViewModel.getWavelengthAt(index)
-            self.setText(self.format.format(value=text))
-            self.updatePosition()
+            try:
+                slider_position = self.line.value()
+                logger.debug(f"Label update: slider_position={slider_position}")
+                logger.debug(
+                    f"Label update: useWavelengthIndeces={self.bandViewModel.useWavelengthIndeces}"
+                )
+                logger.debug(
+                    f"Label update: wavelengthType={self.bandViewModel.wavelengthType}"
+                )
+
+                # Get the band index from the slider position
+                index = self.bandViewModel.getIndexOfWavelength(slider_position)
+                logger.debug(f"Label update: calculated band index={index}")
+
+                # Get the wavelength text at that band index
+                text = self.bandViewModel.getWavelengthAt(index)
+                logger.debug(f"Label update: wavelength text={text}")
+
+                self.setText(self.format.format(value=text))
+                self.updatePosition()
+            except (IndexError, ValueError) as e:
+                logger.error(f"Error updating label: {e}")
+                self.setText(self.format.format(value="N/A"))
+                self.updatePosition()

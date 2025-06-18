@@ -8,6 +8,7 @@ Classes:
 
 # standard library
 import logging
+import os
 
 # third-party imports
 from PyQt6 import QtCore
@@ -78,8 +79,16 @@ class ImageListViewModel(QtCore.QAbstractListModel):
             return None
 
         if role == Qt.ItemDataRole.DisplayRole:
-            # eventually the image metadata should probably contain a custom name
-            return self._images[index.row()].metadata.driver
+            # Use the base filename from the file path for more informative display
+            file_path = self._images[index.row()].metadata.filePath
+            if file_path:
+                base_name = os.path.basename(file_path)
+                return os.path.splitext(base_name)[
+                    0
+                ]  # Return filename without extension
+            else:
+                # Fallback to driver if no file path is available
+                return self._images[index.row()].metadata.driver
         if role == Qt.ItemDataRole.DecorationRole:
             # return a small preview of the image
             return self._images[index.row()].getRasterDataSlice(

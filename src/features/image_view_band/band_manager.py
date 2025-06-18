@@ -44,6 +44,11 @@ class BandManager(QWidget):
         self._connectSignals()
         self._populateTable()
 
+        # Ensure the first band is selected by default and the band view is synchronized
+        if self.table.rowCount() > 0:
+            self.table.selectRow(0)
+            self.bandView.viewModel.selectBand(0)
+
     def _initUI(self):
         self.modeToggle = QCheckBox("Use Wavelength Values", self)
         self.modeToggle.setChecked(False)
@@ -210,6 +215,10 @@ class BandManager(QWidget):
             self.proj.updateBand(self.imageIndex, row, g=clampedValue)
         elif column == 3:
             self.proj.updateBand(self.imageIndex, row, b=clampedValue)
+
+        # If we just updated the currently selected band in the band view, refresh it
+        if row == self.bandView.viewModel.bandIndex:
+            self.bandView.viewModel.selectBand(row)
 
     @pyqtSlot()
     def _onRowSelected(self):

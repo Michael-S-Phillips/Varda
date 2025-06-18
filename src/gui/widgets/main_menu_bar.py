@@ -19,6 +19,7 @@ class MainMenuBar(QMenuBar):
     sigSaveProject = QtCore.pyqtSignal()
     sigSaveProjectAs = QtCore.pyqtSignal()
     sigOpenProject = QtCore.pyqtSignal()
+    sigOpenProcessingMenu = QtCore.pyqtSignal()
     sigImportFile = QtCore.pyqtSignal()
     sigExitApp = QtCore.pyqtSignal()
     sigAboutDialog = QtCore.pyqtSignal()
@@ -33,6 +34,7 @@ class MainMenuBar(QMenuBar):
         self.addMenu(self._initFileMenu())
         self.addMenu(self._initHelpmenu())
         self.addMenu(self._initDebugMenu())
+        self.addMenu(self._initProcessMenu())
 
     # Note: adding "self" as the parent of the QMenu is important, to keep it from
     # being garbage collected immediately
@@ -68,3 +70,8 @@ class MainMenuBar(QMenuBar):
             "Project Data Dump", QKeySequence("F12"), self.sigDumpProjectData
         )
         return debugMenu
+
+    def _initProcessMenu(self):
+        processMenu = QMenu("Process", self)
+        processMenu.addAction("Image Processing...", self.sigOpenProcessingMenu)
+        return processMenu

@@ -307,10 +307,26 @@ class ProjectContext(QObject):
         Returns:
             int: The index of the added image.
         """
+
+        def _setName(image: Image):
+            """
+            Set a unique name for the image based on its index.
+            This is used to ensure that each image has a distinct name.
+            """
+
+            file_path = image.metadata.filePath
+            if file_path:
+                base_name = os.path.basename(file_path)
+                return os.path.splitext(base_name)[0]
+            elif image.metadata.name:
+                return image.metadata.name
+            else:
+                index = len(self._images)
+                return f"Image {index}"
+
         index = len(self._images)
-        image.metadata.name = (
-            f"Image {index}"  # Assign a unique name based on the index
-        )
+        image.metadata.name = _setName(image)
+
         self._images.append(image)
         self._emitChange(index, self.ChangeType.IMAGE, self.ChangeModifier.ADD)
         return index
