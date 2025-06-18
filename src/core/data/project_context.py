@@ -1091,7 +1091,7 @@ class ProjectContext(QObject):
         self.sigDataChanged[int, self.ChangeType].emit(index, changeType)
 
 class NumpyJSONEncoder(json.JSONEncoder):
-    """Custom JSON encoder that handles numpy data types."""
+    """Custom JSON encoder that handles numpy data types and bytes objects."""
     
     def default(self, obj):
         if isinstance(obj, np.integer):
@@ -1100,4 +1100,9 @@ class NumpyJSONEncoder(json.JSONEncoder):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, bytes):
+            try:
+                return obj.decode('utf-8')
+            except UnicodeDecodeError:
+                return list(obj)
         return super().default(obj)
