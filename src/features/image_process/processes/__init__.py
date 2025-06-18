@@ -1,0 +1,2 @@
+from features.image_process.processes.normalize import Normalize
+from features.image_process.processes.decorrelation_stretch import DecorrelationStretch

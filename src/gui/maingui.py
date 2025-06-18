@@ -5,13 +5,16 @@ import asyncio
 from typing import Dict
 
 from PyQt6 import QtCore, QtWidgets
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt, QObject
 from qasync import QEventLoop, QApplication
 
 from core.data import ProjectContext
 from core.ui import ControlPanel
 from features.image_view_raster.raster_view import RasterView
+from features.image_process.process_controls.processingmenu import ProcessingMenu
+from features.image_process.process_controls.processdialog import ProcessDialog
+from features.image_process.processes.imageprocess import ImageProcess
 from gui.widgets import StatusBar, MainMenuBar
 from features import (
     image_view_raster,
@@ -94,7 +97,11 @@ class MainGUI(QtWidgets.QMainWindow):
             lambda: debug.ProjectContextDataTable(self.proj, self)
         )
 
+        self.menuBar().sigOpenProcessingMenu.connect(self.openProcessingMenu)
+
         self.imageList.itemClicked.connect(self.onSelectedImageChanged)
+
+        self.proj.sigDataChanged.connect(self.onProjectDataChanged)
 
     def onSelectedImageChanged(self, item):
         if item is None:
@@ -286,6 +293,48 @@ class MainGUI(QtWidgets.QMainWindow):
         # Track the dock widget
         self.childWindows.append(dock)
         dock.destroyed.connect(lambda: self.removeChildWindow(dock))
+
+    def openProcessingMenu(self):
+        """Open the image processing menu for the currently selected image."""
+        if self.selectedImage is None:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "No Image Selected",
+                "Please select an image before opening the processing menu.",
+            )
+            return
+
+        # Create processing menu
+        processingMenu = ProcessingMenu(self)
+
+        # Connect menu actions to process execution
+        def handle_process_action(action):
+            # Find process class by action text
+            action_text = action.text()
+            for process_class in ImageProcess.subclasses:
+                if process_class.__name__ == action_text:
+                    # Create process dialog with proper parent and project context
+                    processDialog = ProcessDialog(self.selectedImage)
+                    processDialog.setParent(self)  # Ensure proper parent chain
+                    processDialog.project_context = self.proj  # Direct assignment
+                    processDialog.sigProcessFinished.connect(self.onProcessFinished)
+                    processDialog.openProcessControlMenu(process_class)
+                    break
+
+        processingMenu.triggered.connect(handle_process_action)
+
+        # Show menu at cursor position
+        cursor_pos = QCursor.pos()
+        processingMenu.exec(cursor_pos)
+
+    def onProcessFinished(self):
+        """Handle when an image process finishes - refresh the image list."""
+        print("Image processing completed!")
+
+    def onProjectDataChanged(self, index, changeType, changeModifier=None):
+        """Handle when project data changes (like new images being added)."""
+        if changeType == self.proj.ChangeType.IMAGE and changeModifier == self.proj.ChangeModifier.ADD:
+            print(f"New image added at index {index}")
 
     # TODO: Delete?
     def trackPixelPlotWindow(self, window):
