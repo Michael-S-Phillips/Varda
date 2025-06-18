@@ -5,6 +5,8 @@ from PyQt6.QtCore import QObject, pyqtSignal, QTimer, pyqtSlot
 # local imports
 from core.data import ProjectContext
 from core.entities import Metadata
+import logging
+logger = logging.getLogger(__name__)
 
 
 class BandViewModel(QObject):
@@ -118,13 +120,18 @@ class BandViewModel(QObject):
         if self._ignoreProjectUpdates:
             # if we were the one that caused the update, ignore it
             self._ignoreProjectUpdates = False
+            logger.debug(f"BandViewModel: Ignoring self-generated update for image {index}")
             return
 
         if index != self.imageIndex:
+            logger.debug(f"BandViewModel: Ignoring update for different image {index} (we are {self.imageIndex})")
             return
         if changeType is not ProjectContext.ChangeType.BAND:
+            logger.debug(f"BandViewModel: Ignoring non-band change type {changeType}")
             return
+        
         r, g, b = self.proj.getImage(self.imageIndex).band[self.bandIndex].toList()
+        logger.debug(f"BandViewModel: Emitting band changed signal with r={r}, g={g}, b={b} for band {self.bandIndex}")
         self.sigBandChanged.emit(r, g, b)
 
     def getMetadata(self):
