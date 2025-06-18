@@ -293,17 +293,15 @@ class MainGUI(QtWidgets.QMainWindow):
 
         # Connect menu actions to process execution
         def handle_process_action(action):
-            # Find process class by action text
-            action_text = action.text()
-            for process_class in ImageProcess.subclasses:
-                if process_class.__name__ == action_text:
-                    # Create process dialog with proper parent and project context
-                    processDialog = ProcessDialog(self.selectedImage)
-                    processDialog.setParent(self)  # Ensure proper parent chain
-                    processDialog.project_context = self.proj  # Direct assignment
-                    processDialog.sigProcessFinished.connect(self.onProcessFinished)
-                    processDialog.openProcessControlMenu(process_class)
-                    break
+            # Find process class by action text            
+            process_class = action.data()
+            if process_class is not None:
+                # Create process dialog with proper parent and project context
+                processDialog = ProcessDialog(self.selectedImage)
+                processDialog.setParent(self)  # Ensure proper parent chain
+                processDialog.project_context = self.proj  # Direct assignment
+                processDialog.sigProcessFinished.connect(self.onProcessFinished)
+                processDialog.openProcessControlMenu(process_class)
 
         processingMenu.triggered.connect(handle_process_action)
 
