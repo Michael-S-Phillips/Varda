@@ -43,6 +43,7 @@ class BandView(QWidget):
 
         # ViewBox setup
         vbox = pg.ViewBox()
+        logger.debug(f"BandView: Setting ViewBox range to {self.viewModel.bounds}")
         vbox.setRange(xRange=self.viewModel.bounds, yRange=(-1, 1))
         vbox.setMaximumHeight(self.widgetHeight)
         vbox.setMinimumHeight(45)

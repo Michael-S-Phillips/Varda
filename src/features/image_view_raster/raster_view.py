@@ -1,11 +1,14 @@
 import logging
 import numpy as np
 import rasterio
+from typing import Dict, Any, Optional, Tuple
+
 from PyQt6 import QtCore, QtWidgets
-from PyQt6.QtCore import QEvent, pyqtSignal, QPointF, QRectF
+from PyQt6.QtCore import QEvent, pyqtSignal, QPointF, QRectF, Qt
 from PyQt6.QtGui import QPainter, QColor, QPolygonF
 from PyQt6.QtWidgets import QWidget
 import pyqtgraph as pg
+
 from scipy.spatial import ConvexHull
 from skimage.draw import polygon
 
@@ -22,6 +25,8 @@ class RasterView(QWidget):
     """Main widget for displaying and interacting with raster images."""
 
     sigImageClicked = pyqtSignal(int, int)
+    sigNavigationChanged = pyqtSignal(dict)  # Emitted when view navigation changes
+    sigROIChanged = pyqtSignal(str)  # Emitted when ROI is modified
 
     def __init__(self, viewmodel: RasterViewModel, parent=None):
         super().__init__(parent=parent)
@@ -54,6 +59,18 @@ class RasterView(QWidget):
 
         self.roiItems = {"main": [], "context": []}
 
+        # Dual image mode support
+        self._dual_mode_active = False
+        self._is_overlay_secondary = False
+        self._overlay_opacity = 1.0
+        self._sync_navigation = True
+        self._sync_rois = True
+        self._navigation_sync_in_progress = False
+        
+        # Track view state for synchronization with debouncing
+        self._last_view_state = {}
+        self._sync_timer = None  # For debouncing navigation updates
+        
         # Initialize the UI
         self._initUI()
         self._initROIS()
@@ -333,19 +350,418 @@ class RasterView(QWidget):
         """Handle band changes."""
         self._updateViews()
 
+    def _connect_dual_mode_signals(self):
+        """Connect signals for dual image mode support"""
+        try:
+            # Only connect if not already connected and in dual mode
+            if not self._dual_mode_active:
+                return
+                
+            # Connect main view range changed signal
+            if hasattr(self.mainView, 'sigRangeChanged'):
+                # Disconnect first to avoid duplicate connections
+                try:
+                    self.mainView.sigRangeChanged.disconnect(self._on_navigation_changed)
+                except:
+                    pass  # Ignore if not connected
+                
+                self.mainView.sigRangeChanged.connect(self._on_navigation_changed)
+                logger.debug("Connected mainView.sigRangeChanged")
+            else:
+                logger.warning("mainView does not have sigRangeChanged signal")
+                
+            # Connect ROI change signals
+            if hasattr(self.viewModel, 'sigDataChanged'):
+                try:
+                    self.viewModel.sigDataChanged.disconnect(self._on_roi_data_changed)
+                except:
+                    pass
+                self.viewModel.sigDataChanged.connect(self._on_roi_data_changed)
+                
+        except Exception as e:
+            logger.error(f"Error connecting dual mode signals: {e}")
+    
+    def _on_context_roi_changed(self):
+        """Handle context ROI changes for navigation sync"""
+        if self._navigation_sync_in_progress or not self._dual_mode_active:
+            return
+            
+        try:
+            # Extract view state from context ROI
+            if hasattr(self, 'mainROI') and self.mainROI:
+                pos = self.mainROI.pos()
+                size = self.mainROI.size()
+                
+                view_state = {
+                    'x_range': [pos[0], pos[0] + size[0]],
+                    'y_range': [pos[1], pos[1] + size[1]],
+                    'center_x': pos[0] + size[0] / 2,
+                    'center_y': pos[1] + size[1] / 2,
+                    'zoom_x': size[0],
+                    'zoom_y': size[1]
+                }
+                
+                if view_state != self._last_view_state:
+                    self._last_view_state = view_state.copy()
+                    self.sigNavigationChanged.emit(view_state)
+                    
+        except Exception as e:
+            logger.error(f"Error handling context ROI change: {e}")
+
+    def _on_navigation_changed(self, view_box, range_info=None):
+        """Handle navigation changes for dual image synchronization with debouncing"""
+        if self._navigation_sync_in_progress or not self._dual_mode_active or not self._sync_navigation:
+            return
+            
+        try:
+            # Use a timer to debounce rapid navigation changes
+            if self._sync_timer is not None:
+                self._sync_timer.stop()
+                self._sync_timer.deleteLater()
+            
+            from PyQt6.QtCore import QTimer
+            self._sync_timer = QTimer()
+            self._sync_timer.setSingleShot(True)
+            self._sync_timer.timeout.connect(self._emit_navigation_change)
+            self._sync_timer.start(50)  # 50ms debounce
+                
+        except Exception as e:
+            logger.error(f"Error handling navigation change: {e}")
+
+    def _emit_navigation_change(self):
+        """Emit navigation change after debounce delay"""
+        try:
+            if self._navigation_sync_in_progress or not self._dual_mode_active:
+                return
+                
+            # Extract view state
+            view_state = self._extract_view_state()
+            
+            # Only emit if state actually changed and is valid
+            if (view_state and 'x_range' in view_state and 'y_range' in view_state):
+                
+                # Check if significantly different from last state
+                if self._is_significantly_different(view_state, self._last_view_state):
+                    self._last_view_state = view_state.copy()
+                    
+                    logger.debug(f"Emitting navigation change: x_range={view_state['x_range']}, y_range={view_state['y_range']}")
+                    self.sigNavigationChanged.emit(view_state)
+                
+        except Exception as e:
+            logger.error(f"Error emitting navigation change: {e}")
+    
+    def _is_significantly_different(self, new_state, old_state, threshold=1.0):
+        """Check if the view state has changed significantly to avoid micro-updates"""
+        if not old_state:
+            return True
+            
+        try:
+            # Check if ranges differ by more than threshold pixels
+            new_x = new_state.get('x_range', [0, 0])
+            new_y = new_state.get('y_range', [0, 0])
+            old_x = old_state.get('x_range', [0, 0])
+            old_y = old_state.get('y_range', [0, 0])
+            
+            x_diff = abs(new_x[0] - old_x[0]) + abs(new_x[1] - old_x[1])
+            y_diff = abs(new_y[0] - old_y[0]) + abs(new_y[1] - old_y[1])
+            
+            return x_diff > threshold or y_diff > threshold
+            
+        except:
+            return True
+        
+    def _extract_view_state(self) -> Dict[str, Any]:
+        """Extract current view state for synchronization"""
+        view_state = {}
+        
+        if self.mainView:
+            try:
+                view_range = self.mainView.viewRange()
+                if view_range and len(view_range) >= 2:
+                    x_range = view_range[0]
+                    y_range = view_range[1]
+                    
+                    # Ensure ranges are valid
+                    if (len(x_range) >= 2 and len(y_range) >= 2 and
+                        not any(v is None or not isinstance(v, (int, float)) for v in x_range + y_range)):
+                        
+                        view_state.update({
+                            'x_range': [float(x_range[0]), float(x_range[1])],
+                            'y_range': [float(y_range[0]), float(y_range[1])],
+                            'center_x': (x_range[0] + x_range[1]) / 2,
+                            'center_y': (y_range[0] + y_range[1]) / 2,
+                            'zoom_x': x_range[1] - x_range[0],
+                            'zoom_y': y_range[1] - y_range[0]
+                        })
+            except Exception as e:
+                logger.error(f"Error extracting view state: {e}")
+        
+        return view_state
+
+    def _on_roi_data_changed(self, *args):
+        """Handle ROI data changes for dual image synchronization"""
+        if self._dual_mode_active and self._sync_rois:
+            # Extract ROI ID from args if available
+            roi_id = None
+            if len(args) >= 2 and hasattr(args[1], 'value'):
+                if args[1].value == "roi":  # Assuming ChangeType.ROI
+                    roi_id = "latest"  # Could be more specific with actual ROI ID
+            
+            if roi_id:
+                self.sigROIChanged.emit(roi_id)
+
+    # Methods for dual image mode support
+    def set_dual_mode(self, active: bool, is_overlay_secondary: bool = False):
+        """
+        Set dual image mode state.
+        
+        Args:
+            active: Whether dual mode is active
+            is_overlay_secondary: Whether this view is the secondary (overlay) view
+        """
+        logger.debug(f"Setting dual mode: active={active}, overlay_secondary={is_overlay_secondary}")
+        
+        self._dual_mode_active = active
+        self._is_overlay_secondary = is_overlay_secondary
+        
+        if active:
+            # Configure for dual mode
+            if is_overlay_secondary:
+                self._setup_overlay_mode()
+            else:
+                self._setup_primary_mode()
+            
+            # Connect dual mode signals when activating
+            self._connect_dual_mode_signals()
+        else:
+            # Reset to normal mode
+            self._reset_normal_mode()
+    
+    def _setup_overlay_mode(self):
+        """Configure view for overlay mode (as secondary image)"""
+        # Adjust opacity for overlay
+        if self.mainImage:
+            self.mainImage.setOpacity(self._overlay_opacity)
+        if self.contextImage:
+            self.contextImage.setOpacity(self._overlay_opacity)
+        if self.zoomImage:
+            self.zoomImage.setOpacity(self._overlay_opacity)
+        
+        # Set overlay-specific styling
+        self.setStyleSheet("""
+            QWidget {
+                background-color: transparent;
+            }
+        """)
+        
+        # Ensure proper stacking order for overlay
+        self.raise_()
+        
+        logger.debug("RasterView configured for overlay mode")
+    
+    def set_overlay_blend_mode(self, blend_mode: str = "normal"):
+        """
+        Set the blend mode for overlay (future enhancement).
+        
+        Args:
+            blend_mode: Blend mode ("normal", "multiply", "screen", etc.)
+        """
+        # This is a placeholder for future blend mode implementation
+        # Would require custom painting or graphics effects
+        logger.debug(f"Blend mode set to: {blend_mode} (placeholder)")
+    
+    def enable_overlay_interaction(self, enabled: bool = True):
+        """
+        Enable or disable interaction with overlay view.
+        
+        Args:
+            enabled: Whether overlay should respond to mouse/keyboard input
+        """
+        if self._is_overlay_secondary:
+            # Control whether overlay intercepts mouse events
+            if enabled:
+                self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+            else:
+                self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+    def _setup_primary_mode(self):
+        """Configure view for primary mode in dual setup"""
+        # Ensure full opacity for primary
+        if self.mainImage:
+            self.mainImage.setOpacity(1.0)
+        
+        logger.debug("RasterView configured for primary mode")
+
+    def _reset_normal_mode(self):
+        """Reset view to normal (single image) mode"""
+        # Disconnect navigation signals to prevent interference
+        try:
+            if hasattr(self.mainView, 'sigRangeChanged'):
+                self.mainView.sigRangeChanged.disconnect(self._on_navigation_changed)
+        except:
+            pass
+            
+        # Reset opacity
+        if self.mainImage:
+            self.mainImage.setOpacity(1.0)
+        if self.contextImage:
+            self.contextImage.setOpacity(1.0)
+        if self.zoomImage:
+            self.zoomImage.setOpacity(1.0)
+        
+        # Reset styling
+        self.setStyleSheet("")
+        
+        self._dual_mode_active = False
+        self._is_overlay_secondary = False
+        logger.debug("RasterView reset to normal mode")
+    
+    def get_overlay_opacity(self) -> float:
+        """Get the current overlay opacity"""
+        return self._overlay_opacity
+    
+    def set_overlay_opacity(self, opacity: float):
+        """
+        Set overlay opacity for this view.
+        
+        Args:
+            opacity: Opacity value between 0.0 and 1.0
+        """
+        self._overlay_opacity = max(0.0, min(1.0, opacity))
+        
+        if self._is_overlay_secondary:
+            # Apply opacity to the main image item
+            if self.mainImage:
+                self.mainImage.setOpacity(self._overlay_opacity)
+            
+            # Also apply to context and zoom images for consistency
+            if self.contextImage:
+                self.contextImage.setOpacity(self._overlay_opacity)
+            if self.zoomImage:
+                self.zoomImage.setOpacity(self._overlay_opacity)
+            
+            logger.debug(f"Set overlay opacity to {self._overlay_opacity}")
+
+    def set_sync_settings(self, sync_navigation: bool = True, sync_rois: bool = True):
+        """
+        Configure synchronization settings.
+        
+        Args:
+            sync_navigation: Whether to sync navigation (pan/zoom)
+            sync_rois: Whether to sync ROI changes
+        """
+        self._sync_navigation = sync_navigation
+        self._sync_rois = sync_rois
+
+    def sync_navigation_from_other(self, view_state: Dict[str, Any]):
+        """
+        Synchronize navigation state from another view.
+        
+        Args:
+            view_state: Dictionary containing view state from another RasterView
+        """
+        if not self._dual_mode_active or not self._sync_navigation:
+            return
+        
+        # Prevent recursive sync
+        self._navigation_sync_in_progress = True
+        
+        try:
+            logger.debug(f"Syncing navigation to: x_range={view_state.get('x_range')}, y_range={view_state.get('y_range')}")
+            
+            if 'x_range' in view_state and 'y_range' in view_state and self.mainView:
+                # Apply the view range to main view
+                self.mainView.setRange(
+                    xRange=view_state['x_range'],
+                    yRange=view_state['y_range'],
+                    padding=0,
+                    update=True
+                )
+                
+                # Force update the view
+                self.mainView.update()
+                
+                logger.debug("Navigation sync applied successfully")
+        
+        except Exception as e:
+            logger.error(f"Error syncing navigation: {e}")
+        
+        finally:
+            # Use a timer to reset the sync flag to ensure it gets reset
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(100, lambda: setattr(self, '_navigation_sync_in_progress', False))
+
+    def sync_roi_from_other(self, roi_id: str):
+        """
+        Synchronize ROI from another view.
+        
+        Args:
+            roi_id: ID of the ROI to synchronize
+        """
+        if not self._dual_mode_active or not self._sync_rois:
+            return
+        
+        try:
+            # Get the ROI data from the project context
+            # This would depend on how ROIs are stored and accessed
+            logger.debug(f"Syncing ROI {roi_id} from other view")
+            
+            # Refresh ROI display to show synchronized ROI
+            self._refresh_polygons()
+            
+        except Exception as e:
+            logger.error(f"Error syncing ROI {roi_id}: {e}")
+
+    def set_blink_visibility(self, visible: bool):
+        """
+        Set visibility for blink mode.
+        
+        Args:
+            visible: Whether this view should be visible in blink mode
+        """
+        self.setVisible(visible)
+        
+        # Also control the visibility of the image items
+        if self.mainImage:
+            self.mainImage.setVisible(visible)
+        if self.contextImage:
+            self.contextImage.setVisible(visible)
+
+    def get_view_state(self) -> Dict[str, Any]:
+        """Get current view state for synchronization"""
+        return self._extract_view_state()
+
+    def is_dual_mode_active(self) -> bool:
+        """Check if dual mode is currently active"""
+        return self._dual_mode_active
+
+    def is_overlay_secondary(self) -> bool:
+        """Check if this view is configured as overlay secondary"""
+        return self._is_overlay_secondary
+
     # def startDrawingROI(self):
     #     """Start the ROI drawing process."""
     #     if self.freehandROI:
     #         self.freehandROI.draw()
 
     def startNewROI(self):
-        """Create and start a new ROI using the drawing manager"""
-        self.roi_drawing_manager.startDrawingROI(self.mainImage)
+        """Create and start a new ROI using the drawing manager (enhanced for dual mode)"""
+        # Call existing method
+        if hasattr(self, 'roi_drawing_manager') and self.roi_drawing_manager:
+            self.roi_drawing_manager.startDrawingROI(self.mainImage)
+        else:
+            # Fallback to existing implementation
+            super().startNewROI() if hasattr(super(), 'startNewROI') else None
 
     def highlightROI(self, roi_index):
-        """Highlight a specific ROI by index"""
+        """Highlight a specific ROI by index (enhanced for dual mode)"""
+        # Call existing method
         self.highlighted_roi_index = roi_index
         self._refresh_polygons()
+        
+        # Emit signal for dual mode synchronization
+        if self._dual_mode_active:
+            self.sigROIChanged.emit(f"highlight_{roi_index}")
 
     def remove_polygons_from_display(self):
         """Remove all polygons from the display"""
@@ -455,8 +871,12 @@ class RasterView(QWidget):
                 self.roiItems["context"].append(contextPolygonItem)
 
     def closeEvent(self, event):
-        """Clean up resources when the view is closed"""
-        # Clean up ROI resources
+        """Clean up resources when the view is closed (enhanced)"""
+        # Reset dual mode
+        if self._dual_mode_active:
+            self.set_dual_mode(False)
+        
+        # Clean up ROI resources (existing code)
         if hasattr(self, "roi_drawing_manager"):
             self.roi_drawing_manager.cleanupROIs()
 
