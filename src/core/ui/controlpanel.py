@@ -131,7 +131,7 @@ class ControlPanel(QWidget):
         if self.imageIndex is None:
             self.activeImageLabel.setText("No image selected")
         else:
-            filename = self.image.metadata.filePath.split("/")[-1]
+            filename = self.image.metadata.name
             self.activeImageLabel.setText(f"Active Image: {filename[:10]}...")
             self.activeImageLabel.setToolTip(filename)
 

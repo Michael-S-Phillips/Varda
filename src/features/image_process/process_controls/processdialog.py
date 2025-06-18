@@ -118,9 +118,22 @@ class ProcessDialog(QDialog):
             
             # Create new metadata using dataclasses.replace
             original_name = self.image.metadata.name or "Image"
+
+            # Generate a more descriptive name for RGB-based processes
+            if process.input_data_type == "current_rgb":
+                current_band = self.image.band[0]
+                band_info = f"b{current_band.r}_b{current_band.g}_b{current_band.b}"
+
+                # Create descriptive name: basename_b1_b2_b3_Process
+                new_name = f"{original_name}_{band_info}_{process.name}"
+            else:
+                # For non-RGB processes, use the original simple naming
+                new_name = f"{original_name} - {process.name}"
+
             new_metadata = replace(
                 self.image.metadata,
-                name=f"{original_name} - {process.name}"
+                name=new_name,
+                filePath=None,  
             )
             
             print(f"Creating new image: {new_metadata.name}")

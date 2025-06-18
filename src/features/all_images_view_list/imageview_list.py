@@ -30,7 +30,7 @@ class ImageListWidget(QListWidget):
 
         delegate = ImageItemDelegate(self)
         self.setItemDelegate(delegate)
-        
+
         self._updateItems()
         self.proj.sigDataChanged.connect(self._updateItems)
 
@@ -39,16 +39,21 @@ class ImageListWidget(QListWidget):
         for image in self.proj.getAllImages():
             item = QListWidgetItem()
             
-            # Set proper filename text (without extension)
-            file_path = image.metadata.filePath
-            if file_path:
-                base_name = os.path.basename(file_path)
-                display_name = os.path.splitext(base_name)[0]
-                item.setText(display_name)
+            # Prioritize metadata.name for processed images, fallback to filename
+            if image.metadata.name:
+                # Use the metadata name (which includes processed names like "image_b1_b2_b3_DCS")
+                display_name = image.metadata.name
             else:
-                # Fallback to driver if no file path is available
-                item.setText(image.metadata.driver)
+                # Fallback to filename for images without custom names
+                file_path = image.metadata.filePath
+                if file_path:
+                    base_name = os.path.basename(file_path)
+                    display_name = os.path.splitext(base_name)[0]
+                else:
+                    # Final fallback to driver
+                    display_name = image.metadata.driver
             
+            item.setText(display_name)
             item.setData(Qt.ItemDataRole.UserRole, image)
             pixmap = QPixmap(64, 64)
             pixmap.fill(QtGui.QColor("blue"))  # Example placeholder image
