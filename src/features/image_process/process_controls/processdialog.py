@@ -21,7 +21,7 @@ class ProcessDialog(QDialog):
     def openProcessControlMenu(self, process):
         if self.current_dialog:
             self.current_dialog.close()
-            
+
         self.current_dialog = QtWidgets.QDialog()
         self.current_dialog.setWindowTitle(process.name)
         layout = QtWidgets.QFormLayout()
@@ -44,7 +44,7 @@ class ProcessDialog(QDialog):
                     lineEdit.setRange(details["min"], details["max"])
                 self.parameter_widgets[name] = lineEdit
                 layout.addRow(paramName, lineEdit)
-                
+
             elif details["type"] == bool:
                 lineEdit = QtWidgets.QCheckBox()
                 lineEdit.setChecked(details["default"])
@@ -77,15 +77,15 @@ class ProcessDialog(QDialog):
         if self.image is None:
             QMessageBox.warning(self, "Error", "No image selected for processing.")
             return
-            
+
         if self.project_context is None:
             QMessageBox.critical(self, "Error", "No project context available.")
             return
-            
+
         try:
             # Import dataclasses for copying metadata
             from dataclasses import replace
-            
+
             # Get parameter values
             kwargs = {}
             for param_name, widget in self.parameter_widgets.items():
@@ -93,29 +93,31 @@ class ProcessDialog(QDialog):
                     kwargs[param_name] = widget.value()
                 elif isinstance(widget, QtWidgets.QCheckBox):
                     kwargs[param_name] = widget.isChecked()
-            
+
             # Close the dialog first
             if self.current_dialog:
                 self.current_dialog.accept()
-            
+
             print(f"Processing {process.name} with parameters: {kwargs}")
-            
+
             # Create process instance
             process_instance = process()
-            
+
             # Get the appropriate input data for this process type
             input_data = process.get_input_data(self.image)
             print(f"Input data shape for {process.name}: {input_data.shape}")
-            
+
             if process.input_data_type == "current_rgb":
                 current_band = self.image.band[0]
-                print(f"Using RGB bands: R={current_band.r}, G={current_band.g}, B={current_band.b}")
-            
+                print(
+                    f"Using RGB bands: R={current_band.r}, G={current_band.g}, B={current_band.b}"
+                )
+
             # Execute process with appropriate input data
             processed_raster = process_instance.execute(input_data, **kwargs)
-            
+
             print(f"Processing completed. New raster shape: {processed_raster.shape}")
-            
+
             # Create new metadata using dataclasses.replace
             original_name = self.image.metadata.name or "Image"
 
@@ -133,37 +135,35 @@ class ProcessDialog(QDialog):
             new_metadata = replace(
                 self.image.metadata,
                 name=new_name,
-                filePath=None,  
+                filePath=None,
             )
-            
+
             print(f"Creating new image: {new_metadata.name}")
-            
+
             # Create new image in the project
             new_index = self.project_context.createImage(
-                raster=processed_raster,
-                metadata=new_metadata
+                raster=processed_raster, metadata=new_metadata
             )
-            
+
             print(f"New image created at index: {new_index}")
-            
+
             QMessageBox.information(
                 self,
                 "Process Complete",
                 f"{process.name} completed successfully!\n"
-                f"New image created: {new_metadata.name}"
+                f"New image created: {new_metadata.name}",
             )
-            
+
             # Emit signal that processing is finished
             self.sigProcessFinished.emit()
-                
+
         except Exception as e:
             import traceback
+
             error_details = traceback.format_exc()
             print(f"Processing error: {error_details}")
             QMessageBox.critical(
-                self,
-                "Process Error", 
-                f"Error executing {process.name}:\n{str(e)}"
+                self, "Process Error", f"Error executing {process.name}:\n{str(e)}"
             )
 
     def _getProjectContext(self):
@@ -171,7 +171,7 @@ class ProcessDialog(QDialog):
         # Walk up the parent chain to find the MainGUI window
         parent = self.parent()
         while parent:
-            if hasattr(parent, 'proj'):
+            if hasattr(parent, "proj"):
                 return parent.proj
             parent = parent.parent()
         return None

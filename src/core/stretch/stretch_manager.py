@@ -29,7 +29,10 @@ class StretchPresets:
 
     @staticmethod
     def create_stretch_from_preset(
-        preset_id: str, image_data: np.ndarray, band_config: 'Band' = None, name: str = None
+        preset_id: str,
+        image_data: np.ndarray,
+        band_config: "Band" = None,
+        name: str = None,
     ) -> Stretch:
         """Create a Stretch object using a preset algorithm.
 
@@ -46,15 +49,21 @@ class StretchPresets:
         if band_config is not None:
             try:
                 # Extract the specific RGB bands for stretch calculation
-                rgb_data = image_data[:, :, [band_config.r, band_config.g, band_config.b]]
+                rgb_data = image_data[
+                    :, :, [band_config.r, band_config.g, band_config.b]
+                ]
             except IndexError as e:
-                logger.error(f"Error extracting RGB bands {[band_config.r, band_config.g, band_config.b]}: {e}")
+                logger.error(
+                    f"Error extracting RGB bands {[band_config.r, band_config.g, band_config.b]}: {e}"
+                )
                 # Fall back to first 3 bands if extraction fails
-                rgb_data = image_data[:, :, :3] if image_data.shape[2] >= 3 else image_data
+                rgb_data = (
+                    image_data[:, :, :3] if image_data.shape[2] >= 3 else image_data
+                )
         else:
             # Fall back to first 3 bands if no band config provided
             rgb_data = image_data[:, :, :3] if image_data.shape[2] >= 3 else image_data
-        
+
         # Compute the stretch values on the RGB data
         try:
             transform_params = {}
@@ -80,7 +89,7 @@ class StretchPresets:
 
     @staticmethod
     def apply_preset_to_image(
-        preset_id: str, image_data: np.ndarray, band_config: 'Band' = None
+        preset_id: str, image_data: np.ndarray, band_config: "Band" = None
     ) -> Tuple[np.ndarray, Stretch]:
         """Apply a preset algorithm to an image and return both the transformed image and the stretch.
 
@@ -100,14 +109,22 @@ class StretchPresets:
             if band_config is not None:
                 try:
                     # Extract the specific RGB bands for stretch calculation
-                    rgb_data = image_data[:, :, [band_config.r, band_config.g, band_config.b]]
+                    rgb_data = image_data[
+                        :, :, [band_config.r, band_config.g, band_config.b]
+                    ]
                 except IndexError as e:
-                    logger.error(f"Error extracting RGB bands {[band_config.r, band_config.g, band_config.b]}: {e}")
+                    logger.error(
+                        f"Error extracting RGB bands {[band_config.r, band_config.g, band_config.b]}: {e}"
+                    )
                     # Fall back to first 3 bands if extraction fails
-                    rgb_data = image_data[:, :, :3] if image_data.shape[2] >= 3 else image_data
+                    rgb_data = (
+                        image_data[:, :, :3] if image_data.shape[2] >= 3 else image_data
+                    )
             else:
                 # Fall back to first 3 bands if no band config provided
-                rgb_data = image_data[:, :, :3] if image_data.shape[2] >= 3 else image_data
+                rgb_data = (
+                    image_data[:, :, :3] if image_data.shape[2] >= 3 else image_data
+                )
 
             # Compute the stretch with parameters on RGB data
             transform_params = {}
@@ -123,7 +140,9 @@ class StretchPresets:
             if band_config is not None and transformed_rgb.shape == rgb_data.shape:
                 # Create a copy of the original image and replace the RGB bands
                 transformed_image = image_data.copy()
-                transformed_image[:, :, [band_config.r, band_config.g, band_config.b]] = transformed_rgb
+                transformed_image[
+                    :, :, [band_config.r, band_config.g, band_config.b]
+                ] = transformed_rgb
             else:
                 transformed_image = transformed_rgb
 
@@ -146,7 +165,9 @@ class StretchPresets:
             return image_data, Stretch.createDefault()
 
     @staticmethod
-    def create_all_preset_stretches(image_data: np.ndarray, band_config: 'Band' = None) -> List[Stretch]:
+    def create_all_preset_stretches(
+        image_data: np.ndarray, band_config: "Band" = None
+    ) -> List[Stretch]:
         """Create a list of Stretch objects for all available presets.
 
         Args:

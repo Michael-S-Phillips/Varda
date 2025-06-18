@@ -83,7 +83,9 @@ class ImageListViewModel(QtCore.QAbstractListModel):
             file_path = self._images[index.row()].metadata.filePath
             if file_path:
                 base_name = os.path.basename(file_path)
-                return os.path.splitext(base_name)[0]  # Return filename without extension
+                return os.path.splitext(base_name)[
+                    0
+                ]  # Return filename without extension
             else:
                 # Fallback to driver if no file path is available
                 return self._images[index.row()].metadata.driver

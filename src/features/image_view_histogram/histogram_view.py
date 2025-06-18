@@ -166,12 +166,14 @@ class HistogramView(BaseView):
             # Get the image data and current band configuration
             image = self.viewModel.proj.getImage(self.viewModel.index)
             image_data = image.raster
-            
+
             # Get the current band configuration for RGB channel selection
             current_band = self.viewModel.getSelectedBand()
 
             # Create a stretch from the preset using the current band configuration
-            stretch = StretchPresets.create_stretch_from_preset(preset_id, image_data, current_band)
+            stretch = StretchPresets.create_stretch_from_preset(
+                preset_id, image_data, current_band
+            )
 
             # Add the stretch to the project
             self.viewModel.proj.addStretch(self.viewModel.index, stretch)

@@ -293,7 +293,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
         # Connect menu actions to process execution
         def handle_process_action(action):
-            # Find process class by action text            
+            # Find process class by action text
             process_class = action.data()
             if process_class is not None:
                 # Create process dialog with proper parent and project context
@@ -315,7 +315,10 @@ class MainGUI(QtWidgets.QMainWindow):
 
     def onProjectDataChanged(self, index, changeType, changeModifier=None):
         """Handle when project data changes (like new images being added)."""
-        if changeType == self.proj.ChangeType.IMAGE and changeModifier == self.proj.ChangeModifier.ADD:
+        if (
+            changeType == self.proj.ChangeType.IMAGE
+            and changeModifier == self.proj.ChangeModifier.ADD
+        ):
             print(f"New image added at index {index}")
 
     # TODO: Delete?

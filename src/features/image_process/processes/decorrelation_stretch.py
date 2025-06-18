@@ -10,14 +10,14 @@ from features.image_process.processes.imageprocess import ImageProcess
 
 class DecorrelationStretch(ImageProcess):
     """Decorrelation Stretch Process
-    
+
     Applies a decorrelation stretch transformation to create a new enhanced image.
     This process uses Principal Component Analysis (PCA) to decorrelate RGB channels,
     enhancing subtle color differences in the image data.
     """
 
     name = "Decorrelation Stretch"
-    
+
     # Specify that this process needs current RGB bands
     input_data_type = "current_rgb"
 
@@ -45,12 +45,12 @@ class DecorrelationStretch(ImageProcess):
     @override
     def execute(self, image, scaling_factor=2.5, preserve_brightness=True):
         """Execute decorrelation stretch on the input image.
-        
+
         Args:
             image: Input image array with shape (height, width, bands)
             scaling_factor: Scaling factor for eigenvalues
             preserve_brightness: Whether to preserve original brightness
-            
+
         Returns:
             Transformed image array with enhanced color differences
         """
@@ -61,7 +61,7 @@ class DecorrelationStretch(ImageProcess):
 
         # Use only the first 3 bands (RGB) for decorrelation
         rgb_data = image[:, :, :3].astype(np.float64)
-        
+
         # Store original shape and additional bands if any
         original_shape = image.shape
         additional_bands = None
@@ -86,12 +86,12 @@ class DecorrelationStretch(ImageProcess):
         self, rgb_data, scaling_factor, preserve_brightness
     ):
         """Apply the decorrelation transformation to RGB data.
-        
+
         Args:
             rgb_data: RGB image data with shape (height, width, 3)
             scaling_factor: Scaling factor for eigenvalues
             preserve_brightness: Whether to preserve original brightness
-            
+
         Returns:
             Transformed RGB data
         """
@@ -114,7 +114,7 @@ class DecorrelationStretch(ImageProcess):
 
         # Compute statistics
         mean_vec = np.nanmean(valid_data, axis=0)
-        
+
         # Store original brightness if preserving
         if preserve_brightness:
             original_brightness = np.mean(reshaped_data, axis=1, keepdims=True)
@@ -154,7 +154,7 @@ class DecorrelationStretch(ImageProcess):
             brightness_mask = current_brightness > 1e-10
             brightness_ratio = np.ones_like(current_brightness)
             brightness_ratio[brightness_mask] = (
-                original_brightness[brightness_mask] 
+                original_brightness[brightness_mask]
                 / current_brightness[brightness_mask]
             )
             transformed_data = transformed_data * brightness_ratio

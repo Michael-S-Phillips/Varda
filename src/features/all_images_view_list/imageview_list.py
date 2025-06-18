@@ -38,7 +38,7 @@ class ImageListWidget(QListWidget):
         self.clear()
         for image in self.proj.getAllImages():
             item = QListWidgetItem()
-            
+
             # Prioritize metadata.name for processed images, fallback to filename
             if image.metadata.name:
                 # Use the metadata name (which includes processed names like "image_b1_b2_b3_DCS")
@@ -52,7 +52,7 @@ class ImageListWidget(QListWidget):
                 else:
                     # Final fallback to driver
                     display_name = image.metadata.driver
-            
+
             item.setText(display_name)
             item.setData(Qt.ItemDataRole.UserRole, image)
             pixmap = QPixmap(64, 64)
