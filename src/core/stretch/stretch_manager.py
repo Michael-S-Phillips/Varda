@@ -5,6 +5,7 @@ import numpy as np
 import logging
 
 from core.entities.stretch import Stretch
+from core.entities.band import Band
 from core.stretch.stretch_algorithms import (
     compute_stretch,
     get_available_stretches,
