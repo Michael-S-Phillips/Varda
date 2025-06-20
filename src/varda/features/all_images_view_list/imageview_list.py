@@ -1,4 +1,5 @@
 # standard library
+import os
 
 # third party imports
 from PyQt6 import QtWidgets, QtCore, QtGui
@@ -37,7 +38,22 @@ class ImageListWidget(QListWidget):
         self.clear()
         for image in self.proj.getAllImages():
             item = QListWidgetItem()
-            item.setText("Image")
+
+            # Prioritize metadata.name for processed images, fallback to filename
+            if image.metadata.name:
+                # Use the metadata name (which includes processed names like "image_b1_b2_b3_DCS")
+                display_name = image.metadata.name
+            else:
+                # Fallback to filename for images without custom names
+                file_path = image.metadata.filePath
+                if file_path:
+                    base_name = os.path.basename(file_path)
+                    display_name = os.path.splitext(base_name)[0]
+                else:
+                    # Final fallback to driver
+                    display_name = image.metadata.driver
+
+            item.setText(display_name)
             item.setData(Qt.ItemDataRole.UserRole, image)
             pixmap = QPixmap(64, 64)
             pixmap.fill(QtGui.QColor("blue"))  # Example placeholder image

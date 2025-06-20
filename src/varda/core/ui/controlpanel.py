@@ -8,7 +8,8 @@ from PyQt6.QtWidgets import (
     QDockWidget,
     QLabel,
     QWidget,
-    QScrollArea, QPushButton,
+    QScrollArea,
+    QPushButton,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 import numpy as np
@@ -16,7 +17,7 @@ import numpy as np
 from varda.core.data import ProjectContext
 from varda.features.image_view_roi import getROIView
 from varda.features.image_view_band import BandManager
-from varda.features.image_view_stretch import StretchManager, getStretchView
+from varda.features.image_view_stretch import StretchManager
 from varda.features.image_view_metadata import openMetadataEditor
 from varda.gui.widgets.image_plot_widget import ImagePlotWidget
 
@@ -68,15 +69,16 @@ class ControlPanel(QWidget):
         self.toolSection.setWidgetResizable(True)
         self.toolSection.setWidget(self.toolSectionContainer)
 
-        self.editMetadataButton = QPushButton("View and edit Metadata")
-        self.editMetadataButton.clicked.connect(lambda: openMetadataEditor(self.project_context, self.imageIndex, self))
+        self.editMetadataButton = QPushButton("Metadata")
+        self.editMetadataButton.setToolTip("View and edit image metadata properties")
+        self.editMetadataButton.clicked.connect(
+            lambda: openMetadataEditor(self.project_context, self.imageIndex, self)
+        )
 
         self.bandView = BandManager(self.project_context, self.imageIndex, self)
 
         self.histogramView = StretchManager(self.project_context, self.imageIndex, self)
         self.histogramView.sigStretchSelected.connect(self.rasterView.selectStretch)
-
-        self.stretchView = getStretchView(self.project_context, self.imageIndex, self)
 
         self.pixelPlot = ImagePlotWidget(
             self.project_context, self.imageIndex, parent=self
@@ -104,7 +106,6 @@ class ControlPanel(QWidget):
         self.toolSectionLayout.addWidget(self.ROITable)
         self.toolSectionLayout.addWidget(self.bandView)
         self.toolSectionLayout.addWidget(self.histogramView)
-        self.toolSectionLayout.addWidget(self.stretchView)
         self.toolSectionLayout.addWidget(self.pixelPlot)
 
         # create layout and add widgets
@@ -127,7 +128,7 @@ class ControlPanel(QWidget):
         if self.imageIndex is None:
             self.activeImageLabel.setText("No image selected")
         else:
-            filename = self.image.metadata.filePath.split("/")[-1]
+            filename = self.image.metadata.name
             self.activeImageLabel.setText(f"Active Image: {filename[:10]}...")
             self.activeImageLabel.setToolTip(filename)
 

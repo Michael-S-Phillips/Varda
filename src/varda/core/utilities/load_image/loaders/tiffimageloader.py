@@ -137,7 +137,6 @@ class TIFFImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                 # else:
                 #     logger.debug(f"Image does not contain geospatial information.")
 
-
                 if src.crs:
                     metadata_dict["crs"] = src.crs.to_wkt()
 

@@ -1,6 +1,4 @@
-"""
-
-"""
+""" """
 
 # third party imports
 from PyQt6.QtCore import QObject, pyqtSignal

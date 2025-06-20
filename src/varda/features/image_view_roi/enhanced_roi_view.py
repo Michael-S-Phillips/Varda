@@ -48,7 +48,7 @@ class ROITableWidget(QTableWidget):
 
     roiSelectionChanged = pyqtSignal(int)  # Emits ROI index when selection changes
     roiDoubleClicked = pyqtSignal(int)  # Emits ROI index when double-clicked
-    roiVisibilityChanged = pyqtSignal(str, int) # emits when we hide/show roi
+    roiVisibilityChanged = pyqtSignal(str, int)  # emits when we hide/show roi
 
     def __init__(self, parent=None):
         super().__init__(parent)

@@ -313,7 +313,9 @@ class ImageLoadingService:
             if loadingProcess.status == ImageLoadingService.LoadStatus.SUCCESS:
                 raster, metadata = loadingProcess.result
                 if metadata.transform != affine.identity and metadata.crs is not None:
-                    metadata.geoReferencer = GeoReferencer(metadata.transform, metadata.crs)
+                    metadata.geoReferencer = GeoReferencer(
+                        metadata.transform, metadata.crs
+                    )
                 logger.info(f"Done loading image: {metadata.filePath}")
 
                 # Check if there are load warnings

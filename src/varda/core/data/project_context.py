@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QWidget,
     QFileDialog,
     QMessageBox,
+    QApplication,
 )
 import numpy as np
 
@@ -114,7 +115,7 @@ class ProjectContext(QObject):
                 suffix=".tmp",
                 delete=False,
             ) as tempFile:
-                json.dump(saveData, tempFile, indent=4)
+                json.dump(saveData, tempFile, indent=4, cls=NumpyJSONEncoder)
                 tempFile.flush()
 
             os.replace(tempFile.name, self.currentProj)
@@ -216,11 +217,47 @@ class ProjectContext(QObject):
         imagesTemp = self._images
         projectNameTemp = self.currentProj
         roi_manager_temp = self.roi_manager if hasattr(self, "roi_manager") else None
+        
+        # Temporarily disable stretch preset generation during deserialization
+        # since we're loading existing stretches from the file
+        original_generate_presets = self._generate_stretch_presets
+        self._generate_stretch_presets = False
 
         try:
             self.currentProj = Path(projectName)
             self._images = []
             imageDictList = data["images"]
+            
+            # Track completed loads to emit signals after all images are loaded
+            expected_loads = len(imageDictList)
+            completed_loads = 0
+            
+            def on_image_loaded(raster, metadata, stretch, band):
+                """Callback for when an individual image finishes loading during deserialization."""
+                nonlocal completed_loads
+                
+                # Create the image with the deserialized data
+                # Temporarily disable signal guards for this specific operation
+                old_handling = self._handling_change
+                self._handling_change = False
+                try:
+                    image_index = self.createImage(
+                        raster=raster,
+                        metadata=metadata,
+                        stretch=stretch,
+                        band=band,
+                    )
+                    completed_loads += 1
+                    logger.info(f"Loaded image {completed_loads}/{expected_loads} during deserialization")
+                    
+                    # If this is the last image, emit project changed signal
+                    if completed_loads == expected_loads:
+                        self.sigProjectChanged.emit()
+                        logger.info("All images loaded successfully during deserialization")
+                        
+                finally:
+                    self._handling_change = old_handling
+            
             for imageDict in imageDictList:
                 metadata = Metadata.deserialize(imageDict["metadata"])
                 stretch = [
@@ -243,31 +280,27 @@ class ProjectContext(QObject):
                         metadata.filePath = str(newPath)
                     else:
                         logger.info(f"Skipping image {oldPath}")
+                        expected_loads -= 1  # Reduce expected count for skipped images
                         continue
 
-                # This lambda is basically a custom version of loadNewImage, that passes in the data from the json.
-                # It's important that we "capture" the variables from the current loop iteration, via default vals
-                # because the lambda won't execute until later
+                # Create callback with captured variables for this iteration
                 self._imageLoadingService.loadImageData(
                     metadata.filePath,
-                    lambda raster, _, m=metadata, s=stretch, b=band: self.createImage(
-                        raster=raster,
-                        metadata=m,
-                        stretch=s,
-                        band=b,
-                    ),
+                    lambda raster, _, m=metadata, s=stretch, b=band: on_image_loaded(raster, m, s, b),
                 )
 
             # Deserialize ROI Manager
             if "roi_manager" in data:
                 from varda.core.data.roi_manager import ROIManager
-
                 self.roi_manager = ROIManager.deserialize(data["roi_manager"], self)
             else:
                 # If no ROI Manager in the data, create a new one
                 from varda.core.data.roi_manager import ROIManager
-
                 self.roi_manager = ROIManager(self)
+
+            # If no images to load, emit the signal immediately
+            if expected_loads == 0:
+                self.sigProjectChanged.emit()
 
             return True
 
@@ -279,6 +312,9 @@ class ProjectContext(QObject):
             if roi_manager_temp:
                 self.roi_manager = roi_manager_temp
             return False
+        finally:
+            # Always restore the original preset generation setting
+            self._generate_stretch_presets = original_generate_presets
 
     # Image Access
     def getImage(self, index) -> Image:
@@ -307,10 +343,26 @@ class ProjectContext(QObject):
         Returns:
             int: The index of the added image.
         """
+
+        def _setName(image: Image):
+            """
+            Set a unique name for the image based on its index.
+            This is used to ensure that each image has a distinct name.
+            """
+
+            file_path = image.metadata.filePath
+            if file_path:
+                base_name = os.path.basename(file_path)
+                return os.path.splitext(base_name)[0]
+            elif image.metadata.name:
+                return image.metadata.name
+            else:
+                index = len(self._images)
+                return f"Image {index}"
+
         index = len(self._images)
-        image.metadata.name = (
-            f"Image {index}"  # Assign a unique name based on the index
-        )
+        image.metadata.name = _setName(image)
+
         self._images.append(image)
         self._emitChange(index, self.ChangeType.IMAGE, self.ChangeModifier.ADD)
         return index
@@ -366,12 +418,15 @@ class ProjectContext(QObject):
                     # Import here to avoid circular import
                     from varda.core.stretch.stretch_manager import StretchPresets
 
+                    # Get the default band configuration to use for stretch calculations
+                    default_band = band[0] if band else Band.createDefault()
+
                     # Add a few common presets
                     basic_presets = ["min_max", "percentile_2"]
                     for preset_id in basic_presets:
                         try:
                             preset_stretch = StretchPresets.create_stretch_from_preset(
-                                preset_id, raster
+                                preset_id, raster, default_band
                             )
                             stretch.append(preset_stretch)
                         except Exception as e:
@@ -467,6 +522,15 @@ class ProjectContext(QObject):
         """
         if stretch is None:
             stretch = Stretch.createDefault()
+        # Check if the stretch already exists (by comparing all attributes)
+        for i, existing_stretch in enumerate(self._images[index].stretch):
+            if stretch == existing_stretch:
+                QMessageBox.warning(
+                    None,
+                    "Duplicate Stretch",
+                    "This stretch has already been calculated for this image.",
+                )
+                return i
         self._images[index].stretch.append(stretch)
         self._emitChange(index, self.ChangeType.STRETCH, self.ChangeModifier.ADD)
         return len(self._images[index].stretch) - 1
@@ -1025,3 +1089,20 @@ class ProjectContext(QObject):
                 index, changeType, changeModifier
             )
         self.sigDataChanged[int, self.ChangeType].emit(index, changeType)
+
+class NumpyJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles numpy data types and bytes objects."""
+    
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, bytes):
+            try:
+                return obj.decode('utf-8')
+            except UnicodeDecodeError:
+                return list(obj)
+        return super().default(obj)

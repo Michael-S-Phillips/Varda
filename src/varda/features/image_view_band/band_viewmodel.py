@@ -1,3 +1,6 @@
+# standard library
+import logging
+
 # third party imports
 import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer, pyqtSlot
@@ -5,6 +8,8 @@ from PyQt6.QtCore import QObject, pyqtSignal, QTimer, pyqtSlot
 # local imports
 from varda.core.data import ProjectContext
 from varda.core.entities import Metadata
+
+logger = logging.getLogger(__name__)
 
 
 class BandViewModel(QObject):
@@ -21,13 +26,27 @@ class BandViewModel(QObject):
         self.proj = proj
         self.imageIndex = imageIndex
         self.bandIndex = 0
-        self.wavelengthType = self.proj.getImage(self.imageIndex).metadata.wavelengths_type
-        if self.proj.getImage(self.imageIndex).metadata.wavelengths_type is str:
+        self.wavelengthType = self.proj.getImage(
+            self.imageIndex
+        ).metadata.wavelengths_type
+        
+        if isinstance(self.proj.getImage(self.imageIndex).metadata.wavelengths_type, (int, float)):
+            lower = self.getWavelengthAt(0)
+            upper = self.getWavelengthAt(-1)
+
+            if isinstance(lower, Metadata.Wavelength):
+                lower = lower.value
+            if isinstance(upper, Metadata.Wavelength):
+                upper = upper.value
+            if lower > upper:
+                lower, upper = upper, lower
+            self.bounds = (lower, upper)
+
+            self.useWavelengthIndeces = False
+            
+        else:
             self.bounds = (0, self.getBandCount() - 1)
             self.useWavelengthIndeces = True
-        else:
-            self.bounds = (self.getWavelengthAt(0), self.getWavelengthAt(-1))
-            self.useWavelengthIndeces = False
 
         self._pendingBandValues = (None, None, None)
         self._updateInterval = 20
@@ -57,13 +76,13 @@ class BandViewModel(QObject):
 
     def getIndexOfWavelength(self, wavelength: float | str) -> int:
         """returns the index of the given wavelength."""
-        # if the wavelengths are strings, then the value is already the index
-        if self.getMetadata().wavelengths_type == str:
-            return int(wavelength)
-        # otherwise the slider value is a float and we need to find the closest wavelength
-        return np.abs(
+        # if the wavelengths are not strings, then get the index
+        if isinstance(self.getMetadata().wavelengths_type, (int,float)):
+            return np.abs(
             self.proj.getImage(self.imageIndex).metadata.wavelengths - wavelength
         ).argmin()
+        # otherwise the slider value is a str and we need to find the closest wavelength
+        return int(wavelength)
 
     def selectBand(self, bandIndex):
         """selects a new band from the image."""
@@ -116,13 +135,24 @@ class BandViewModel(QObject):
         if self._ignoreProjectUpdates:
             # if we were the one that caused the update, ignore it
             self._ignoreProjectUpdates = False
+            logger.debug(
+                f"BandViewModel: Ignoring self-generated update for image {index}"
+            )
             return
 
         if index != self.imageIndex:
+            logger.debug(
+                f"BandViewModel: Ignoring update for different image {index} (we are {self.imageIndex})"
+            )
             return
         if changeType is not ProjectContext.ChangeType.BAND:
+            logger.debug(f"BandViewModel: Ignoring non-band change type {changeType}")
             return
+
         r, g, b = self.proj.getImage(self.imageIndex).band[self.bandIndex].toList()
+        logger.debug(
+            f"BandViewModel: Emitting band changed signal with r={r}, g={g}, b={b} for band {self.bandIndex}"
+        )
         self.sigBandChanged.emit(r, g, b)
 
     def getMetadata(self):

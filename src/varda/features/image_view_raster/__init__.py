@@ -1,1 +1,1 @@
-from .image_view_raster import getRasterView
+from .image_view_raster import getRasterView, createDualModeRasterView
