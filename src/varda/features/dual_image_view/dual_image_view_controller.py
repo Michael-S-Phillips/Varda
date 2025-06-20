@@ -246,7 +246,7 @@ class DualImageViewController(QObject):
     
     def sync_navigation(self, source_index: int, view_state: Dict[str, Any]):
         """
-        Synchronize navigation state between linked views.
+        Synchronize navigation between linked views with improved precision.
         
         Args:
             source_index: Index of the image that triggered the navigation change
@@ -267,19 +267,22 @@ class DualImageViewController(QObject):
         
         logger.debug(f"Syncing navigation from {source_index} to {target_index}")
         
-        # Transform coordinates if needed
+        # Transform coordinates if needed - preserve precision during transformation
         transformed_state = self._transform_view_state(
             source_index, target_index, view_state
         )
         
-        # Prevent recursive sync
+        # Prevent recursive sync - use immediate flag setting
         self._sync_in_progress = True
         
         try:
             self.view_sync_requested.emit(target_index, transformed_state)
+            logger.debug(f"Emitted sync request for index {target_index}")
+        except Exception as e:
+            logger.error(f"Error emitting sync request: {e}")
         finally:
-            # Reset sync flag after a short delay
-            QTimer.singleShot(100, lambda: setattr(self, '_sync_in_progress', False))
+            # Reset sync flag immediately instead of using timer
+            self._sync_in_progress = False
     
     def sync_roi(self, source_index: int, roi_id: str):
         """Synchronize ROI between linked views"""
@@ -437,26 +440,47 @@ class DualImageViewController(QObject):
     
     def _transform_view_state(self, source_index: int, target_index: int, 
                             view_state: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform view state from source to target coordinate system"""
-        if not self._current_config:
-            return view_state
+        """
+        Transform view state coordinates between images with precision preservation.
         
-        # For pixel-based linking, usually no transformation needed
+        Args:
+            source_index: Index of source image
+            target_index: Index of target image  
+            view_state: View state to transform
+            
+        Returns:
+            Transformed view state
+        """
+        # For pixel-based linking, preserve exact coordinates without transformation
         if self._current_config.link_type == LinkType.PIXEL_BASED:
-            return view_state
+            # Create a deep copy to avoid modifying original state
+            transformed_state = {}
+            for key, value in view_state.items():
+                if isinstance(value, list):
+                    # Preserve coordinate precision for position/size arrays
+                    transformed_state[key] = value.copy()
+                else:
+                    transformed_state[key] = value
+            return transformed_state
         
-        # For geospatial linking, would apply coordinate transformation
-        # This is a placeholder for actual coordinate transformation
+        # For geospatial linking, apply coordinate transformation while preserving precision
         transformed_state = view_state.copy()
         
         # Transform coordinates if present
-        if 'center_x' in view_state and 'center_y' in view_state:
+        if 'pos' in view_state and isinstance(view_state['pos'], list) and len(view_state['pos']) == 2:
             transformed_coords = self.link_manager.transform_coordinates(
                 source_index, target_index, 
-                view_state['center_x'], view_state['center_y']
+                view_state['pos'][0], view_state['pos'][1]
             )
             if transformed_coords:
-                transformed_state['center_x'], transformed_state['center_y'] = transformed_coords
+                # Preserve precision in transformed coordinates
+                transformed_state['pos'] = [transformed_coords[0], transformed_coords[1]]
+        
+        # Transform size if present and needed for geospatial
+        if 'size' in view_state and isinstance(view_state['size'], list) and len(view_state['size']) == 2:
+            # For size, we might need to transform the scale/resolution
+            # For now, preserve original size unless specific transformation is needed
+            transformed_state['size'] = view_state['size'].copy()
         
         return transformed_state
     
