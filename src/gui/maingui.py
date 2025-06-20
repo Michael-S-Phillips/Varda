@@ -166,6 +166,40 @@ class MainGUI(QtWidgets.QMainWindow):
         return view
     
     # DUAL IMAGE METHODS
+    # def openDualImageView(self):
+    #     """Open the dual image view dialog/dock"""
+    #     if len(self.proj.getAllImages()) < 2:
+    #         QtWidgets.QMessageBox.information(
+    #             self,
+    #             "Dual Image View",
+    #             "You need at least 2 images loaded to use dual image view."
+    #         )
+    #         return
+        
+    #     # Create or show the dual view
+    #     if not hasattr(self, 'dual_view') or self.dual_view is None:
+    #         from features.dual_image_view.dual_image_view import DualImageView
+    #         self.dual_view = DualImageView(self.proj)
+            
+    #         # Create dock widget
+    #         dock = QtWidgets.QDockWidget("Dual Image View", self)
+    #         dock.setWidget(self.dual_view)
+    #         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+            
+    #         # Store dock reference
+    #         self.dual_view_dock = dock
+        
+    #     # CRITICAL: Ensure the dock and dual view are visible
+    #     self.dual_view_dock.setVisible(True)
+    #     self.dual_view_dock.show()
+    #     self.dual_view.setVisible(True)
+    #     self.dual_view.show()
+        
+    #     # Force updates
+    #     self.dual_view_dock.update()
+    #     self.dual_view.update()
+        
+    #     logger.debug("Dual image view opened and made visible")
     def openDualImageView(self):
         """Open the dual image view dialog/dock"""
         if len(self.proj.getAllImages()) < 2:
@@ -187,6 +221,7 @@ class MainGUI(QtWidgets.QMainWindow):
         if self.selectedImage is not None:
             dialog.set_default_images(primary_index=self.selectedImage.index)
         
+        # Show dialog to select primary and secondary images
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             primary_index, secondary_index = dialog.get_selected_images()
             config = dialog.get_configuration()
@@ -223,6 +258,16 @@ class MainGUI(QtWidgets.QMainWindow):
                 if not self.dualImageView._is_linked:
                     self.dualImageView._toggle_link()
                 
+
+                self.dualImageDock.setVisible(True)
+                self.dualImageDock.show()
+                self.dualImageView.setVisible(True)
+                self.dualImageView.show()
+                
+                # Force updates
+                self.dualImageDock.update()
+                self.dualImageView.update()
+
                 # Show the dock
                 self.dualImageDock.show()
                 self.dualImageDock.raise_()

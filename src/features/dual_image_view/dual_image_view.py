@@ -750,6 +750,36 @@ class DualImageView(QWidget):
         container.setTitle(title)
         layout.addWidget(view)
         
+        # Ensure view is visible and properly sized
+        view.setVisible(True)
+        view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        
+        # Force container and view to update
+        container.setVisible(True)
+        container.update()
+        view.update()
+        
+        # Ensure the view can receive mouse events for interaction
+        view.setEnabled(True)
+        view.setAttribute(Qt.WidgetAttribute.WA_AcceptTouchEvents, True)
+        
+        # CRITICAL: Force the parent widgets to be visible too
+        parent = container.parent()
+        while parent and parent != self:
+            parent.setVisible(True)
+            parent.update()
+            parent = parent.parent()
+        
+        # Force the main dual view widget to be visible
+        self.setVisible(True)
+        self.update()
+        
+        # Process events to ensure visibility changes take effect
+        from PyQt6.QtCore import QCoreApplication
+        QCoreApplication.processEvents()
+        
         # If this is part of an active link, set up sync
         if self._is_linked:
             self._setup_navigation_sync()
+        
+        logger.debug(f"Updated view container: {title}, view visible: {view.isVisible()}, container visible: {container.isVisible()}")

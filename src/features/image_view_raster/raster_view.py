@@ -434,21 +434,51 @@ class RasterView(QWidget):
             if self._navigation_sync_in_progress or not self._dual_mode_active:
                 return
                 
-            # Extract view state
-            view_state = self._extract_view_state()
+            # Extract current view state from the main view
+            if not self.mainView:
+                return
+                
+            # Get the current view range
+            view_range = self.mainView.viewRange()
+            if not view_range or len(view_range) != 2:
+                return
+                
+            x_range, y_range = view_range
             
-            # Only emit if state actually changed and is valid
-            if (view_state and 'x_range' in view_state and 'y_range' in view_state):
+            # Calculate center and zoom level
+            center_x = (x_range[0] + x_range[1]) / 2
+            center_y = (y_range[0] + y_range[1]) / 2
+            zoom_x = x_range[1] - x_range[0]
+            zoom_y = y_range[1] - y_range[0]
+            
+            # Create view state dictionary
+            view_state = {
+                'x_range': x_range,
+                'y_range': y_range,
+                'center_x': center_x,
+                'center_y': center_y,
+                'zoom_x': zoom_x,
+                'zoom_y': zoom_y
+            }
+            
+            # Only emit if the view state has actually changed
+            if view_state != self._last_view_state:
+                self._last_view_state = view_state.copy()
                 
-                # Check if significantly different from last state
-                if self._is_significantly_different(view_state, self._last_view_state):
-                    self._last_view_state = view_state.copy()
-                    
-                    logger.debug(f"Emitting navigation change: x_range={view_state['x_range']}, y_range={view_state['y_range']}")
+                # Emit the navigation changed signal
+                if hasattr(self, 'sigNavigationChanged'):
                     self.sigNavigationChanged.emit(view_state)
-                
+                    logger.debug(f"Emitted navigation change: center=({center_x:.1f}, {center_y:.1f}), zoom=({zoom_x:.1f}, {zoom_y:.1f})")
+                else:
+                    logger.warning("sigNavigationChanged signal not available")
+                    
         except Exception as e:
             logger.error(f"Error emitting navigation change: {e}")
+        finally:
+            # Clean up the timer
+            if hasattr(self, '_sync_timer') and self._sync_timer:
+                self._sync_timer.deleteLater()
+                self._sync_timer = None
     
     def _is_significantly_different(self, new_state, old_state, threshold=1.0):
         """Check if the view state has changed significantly to avoid micro-updates"""
@@ -476,6 +506,7 @@ class RasterView(QWidget):
         
         if self.mainView:
             try:
+                # Get the current view range from the main view
                 view_range = self.mainView.viewRange()
                 if view_range and len(view_range) >= 2:
                     x_range = view_range[0]
@@ -485,16 +516,29 @@ class RasterView(QWidget):
                     if (len(x_range) >= 2 and len(y_range) >= 2 and
                         not any(v is None or not isinstance(v, (int, float)) for v in x_range + y_range)):
                         
+                        # Convert to float to ensure JSON serialization compatibility
+                        x_range = [float(x_range[0]), float(x_range[1])]
+                        y_range = [float(y_range[0]), float(y_range[1])]
+                        
                         view_state.update({
-                            'x_range': [float(x_range[0]), float(x_range[1])],
-                            'y_range': [float(y_range[0]), float(y_range[1])],
+                            'x_range': x_range,
+                            'y_range': y_range,
                             'center_x': (x_range[0] + x_range[1]) / 2,
                             'center_y': (y_range[0] + y_range[1]) / 2,
                             'zoom_x': x_range[1] - x_range[0],
                             'zoom_y': y_range[1] - y_range[0]
                         })
+                        
+                        logger.debug(f"Extracted view state: x_range={x_range}, y_range={y_range}")
+                    else:
+                        logger.warning(f"Invalid view range values: x_range={x_range}, y_range={y_range}")
+                else:
+                    logger.warning(f"Invalid view range structure: {view_range}")
+                    
             except Exception as e:
                 logger.error(f"Error extracting view state: {e}")
+        else:
+            logger.warning("mainView is None, cannot extract view state")
         
         return view_state
 
@@ -531,11 +575,68 @@ class RasterView(QWidget):
             else:
                 self._setup_primary_mode()
             
-            # Connect dual mode signals when activating
-            self._connect_dual_mode_signals()
+            # Force signal connection with verification
+            self._force_dual_mode_signal_connection()
+            
         else:
             # Reset to normal mode
             self._reset_normal_mode()
+
+    def _force_dual_mode_signal_connection(self):
+        """Force connection of dual mode signals with verification"""
+        try:
+            logger.debug("Forcing dual mode signal connection...")
+            
+            if not self.mainView:
+                logger.error("mainView is None - cannot connect signals")
+                return
+                
+            logger.debug(f"mainView type: {type(self.mainView)}")
+            
+            # Check if mainView has the expected signal
+            if hasattr(self.mainView, 'sigRangeChanged'):
+                # Disconnect any existing connections
+                try:
+                    self.mainView.sigRangeChanged.disconnect(self._on_navigation_changed)
+                    logger.debug("Disconnected existing sigRangeChanged connection")
+                except:
+                    pass
+                
+                # Connect the signal
+                self.mainView.sigRangeChanged.connect(self._on_navigation_changed)
+                logger.debug("Connected mainView.sigRangeChanged to _on_navigation_changed")
+                
+                # Test the connection by getting current range
+                try:
+                    current_range = self.mainView.viewRange()
+                    logger.debug(f"Current main view range: {current_range}")
+                except Exception as e:
+                    logger.error(f"Error getting view range: {e}")
+                    
+            else:
+                logger.error("mainView does not have sigRangeChanged signal!")
+                logger.debug(f"Available mainView attributes: {[attr for attr in dir(self.mainView) if 'sig' in attr.lower()]}")
+            
+            # Also connect to sigTransformChanged if available (alternative signal)
+            if hasattr(self.mainView, 'sigTransformChanged'):
+                try:
+                    self.mainView.sigTransformChanged.disconnect(self._on_transform_changed)
+                except:
+                    pass
+                self.mainView.sigTransformChanged.connect(self._on_transform_changed)
+                logger.debug("Connected mainView.sigTransformChanged as backup")
+                
+        except Exception as e:
+            logger.error(f"Error forcing dual mode signal connection: {e}")
+
+    def _on_transform_changed(self, *args):
+        """Alternative handler for transform changes (backup method)"""
+        if self._navigation_sync_in_progress or not self._dual_mode_active:
+            return
+            
+        logger.debug("Transform changed - triggering navigation sync")
+        # Trigger the same navigation change as range changed
+        self._on_navigation_changed(None, None)
     
     def _setup_overlay_mode(self):
         """Configure view for overlay mode (as secondary image)"""
@@ -660,7 +761,12 @@ class RasterView(QWidget):
         Args:
             view_state: Dictionary containing view state from another RasterView
         """
+        # Debug the view state before attempting sync
+        self.debug_view_state()
+        
         if not self._dual_mode_active or not self._sync_navigation:
+            logger.debug("Sync blocked: dual_mode_active={}, sync_navigation={}".format(
+                self._dual_mode_active, self._sync_navigation))
             return
         
         # Prevent recursive sync
@@ -670,26 +776,72 @@ class RasterView(QWidget):
             logger.debug(f"Syncing navigation to: x_range={view_state.get('x_range')}, y_range={view_state.get('y_range')}")
             
             if 'x_range' in view_state and 'y_range' in view_state and self.mainView:
-                # Apply the view range to main view
-                self.mainView.setRange(
-                    xRange=view_state['x_range'],
-                    yRange=view_state['y_range'],
-                    padding=0,
-                    update=True
-                )
+                # Get the range values
+                x_range = view_state['x_range']
+                y_range = view_state['y_range']
                 
-                # Force update the view
-                self.mainView.update()
-                
-                logger.debug("Navigation sync applied successfully")
-        
+                # Validate ranges
+                if (len(x_range) == 2 and len(y_range) == 2 and 
+                    all(isinstance(v, (int, float)) for v in x_range + y_range)):
+                    
+                    # Apply the view range to main view with explicit parameters
+                    self.mainView.setRange(
+                        xRange=x_range,
+                        yRange=y_range,
+                        padding=0,
+                        update=True,
+                        disableAutoRange=True
+                    )
+                    
+                    # Force immediate update of the view
+                    self.mainView.update()
+                    
+                    # Also update the graphics view that contains the viewbox
+                    if hasattr(self.mainView, 'update'):
+                        self.mainView.update()
+                    
+                    # Force repaint of the widget
+                    self.update()
+                    
+                    # Process any pending events to ensure update happens
+                    from PyQt6.QtCore import QCoreApplication
+                    QCoreApplication.processEvents()
+                    
+                    logger.debug("Navigation sync applied successfully with forced update")
+                    
+                else:
+                    logger.error(f"Invalid range values: x_range={x_range}, y_range={y_range}")
+            else:
+                logger.error(f"Missing required data: x_range={view_state.get('x_range')}, y_range={view_state.get('y_range')}, mainView={self.mainView is not None}")
+            
         except Exception as e:
             logger.error(f"Error syncing navigation: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
         
         finally:
             # Use a timer to reset the sync flag to ensure it gets reset
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(100, lambda: setattr(self, '_navigation_sync_in_progress', False))
+
+    def debug_view_state(self):
+        """Debug method to check view state"""
+        logger.debug(f"=== RasterView Debug State ===")
+        logger.debug(f"Widget visible: {self.isVisible()}")
+        logger.debug(f"Widget enabled: {self.isEnabled()}")
+        logger.debug(f"Widget size: {self.size()}")
+        logger.debug(f"Dual mode active: {self._dual_mode_active}")
+        logger.debug(f"Is overlay secondary: {self._is_overlay_secondary}")
+        logger.debug(f"Sync navigation: {self._sync_navigation}")
+        
+        if self.mainView:
+            logger.debug(f"MainView visible: {self.mainView.isVisible()}")
+            logger.debug(f"MainView range: {self.mainView.viewRange()}")
+            logger.debug(f"MainView enabled: {self.mainView.isEnabled()}")
+        else:
+            logger.debug("MainView is None")
+        
+        logger.debug(f"===============================")
 
     def sync_roi_from_other(self, roi_id: str):
         """
