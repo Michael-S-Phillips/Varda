@@ -20,6 +20,155 @@ from .raster_viewmodel import RasterViewModel
 
 logger = logging.getLogger(__name__)
 
+# custom view box classes for different views
+class NavigableViewBox(pg.ViewBox):
+    """Base ViewBox class with custom navigation behavior"""
+    
+    def __init__(self, raster_view, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.raster_view = raster_view
+        self._drag_start_pos = None
+        self._drag_start_scene_pos = None
+        self._is_navigating = False
+        self._initial_roi_pos = None
+    
+    def mouseDragEvent(self, ev, axis=None):
+        """Override mouse drag to implement image navigation instead of view panning"""
+        if ev.button() == QtCore.Qt.MouseButton.LeftButton:
+            if ev.isStart():
+                self._drag_start_pos = ev.pos()
+                self._drag_start_scene_pos = self.mapToView(ev.pos())
+                self._is_navigating = True
+                self._store_initial_roi_pos()
+                ev.accept()
+                return
+            elif ev.isFinish():
+                if self._is_navigating:
+                    self._handle_navigation_end(ev)
+                self._reset_drag_state()
+                ev.accept()
+                return
+            elif self._is_navigating:
+                self._handle_navigation_drag(ev)
+                ev.accept()
+                return
+        
+        # For other buttons or when not navigating, use default behavior
+        super().mouseDragEvent(ev, axis)
+    
+    def _reset_drag_state(self):
+        """Reset drag state variables"""
+        self._is_navigating = False
+        self._drag_start_pos = None
+        self._drag_start_scene_pos = None
+        self._initial_roi_pos = None
+    
+    def _store_initial_roi_pos(self):
+        """Store initial ROI position - to be implemented by subclasses"""
+        pass
+    
+    def _handle_navigation_drag(self, ev):
+        """Handle ongoing navigation drag - to be implemented by subclasses"""
+        pass
+    
+    def _handle_navigation_end(self, ev):
+        """Handle end of navigation drag - to be implemented by subclasses"""
+        pass
+
+
+class MainViewBox(NavigableViewBox):
+    """Custom ViewBox for main view - drags move the contextROI"""
+    
+    def _store_initial_roi_pos(self):
+        """Store initial contextROI position"""
+        if hasattr(self.raster_view, 'contextROI') and self.raster_view.contextROI:
+            pos = self.raster_view.contextROI.pos()
+            self._initial_roi_pos = [pos[0], pos[1]]
+    
+    def _handle_navigation_drag(self, ev):
+        """Move contextROI based on drag in main view"""
+        if not hasattr(self.raster_view, 'contextROI') or not self.raster_view.contextROI:
+            return
+        
+        if self._drag_start_scene_pos is None or self._initial_roi_pos is None:
+            return
+        
+        # Get current mouse position in scene coordinates
+        current_scene_pos = self.mapToView(ev.pos())
+        
+        # Calculate total delta from start of drag
+        delta_x = current_scene_pos.x() - self._drag_start_scene_pos.x()
+        delta_y = current_scene_pos.y() - self._drag_start_scene_pos.y()
+        
+        # Apply delta to initial ROI position (inverted for intuitive panning)
+        new_x = self._initial_roi_pos[0] - delta_x
+        new_y = self._initial_roi_pos[1] - delta_y
+        
+        # Get contextROI size for boundary checking
+        context_roi = self.raster_view.contextROI
+        roi_size = context_roi.size()
+        
+        # Get image bounds to constrain movement
+        if hasattr(self.raster_view, 'contextImage') and self.raster_view.contextImage:
+            img_bounds = self.raster_view.contextImage.boundingRect()
+            # Constrain to image boundaries
+            new_x = max(img_bounds.left(), min(new_x, img_bounds.right() - roi_size[0]))
+            new_y = max(img_bounds.top(), min(new_y, img_bounds.bottom() - roi_size[1]))
+        
+        # Update contextROI position
+        context_roi.setPos([new_x, new_y], update=True)
+
+
+class ZoomViewBox(NavigableViewBox):
+    """Custom ViewBox for zoom view - drags move the mainROI"""
+    
+    def _store_initial_roi_pos(self):
+        """Store initial mainROI position"""
+        if hasattr(self.raster_view, 'mainROI') and self.raster_view.mainROI:
+            pos = self.raster_view.mainROI.pos()
+            self._initial_roi_pos = [pos[0], pos[1]]
+    
+    def _handle_navigation_drag(self, ev):
+        """Move mainROI based on drag in zoom view"""
+        if not hasattr(self.raster_view, 'mainROI') or not self.raster_view.mainROI:
+            return
+        
+        if self._drag_start_scene_pos is None or self._initial_roi_pos is None:
+            return
+        
+        # Get current mouse position in scene coordinates
+        current_scene_pos = self.mapToView(ev.pos())
+        
+        # Calculate total delta from start of drag
+        delta_x = current_scene_pos.x() - self._drag_start_scene_pos.x()
+        delta_y = current_scene_pos.y() - self._drag_start_scene_pos.y()
+        
+        # Apply delta to initial ROI position (inverted for intuitive panning)
+        new_x = self._initial_roi_pos[0] - delta_x
+        new_y = self._initial_roi_pos[1] - delta_y
+        
+        # Get mainROI size for boundary checking
+        main_roi = self.raster_view.mainROI
+        roi_size = main_roi.size()
+        
+        # Get main image bounds to constrain movement
+        if hasattr(self.raster_view, 'mainImage') and self.raster_view.mainImage:
+            img_bounds = self.raster_view.mainImage.boundingRect()
+            # Constrain to image boundaries
+            new_x = max(img_bounds.left(), min(new_x, img_bounds.right() - roi_size[0]))
+            new_y = max(img_bounds.top(), min(new_y, img_bounds.bottom() - roi_size[1]))
+        
+        # Update mainROI position
+        main_roi.setPos([new_x, new_y], update=True)
+
+
+class ContextViewBox(pg.ViewBox):
+    """Custom ViewBox for context view - keeps standard behavior for now"""
+    
+    def __init__(self, raster_view, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.raster_view = raster_view
+
 
 class RasterView(QWidget):
     """Main widget for displaying and interacting with raster images."""
@@ -106,16 +255,14 @@ class RasterView(QWidget):
         self.zoomImage = self._initImageItem()
         # Initialize ROI drawing manager
         self.roi_drawing_manager = ROIDrawingManager(self, self.viewModel)
-        # Initialize view boxes
-        self.mainView = self._initViewBox("Main View", self.mainImage)
-        self.contextView = self._initViewBox("Context View", self.contextImage)
-        self.zoomView = self._initViewBox("Zoom View", self.zoomImage)
+        
+        # Initialize view boxes with custom navigation behavior
+        self.mainView = self._initMainViewBox("Main View", self.mainImage)
+        self.contextView = self._initContextViewBox("Context View", self.contextImage)
+        self.zoomView = self._initZoomViewBox("Zoom View", self.zoomImage)
 
         # Initialize with consistent stretch values
         self.current_stretch_levels = None
-
-        # Configure zoom view
-        self.zoomView.setMouseEnabled(x=True, y=True)
 
         # Add crosshairs to zoom view
         self.crosshair_v = pg.InfiniteLine(angle=90, movable=False, pen="r")
@@ -1333,15 +1480,52 @@ class RasterView(QWidget):
             axisOrder="row-major", autoLevels=False, levels=(0, 1)
         )
 
-    @staticmethod
-    def _initViewBox(name, imageItem):
-        """Initialize a new view box."""
-        viewBox = pg.ViewBox(name=name, lockAspect=True, invertY=True)
+    def _initMainViewBox(self, name, imageItem):
+        """Initialize the main view box with custom navigation behavior."""
+        viewBox = MainViewBox(
+            raster_view=self, 
+            name=name, 
+            lockAspect=True, 
+            invertY=True
+        )
         viewBox.addItem(imageItem)
-
         # Enable mouse interaction for panning and zooming
         viewBox.setMouseEnabled(x=True, y=True)
+        return viewBox
 
+    def _initContextViewBox(self, name, imageItem):
+        """Initialize the context view box."""
+        viewBox = ContextViewBox(
+            raster_view=self,
+            name=name, 
+            lockAspect=True, 
+            invertY=True
+        )
+        viewBox.addItem(imageItem)
+        # Enable mouse interaction for panning and zooming
+        viewBox.setMouseEnabled(x=True, y=True)
+        return viewBox
+
+    def _initZoomViewBox(self, name, imageItem):
+        """Initialize the zoom view box with custom navigation behavior."""
+        viewBox = ZoomViewBox(
+            raster_view=self,
+            name=name, 
+            lockAspect=True, 
+            invertY=True
+        )
+        viewBox.addItem(imageItem)
+        # Enable mouse interaction for panning and zooming
+        viewBox.setMouseEnabled(x=True, y=True)
+        return viewBox
+
+    @staticmethod
+    def _initViewBox(name, imageItem):
+        """Legacy method - kept for compatibility but should use specific methods above."""
+        viewBox = pg.ViewBox(name=name, lockAspect=True, invertY=True)
+        viewBox.addItem(imageItem)
+        # Enable mouse interaction for panning and zooming
+        viewBox.setMouseEnabled(x=True, y=True)
         return viewBox
 
     @staticmethod
