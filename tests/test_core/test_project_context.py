@@ -1,6 +1,6 @@
 import numpy as np
-from core.data import ProjectContext
-from core.entities import Image, Metadata, Band, Stretch
+from core import ProjectContext
+from core import Metadata, Band, Stretch
 
 
 def test_project_context_add_image():

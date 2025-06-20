@@ -11,7 +11,8 @@ $py.class
 
 # Builds
 build/
-
+dist/
+*.egg*
 # Environments
 .venv
 venv
@@ -33,4 +34,4 @@ UnitTest.log.*
 
 .vscode
 /testImages/
-
+/test_images/
