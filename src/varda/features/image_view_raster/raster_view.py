@@ -27,6 +27,7 @@ class RasterView(QWidget):
     sigImageClicked = pyqtSignal(int, int)
     sigNavigationChanged = pyqtSignal(dict)  # Emitted when view navigation changes
     sigROIChanged = pyqtSignal(str)  # Emitted when ROI is modified
+    sigCrosshairChanged = pyqtSignal(int, int, int, int)  # zoom_x, zoom_y, abs_x, abs_y
 
     def __init__(self, viewmodel: RasterViewModel, parent=None):
         super().__init__(parent=parent)
@@ -175,8 +176,20 @@ class RasterView(QWidget):
             # Convert to absolute image coordinates
             final_x, final_y = self._zoomCoordsToAbsolute(x, y)
 
+            # Update crosshair on current view
             self._updateCrosshair(x, y)
+            
+            # Emit click signal for local processing
             self.sigImageClicked.emit(final_x, final_y)
+            
+            # Sync crosshair to other view if in dual mode
+            if self._dual_mode_active and hasattr(self, 'sigNavigationChanged'):
+                crosshair_state = {
+                    'type': 'crosshair_update',
+                    'zoom_coords': [x, y],
+                    'abs_coords': [final_x, final_y]
+                }
+                self.sigNavigationChanged.emit(crosshair_state)
 
             # test geospatial info
             if self.viewModel.getImage().metadata.geoReferencer is not None:
@@ -821,158 +834,126 @@ class RasterView(QWidget):
     def sync_navigation_from_other(self, view_state: Dict[str, Any]):
         """
         Synchronize navigation state from another view.
-
+        
         Args:
             view_state: Dictionary containing ROI state from another RasterView
         """
         if not self._dual_mode_active or not self._sync_navigation:
-            logger.debug(
-                "Sync blocked: dual_mode_active={}, sync_navigation={}".format(
-                    self._dual_mode_active, self._sync_navigation
-                )
-            )
+            logger.debug("Sync blocked: dual_mode_active={}, sync_navigation={}".format(
+                self._dual_mode_active, self._sync_navigation))
             return
-
+        
         # Prevent recursive sync
         self._navigation_sync_in_progress = True
-
+        
         try:
-            roi_type = view_state.get("type")
+            roi_type = view_state.get('type')
             logger.debug(f"Syncing {roi_type}: {view_state}")
-
-            if (
-                roi_type == "context_roi"
-                and hasattr(self, "contextROI")
-                and self.contextROI
-            ):
+            
+            if roi_type == 'crosshair_update':
+                # Handle crosshair synchronization
+                abs_coords = view_state.get('abs_coords', [0, 0])
+                zoom_coords = self._absoluteToZoomCoords(abs_coords[0], abs_coords[1])
+                if zoom_coords:
+                    self._updateCrosshair(zoom_coords[0], zoom_coords[1])
+                    logger.debug(f"Synced crosshair to zoom coords {zoom_coords}")
+                
+            elif roi_type == 'context_roi' and hasattr(self, 'contextROI') and self.contextROI:
                 # Sync contextROI position with improved precision
-                pos_data = view_state.get("pos", [0.0, 0.0])
-                size_data = view_state.get("size", [100.0, 100.0])
-
+                pos_data = view_state.get('pos', [0.0, 0.0])
+                size_data = view_state.get('size', [100.0, 100.0])
+                
                 # Validate coordinate data
                 if self._validate_coordinates(pos_data, size_data):
                     from PyQt6.QtCore import QPointF
-
                     new_pos = QPointF(float(pos_data[0]), float(pos_data[1]))
                     new_size = QPointF(float(size_data[0]), float(size_data[1]))
-
+                    
                     # Check if position change is significant enough to warrant update
                     current_pos = self.contextROI.pos()
                     current_size = self.contextROI.size()
-
-                    # TODO: probably can/should remove this check
-                    if self._is_coordinate_change_significant(
-                        current_pos, new_pos, current_size, new_size
-                    ):
+                    
+                    if self._is_coordinate_change_significant(current_pos, new_pos, current_size, new_size):
                         # Temporarily disconnect to prevent recursive sync
                         try:
-                            self.contextROI.sigRegionChanged.disconnect(
-                                self._on_context_roi_navigation_changed
-                            )
+                            self.contextROI.sigRegionChanged.disconnect(self._on_context_roi_navigation_changed)
                         except:
                             pass
-
+                        
                         # Apply bounds checking before setting position
-                        bounded_pos, bounded_size = self._apply_bounds_checking(
-                            new_pos, new_size, "context"
-                        )
-
+                        bounded_pos, bounded_size = self._apply_bounds_checking(new_pos, new_size, 'context')
+                        
                         # Apply the new position and size with precision
                         self.contextROI.setPos(bounded_pos)
                         self.contextROI.setSize(bounded_size)
-
+                        
                         # Reconnect the signal
-                        self.contextROI.sigRegionChanged.connect(
-                            self._on_context_roi_navigation_changed
-                        )
-
-                        logger.debug(
-                            f"Synced contextROI to pos=({bounded_pos.x():.6f}, {bounded_pos.y():.6f}), "
-                            f"size=({bounded_size.x():.6f}, {bounded_size.y():.6f})"
-                        )
+                        self.contextROI.sigRegionChanged.connect(self._on_context_roi_navigation_changed)
+                        
+                        logger.debug(f"Synced contextROI to pos=({bounded_pos.x():.6f}, {bounded_pos.y():.6f}), "
+                                    f"size=({bounded_size.x():.6f}, {bounded_size.y():.6f})")
                     else:
-                        logger.debug(
-                            "Skipped contextROI sync - change below significance threshold"
-                        )
+                        logger.debug("Skipped contextROI sync - change below significance threshold")
                 else:
-                    logger.warning(
-                        f"Invalid coordinates for contextROI sync: pos={pos_data}, size={size_data}"
-                    )
-
-            elif roi_type == "main_roi" and hasattr(self, "mainROI") and self.mainROI:
+                    logger.warning(f"Invalid coordinates for contextROI sync: pos={pos_data}, size={size_data}")
+                    
+            elif roi_type == 'main_roi' and hasattr(self, 'mainROI') and self.mainROI:
                 # Sync mainROI position with improved precision
-                pos_data = view_state.get("pos", [0.0, 0.0])
-                size_data = view_state.get("size", [50.0, 50.0])
-
+                pos_data = view_state.get('pos', [0.0, 0.0])
+                size_data = view_state.get('size', [50.0, 50.0])
+                
                 # Validate coordinate data
                 if self._validate_coordinates(pos_data, size_data):
                     from PyQt6.QtCore import QPointF
-
                     new_pos = QPointF(float(pos_data[0]), float(pos_data[1]))
                     new_size = QPointF(float(size_data[0]), float(size_data[1]))
-
+                    
                     # Check if position change is significant enough to warrant update
                     current_pos = self.mainROI.pos()
                     current_size = self.mainROI.size()
-
-                    # TODO: probably can/should remove this check
-                    if self._is_coordinate_change_significant(
-                        current_pos, new_pos, current_size, new_size
-                    ):
+                    
+                    if self._is_coordinate_change_significant(current_pos, new_pos, current_size, new_size):
                         # Temporarily disconnect to prevent recursive sync
                         try:
-                            self.mainROI.sigRegionChanged.disconnect(
-                                self._on_main_roi_navigation_changed
-                            )
+                            self.mainROI.sigRegionChanged.disconnect(self._on_main_roi_navigation_changed)
                         except:
                             pass
-
+                        
                         # Apply bounds checking before setting position
-                        bounded_pos, bounded_size = self._apply_bounds_checking(
-                            new_pos, new_size, "main"
-                        )
-
+                        bounded_pos, bounded_size = self._apply_bounds_checking(new_pos, new_size, 'main')
+                        
                         # Apply the new position and size with precision
                         self.mainROI.setPos(bounded_pos)
                         self.mainROI.setSize(bounded_size)
-
+                        
                         # Reconnect the signal
-                        self.mainROI.sigRegionChanged.connect(
-                            self._on_main_roi_navigation_changed
-                        )
-
-                        logger.debug(
-                            f"Synced mainROI to pos=({bounded_pos.x():.6f}, {bounded_pos.y():.6f}), "
-                            f"size=({bounded_size.x():.6f}, {bounded_size.y():.6f})"
-                        )
+                        self.mainROI.sigRegionChanged.connect(self._on_main_roi_navigation_changed)
+                        
+                        logger.debug(f"Synced mainROI to pos=({bounded_pos.x():.6f}, {bounded_pos.y():.6f}), "
+                                    f"size=({bounded_size.x():.6f}, {bounded_size.y():.6f})")
                     else:
-                        logger.debug(
-                            "Skipped mainROI sync - change below significance threshold"
-                        )
+                        logger.debug("Skipped mainROI sync - change below significance threshold")
                 else:
-                    logger.warning(
-                        f"Invalid coordinates for mainROI sync: pos={pos_data}, size={size_data}"
-                    )
-
-            # Force update of the views to reflect ROI changes
-            self._updateViews()
-            self.update()
-
-            # Process events to ensure updates are applied immediately
-            from PyQt6.QtCore import QCoreApplication
-
-            QCoreApplication.processEvents()
-
-            logger.debug("ROI navigation sync applied successfully")
-
+                    logger.warning(f"Invalid coordinates for mainROI sync: pos={pos_data}, size={size_data}")
+            
+            # Only update views for ROI changes, not crosshair updates
+            if roi_type != 'crosshair_update':
+                self._updateViews()
+                self.update()
+                
+                # Process events to ensure updates are applied immediately
+                from PyQt6.QtCore import QCoreApplication
+                QCoreApplication.processEvents()
+            
+            logger.debug("Navigation sync applied successfully")
+            
         except Exception as e:
-            logger.error(f"Error syncing ROI navigation: {e}")
+            logger.error(f"Error syncing navigation: {e}")
             import traceback
-
             logger.error(traceback.format_exc())
-
+        
         finally:
-            # Reset sync flag immediately after sync completion (no timer delay)
+            # Reset sync flag immediately after sync completion
             self._navigation_sync_in_progress = False
 
     def _validate_coordinates(self, pos_data, size_data, min_size=0.5) -> bool:
@@ -1141,6 +1122,66 @@ class RasterView(QWidget):
     def is_overlay_secondary(self) -> bool:
         """Check if this view is configured as overlay secondary"""
         return self._is_overlay_secondary
+    
+    def _sync_crosshair_to_other_view(self, zoom_x, zoom_y, abs_x, abs_y):
+        """
+        Sync crosshair position to the other view in dual image mode.
+        
+        Args:
+            zoom_x, zoom_y: Crosshair position in zoom view coordinates
+            abs_x, abs_y: Crosshair position in absolute image coordinates
+        """
+        try:
+            if hasattr(self, 'sigCrosshairChanged'):
+                self.sigCrosshairChanged.emit(zoom_x, zoom_y, abs_x, abs_y)
+                logger.debug(f"Emitted crosshair sync: zoom=({zoom_x}, {zoom_y}), abs=({abs_x}, {abs_y})")
+        except Exception as e:
+            logger.error(f"Error syncing crosshair: {e}")
+
+    def sync_crosshair_from_other(self, abs_x, abs_y):
+        """
+        Update crosshair position based on sync from another view.
+        
+        Args:
+            abs_x, abs_y: Absolute image coordinates for crosshair position
+        """
+        if not self._dual_mode_active:
+            return
+            
+        try:
+            # Convert absolute coordinates to zoom view coordinates
+            zoom_coords = self._absoluteToZoomCoords(abs_x, abs_y)
+            if zoom_coords:
+                zoom_x, zoom_y = zoom_coords
+                self._updateCrosshair(zoom_x, zoom_y)
+                logger.debug(f"Synced crosshair to zoom coords ({zoom_x}, {zoom_y})")
+        except Exception as e:
+            logger.error(f"Error syncing crosshair from other view: {e}")
+
+    def _absoluteToZoomCoords(self, abs_x, abs_y):
+        """
+        Convert absolute image coordinates to zoom view coordinates.
+        
+        Args:
+            abs_x, abs_y: Absolute image coordinates
+            
+        Returns:
+            tuple: (zoom_x, zoom_y) coordinates or None if invalid
+        """
+        try:
+            if not (hasattr(self, 'contextROI') and self.contextROI and 
+                    hasattr(self, 'mainROI') and self.mainROI):
+                return None
+                
+            # Calculate zoom coordinates by reversing the transformation from _zoomCoordsToAbsolute
+            zoom_x = abs_x - self.contextROI.pos().x() - self.mainROI.pos().x()
+            zoom_y = abs_y - self.contextROI.pos().y() - self.mainROI.pos().y()
+            
+            return int(zoom_x), int(zoom_y)
+            
+        except Exception as e:
+            logger.error(f"Error converting absolute to zoom coordinates: {e}")
+            return None
 
     # def startDrawingROI(self):
     #     """Start the ROI drawing process."""

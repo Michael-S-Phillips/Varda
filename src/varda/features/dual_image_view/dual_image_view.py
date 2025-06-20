@@ -454,7 +454,7 @@ class DualImageView(QWidget):
         
         try:
             # Import here to avoid circular imports
-            from features.image_view_raster.raster_viewmodel import RasterViewModel
+            from varda.features.image_view_raster.raster_viewmodel import RasterViewModel
             
             # Create view model and view
             view_model = RasterViewModel(self.proj, image_index)

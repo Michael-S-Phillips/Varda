@@ -33,6 +33,7 @@ class DualImageViewController(QObject):
     overlay_opacity_changed = pyqtSignal(float)  # Emitted when overlay opacity changes
     blink_state_changed = pyqtSignal(bool)  # Emitted when blink state changes
     view_sync_requested = pyqtSignal(int, dict)  # target_index, sync_data
+    crosshair_sync_requested = pyqtSignal(int, int, int)  # target_index, abs_x, abs_y
     dual_view_activated = pyqtSignal(int, int)  # primary_index, secondary_index
     dual_view_deactivated = pyqtSignal()
     
@@ -306,7 +307,52 @@ class DualImageViewController(QObject):
         else:
             logger.warning(f"Failed to sync ROI {roi_id} from {source_index} to {target_index}")
 
-    
+    def sync_crosshair(self, source_index: int, zoom_x: int, zoom_y: int, abs_x: int, abs_y: int):
+        """
+        Synchronize crosshair position between linked views.
+        
+        Args:
+            source_index: Index of the image that triggered the crosshair change
+            zoom_x, zoom_y: Crosshair position in zoom view coordinates  
+            abs_x, abs_y: Crosshair position in absolute image coordinates
+        """
+        if (not self._is_dual_mode_active or not self._active_pair or 
+            not self._current_config.sync_navigation):
+            return
+        
+        # Find target index
+        target_index = None
+        if source_index == self._active_pair[0]:
+            target_index = self._active_pair[1]
+        elif source_index == self._active_pair[1]:
+            target_index = self._active_pair[0]
+        else:
+            return  # Not part of active pair
+        
+        logger.debug(f"Syncing crosshair from {source_index} to {target_index} at abs coords ({abs_x}, {abs_y})")
+        
+        # Transform coordinates if needed for geospatial linking
+        if self._current_config.link_type == LinkType.PIXEL_BASED:
+            # For pixel-based linking, use coordinates directly
+            transformed_abs_x, transformed_abs_y = abs_x, abs_y
+        else:
+            # For geospatial linking, transform coordinates
+            transformed_coords = self.link_manager.transform_coordinates(
+                source_index, target_index, abs_x, abs_y
+            )
+            if transformed_coords:
+                transformed_abs_x, transformed_abs_y = transformed_coords
+            else:
+                logger.warning("Failed to transform crosshair coordinates")
+                return
+        
+        # Emit sync request
+        try:
+            self.crosshair_sync_requested.emit(target_index, transformed_abs_x, transformed_abs_y)
+            logger.debug(f"Emitted crosshair sync request for index {target_index}")
+        except Exception as e:
+            logger.error(f"Error emitting crosshair sync request: {e}")
+
     def get_current_config(self) -> Optional[DualImageConfig]:
         """Get the current dual view configuration"""
         return self._current_config
