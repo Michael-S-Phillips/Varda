@@ -357,30 +357,90 @@ class RasterView(QWidget):
             if not self._dual_mode_active:
                 return
                 
-            # Connect main view range changed signal
-            if hasattr(self.mainView, 'sigRangeChanged'):
-                # Disconnect first to avoid duplicate connections
+            # Connect to contextROI changes (red box in context view)
+            if hasattr(self, 'contextROI') and self.contextROI:
                 try:
-                    self.mainView.sigRangeChanged.disconnect(self._on_navigation_changed)
+                    self.contextROI.sigRegionChanged.disconnect(self._on_context_roi_navigation_changed)
                 except:
-                    pass  # Ignore if not connected
+                    pass
+                self.contextROI.sigRegionChanged.connect(self._on_context_roi_navigation_changed)
+                logger.debug("Connected contextROI.sigRegionChanged for navigation sync")
+            
+            # Connect to mainROI changes (red box in main view)
+            if hasattr(self, 'mainROI') and self.mainROI:
+                try:
+                    self.mainROI.sigRegionChanged.disconnect(self._on_main_roi_navigation_changed)
+                except:
+                    pass
+                self.mainROI.sigRegionChanged.connect(self._on_main_roi_navigation_changed)
+                logger.debug("Connected mainROI.sigRegionChanged for navigation sync")
                 
-                self.mainView.sigRangeChanged.connect(self._on_navigation_changed)
-                logger.debug("Connected mainView.sigRangeChanged")
-            else:
-                logger.warning("mainView does not have sigRangeChanged signal")
-                
-            # Connect ROI change signals
+            # Connect ROI change signals for dual image synchronization
             if hasattr(self.viewModel, 'sigDataChanged'):
                 try:
                     self.viewModel.sigDataChanged.disconnect(self._on_roi_data_changed)
                 except:
                     pass
                 self.viewModel.sigDataChanged.connect(self._on_roi_data_changed)
-                
+                    
         except Exception as e:
             logger.error(f"Error connecting dual mode signals: {e}")
     
+    def _on_main_roi_navigation_changed(self):
+        """Handle mainROI position changes for navigation sync"""
+        if self._navigation_sync_in_progress or not self._dual_mode_active or not self._sync_navigation:
+            return
+            
+        try:
+            logger.debug("mainROI position changed - triggering navigation sync")
+            
+            if hasattr(self, 'mainROI') and self.mainROI:
+                pos = self.mainROI.pos()
+                size = self.mainROI.size()
+                
+                roi_state = {
+                    'type': 'main_roi',
+                    'pos': [float(pos.x()), float(pos.y())],
+                    'size': [float(size.x()), float(size.y())]
+                }
+                
+                logger.debug(f"mainROI changed: pos=({pos.x():.1f}, {pos.y():.1f}), size=({size.x():.1f}, {size.y():.1f})")
+                
+                if hasattr(self, 'sigNavigationChanged'):
+                    self.sigNavigationChanged.emit(roi_state)
+                    logger.debug("Emitted mainROI navigation change")
+                        
+        except Exception as e:
+            logger.error(f"Error handling mainROI navigation change: {e}")
+
+
+    def _on_context_roi_navigation_changed(self):
+        """Handle contextROI position changes for navigation sync"""
+        if self._navigation_sync_in_progress or not self._dual_mode_active or not self._sync_navigation:
+            return
+            
+        try:
+            logger.debug("contextROI position changed - triggering navigation sync")
+            
+            if hasattr(self, 'contextROI') and self.contextROI:
+                pos = self.contextROI.pos()
+                size = self.contextROI.size()
+                
+                roi_state = {
+                    'type': 'context_roi',
+                    'pos': [float(pos.x()), float(pos.y())],
+                    'size': [float(size.x()), float(size.y())]
+                }
+                
+                logger.debug(f"contextROI changed: pos=({pos.x():.1f}, {pos.y():.1f}), size=({size.x():.1f}, {size.y():.1f})")
+                
+                if hasattr(self, 'sigNavigationChanged'):
+                    self.sigNavigationChanged.emit(roi_state)
+                    logger.debug("Emitted contextROI navigation change")
+                        
+        except Exception as e:
+            logger.error(f"Error handling contextROI navigation change: {e}")
+            
     def _on_context_roi_changed(self):
         """Handle context ROI changes for navigation sync"""
         if self._navigation_sync_in_progress or not self._dual_mode_active:
@@ -575,59 +635,11 @@ class RasterView(QWidget):
             else:
                 self._setup_primary_mode()
             
-            # Force signal connection with verification
-            self._force_dual_mode_signal_connection()
+            self._connect_dual_mode_signals()
             
         else:
             # Reset to normal mode
             self._reset_normal_mode()
-
-    def _force_dual_mode_signal_connection(self):
-        """Force connection of dual mode signals with verification"""
-        try:
-            logger.debug("Forcing dual mode signal connection...")
-            
-            if not self.mainView:
-                logger.error("mainView is None - cannot connect signals")
-                return
-                
-            logger.debug(f"mainView type: {type(self.mainView)}")
-            
-            # Check if mainView has the expected signal
-            if hasattr(self.mainView, 'sigRangeChanged'):
-                # Disconnect any existing connections
-                try:
-                    self.mainView.sigRangeChanged.disconnect(self._on_navigation_changed)
-                    logger.debug("Disconnected existing sigRangeChanged connection")
-                except:
-                    pass
-                
-                # Connect the signal
-                self.mainView.sigRangeChanged.connect(self._on_navigation_changed)
-                logger.debug("Connected mainView.sigRangeChanged to _on_navigation_changed")
-                
-                # Test the connection by getting current range
-                try:
-                    current_range = self.mainView.viewRange()
-                    logger.debug(f"Current main view range: {current_range}")
-                except Exception as e:
-                    logger.error(f"Error getting view range: {e}")
-                    
-            else:
-                logger.error("mainView does not have sigRangeChanged signal!")
-                logger.debug(f"Available mainView attributes: {[attr for attr in dir(self.mainView) if 'sig' in attr.lower()]}")
-            
-            # Also connect to sigTransformChanged if available (alternative signal)
-            if hasattr(self.mainView, 'sigTransformChanged'):
-                try:
-                    self.mainView.sigTransformChanged.disconnect(self._on_transform_changed)
-                except:
-                    pass
-                self.mainView.sigTransformChanged.connect(self._on_transform_changed)
-                logger.debug("Connected mainView.sigTransformChanged as backup")
-                
-        except Exception as e:
-            logger.error(f"Error forcing dual mode signal connection: {e}")
 
     def _on_transform_changed(self, *args):
         """Alternative handler for transform changes (backup method)"""
@@ -759,11 +771,8 @@ class RasterView(QWidget):
         Synchronize navigation state from another view.
         
         Args:
-            view_state: Dictionary containing view state from another RasterView
+            view_state: Dictionary containing ROI state from another RasterView
         """
-        # Debug the view state before attempting sync
-        self.debug_view_state()
-        
         if not self._dual_mode_active or not self._sync_navigation:
             logger.debug("Sync blocked: dual_mode_active={}, sync_navigation={}".format(
                 self._dual_mode_active, self._sync_navigation))
@@ -773,54 +782,74 @@ class RasterView(QWidget):
         self._navigation_sync_in_progress = True
         
         try:
-            logger.debug(f"Syncing navigation to: x_range={view_state.get('x_range')}, y_range={view_state.get('y_range')}")
+            roi_type = view_state.get('type')
+            logger.debug(f"Syncing {roi_type}: {view_state}")
             
-            if 'x_range' in view_state and 'y_range' in view_state and self.mainView:
-                # Get the range values
-                x_range = view_state['x_range']
-                y_range = view_state['y_range']
+            if roi_type == 'context_roi' and hasattr(self, 'contextROI') and self.contextROI:
+                # Sync contextROI position
+                pos_data = view_state.get('pos', [0, 0])
+                size_data = view_state.get('size', [100, 100])
                 
-                # Validate ranges
-                if (len(x_range) == 2 and len(y_range) == 2 and 
-                    all(isinstance(v, (int, float)) for v in x_range + y_range)):
-                    
-                    # Apply the view range to main view with explicit parameters
-                    self.mainView.setRange(
-                        xRange=x_range,
-                        yRange=y_range,
-                        padding=0,
-                        update=True,
-                        disableAutoRange=True
-                    )
-                    
-                    # Force immediate update of the view
-                    self.mainView.update()
-                    
-                    # Also update the graphics view that contains the viewbox
-                    if hasattr(self.mainView, 'update'):
-                        self.mainView.update()
-                    
-                    # Force repaint of the widget
-                    self.update()
-                    
-                    # Process any pending events to ensure update happens
-                    from PyQt6.QtCore import QCoreApplication
-                    QCoreApplication.processEvents()
-                    
-                    logger.debug("Navigation sync applied successfully with forced update")
-                    
-                else:
-                    logger.error(f"Invalid range values: x_range={x_range}, y_range={y_range}")
-            else:
-                logger.error(f"Missing required data: x_range={view_state.get('x_range')}, y_range={view_state.get('y_range')}, mainView={self.mainView is not None}")
+                from PyQt6.QtCore import QPointF
+                new_pos = QPointF(pos_data[0], pos_data[1])
+                new_size = QPointF(size_data[0], size_data[1])
+                
+                # Temporarily disconnect to prevent recursive sync
+                try:
+                    self.contextROI.sigRegionChanged.disconnect(self._on_context_roi_navigation_changed)
+                except:
+                    pass
+                
+                # Apply the new position and size
+                self.contextROI.setPos(new_pos)
+                self.contextROI.setSize(new_size)
+                
+                # Reconnect the signal
+                self.contextROI.sigRegionChanged.connect(self._on_context_roi_navigation_changed)
+                
+                logger.debug(f"Synced contextROI to pos=({new_pos.x():.1f}, {new_pos.y():.1f}), size=({new_size.x():.1f}, {new_size.y():.1f})")
+                
+            elif roi_type == 'main_roi' and hasattr(self, 'mainROI') and self.mainROI:
+                # Sync mainROI position
+                pos_data = view_state.get('pos', [0, 0])
+                size_data = view_state.get('size', [50, 50])
+                
+                from PyQt6.QtCore import QPointF
+                new_pos = QPointF(pos_data[0], pos_data[1])
+                new_size = QPointF(size_data[0], size_data[1])
+                
+                # Temporarily disconnect to prevent recursive sync
+                try:
+                    self.mainROI.sigRegionChanged.disconnect(self._on_main_roi_navigation_changed)
+                except:
+                    pass
+                
+                # Apply the new position and size
+                self.mainROI.setPos(new_pos)
+                self.mainROI.setSize(new_size)
+                
+                # Reconnect the signal
+                self.mainROI.sigRegionChanged.connect(self._on_main_roi_navigation_changed)
+                
+                logger.debug(f"Synced mainROI to pos=({new_pos.x():.1f}, {new_pos.y():.1f}), size=({new_size.x():.1f}, {new_size.y():.1f})")
+            
+            # Force update of the views to reflect ROI changes
+            self._updateViews()
+            self.update()
+            
+            # Process events to ensure updates are applied
+            from PyQt6.QtCore import QCoreApplication
+            QCoreApplication.processEvents()
+            
+            logger.debug("ROI navigation sync applied successfully")
             
         except Exception as e:
-            logger.error(f"Error syncing navigation: {e}")
+            logger.error(f"Error syncing ROI navigation: {e}")
             import traceback
             logger.error(traceback.format_exc())
         
         finally:
-            # Use a timer to reset the sync flag to ensure it gets reset
+            # Reset sync flag after a delay
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(100, lambda: setattr(self, '_navigation_sync_in_progress', False))
 

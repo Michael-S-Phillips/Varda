@@ -351,16 +351,16 @@ class DualImageViewController(QObject):
         self.blink_manager.stop_blink()
         self.overlay_manager.cleanup_overlay()
         
-        # Show both views normally
+        # Show both views normally - both are equal primary views in side-by-side mode
         if self._primary_view:
             self._primary_view.setVisible(True)
             if hasattr(self._primary_view, 'set_dual_mode'):
-                self._primary_view.set_dual_mode(True, False)
+                self._primary_view.set_dual_mode(True, False)  # Primary view
         
         if self._secondary_view:
             self._secondary_view.setVisible(True)
             if hasattr(self._secondary_view, 'set_dual_mode'):
-                self._secondary_view.set_dual_mode(True, False)
+                self._secondary_view.set_dual_mode(True, False)  # Also primary, not overlay
         
         logger.debug("Side-by-side mode setup complete")
     

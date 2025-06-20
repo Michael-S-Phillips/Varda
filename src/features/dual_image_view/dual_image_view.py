@@ -349,7 +349,6 @@ class DualImageView(QWidget):
         self._update_control_states()
     
     # Private methods
-    
     def _connect_signals(self):
         """Connect controller signals"""
         self.controller.mode_changed.connect(self._on_controller_mode_changed)
@@ -357,7 +356,8 @@ class DualImageView(QWidget):
         self.controller.blink_state_changed.connect(self._on_controller_blink_changed)
         self.controller.dual_view_activated.connect(self._on_dual_view_activated)
         self.controller.dual_view_deactivated.connect(self._on_dual_view_deactivated)
-    
+        self.controller.view_sync_requested.connect(self._on_view_sync_requested)
+
     def _toggle_link(self):
         """Toggle link state between images"""
         if not self._can_link():
@@ -391,6 +391,10 @@ class DualImageView(QWidget):
                 # Force setup navigation sync
                 logger.debug("Setting up navigation sync after linking")
                 self._setup_navigation_sync()
+                
+                # DEBUG: Check the complete state after linking
+                self.debug_dual_view_state()
+                
             else:
                 logger.error("Failed to activate dual view")
         
@@ -659,8 +663,6 @@ class DualImageView(QWidget):
         self.controller.blink_state_changed.connect(self._on_controller_blink_changed)
         self.controller.dual_view_activated.connect(self._on_dual_view_activated)
         self.controller.dual_view_deactivated.connect(self._on_dual_view_deactivated)
-        
-        # NEW: Connect navigation sync signals
         self.controller.view_sync_requested.connect(self._on_view_sync_requested)
 
     def _on_dual_view_activated(self, primary_index, secondary_index):
@@ -720,12 +722,39 @@ class DualImageView(QWidget):
 
     def _on_view_sync_requested(self, target_index: int, sync_data: dict):
         """Handle view synchronization requests from controller"""
+        logger.debug(f"=== SYNC REQUESTED TO INDEX {target_index} ===")
+        
+        # Debug the current state before applying sync
+        self.debug_dual_view_state()
+        
         target_view = self._raster_views.get(target_index)
         if target_view:
-            logger.debug(f"Applying navigation sync to image {target_index}")
+            logger.debug(f"Found target view for index {target_index}")
+            logger.debug(f"Target view visible: {target_view.isVisible()}")
+            logger.debug(f"Target view enabled: {target_view.isEnabled()}")
+            
+            # Get current range before sync
+            if hasattr(target_view, 'mainView') and target_view.mainView:
+                before_range = target_view.mainView.viewRange()
+                logger.debug(f"BEFORE sync - Target view range: {before_range}")
+            
+            # Apply the sync
             target_view.sync_navigation_from_other(sync_data)
+            
+            # Get range after sync
+            if hasattr(target_view, 'mainView') and target_view.mainView:
+                after_range = target_view.mainView.viewRange()
+                logger.debug(f"AFTER sync - Target view range: {after_range}")
+                
+                # Check if the range actually changed
+                if before_range != after_range:
+                    logger.debug("SUCCESS: View range changed after sync")
+                else:
+                    logger.error("PROBLEM: View range did NOT change after sync")
+            
         else:
-            logger.warning(f"Target view not found for sync: {target_index}")
+            logger.error(f"Target view not found for sync: {target_index}")
+            logger.debug(f"Available views: {list(self._raster_views.keys())}")
 
     def _on_dual_view_deactivated(self):
         """Handle dual view deactivation"""
@@ -783,3 +812,37 @@ class DualImageView(QWidget):
             self._setup_navigation_sync()
         
         logger.debug(f"Updated view container: {title}, view visible: {view.isVisible()}, container visible: {container.isVisible()}")
+
+    def debug_dual_view_state(self):
+        """Debug the complete dual view state"""
+        logger.debug("=== DUAL VIEW DEBUG STATE ===")
+        logger.debug(f"Primary index: {self._primary_index}")
+        logger.debug(f"Secondary index: {self._secondary_index}")
+        logger.debug(f"Is linked: {self._is_linked}")
+        
+        # Check containers
+        logger.debug(f"Primary container visible: {self.primary_view_container.isVisible()}")
+        logger.debug(f"Secondary container visible: {self.secondary_view_container.isVisible()}")
+        logger.debug(f"Splitter visible: {self.splitter.isVisible()}")
+        logger.debug(f"Splitter sizes: {self.splitter.sizes()}")
+        
+        # Check views
+        if self._primary_index in self._raster_views:
+            primary_view = self._raster_views[self._primary_index]
+            logger.debug(f"Primary view exists: {primary_view is not None}")
+            logger.debug(f"Primary view visible: {primary_view.isVisible()}")
+            logger.debug(f"Primary view parent: {primary_view.parent()}")
+            logger.debug(f"Primary view size: {primary_view.size()}")
+            if hasattr(primary_view, 'mainView') and primary_view.mainView:
+                logger.debug(f"Primary mainView range: {primary_view.mainView.viewRange()}")
+        
+        if self._secondary_index in self._raster_views:
+            secondary_view = self._raster_views[self._secondary_index]
+            logger.debug(f"Secondary view exists: {secondary_view is not None}")
+            logger.debug(f"Secondary view visible: {secondary_view.isVisible()}")
+            logger.debug(f"Secondary view parent: {secondary_view.parent()}")
+            logger.debug(f"Secondary view size: {secondary_view.size()}")
+            if hasattr(secondary_view, 'mainView') and secondary_view.mainView:
+                logger.debug(f"Secondary mainView range: {secondary_view.mainView.viewRange()}")
+        
+        logger.debug("===============================")

@@ -17,6 +17,7 @@ from features.image_process.process_controls.processingmenu import ProcessingMen
 from features.image_process.process_controls.processdialog import ProcessDialog
 from features.image_process.processes.imageprocess import ImageProcess
 from features.dual_image_view.dual_image_view import DualImageView
+from features.dual_image_view.dual_image_types import DualImageMode
 from gui.widgets import StatusBar, MainMenuBar
 from features import (
     image_view_raster,
@@ -166,6 +167,140 @@ class MainGUI(QtWidgets.QMainWindow):
         return view
     
     # DUAL IMAGE METHODS
+    def openDualImageView(self):
+        """Open the dual image view dialog/dock"""
+        if len(self.proj.getAllImages()) < 2:
+            QtWidgets.QMessageBox.information(
+                self,
+                "Dual Image View", 
+                "You need at least 2 images loaded to use dual image view."
+            )
+            return
+        
+        # Create dual view if it doesn't exist
+        if not hasattr(self, 'dual_view') or self.dual_view is None:
+            # from features.dual_image_view.dual_image_view import DualImageView
+            self.dual_view = DualImageView(self.proj)
+            
+            # Create and configure dock widget
+            self.dual_view_dock = QtWidgets.QDockWidget("Dual Image View", self)
+            self.dual_view_dock.setWidget(self.dual_view)
+            self.dual_view_dock.setMinimumSize(800, 600)  # Ensure adequate size
+            self.dual_view_dock.setFloating(False)  # Dock it properly
+            
+            # Add to right dock area
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dual_view_dock)
+            
+            # Store reference for cleanup
+            if not hasattr(self, 'childWindows'):
+                self.childWindows = []
+            self.childWindows.append(self.dual_view_dock)
+            
+            # Connect close event to cleanup
+            self.dual_view_dock.destroyed.connect(
+                lambda: self.removeChildWindow(self.dual_view_dock) if hasattr(self, 'removeChildWindow') else None
+            )
+        
+        # Make sure everything is visible
+        self.dual_view_dock.setVisible(True)
+        self.dual_view_dock.show()
+        self.dual_view_dock.raise_()  # Bring to front
+        self.dual_view_dock.activateWindow()  # Give it focus
+        
+        # Ensure the dual view widget itself is visible
+        self.dual_view.setVisible(True)
+        self.dual_view.show()
+        
+        # Force updates to ensure proper display
+        self.dual_view_dock.update()
+        self.dual_view.update()
+        
+        # Process events to ensure visibility changes take effect
+        from PyQt6.QtCore import QCoreApplication
+        QCoreApplication.processEvents()
+        
+        # NOW: Open image selection dialog
+        self.showDualImageSelectionDialog()
+        
+        logger.debug("Dual image view opened and made visible")
+        
+        return self.dual_view
+
+    def showDualImageSelectionDialog(self):
+        """Show dialog to select images for dual view"""
+        try:
+            from features.dual_image_view.dual_image_selection_dialog import DualImageSelectionDialog
+            
+            # Create and show selection dialog
+            dialog = DualImageSelectionDialog(self.proj, self)
+            
+            # Set current image as default primary if one is selected
+            if hasattr(self, 'selectedImage') and self.selectedImage is not None:
+                dialog.set_default_images(primary_index=self.selectedImage.index)
+            
+            # Show the dialog
+            result = dialog.exec()
+            
+            if result == QtWidgets.QDialog.DialogCode.Accepted:
+                # Get the selected images using the correct method
+                primary_index, secondary_index = dialog.get_selected_images()
+                config = dialog.get_configuration()
+                
+                if primary_index is not None and secondary_index is not None:
+                    # Set the selected images in dual view
+                    if hasattr(self, 'dual_view') and self.dual_view:
+                        success_primary = self.dual_view.set_primary_image(primary_index)
+                        success_secondary = self.dual_view.set_secondary_image(secondary_index)
+                        
+                        if success_primary and success_secondary:
+                            logger.info(f"Images selected for dual view: {primary_index} and {secondary_index}")
+                            
+                            # Apply the configuration from the dialog
+                            self._apply_dual_image_config(config)
+                            
+                            # Auto-link the images
+                            if not self.dual_view._is_linked:
+                                self.dual_view._toggle_link()
+                            
+                            logger.info("Images linked for dual view")
+                            
+                        else:
+                            QtWidgets.QMessageBox.warning(
+                                self,
+                                "Selection Error",
+                                "Failed to set one or both selected images."
+                            )
+                    else:
+                        QtWidgets.QMessageBox.warning(
+                            self,
+                            "Error",
+                            "Dual view not available."
+                        )
+                else:
+                    QtWidgets.QMessageBox.information(
+                        self,
+                        "No Selection",
+                        "Please select both primary and secondary images."
+                    )
+            else:
+                logger.debug("Dual image selection dialog was canceled")
+            
+        except ImportError as e:
+            logger.error(f"Failed to import DualImageSelectionDialog: {e}")
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Import Error",
+                "Could not load the image selection dialog. Please check the dual image view module."
+            )
+        except Exception as e:
+            logger.error(f"Error showing dual image selection dialog: {e}")
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Error",
+                f"An error occurred while opening the image selection dialog: {str(e)}"
+            )
+
+
     # def openDualImageView(self):
     #     """Open the dual image view dialog/dock"""
     #     if len(self.proj.getAllImages()) < 2:
@@ -176,107 +311,73 @@ class MainGUI(QtWidgets.QMainWindow):
     #         )
     #         return
         
-    #     # Create or show the dual view
-    #     if not hasattr(self, 'dual_view') or self.dual_view is None:
-    #         from features.dual_image_view.dual_image_view import DualImageView
-    #         self.dual_view = DualImageView(self.proj)
+    #     # Import here to avoid circular import
+    #     from features.dual_image_view.dual_image_view import DualImageView
+    #     from features.dual_image_view.dual_image_selection_dialog import DualImageSelectionDialog
+        
+    #     # Show selection dialog first
+    #     dialog = DualImageSelectionDialog(self.proj, self)
+        
+    #     # Set current image as default primary if one is selected
+    #     if self.selectedImage is not None:
+    #         dialog.set_default_images(primary_index=self.selectedImage.index)
+        
+    #     # Show dialog to select primary and secondary images
+    #     if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+    #         primary_index, secondary_index = dialog.get_selected_images()
+    #         config = dialog.get_configuration()
             
-    #         # Create dock widget
-    #         dock = QtWidgets.QDockWidget("Dual Image View", self)
-    #         dock.setWidget(self.dual_view)
-    #         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-            
-    #         # Store dock reference
-    #         self.dual_view_dock = dock
-        
-    #     # CRITICAL: Ensure the dock and dual view are visible
-    #     self.dual_view_dock.setVisible(True)
-    #     self.dual_view_dock.show()
-    #     self.dual_view.setVisible(True)
-    #     self.dual_view.show()
-        
-    #     # Force updates
-    #     self.dual_view_dock.update()
-    #     self.dual_view.update()
-        
-    #     logger.debug("Dual image view opened and made visible")
-    def openDualImageView(self):
-        """Open the dual image view dialog/dock"""
-        if len(self.proj.getAllImages()) < 2:
-            QtWidgets.QMessageBox.information(
-                self,
-                "Dual Image View",
-                "You need at least 2 images loaded to use dual image view."
-            )
-            return
-        
-        # Import here to avoid circular import
-        from features.dual_image_view.dual_image_view import DualImageView
-        from features.dual_image_view.dual_image_selection_dialog import DualImageSelectionDialog
-        
-        # Show selection dialog first
-        dialog = DualImageSelectionDialog(self.proj, self)
-        
-        # Set current image as default primary if one is selected
-        if self.selectedImage is not None:
-            dialog.set_default_images(primary_index=self.selectedImage.index)
-        
-        # Show dialog to select primary and secondary images
-        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
-            primary_index, secondary_index = dialog.get_selected_images()
-            config = dialog.get_configuration()
-            
-            if primary_index is not None and secondary_index is not None:
-                # Create dual image view if it doesn't exist
-                if self.dualImageView is None:
-                    self.dualImageView = DualImageView(self.proj, self)
+    #         if primary_index is not None and secondary_index is not None:
+    #             # Create dual image view if it doesn't exist
+    #             if self.dualImageView is None:
+    #                 self.dualImageView = DualImageView(self.proj, self)
                     
-                    # Create dock widget
-                    self.dualImageDock = QtWidgets.QDockWidget("Dual Image View", self)
-                    self.dualImageDock.setWidget(self.dualImageView)
-                    self.dualImageDock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+    #                 # Create dock widget
+    #                 self.dualImageDock = QtWidgets.QDockWidget("Dual Image View", self)
+    #                 self.dualImageDock.setWidget(self.dualImageView)
+    #                 self.dualImageDock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
                     
-                    # Add to bottom area by default
-                    self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.dualImageDock)
+    #                 # Add to bottom area by default
+    #                 self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.dualImageDock)
                     
-                    # Connect dual image view signals
-                    self.dualImageView.primary_image_changed.connect(self._onDualImagePrimaryChanged)
-                    self.dualImageView.secondary_image_changed.connect(self._onDualImageSecondaryChanged)
-                    self.dualImageView.link_toggled.connect(self._onDualImageLinkToggled)
+    #                 # Connect dual image view signals
+    #                 self.dualImageView.primary_image_changed.connect(self._onDualImagePrimaryChanged)
+    #                 self.dualImageView.secondary_image_changed.connect(self._onDualImageSecondaryChanged)
+    #                 self.dualImageView.link_toggled.connect(self._onDualImageLinkToggled)
                     
-                    # Track the dock
-                    self.childWindows.append(self.dualImageDock)
+    #                 # Track the dock
+    #                 self.childWindows.append(self.dualImageDock)
                 
-                # Set up the dual view with selected images and configuration
-                self.dualImageView.set_primary_image(primary_index)
-                self.dualImageView.set_secondary_image(secondary_index)
+    #             # Set up the dual view with selected images and configuration
+    #             self.dualImageView.set_primary_image(primary_index)
+    #             self.dualImageView.set_secondary_image(secondary_index)
                 
-                # Apply configuration by updating the UI controls
-                self._apply_dual_image_config(config)
+    #             # Apply configuration by updating the UI controls
+    #             self._apply_dual_image_config(config)
                 
-                # Auto-link the images
-                if not self.dualImageView._is_linked:
-                    self.dualImageView._toggle_link()
+    #             # Auto-link the images
+    #             if not self.dualImageView._is_linked:
+    #                 self.dualImageView._toggle_link()
                 
 
-                self.dualImageDock.setVisible(True)
-                self.dualImageDock.show()
-                self.dualImageView.setVisible(True)
-                self.dualImageView.show()
+    #             self.dualImageDock.setVisible(True)
+    #             self.dualImageDock.show()
+    #             self.dualImageView.setVisible(True)
+    #             self.dualImageView.show()
                 
-                # Force updates
-                self.dualImageDock.update()
-                self.dualImageView.update()
+    #             # Force updates
+    #             self.dualImageDock.update()
+    #             self.dualImageView.update()
 
-                # Show the dock
-                self.dualImageDock.show()
-                self.dualImageDock.raise_()
-            else:
-                QtWidgets.QMessageBox.warning(
-                    self,
-                    "Invalid Selection",
-                    "Please select valid primary and secondary images."
-                )
+    #             # Show the dock
+    #             self.dualImageDock.show()
+    #             self.dualImageDock.raise_()
+    #         else:
+    #             QtWidgets.QMessageBox.warning(
+    #                 self,
+    #                 "Invalid Selection",
+    #                 "Please select valid primary and secondary images."
+    #             )
     
     def linkSelectedImages(self):
         """Link two selected images for dual view"""
@@ -383,26 +484,55 @@ class MainGUI(QtWidgets.QMainWindow):
             logger.info("Images unlinked from dual view")
     
     def _apply_dual_image_config(self, config):
-        """Apply configuration to the dual image view"""
-        if not self.dualImageView:
-            return
+        """Apply configuration from dialog to dual view"""
+        try:
+            if hasattr(self, 'dual_view') and self.dual_view and self.dual_view.controller:
+                controller = self.dual_view.controller
+                
+                # Apply display mode
+                controller.set_display_mode(config.mode)
+                
+                # Apply overlay settings
+                if config.mode == DualImageMode.OVERLAY:
+                    controller.set_overlay_opacity(config.overlay_opacity)
+                
+                # Apply blink settings
+                if config.mode == DualImageMode.BLINK:
+                    controller.set_blink_interval(config.blink_interval)
+                
+                # Apply sync settings
+                if hasattr(self.dual_view, 'sync_navigation_cb'):
+                    self.dual_view.sync_navigation_cb.setChecked(config.sync_navigation)
+                if hasattr(self.dual_view, 'sync_rois_cb'):
+                    self.dual_view.sync_rois_cb.setChecked(config.sync_rois)
+                
+                logger.debug("Applied dual image configuration")
+                
+        except Exception as e:
+            logger.error(f"Error applying dual image config: {e}")
+            
+            
+    # def _apply_dual_image_config(self, config):
+    #     """Apply configuration to the dual image view"""
+    #     if not self.dualImageView:
+    #         return
         
-        # Update display mode
-        for i in range(self.dualImageView.mode_combo.count()):
-            if self.dualImageView.mode_combo.itemData(i) == config.mode:
-                self.dualImageView.mode_combo.setCurrentIndex(i)
-                break
+    #     # Update display mode
+    #     for i in range(self.dualImageView.mode_combo.count()):
+    #         if self.dualImageView.mode_combo.itemData(i) == config.mode:
+    #             self.dualImageView.mode_combo.setCurrentIndex(i)
+    #             break
         
-        # Update opacity
-        opacity_value = int(config.overlay_opacity * 100)
-        self.dualImageView.opacity_slider.setValue(opacity_value)
+    #     # Update opacity
+    #     opacity_value = int(config.overlay_opacity * 100)
+    #     self.dualImageView.opacity_slider.setValue(opacity_value)
         
-        # Update blink interval
-        self.dualImageView.blink_interval_spin.setValue(config.blink_interval)
+    #     # Update blink interval
+    #     self.dualImageView.blink_interval_spin.setValue(config.blink_interval)
         
-        # Update sync settings
-        self.dualImageView.sync_navigation_cb.setChecked(config.sync_navigation)
-        self.dualImageView.sync_rois_cb.setChecked(config.sync_rois)
+    #     # Update sync settings
+    #     self.dualImageView.sync_navigation_cb.setChecked(config.sync_navigation)
+    #     self.dualImageView.sync_rois_cb.setChecked(config.sync_rois)
 
     # Add cleanup to exitApp method
     def exitApp(self):
