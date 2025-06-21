@@ -137,6 +137,9 @@ class MainGUI(QtWidgets.QMainWindow):
         else:
             panel = self.controlPanels[index]
 
+        # Update the active image display
+        panel.updateActiveImage(index)
+        
         self.currControlPanel = panel
         panel.tabsDock.show()
 
