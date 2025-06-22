@@ -30,93 +30,97 @@ logger = logging.getLogger(__name__)
 
 class DockableTab(QWidget):
     """Base class for tabs that can be docked as separate modules."""
-    
+
     def __init__(self, title: str, parent=None):
         super().__init__(parent)
         self.title = title
         self.parent_control_panel = parent
         self.docked_widget = None
-        
+
     def pop_out(self):
         """Pop this tab out as a separate dockable widget."""
         if self.docked_widget is not None:
             return  # Already popped out
-            
+
         # Create a new dock widget
         self.docked_widget = QDockWidget(self.title, self.parent_control_panel)
         self.docked_widget.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
-        
+
         # Remove from tab widget and add to dock
         if self.parent():
             self.setParent(None)
         self.docked_widget.setWidget(self)
-        
+
         # Add to main window
         main_window = self.parent_control_panel.parent()
         if main_window:
-            main_window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.docked_widget)
-            
+            main_window.addDockWidget(
+                Qt.DockWidgetArea.RightDockWidgetArea, self.docked_widget
+            )
+
         # Connect close event to return to tab
         self.docked_widget.visibilityChanged.connect(self._on_dock_visibility_changed)
-        
+
     def _on_dock_visibility_changed(self, visible):
         """Handle when the docked widget is closed."""
         if not visible and self.docked_widget:
             self.dock_in()
-            
+
     def dock_in(self):
         """Return this tab to the control panel."""
         if self.docked_widget is None:
             return
-            
+
         # Remove from dock widget
         self.docked_widget.setWidget(None)
         self.docked_widget.close()
         self.docked_widget = None
-        
+
         # Add back to tab widget
-        if self.parent_control_panel and hasattr(self.parent_control_panel, 'tabWidget'):
+        if self.parent_control_panel and hasattr(
+            self.parent_control_panel, "tabWidget"
+        ):
             self.parent_control_panel.tabWidget.addTab(self, self.title)
 
 
 class MetadataTab(DockableTab):
     """Tab for metadata editing functionality."""
-    
+
     def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
         super().__init__("Metadata", parent)
         self.project_context = proj
         self.imageIndex = imageIndex
         self._init_ui()
-        
+
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        
+
         self.editMetadataButton = QPushButton("Edit Metadata")
         self.editMetadataButton.setToolTip("View and edit image metadata properties")
         self.editMetadataButton.clicked.connect(
             lambda: openMetadataEditor(self.project_context, self.imageIndex, self)
         )
-        
+
         layout.addWidget(self.editMetadataButton)
         layout.addStretch()
 
 
 class ROITab(DockableTab):
     """Tab for ROI management functionality."""
-    
+
     def __init__(self, proj: ProjectContext, imageIndex: int, rasterView, parent=None):
         super().__init__("ROI", parent)
         self.project_context = proj
         self.imageIndex = imageIndex
         self.rasterView = rasterView
         self._init_ui()
-        
+
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        
+
         self.ROITable = getROIView(self.project_context, self.imageIndex, self)
         self.ROITable.viewModel.setRasterView(self.rasterView)
-        
+
         # Connect signals for ROI selection
         self.ROITable.roiSelectionChanged.connect(
             lambda roi_index: (
@@ -125,48 +129,48 @@ class ROITab(DockableTab):
                 else None
             )
         )
-        
+
         layout.addWidget(self.ROITable)
 
 
 class BandTab(DockableTab):
     """Tab for band selection functionality."""
-    
+
     def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
         super().__init__("Band Selection", parent)
         self.project_context = proj
         self.imageIndex = imageIndex
         self._init_ui()
-        
+
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        
+
         self.bandView = BandManager(self.project_context, self.imageIndex, self)
         layout.addWidget(self.bandView)
 
 
 class StretchTab(DockableTab):
     """Tab for stretch options functionality."""
-    
+
     def __init__(self, proj: ProjectContext, imageIndex: int, rasterView, parent=None):
         super().__init__("Stretch Options", parent)
         self.project_context = proj
         self.imageIndex = imageIndex
         self.rasterView = rasterView
         self._init_ui()
-        
+
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        
+
         self.histogramView = StretchManager(self.project_context, self.imageIndex, self)
         self.histogramView.sigStretchSelected.connect(self.rasterView.selectStretch)
-        
+
         layout.addWidget(self.histogramView)
 
 
 class PlotTab(DockableTab):
     """Tab for plot options functionality."""
-    
+
     def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
         super().__init__("Plot Options", parent)
         self.project_context = proj
@@ -174,26 +178,26 @@ class PlotTab(DockableTab):
         self.pixelPlotPopup = None
         self.lastPixelCoords = (0, 0)
         self._init_ui()
-        
+
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        
+
         self.pixelPlot = ImagePlotWidget(
             self.project_context, self.imageIndex, parent=self
         )
         self.pixelPlot.sigClicked.connect(self.handlePixelPlotClicked)
-        
+
         layout.addWidget(self.pixelPlot)
-        
+
     def handlePixelPlotClicked(self):
         """Handle pixel plot click - delegate to parent control panel."""
-        if hasattr(self.parent_control_panel, 'handlePixelPlotClicked'):
+        if hasattr(self.parent_control_panel, "handlePixelPlotClicked"):
             self.parent_control_panel.handlePixelPlotClicked()
-            
+
     def showPixelSpectrum(self, x, y):
         """Update the pixel plot with new coordinates using the correct method."""
         self.lastPixelCoords = (x, y)
-        if hasattr(self.pixelPlot, 'showPixelSpectrum'):
+        if hasattr(self.pixelPlot, "showPixelSpectrum"):
             self.pixelPlot.showPixelSpectrum(x, y)
 
 
@@ -213,35 +217,35 @@ class ControlPanel(QWidget):
         self.project_context = proj
         self.imageIndex = imageIndex
         self.rasterView = rasterView
-        
+
         self.setWindowTitle("Control Panel")
         self.resize(600, 400)
 
         # Store references to tabs for docking operations
         self.tabs: Dict[str, DockableTab] = {}
-        
+
         # Initialize pixel plot tracking
         self.pixelPlotPopup = None
         self.lastPixelCoords = (0, 0)
-        
+
         self.tabsDock = QDockWidget("Control Panel", self)
         self.dock_widget_content = QWidget()
         self._init_ui()
         self._setup_tabs()
-        
+
         # Set the dock widget content
         self.tabsDock.setWidget(self.dock_widget_content)
-        
+
         # Update the active image display immediately
         self.updateActiveImage(imageIndex)
-        
+
         # Connect signals after everything is set up
         self._connect_signals()
 
     def _init_ui(self):
         """Initialize the main UI layout."""
         main_layout = QVBoxLayout(self.dock_widget_content)
-        
+
         # Header section
         self.headerLabel = QLabel("Control Panel Menu")
         self.headerLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -253,11 +257,13 @@ class ControlPanel(QWidget):
 
         # Tab widget
         self.tabWidget = QTabWidget()
-        self.tabWidget.setTabsClosable(False)  # We'll add custom pop-out buttons instead
-        
+        self.tabWidget.setTabsClosable(
+            False
+        )  # We'll add custom pop-out buttons instead
+
         # Add tab bar with pop-out buttons
         self._setup_tab_bar()
-        
+
         main_layout.addWidget(self.headerLabel)
         main_layout.addWidget(self.activeImageLabel)
         main_layout.addWidget(self.tabWidget)
@@ -271,12 +277,16 @@ class ControlPanel(QWidget):
     def _setup_tabs(self):
         """Create and setup all tabs."""
         # Create tabs
-        self.tabs['metadata'] = MetadataTab(self.project_context, self.imageIndex, self)
-        self.tabs['roi'] = ROITab(self.project_context, self.imageIndex, self.rasterView, self)
-        self.tabs['band'] = BandTab(self.project_context, self.imageIndex, self)
-        self.tabs['stretch'] = StretchTab(self.project_context, self.imageIndex, self.rasterView, self)
-        self.tabs['plot'] = PlotTab(self.project_context, self.imageIndex, self)
-        
+        self.tabs["metadata"] = MetadataTab(self.project_context, self.imageIndex, self)
+        self.tabs["roi"] = ROITab(
+            self.project_context, self.imageIndex, self.rasterView, self
+        )
+        self.tabs["band"] = BandTab(self.project_context, self.imageIndex, self)
+        self.tabs["stretch"] = StretchTab(
+            self.project_context, self.imageIndex, self.rasterView, self
+        )
+        self.tabs["plot"] = PlotTab(self.project_context, self.imageIndex, self)
+
         # Add tabs to widget
         for tab in self.tabs.values():
             self.tabWidget.addTab(tab, tab.title)
@@ -284,31 +294,33 @@ class ControlPanel(QWidget):
     def _connect_signals(self):
         """Connect all necessary signals."""
         # Connect raster view image click signal to update pixel plot
-        if self.rasterView and hasattr(self.rasterView, 'sigImageClicked'):
+        if self.rasterView and hasattr(self.rasterView, "sigImageClicked"):
             self.rasterView.sigImageClicked.connect(self.updatePixelPlotFromCrosshair)
-            print("[DEBUG] Connected rasterView.sigImageClicked to updatePixelPlotFromCrosshair")
+            print(
+                "[DEBUG] Connected rasterView.sigImageClicked to updatePixelPlotFromCrosshair"
+            )
 
     def _show_tab_context_menu(self, position):
         """Show context menu for tab operations."""
         from PyQt6.QtWidgets import QMenu
         from PyQt6.QtGui import QAction
-        
+
         # Get the tab index at the clicked position
         tab_bar = self.tabWidget.tabBar()
         tab_index = tab_bar.tabAt(position)
-        
+
         if tab_index == -1:
             return
-            
+
         menu = QMenu(self)
-        
+
         # Get the tab widget
         tab_widget = self.tabWidget.widget(tab_index)
         if isinstance(tab_widget, DockableTab):
             pop_out_action = QAction("Pop Out as Module", self)
             pop_out_action.triggered.connect(lambda: self._pop_out_tab(tab_index))
             menu.addAction(pop_out_action)
-            
+
         menu.exec(self.tabWidget.mapToGlobal(position))
 
     def _pop_out_tab(self, tab_index):
@@ -326,7 +338,7 @@ class ControlPanel(QWidget):
         if imageIndex is not None:
             try:
                 image = self.project_context.getImage(imageIndex)
-                if image and hasattr(image, 'metadata') and image.metadata:
+                if image and hasattr(image, "metadata") and image.metadata:
                     # Truncate long names
                     name = image.metadata.name
                     if len(name) > 20:
@@ -346,43 +358,47 @@ class ControlPanel(QWidget):
         """Update pixel plot from crosshair position."""
         print(f"[DEBUG] updatePixelPlotFromCrosshair called with coords: ({x}, {y})")
         self.lastPixelCoords = (x, y)
-        
+
         # Update the plot tab using the correct method
-        if 'plot' in self.tabs:
-            plot_tab = self.tabs['plot']
-            if hasattr(plot_tab, 'showPixelSpectrum'):
+        if "plot" in self.tabs:
+            plot_tab = self.tabs["plot"]
+            if hasattr(plot_tab, "showPixelSpectrum"):
                 plot_tab.showPixelSpectrum(x, y)
-            elif hasattr(plot_tab, 'pixelPlot') and hasattr(plot_tab.pixelPlot, 'showPixelSpectrum'):
+            elif hasattr(plot_tab, "pixelPlot") and hasattr(
+                plot_tab.pixelPlot, "showPixelSpectrum"
+            ):
                 plot_tab.pixelPlot.showPixelSpectrum(x, y)
             print(f"[DEBUG] Updated plot tab with coordinates")
-            
+
         # Also update popup if it exists
-        if self.pixelPlotPopup and hasattr(self.pixelPlotPopup, 'showPixelSpectrum'):
+        if self.pixelPlotPopup and hasattr(self.pixelPlotPopup, "showPixelSpectrum"):
             self.pixelPlotPopup.showPixelSpectrum(x, y)
 
     def handlePixelPlotClicked(self):
         """Handle pixel plot click to open popup window."""
         self.sigPixelPlotClicked.emit()
-        
+
         # Create popup if it doesn't exist
-        plot_tab = self.tabs.get('plot')
+        plot_tab = self.tabs.get("plot")
         if not plot_tab:
             return
-            
+
         if plot_tab.pixelPlotPopup is None:
             plot_tab.pixelPlotPopup = ImagePlotWidget(
-                self.project_context, 
-                self.imageIndex, 
-                isWindow=True, 
-                parent=self.parent()
+                self.project_context,
+                self.imageIndex,
+                isWindow=True,
+                parent=self.parent(),
             )
             plot_tab.pixelPlotPopup.setWindowTitle("Pixel Plot")
             plot_tab.pixelPlotPopup.resize(400, 300)
-            plot_tab.pixelPlotPopup.destroyed.connect(lambda: setattr(plot_tab, 'pixelPlotPopup', None))
+            plot_tab.pixelPlotPopup.destroyed.connect(
+                lambda: setattr(plot_tab, "pixelPlotPopup", None)
+            )
 
         # Use last clicked pixel coordinates
         x, y = self.lastPixelCoords
-        if hasattr(plot_tab.pixelPlotPopup, 'showPixelSpectrum'):
+        if hasattr(plot_tab.pixelPlotPopup, "showPixelSpectrum"):
             plot_tab.pixelPlotPopup.showPixelSpectrum(x, y)
         plot_tab.pixelPlotPopup.show()
         plot_tab.pixelPlotPopup.raise_()

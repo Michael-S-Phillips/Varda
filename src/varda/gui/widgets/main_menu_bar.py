@@ -25,7 +25,7 @@ class MainMenuBar(QMenuBar):
     sigAboutDialog = QtCore.pyqtSignal()
     sigLoadDebugProject = QtCore.pyqtSignal()
     sigDumpProjectData = QtCore.pyqtSignal()
-    
+
     # NEW DUAL IMAGE SIGNALS
     sigOpenDualImageView = QtCore.pyqtSignal()
     sigLinkSelectedImages = QtCore.pyqtSignal()
@@ -67,16 +67,24 @@ class MainMenuBar(QMenuBar):
     # NEW VIEW MENU FOR DUAL IMAGE FUNCTIONALITY
     def _initViewMenu(self):
         viewMenu = QMenu("View", self)
-        
+
         # Dual Image submenu
         dualImageMenu = QMenu("Dual Image", self)
-        dualImageMenu.addAction("Open Dual View...", QKeySequence("Ctrl+D"), self.sigOpenDualImageView)
+        dualImageMenu.addAction(
+            "Open Dual View...", QKeySequence("Ctrl+D"), self.sigOpenDualImageView
+        )
         dualImageMenu.addSeparator()
-        dualImageMenu.addAction("Link Selected Images", QKeySequence("Ctrl+L"), self.sigLinkSelectedImages)
-        dualImageMenu.addAction("Unlink Selected Images", QKeySequence("Ctrl+U"), self.sigUnlinkSelectedImages)
-        
+        dualImageMenu.addAction(
+            "Link Selected Images", QKeySequence("Ctrl+L"), self.sigLinkSelectedImages
+        )
+        dualImageMenu.addAction(
+            "Unlink Selected Images",
+            QKeySequence("Ctrl+U"),
+            self.sigUnlinkSelectedImages,
+        )
+
         viewMenu.addMenu(dualImageMenu)
-        
+
         return viewMenu
 
     def _initHelpmenu(self):

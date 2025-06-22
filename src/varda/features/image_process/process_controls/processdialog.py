@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import QDialog, QMessageBox
 import varda.core.utilities as utils
 from varda.core.data import ProjectContext
 
+
 class ProcessDialog(QDialog):
     """Dialog box that can dynamically generate parameter controls for an image
     process and create new images in the workspace.

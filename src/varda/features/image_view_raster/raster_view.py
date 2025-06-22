@@ -20,10 +20,11 @@ from .raster_viewmodel import RasterViewModel
 
 logger = logging.getLogger(__name__)
 
+
 # custom view box classes for different views
 class NavigableViewBox(pg.ViewBox):
     """Base ViewBox class with custom navigation behavior"""
-    
+
     def __init__(self, raster_view, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.raster_view = raster_view
@@ -31,7 +32,7 @@ class NavigableViewBox(pg.ViewBox):
         self._drag_start_scene_pos = None
         self._is_navigating = False
         self._initial_roi_pos = None
-    
+
     def mouseDragEvent(self, ev, axis=None):
         """Override mouse drag to implement image navigation instead of view panning"""
         if ev.button() == QtCore.Qt.MouseButton.LeftButton:
@@ -52,25 +53,25 @@ class NavigableViewBox(pg.ViewBox):
                 self._handle_navigation_drag(ev)
                 ev.accept()
                 return
-        
+
         # For other buttons or when not navigating, use default behavior
         super().mouseDragEvent(ev, axis)
-    
+
     def _reset_drag_state(self):
         """Reset drag state variables"""
         self._is_navigating = False
         self._drag_start_pos = None
         self._drag_start_scene_pos = None
         self._initial_roi_pos = None
-    
+
     def _store_initial_roi_pos(self):
         """Store initial ROI position - to be implemented by subclasses"""
         pass
-    
+
     def _handle_navigation_drag(self, ev):
         """Handle ongoing navigation drag - to be implemented by subclasses"""
         pass
-    
+
     def _handle_navigation_end(self, ev):
         """Handle end of navigation drag - to be implemented by subclasses"""
         pass
@@ -78,93 +79,96 @@ class NavigableViewBox(pg.ViewBox):
 
 class MainViewBox(NavigableViewBox):
     """Custom ViewBox for main view - drags move the contextROI"""
-    
+
     def _store_initial_roi_pos(self):
         """Store initial contextROI position"""
-        if hasattr(self.raster_view, 'contextROI') and self.raster_view.contextROI:
+        if hasattr(self.raster_view, "contextROI") and self.raster_view.contextROI:
             pos = self.raster_view.contextROI.pos()
             self._initial_roi_pos = [pos[0], pos[1]]
-    
+
     def _handle_navigation_drag(self, ev):
         """Move contextROI based on drag in main view"""
-        if not hasattr(self.raster_view, 'contextROI') or not self.raster_view.contextROI:
+        if (
+            not hasattr(self.raster_view, "contextROI")
+            or not self.raster_view.contextROI
+        ):
             return
-        
+
         if self._drag_start_scene_pos is None or self._initial_roi_pos is None:
             return
-        
+
         # Get current mouse position in scene coordinates
         current_scene_pos = self.mapToView(ev.pos())
-        
+
         # Calculate total delta from start of drag
         delta_x = current_scene_pos.x() - self._drag_start_scene_pos.x()
         delta_y = current_scene_pos.y() - self._drag_start_scene_pos.y()
-        
+
         # Apply delta to initial ROI position (inverted for intuitive panning)
         new_x = self._initial_roi_pos[0] - delta_x
         new_y = self._initial_roi_pos[1] - delta_y
-        
+
         # Get contextROI size for boundary checking
         context_roi = self.raster_view.contextROI
         roi_size = context_roi.size()
-        
+
         # Get image bounds to constrain movement
-        if hasattr(self.raster_view, 'contextImage') and self.raster_view.contextImage:
+        if hasattr(self.raster_view, "contextImage") and self.raster_view.contextImage:
             img_bounds = self.raster_view.contextImage.boundingRect()
             # Constrain to image boundaries
             new_x = max(img_bounds.left(), min(new_x, img_bounds.right() - roi_size[0]))
             new_y = max(img_bounds.top(), min(new_y, img_bounds.bottom() - roi_size[1]))
-        
+
         # Update contextROI position
         context_roi.setPos([new_x, new_y], update=True)
 
 
 class ZoomViewBox(NavigableViewBox):
     """Custom ViewBox for zoom view - drags move the mainROI"""
-    
+
     def _store_initial_roi_pos(self):
         """Store initial mainROI position"""
-        if hasattr(self.raster_view, 'mainROI') and self.raster_view.mainROI:
+        if hasattr(self.raster_view, "mainROI") and self.raster_view.mainROI:
             pos = self.raster_view.mainROI.pos()
             self._initial_roi_pos = [pos[0], pos[1]]
-    
+
     def _handle_navigation_drag(self, ev):
         """Move mainROI based on drag in zoom view"""
-        if not hasattr(self.raster_view, 'mainROI') or not self.raster_view.mainROI:
+        if not hasattr(self.raster_view, "mainROI") or not self.raster_view.mainROI:
             return
-        
+
         if self._drag_start_scene_pos is None or self._initial_roi_pos is None:
             return
-        
+
         # Get current mouse position in scene coordinates
         current_scene_pos = self.mapToView(ev.pos())
-        
+
         # Calculate total delta from start of drag
         delta_x = current_scene_pos.x() - self._drag_start_scene_pos.x()
         delta_y = current_scene_pos.y() - self._drag_start_scene_pos.y()
-        
+
         # Apply delta to initial ROI position (inverted for intuitive panning)
         new_x = self._initial_roi_pos[0] - delta_x
         new_y = self._initial_roi_pos[1] - delta_y
-        
+
         # Get mainROI size for boundary checking
         main_roi = self.raster_view.mainROI
         roi_size = main_roi.size()
-        
+
         # Get main image bounds to constrain movement
-        if hasattr(self.raster_view, 'mainImage') and self.raster_view.mainImage:
+        if hasattr(self.raster_view, "mainImage") and self.raster_view.mainImage:
             img_bounds = self.raster_view.mainImage.boundingRect()
             # Constrain to image boundaries
             new_x = max(img_bounds.left(), min(new_x, img_bounds.right() - roi_size[0]))
             new_y = max(img_bounds.top(), min(new_y, img_bounds.bottom() - roi_size[1]))
-        
+
         # Update mainROI position
         main_roi.setPos([new_x, new_y], update=True)
 
 
 class ContextViewBox(pg.ViewBox):
     """Custom ViewBox for context view - keeps standard behavior for now"""
-    
+
     def __init__(self, raster_view, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.raster_view = raster_view
@@ -255,7 +259,7 @@ class RasterView(QWidget):
         self.zoomImage = self._initImageItem()
         # Initialize ROI drawing manager
         self.roi_drawing_manager = ROIDrawingManager(self, self.viewModel)
-        
+
         # Initialize view boxes with custom navigation behavior
         self.mainView = self._initMainViewBox("Main View", self.mainImage)
         self.contextView = self._initContextViewBox("Context View", self.contextImage)
@@ -325,16 +329,16 @@ class RasterView(QWidget):
 
             # Update crosshair on current view
             self._updateCrosshair(x, y)
-            
+
             # Emit click signal for local processing
             self.sigImageClicked.emit(final_x, final_y)
-            
+
             # Sync crosshair to other view if in dual mode
-            if self._dual_mode_active and hasattr(self, 'sigNavigationChanged'):
+            if self._dual_mode_active and hasattr(self, "sigNavigationChanged"):
                 crosshair_state = {
-                    'type': 'crosshair_update',
-                    'zoom_coords': [x, y],
-                    'abs_coords': [final_x, final_y]
+                    "type": "crosshair_update",
+                    "zoom_coords": [x, y],
+                    "abs_coords": [final_x, final_y],
                 }
                 self.sigNavigationChanged.emit(crosshair_state)
 
@@ -981,124 +985,163 @@ class RasterView(QWidget):
     def sync_navigation_from_other(self, view_state: Dict[str, Any]):
         """
         Synchronize navigation state from another view.
-        
+
         Args:
             view_state: Dictionary containing ROI state from another RasterView
         """
         if not self._dual_mode_active or not self._sync_navigation:
-            logger.debug("Sync blocked: dual_mode_active={}, sync_navigation={}".format(
-                self._dual_mode_active, self._sync_navigation))
+            logger.debug(
+                "Sync blocked: dual_mode_active={}, sync_navigation={}".format(
+                    self._dual_mode_active, self._sync_navigation
+                )
+            )
             return
-        
+
         # Prevent recursive sync
         self._navigation_sync_in_progress = True
-        
+
         try:
-            roi_type = view_state.get('type')
+            roi_type = view_state.get("type")
             logger.debug(f"Syncing {roi_type}: {view_state}")
-            
-            if roi_type == 'crosshair_update':
+
+            if roi_type == "crosshair_update":
                 # Handle crosshair synchronization
-                abs_coords = view_state.get('abs_coords', [0, 0])
+                abs_coords = view_state.get("abs_coords", [0, 0])
                 zoom_coords = self._absoluteToZoomCoords(abs_coords[0], abs_coords[1])
                 if zoom_coords:
                     self._updateCrosshair(zoom_coords[0], zoom_coords[1])
                     logger.debug(f"Synced crosshair to zoom coords {zoom_coords}")
-                
-            elif roi_type == 'context_roi' and hasattr(self, 'contextROI') and self.contextROI:
+
+            elif (
+                roi_type == "context_roi"
+                and hasattr(self, "contextROI")
+                and self.contextROI
+            ):
                 # Sync contextROI position with improved precision
-                pos_data = view_state.get('pos', [0.0, 0.0])
-                size_data = view_state.get('size', [100.0, 100.0])
-                
+                pos_data = view_state.get("pos", [0.0, 0.0])
+                size_data = view_state.get("size", [100.0, 100.0])
+
                 # Validate coordinate data
                 if self._validate_coordinates(pos_data, size_data):
                     from PyQt6.QtCore import QPointF
+
                     new_pos = QPointF(float(pos_data[0]), float(pos_data[1]))
                     new_size = QPointF(float(size_data[0]), float(size_data[1]))
-                    
+
                     # Check if position change is significant enough to warrant update
                     current_pos = self.contextROI.pos()
                     current_size = self.contextROI.size()
-                    
-                    if self._is_coordinate_change_significant(current_pos, new_pos, current_size, new_size):
+
+                    if self._is_coordinate_change_significant(
+                        current_pos, new_pos, current_size, new_size
+                    ):
                         # Temporarily disconnect to prevent recursive sync
                         try:
-                            self.contextROI.sigRegionChanged.disconnect(self._on_context_roi_navigation_changed)
+                            self.contextROI.sigRegionChanged.disconnect(
+                                self._on_context_roi_navigation_changed
+                            )
                         except:
                             pass
-                        
+
                         # Apply bounds checking before setting position
-                        bounded_pos, bounded_size = self._apply_bounds_checking(new_pos, new_size, 'context')
-                        
+                        bounded_pos, bounded_size = self._apply_bounds_checking(
+                            new_pos, new_size, "context"
+                        )
+
                         # Apply the new position and size with precision
                         self.contextROI.setPos(bounded_pos)
                         self.contextROI.setSize(bounded_size)
-                        
+
                         # Reconnect the signal
-                        self.contextROI.sigRegionChanged.connect(self._on_context_roi_navigation_changed)
-                        
-                        logger.debug(f"Synced contextROI to pos=({bounded_pos.x():.6f}, {bounded_pos.y():.6f}), "
-                                    f"size=({bounded_size.x():.6f}, {bounded_size.y():.6f})")
+                        self.contextROI.sigRegionChanged.connect(
+                            self._on_context_roi_navigation_changed
+                        )
+
+                        logger.debug(
+                            f"Synced contextROI to pos=({bounded_pos.x():.6f}, {bounded_pos.y():.6f}), "
+                            f"size=({bounded_size.x():.6f}, {bounded_size.y():.6f})"
+                        )
                     else:
-                        logger.debug("Skipped contextROI sync - change below significance threshold")
+                        logger.debug(
+                            "Skipped contextROI sync - change below significance threshold"
+                        )
                 else:
-                    logger.warning(f"Invalid coordinates for contextROI sync: pos={pos_data}, size={size_data}")
-                    
-            elif roi_type == 'main_roi' and hasattr(self, 'mainROI') and self.mainROI:
+                    logger.warning(
+                        f"Invalid coordinates for contextROI sync: pos={pos_data}, size={size_data}"
+                    )
+
+            elif roi_type == "main_roi" and hasattr(self, "mainROI") and self.mainROI:
                 # Sync mainROI position with improved precision
-                pos_data = view_state.get('pos', [0.0, 0.0])
-                size_data = view_state.get('size', [50.0, 50.0])
-                
+                pos_data = view_state.get("pos", [0.0, 0.0])
+                size_data = view_state.get("size", [50.0, 50.0])
+
                 # Validate coordinate data
                 if self._validate_coordinates(pos_data, size_data):
                     from PyQt6.QtCore import QPointF
+
                     new_pos = QPointF(float(pos_data[0]), float(pos_data[1]))
                     new_size = QPointF(float(size_data[0]), float(size_data[1]))
-                    
+
                     # Check if position change is significant enough to warrant update
                     current_pos = self.mainROI.pos()
                     current_size = self.mainROI.size()
-                    
-                    if self._is_coordinate_change_significant(current_pos, new_pos, current_size, new_size):
+
+                    if self._is_coordinate_change_significant(
+                        current_pos, new_pos, current_size, new_size
+                    ):
                         # Temporarily disconnect to prevent recursive sync
                         try:
-                            self.mainROI.sigRegionChanged.disconnect(self._on_main_roi_navigation_changed)
+                            self.mainROI.sigRegionChanged.disconnect(
+                                self._on_main_roi_navigation_changed
+                            )
                         except:
                             pass
-                        
+
                         # Apply bounds checking before setting position
-                        bounded_pos, bounded_size = self._apply_bounds_checking(new_pos, new_size, 'main')
-                        
+                        bounded_pos, bounded_size = self._apply_bounds_checking(
+                            new_pos, new_size, "main"
+                        )
+
                         # Apply the new position and size with precision
                         self.mainROI.setPos(bounded_pos)
                         self.mainROI.setSize(bounded_size)
-                        
+
                         # Reconnect the signal
-                        self.mainROI.sigRegionChanged.connect(self._on_main_roi_navigation_changed)
-                        
-                        logger.debug(f"Synced mainROI to pos=({bounded_pos.x():.6f}, {bounded_pos.y():.6f}), "
-                                    f"size=({bounded_size.x():.6f}, {bounded_size.y():.6f})")
+                        self.mainROI.sigRegionChanged.connect(
+                            self._on_main_roi_navigation_changed
+                        )
+
+                        logger.debug(
+                            f"Synced mainROI to pos=({bounded_pos.x():.6f}, {bounded_pos.y():.6f}), "
+                            f"size=({bounded_size.x():.6f}, {bounded_size.y():.6f})"
+                        )
                     else:
-                        logger.debug("Skipped mainROI sync - change below significance threshold")
+                        logger.debug(
+                            "Skipped mainROI sync - change below significance threshold"
+                        )
                 else:
-                    logger.warning(f"Invalid coordinates for mainROI sync: pos={pos_data}, size={size_data}")
-            
+                    logger.warning(
+                        f"Invalid coordinates for mainROI sync: pos={pos_data}, size={size_data}"
+                    )
+
             # Only update views for ROI changes, not crosshair updates
-            if roi_type != 'crosshair_update':
+            if roi_type != "crosshair_update":
                 self._updateViews()
                 self.update()
-                
+
                 # Process events to ensure updates are applied immediately
                 from PyQt6.QtCore import QCoreApplication
+
                 QCoreApplication.processEvents()
-            
+
             logger.debug("Navigation sync applied successfully")
-            
+
         except Exception as e:
             logger.error(f"Error syncing navigation: {e}")
             import traceback
+
             logger.error(traceback.format_exc())
-        
+
         finally:
             # Reset sync flag immediately after sync completion
             self._navigation_sync_in_progress = False
@@ -1109,32 +1152,32 @@ class RasterView(QWidget):
             # Check if coordinates are numeric and not None
             if not pos_data or not size_data:
                 return False
-                
+
             if len(pos_data) != 2 or len(size_data) != 2:
                 return False
-                
+
             if not all(isinstance(x, (int, float)) for x in pos_data + size_data):
                 return False
-            
+
             # Check for NaN or infinite values
             if any(not np.isfinite(x) for x in pos_data + size_data):
                 return False
-            
+
             # Check minimum size requirements (allow smaller minimum for precision)
             if size_data[0] < min_size or size_data[1] < min_size:
                 return False
-            
+
             # Size should always be positive
             if size_data[0] <= 0 or size_data[1] <= 0:
                 return False
-                
+
             # Check for reasonable maximum values to prevent overflow
             max_coord = 1e6  # 1 million pixels should be reasonable maximum
             if any(abs(x) > max_coord for x in pos_data + size_data):
                 return False
-            
+
             return True
-            
+
         except (TypeError, IndexError, AttributeError):
             return False
 
@@ -1269,32 +1312,34 @@ class RasterView(QWidget):
     def is_overlay_secondary(self) -> bool:
         """Check if this view is configured as overlay secondary"""
         return self._is_overlay_secondary
-    
+
     def _sync_crosshair_to_other_view(self, zoom_x, zoom_y, abs_x, abs_y):
         """
         Sync crosshair position to the other view in dual image mode.
-        
+
         Args:
             zoom_x, zoom_y: Crosshair position in zoom view coordinates
             abs_x, abs_y: Crosshair position in absolute image coordinates
         """
         try:
-            if hasattr(self, 'sigCrosshairChanged'):
+            if hasattr(self, "sigCrosshairChanged"):
                 self.sigCrosshairChanged.emit(zoom_x, zoom_y, abs_x, abs_y)
-                logger.debug(f"Emitted crosshair sync: zoom=({zoom_x}, {zoom_y}), abs=({abs_x}, {abs_y})")
+                logger.debug(
+                    f"Emitted crosshair sync: zoom=({zoom_x}, {zoom_y}), abs=({abs_x}, {abs_y})"
+                )
         except Exception as e:
             logger.error(f"Error syncing crosshair: {e}")
 
     def sync_crosshair_from_other(self, abs_x, abs_y):
         """
         Update crosshair position based on sync from another view.
-        
+
         Args:
             abs_x, abs_y: Absolute image coordinates for crosshair position
         """
         if not self._dual_mode_active:
             return
-            
+
         try:
             # Convert absolute coordinates to zoom view coordinates
             zoom_coords = self._absoluteToZoomCoords(abs_x, abs_y)
@@ -1308,24 +1353,28 @@ class RasterView(QWidget):
     def _absoluteToZoomCoords(self, abs_x, abs_y):
         """
         Convert absolute image coordinates to zoom view coordinates.
-        
+
         Args:
             abs_x, abs_y: Absolute image coordinates
-            
+
         Returns:
             tuple: (zoom_x, zoom_y) coordinates or None if invalid
         """
         try:
-            if not (hasattr(self, 'contextROI') and self.contextROI and 
-                    hasattr(self, 'mainROI') and self.mainROI):
+            if not (
+                hasattr(self, "contextROI")
+                and self.contextROI
+                and hasattr(self, "mainROI")
+                and self.mainROI
+            ):
                 return None
-                
+
             # Calculate zoom coordinates by reversing the transformation from _zoomCoordsToAbsolute
             zoom_x = abs_x - self.contextROI.pos().x() - self.mainROI.pos().x()
             zoom_y = abs_y - self.contextROI.pos().y() - self.mainROI.pos().y()
-            
+
             return int(zoom_x), int(zoom_y)
-            
+
         except Exception as e:
             logger.error(f"Error converting absolute to zoom coordinates: {e}")
             return None
@@ -1483,10 +1532,7 @@ class RasterView(QWidget):
     def _initMainViewBox(self, name, imageItem):
         """Initialize the main view box with custom navigation behavior."""
         viewBox = MainViewBox(
-            raster_view=self, 
-            name=name, 
-            lockAspect=True, 
-            invertY=True
+            raster_view=self, name=name, lockAspect=True, invertY=True
         )
         viewBox.addItem(imageItem)
         # Enable mouse interaction for panning and zooming
@@ -1496,10 +1542,7 @@ class RasterView(QWidget):
     def _initContextViewBox(self, name, imageItem):
         """Initialize the context view box."""
         viewBox = ContextViewBox(
-            raster_view=self,
-            name=name, 
-            lockAspect=True, 
-            invertY=True
+            raster_view=self, name=name, lockAspect=True, invertY=True
         )
         viewBox.addItem(imageItem)
         # Enable mouse interaction for panning and zooming
@@ -1509,10 +1552,7 @@ class RasterView(QWidget):
     def _initZoomViewBox(self, name, imageItem):
         """Initialize the zoom view box with custom navigation behavior."""
         viewBox = ZoomViewBox(
-            raster_view=self,
-            name=name, 
-            lockAspect=True, 
-            invertY=True
+            raster_view=self, name=name, lockAspect=True, invertY=True
         )
         viewBox.addItem(imageItem)
         # Enable mouse interaction for panning and zooming

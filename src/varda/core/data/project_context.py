@@ -217,7 +217,7 @@ class ProjectContext(QObject):
         imagesTemp = self._images
         projectNameTemp = self.currentProj
         roi_manager_temp = self.roi_manager if hasattr(self, "roi_manager") else None
-        
+
         # Temporarily disable stretch preset generation during deserialization
         # since we're loading existing stretches from the file
         original_generate_presets = self._generate_stretch_presets
@@ -227,15 +227,15 @@ class ProjectContext(QObject):
             self.currentProj = Path(projectName)
             self._images = []
             imageDictList = data["images"]
-            
+
             # Track completed loads to emit signals after all images are loaded
             expected_loads = len(imageDictList)
             completed_loads = 0
-            
+
             def on_image_loaded(raster, metadata, stretch, band):
                 """Callback for when an individual image finishes loading during deserialization."""
                 nonlocal completed_loads
-                
+
                 # Create the image with the deserialized data
                 # Temporarily disable signal guards for this specific operation
                 old_handling = self._handling_change
@@ -248,16 +248,20 @@ class ProjectContext(QObject):
                         band=band,
                     )
                     completed_loads += 1
-                    logger.info(f"Loaded image {completed_loads}/{expected_loads} during deserialization")
-                    
+                    logger.info(
+                        f"Loaded image {completed_loads}/{expected_loads} during deserialization"
+                    )
+
                     # If this is the last image, emit project changed signal
                     if completed_loads == expected_loads:
                         self.sigProjectChanged.emit()
-                        logger.info("All images loaded successfully during deserialization")
-                        
+                        logger.info(
+                            "All images loaded successfully during deserialization"
+                        )
+
                 finally:
                     self._handling_change = old_handling
-            
+
             for imageDict in imageDictList:
                 metadata = Metadata.deserialize(imageDict["metadata"])
                 stretch = [
@@ -286,16 +290,20 @@ class ProjectContext(QObject):
                 # Create callback with captured variables for this iteration
                 self._imageLoadingService.loadImageData(
                     metadata.filePath,
-                    lambda raster, _, m=metadata, s=stretch, b=band: on_image_loaded(raster, m, s, b),
+                    lambda raster, _, m=metadata, s=stretch, b=band: on_image_loaded(
+                        raster, m, s, b
+                    ),
                 )
 
             # Deserialize ROI Manager
             if "roi_manager" in data:
                 from varda.core.data.roi_manager import ROIManager
+
                 self.roi_manager = ROIManager.deserialize(data["roi_manager"], self)
             else:
                 # If no ROI Manager in the data, create a new one
                 from varda.core.data.roi_manager import ROIManager
+
                 self.roi_manager = ROIManager(self)
 
             # If no images to load, emit the signal immediately
@@ -1090,9 +1098,10 @@ class ProjectContext(QObject):
             )
         self.sigDataChanged[int, self.ChangeType].emit(index, changeType)
 
+
 class NumpyJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles numpy data types and bytes objects."""
-    
+
     def default(self, obj):
         if isinstance(obj, np.integer):
             return int(obj)
@@ -1102,7 +1111,7 @@ class NumpyJSONEncoder(json.JSONEncoder):
             return obj.tolist()
         elif isinstance(obj, bytes):
             try:
-                return obj.decode('utf-8')
+                return obj.decode("utf-8")
             except UnicodeDecodeError:
                 return list(obj)
         return super().default(obj)
