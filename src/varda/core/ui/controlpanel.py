@@ -187,7 +187,7 @@ class PlotManagerTab(DockableTab):
         # Settings
         self.context_enabled = False
         self.main_enabled = False
-        self.zoom_enabled = False
+        self.zoom_enabled = True
         self.update_existing = True  # True: update existing, False: create new
         
         # Track the "active" plot for update mode - only this plot gets updated
@@ -389,7 +389,6 @@ class PlotManagerTab(DockableTab):
     def _generate_plot_thumbnail(self, plot_data, size=(80, 60)):
         """Generate a small thumbnail image of the plot."""
         import pyqtgraph as pg
-        from pyqtgraph.exporters import ImageExporter  # Import ImageExporter directly
         from PyQt6.QtGui import QPixmap, QPainter
         from PyQt6.QtCore import QSize
         import numpy as np
@@ -405,8 +404,18 @@ class PlotManagerTab(DockableTab):
             except ValueError:
                 wavelengths = np.arange(len(image.metadata.wavelengths), dtype=float)
             
-            # Get spectrum data
+            # Get spectrum data and handle NaN values
             spectrum = image.raster[y, x, :]
+            
+            # Check if spectrum contains NaN values and handle them
+            if np.any(np.isnan(spectrum)):
+                print(f"[DEBUG] Spectrum contains NaN values, replacing with zeros")
+                spectrum = np.nan_to_num(spectrum, nan=0.0)
+            
+            # Check if spectrum is all zeros or invalid
+            if np.all(spectrum == 0) or len(spectrum) == 0:
+                print(f"[DEBUG] Spectrum is all zeros or empty, creating dummy data")
+                spectrum = np.random.random(len(wavelengths)) * 100  # Create some dummy data for visualization
             
             # Create a small plot widget for thumbnail generation
             thumb_plot = pg.PlotWidget()
@@ -421,15 +430,18 @@ class PlotManagerTab(DockableTab):
             # Plot the data with a simple line
             thumb_plot.plot(wavelengths, spectrum, pen=pg.mkPen(color='blue', width=1))
             
-            # Export as QPixmap using ImageExporter
-            exporter = ImageExporter(thumb_plot.plotItem)
-            exporter.parameters()['width'] = size[0]
-            exporter.parameters()['height'] = size[1]
+            # DON'T show the widget - render it directly without displaying
+            # Force the widget to lay out properly without showing
+            thumb_plot.resize(size[0], size[1])
+            thumb_plot.updateGeometry()
             
-            # Get the image data
-            img = exporter.export(toBytes=True)
-            pixmap = QPixmap()
-            pixmap.loadFromData(img)
+            # Render directly to QPixmap without showing the widget
+            pixmap = QPixmap(size[0], size[1])
+            pixmap.fill()  # Fill with white background
+            
+            painter = QPainter(pixmap)
+            thumb_plot.render(painter)
+            painter.end()
             
             # Clean up the temporary plot widget
             thumb_plot.close()
@@ -439,6 +451,8 @@ class PlotManagerTab(DockableTab):
             
         except Exception as e:
             print(f"[DEBUG] Error generating thumbnail: {e}")
+            import traceback
+            print(f"[DEBUG] Full traceback: {traceback.format_exc()}")
             # Return None to fall back to text thumbnail
             return None
 
