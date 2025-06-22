@@ -3,6 +3,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
+from dataclasses import dataclass
 
 # third party imports
 from PyQt6.QtCore import QStandardPaths
@@ -10,9 +11,11 @@ from PyQt6.QtWidgets import QApplication
 import pyqtgraph as pg
 
 # local imports
+import varda
 from varda.core.data import ProjectContext
 from varda.plugins.plugin_manager import initPluginManager
 from varda.gui.maingui import MainGUI
+from varda.registries import WidgetRegistry, ImageLoaderRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +51,8 @@ class VardaApp:
         # start GUI
         self.gui = MainGUI(self.proj)
         self.gui.showMaximized()
+
+        self.gui.
 
     def run(self):
         """Run the Varda application."""
@@ -85,3 +90,13 @@ class VardaApp:
             level=logging.DEBUG,
             handlers=[logging.FileHandler(logName), logging.StreamHandler(sys.stdout)],
         )
+
+@dataclass
+class VardaApplicationContext:
+    """
+    A context manager for the Varda application. This is useful for testing or when you need to ensure that the application
+    is properly initialized and cleaned up.
+    """
+    proj: ProjectContext
+    widgetRegistry: WidgetRegistry
+    imageLoaderRegistry: ImageLoaderRegistry

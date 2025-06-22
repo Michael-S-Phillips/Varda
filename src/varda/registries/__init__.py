@@ -1,0 +1,2 @@
+from .widget_registry import WidgetRegistry
+from .image_loader_registry import ImageLoaderRegistry
