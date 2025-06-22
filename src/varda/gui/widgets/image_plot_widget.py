@@ -1,11 +1,15 @@
 import numpy as np
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox
 from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QPoint
 import pyqtgraph as pg
 import logging
 from typing import Dict, List, Optional, Tuple, Any
 
 from varda.core.data import ProjectContext
+from varda.core.utilities.wavelength_processor import WavelengthProcessor
+from varda.core.utilities.bounds_validator import BoundsValidator
+from varda.core.utilities.data_converter import DataConverter
+from varda.core.utilities.invalid_data_handler import InvalidDataHandler, InvalidValueStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +29,8 @@ class SpectrumData:
         marker_size: int = 5,
         visible: bool = True,
         coords: Optional[Tuple[int, int]] = None,
-        image_index: Optional[int] = None
+        image_index: Optional[int] = None,
+        wavelength_type: str = "numeric"  # wavelength type tracking
     ):
         self.spectrum_id = spectrum_id
         self.wavelengths = np.asarray(wavelengths, dtype=float)
@@ -38,6 +43,7 @@ class SpectrumData:
         self.visible = visible
         self.coords = coords
         self.image_index = image_index
+        self.wavelength_type = wavelength_type
         
         # PyQtGraph plot item reference
         self.plot_item = None
@@ -164,92 +170,155 @@ class ImagePlotWidget(QWidget):
         color: str = None,
         coords: Optional[Tuple[int, int]] = None,
         image_index: Optional[int] = None,
+        wavelength_type: str = "numeric",
         **kwargs
     ) -> str:
         """
-        Add a new spectrum to the plot.
-        
-        Args:
-            wavelengths: Wavelength data array
-            values: Spectral intensity values
-            label: Display label for the spectrum
-            spectrum_id: Unique identifier (auto-generated if None)
-            color: Line color (auto-assigned if None)
-            coords: Source pixel coordinates (x, y)
-            image_index: Source image index
-            **kwargs: Additional spectrum properties
-            
-        Returns:
-            str: The spectrum ID
+        Add a new spectrum to the plot with comprehensive validation and invalid data handling.
         """
-        # Generate ID and label if not provided
-        if spectrum_id is None:
-            spectrum_id = f"spectrum_{self.spectrum_counter}"
-            self.spectrum_counter += 1
+        try:
+            # First, handle invalid values in the spectral pair
+            clean_wavelengths, clean_values, cleaning_success, cleaning_message = InvalidDataHandler.handle_spectral_pair(
+                wavelengths,
+                values,
+                strategy=InvalidValueStrategy.INTERPOLATE,
+                sync_removal=False
+            )
             
-        if label is None:
-            if coords:
-                label = f"Pixel ({coords[0]}, {coords[1]})"
+            # Then apply data converter for additional validation
+            wavelengths_converted, wavelengths_success, wavelengths_error = DataConverter.safe_array_conversion(
+                clean_wavelengths,
+                target_dtype=float,
+                fallback_strategy="interpolate"
+            )
+            
+            values_converted, values_success, values_error = DataConverter.safe_array_conversion(
+                clean_values,
+                target_dtype=float,
+                fallback_strategy="zeros",
+                expected_length=len(wavelengths_converted)
+            )
+            
+            # Validate data quality
+            is_good_quality, quality_report = InvalidDataHandler.validate_spectral_data_quality(
+                wavelengths_converted, values_converted, min_valid_percentage=30.0
+            )
+            
+            # Check for critical failures
+            if not wavelengths_success and not values_success:
+                raise ValueError("Both wavelength and spectral data processing failed")
+            
+            if len(wavelengths_converted) == 0 or len(values_converted) == 0:
+                raise ValueError("No valid data points available for plotting")
+            
+            # Generate ID and label if not provided
+            if spectrum_id is None:
+                spectrum_id = f"spectrum_{self.spectrum_counter}"
+                self.spectrum_counter += 1
+                
+            if label is None:
+                if coords:
+                    label = f"Pixel ({coords[0]}, {coords[1]})"
+                else:
+                    label = f"Spectrum {self.spectrum_counter}"
+            
+            # Auto-assign color if not provided
+            if color is None:
+                color_index = len(self.spectra) % len(self.default_colors)
+                color = self.default_colors[color_index]
+            
+            # Create spectrum data object with validated data
+            spectrum = SpectrumData(
+                spectrum_id=spectrum_id,
+                wavelengths=wavelengths_converted,
+                values=values_converted,
+                label=label,
+                color=color,
+                coords=coords,
+                image_index=image_index,
+                wavelength_type=wavelength_type,
+                **kwargs
+            )
+            
+            # Store spectrum
+            self.spectra[spectrum_id] = spectrum
+            
+            # Add to plot
+            self._add_spectrum_to_plot(spectrum)
+            
+            # Update plot title
+            if len(self.spectra) == 1:
+                self.plot_widget.setTitle(f"Spectral Plot - {label}")
             else:
-                label = f"Spectrum {self.spectrum_counter}"
-        
-        # Auto-assign color if not provided
-        if color is None:
-            color_index = len(self.spectra) % len(self.default_colors)
-            color = self.default_colors[color_index]
-        
-        # Create spectrum data object
-        spectrum = SpectrumData(
-            spectrum_id=spectrum_id,
-            wavelengths=wavelengths,
-            values=values,
-            label=label,
-            color=color,
-            coords=coords,
-            image_index=image_index,
-            **kwargs
-        )
-        
-        # Store spectrum
-        self.spectra[spectrum_id] = spectrum
-        
-        # Add to plot
-        self._add_spectrum_to_plot(spectrum)
-        
-        # Update plot title if this is the first spectrum
-        if len(self.spectra) == 1:
-            self.plot_widget.setTitle(f"Spectral Plot - {label}")
-        else:
-            self.plot_widget.setTitle(f"Spectral Plot - {len(self.spectra)} spectra")
-        
-        self.sigSpectrumAdded.emit(spectrum_id)
-        logger.debug(f"Added spectrum: {spectrum_id} ({label})")
-        
-        return spectrum_id
+                self.plot_widget.setTitle(f"Spectral Plot - {len(self.spectra)} spectra")
+            
+            # Log any data quality issues
+            if not cleaning_success:
+                logger.warning(f"Invalid data handling for spectrum {spectrum_id}: {cleaning_message}")
+            if not wavelengths_success:
+                logger.warning(f"Wavelength conversion issues for spectrum {spectrum_id}: {wavelengths_error}")
+            if not values_success:
+                logger.warning(f"Values conversion issues for spectrum {spectrum_id}: {values_error}")
+            if not is_good_quality:
+                logger.warning(f"Data quality issues for spectrum {spectrum_id}: {quality_report.get('quality_issues', [])}")
+            
+            self.sigSpectrumAdded.emit(spectrum_id)
+            logger.debug(f"Added spectrum: {spectrum_id} ({label}) with {len(wavelengths_converted)} data points")
+            
+            return spectrum_id
+            
+        except Exception as e:
+            logger.error(f"Failed to add spectrum: {e}")
+            raise ValueError(f"Cannot add spectrum: {str(e)}")
 
     def _add_spectrum_to_plot(self, spectrum: SpectrumData):
-        """Add a spectrum to the PyQtGraph plot."""
-        if not spectrum.visible:
-            return
+        """Add a spectrum to the PyQtGraph plot with error handling."""
+        try:
+            if not spectrum.visible:
+                return
             
-        # Create plot arguments
-        plot_args = {
-            'pen': spectrum.get_pen(),
-            'name': spectrum.label
-        }
-        
-        # Add markers if specified
-        if spectrum.marker_symbol:
-            plot_args['symbol'] = spectrum.marker_symbol
-            plot_args['symbolSize'] = spectrum.marker_size
-            plot_args['symbolBrush'] = spectrum.get_symbol_brush()
-        
-        # Add to plot and store reference
-        spectrum.plot_item = self.plot_widget.plot(
-            spectrum.wavelengths, 
-            spectrum.values,
-            **plot_args
-        )
+            # Validate data before plotting
+            if len(spectrum.wavelengths) == 0 or len(spectrum.values) == 0:
+                logger.error(f"Cannot plot spectrum {spectrum.spectrum_id}: empty data arrays")
+                return
+            
+            if len(spectrum.wavelengths) != len(spectrum.values):
+                logger.error(
+                    f"Cannot plot spectrum {spectrum.spectrum_id}: "
+                    f"wavelength and value array length mismatch"
+                )
+                return
+            
+            # Check for valid data ranges
+            if np.all(np.isnan(spectrum.values)) or np.all(np.isinf(spectrum.values)):
+                logger.warning(f"Spectrum {spectrum.spectrum_id} contains only invalid values")
+                return
+            
+            # Create plot arguments
+            plot_args = {
+                'pen': spectrum.get_pen(),
+                'name': spectrum.label
+            }
+            
+            # Add markers if specified
+            if spectrum.marker_symbol:
+                plot_args['symbol'] = spectrum.marker_symbol
+                plot_args['symbolSize'] = spectrum.marker_size
+                plot_args['symbolBrush'] = spectrum.get_symbol_brush()
+            
+            # Add to plot and store reference
+            spectrum.plot_item = self.plot_widget.plot(
+                spectrum.wavelengths, 
+                spectrum.values,
+                **plot_args
+            )
+            
+            logger.debug(f"Successfully added spectrum {spectrum.spectrum_id} to plot")
+            
+        except Exception as e:
+            logger.error(f"Error adding spectrum {spectrum.spectrum_id} to plot: {e}")
+            # Don't raise exception to prevent breaking the entire plotting process
+            spectrum.plot_item = None
 
     def remove_spectrum(self, spectrum_id: str) -> bool:
         """
@@ -402,7 +471,7 @@ class ImagePlotWidget(QWidget):
     def showPixelSpectrum(self, x: int, y: int, imageIndex: Optional[int] = None):
         """
         Legacy method for backward compatibility.
-        Adds a single pixel spectrum to the plot.
+        Adds a single pixel spectrum to the plot with comprehensive data validation.
         """
         if imageIndex is not None:
             self.setImage(imageIndex)
@@ -413,50 +482,169 @@ class ImagePlotWidget(QWidget):
 
         image = self.proj.getImage(self.imageIndex)
 
-        # Get wavelengths
-        try:
-            wavelengths = np.char.strip(image.metadata.wavelengths.astype(str)).astype(float)
-        except ValueError:
-            logger.warning("Wavelengths appear to be categorical. Using band numbers.")
-            wavelengths = np.arange(len(image.metadata.wavelengths), dtype=float)
+        # Validate coordinates before accessing pixel data
+        is_valid, (safe_x, safe_y) = BoundsValidator.validate_pixel_coordinates(
+            x, y, image.raster.shape, allow_clipping=True
+        )
+        
+        if not is_valid:
+            logger.error(f"Invalid coordinates ({x}, {y}) for image with shape {image.raster.shape}")
+            return
 
-        # Get spectrum
-        spectrum = image.raster[y, x, :]
+        # Use centralized wavelength processing
+        wavelengths, wavelength_type = WavelengthProcessor.process_wavelength_data(
+            image.metadata.wavelengths, 
+            image.raster.shape[2]
+        )
+        
+        # Get spectrum using safe pixel access
+        spectrum = BoundsValidator.safe_pixel_access(image.raster, safe_x, safe_y)
+        
+        # Handle invalid values in the spectral pair
+        clean_wavelengths, clean_spectrum, cleaning_success, cleaning_message = InvalidDataHandler.handle_spectral_pair(
+            wavelengths, 
+            spectrum,
+            strategy=InvalidValueStrategy.INTERPOLATE,
+            sync_removal=False
+        )
+        
+        # Validate data quality
+        is_good_quality, quality_report = InvalidDataHandler.validate_spectral_data_quality(
+            clean_wavelengths, clean_spectrum, min_valid_percentage=25.0  # Allow lower threshold for single pixels
+        )
+        
+        # Log data quality information
+        if not cleaning_success:
+            logger.warning(f"Data cleaning issues: {cleaning_message}")
+        
+        if not is_good_quality:
+            logger.warning(f"Data quality issues for pixel ({safe_x}, {safe_y}): {quality_report.get('quality_issues', [])}")
+            # Show warning but continue with plot
+            QMessageBox.information(
+                self,
+                "Data Quality Warning",
+                f"Spectral data quality issues detected:\n" + 
+                "\n".join(quality_report.get('quality_issues', [])) +
+                f"\n\nData cleaning: {cleaning_message}"
+            )
+        
+        # Update plot axis label based on wavelength type
+        x_label = WavelengthProcessor.get_wavelength_label(wavelength_type)
+        self.plot_widget.setLabels(bottom=x_label)
+        
+        # Log processed data information
+        wavelength_info = WavelengthProcessor.format_wavelength_info(clean_wavelengths, wavelength_type)
+        logger.debug(f"Using wavelength range: {wavelength_info}")
+        logger.debug(f"Data cleaning: {cleaning_message}")
+        
+        # Validate final spectrum data
+        if len(clean_spectrum) == 0:
+            logger.error(f"No valid spectral data available for pixel ({safe_x}, {safe_y})")
+            QMessageBox.critical(
+                self,
+                "No Data",
+                f"No valid spectral data available for pixel ({safe_x}, {safe_y})"
+            )
+            return
         
         # Add to plot (replaces existing single spectrum)
         self.clear_all_spectra()
+        
+        # Create label with data quality indicator
+        base_label = f"({safe_x}, {safe_y})"
+        if not cleaning_success or not is_good_quality:
+            base_label += " ⚠"  # Warning indicator
+        
         self.add_spectrum(
-            wavelengths=wavelengths,
-            values=spectrum,
-            coords=(x, y),
-            image_index=self.imageIndex
+            wavelengths=clean_wavelengths,
+            values=clean_spectrum,
+            coords=(safe_x, safe_y),
+            image_index=self.imageIndex,
+            wavelength_type=wavelength_type,
+            label=base_label
         )
 
     def updatePlot(self, wavelengths: np.ndarray, spectrum: np.ndarray, coords):
         """
         Legacy method for backward compatibility.
-        Updates plot with single spectrum data.
+        Updates plot with single spectrum data with comprehensive error and invalid data handling.
         """
-        try:
-            wavelengths = np.asarray(wavelengths, dtype=float)
-            spectrum = np.asarray(spectrum, dtype=float)
+        # Safe data conversion with comprehensive error handling
+        wavelengths_converted, wavelengths_success, wavelengths_error = DataConverter.safe_array_conversion(
+            wavelengths, 
+            target_dtype=float,
+            fallback_strategy="interpolate"
+        )
+        
+        spectrum_converted, spectrum_success, spectrum_error = DataConverter.safe_array_conversion(
+            spectrum,
+            target_dtype=float, 
+            fallback_strategy="zeros",
+            expected_length=len(wavelengths_converted) if wavelengths_success else None
+        )
+        
+        # Handle invalid values in the spectral pair
+        clean_wavelengths, clean_spectrum, cleaning_success, cleaning_message = InvalidDataHandler.handle_spectral_pair(
+            wavelengths_converted,
+            spectrum_converted,
+            strategy=InvalidValueStrategy.INTERPOLATE,
+            sync_removal=False
+        )
+        
+        # Validate data quality
+        is_good_quality, quality_report = InvalidDataHandler.validate_spectral_data_quality(
+            clean_wavelengths, clean_spectrum, min_valid_percentage=50.0
+        )
+        
+        # Handle various failure scenarios
+        if not wavelengths_success or not spectrum_success:
+            logger.error("Data conversion failed")
+            error_details = []
+            if not wavelengths_success:
+                error_details.append(f"Wavelength: {wavelengths_error}")
+            if not spectrum_success:
+                error_details.append(f"Spectrum: {spectrum_error}")
             
-            logger.debug(f"Plotting spectrum for coordinates: {coords}")
-            logger.debug(
-                f"Wavelength range: {wavelengths.min() if len(wavelengths) > 0 else 'N/A'} - "
-                + f"{wavelengths.max() if len(wavelengths) > 0 else 'N/A'} nm"
+            QMessageBox.warning(
+                self,
+                "Data Conversion Error",
+                f"Failed to convert data:\n" + "\n".join(error_details) +
+                f"\n\nAttempting to continue with recovered data..."
             )
-            logger.debug(
-                f"Spectral data range: {spectrum.min() if len(spectrum) > 0 else 'N/A'} - "
-                + f"{spectrum.max() if len(spectrum) > 0 else 'N/A'}"
+        
+        if not cleaning_success:
+            logger.warning(f"Invalid data handling issues: {cleaning_message}")
+        
+        if not is_good_quality:
+            logger.warning(f"Data quality issues: {quality_report.get('quality_issues', [])}")
+            QMessageBox.information(
+                self,
+                "Data Quality Warning", 
+                f"Data quality issues detected:\n" +
+                "\n".join(quality_report.get('quality_issues', [])) +
+                f"\n\nContinuing with available data..."
             )
-        except ValueError as e:
-            logger.error(f"Error converting data to numeric types: {e}")
+        
+        # Final validation
+        if len(clean_wavelengths) == 0 or len(clean_spectrum) == 0:
+            QMessageBox.critical(
+                self,
+                "No Valid Data",
+                "No valid spectral data available for plotting."
+            )
             return
-
+        
+        # Log successful data information
+        logger.debug(f"Plotting spectrum for coordinates: {coords}")
+        logger.debug(f"Wavelength range: {clean_wavelengths.min():.2f} - {clean_wavelengths.max():.2f}")
+        logger.debug(f"Spectral data range: {clean_spectrum.min():.2f} - {clean_spectrum.max():.2f}")
+        logger.debug(f"Data points: {len(clean_wavelengths)}")
+        logger.debug(f"Data cleaning: {cleaning_message}")
+        
         # Clear existing and add new spectrum
         self.clear_all_spectra()
         
+        # Format coordinate label with quality indicators
         if isinstance(coords, tuple) and len(coords) == 2:
             label = f"({coords[0]}, {coords[1]})"
             coord_tuple = coords
@@ -464,9 +652,48 @@ class ImagePlotWidget(QWidget):
             label = str(coords)
             coord_tuple = None
         
-        self.add_spectrum(
-            wavelengths=wavelengths,
-            values=spectrum,
-            label=label,
-            coords=coord_tuple
-        )
+        # Add quality indicators to label
+        quality_indicators = []
+        if not wavelengths_success or not spectrum_success:
+            quality_indicators.append("recovered")
+        if not cleaning_success:
+            quality_indicators.append("cleaned")
+        if not is_good_quality:
+            quality_indicators.append("⚠")
+        
+        if quality_indicators:
+            label += f" ({', '.join(quality_indicators)})"
+        
+        try:
+            spectrum_id = self.add_spectrum(
+                wavelengths=clean_wavelengths,
+                values=clean_spectrum,
+                label=label,
+                coords=coord_tuple
+            )
+            
+            # Update plot styling based on data quality
+            if not is_good_quality or not cleaning_success:
+                # Use different styling for problematic data
+                if not is_good_quality:
+                    color = "red"  # Red for poor quality
+                elif not cleaning_success:
+                    color = "orange"  # Orange for cleaning issues
+                else:
+                    color = "yellow"  # Yellow for other issues
+                    
+                self.update_spectrum_properties(
+                    spectrum_id, 
+                    color=color,
+                    line_width=2
+                )
+            
+            logger.info(f"Successfully plotted spectrum with {len(clean_wavelengths)} data points")
+            
+        except Exception as e:
+            logger.error(f"Failed to add spectrum to plot: {e}")
+            QMessageBox.critical(
+                self,
+                "Plot Error",
+                f"Failed to display spectrum: {str(e)}"
+            )

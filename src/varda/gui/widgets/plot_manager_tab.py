@@ -11,8 +11,10 @@ from PyQt6.QtGui import QDrag, QPixmap, QPainter, QAction, QIcon
 
 from varda.core.data import ProjectContext
 from varda.core.ui.controlpanel import DockableTab
-from varda.gui.widgets.image_plot_widget import ImagePlotWidget
 from varda.gui.widgets.spectral_properties_panel import SpectralPropertiesPanel, EnhancedImagePlotWidget
+from varda.core.utilities.wavelength_processor import WavelengthProcessor
+from varda.core.utilities.bounds_validator import BoundsValidator
+from varda.core.utilities.invalid_data_handler import InvalidDataHandler, InvalidValueStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +172,7 @@ class PlotWindow(EnhancedImagePlotWidget):
             event.ignore()
     
     def _add_spectrum_from_plot_data(self, plot_data: dict):
-        """Add a spectrum from dropped plot data."""
+        """Add a spectrum from dropped plot data with comprehensive data validation."""
         coords = plot_data.get('coords')
         image_index = plot_data.get('image_index')
         
@@ -182,25 +184,82 @@ class PlotWindow(EnhancedImagePlotWidget):
             image = self.proj.getImage(image_index)
             x, y = coords
             
-            # Get wavelengths
-            try:
-                wavelengths = np.char.strip(image.metadata.wavelengths.astype(str)).astype(float)
-            except ValueError:
-                wavelengths = np.arange(len(image.metadata.wavelengths), dtype=float)
+            # Validate coordinates before accessing pixel data
+            is_valid, (safe_x, safe_y) = BoundsValidator.validate_pixel_coordinates(
+                x, y, image.raster.shape, allow_clipping=True
+            )
             
-            # Get spectrum
-            spectrum = image.raster[y, x, :]
+            if not is_valid:
+                logger.error(f"Invalid coordinates ({x}, {y}) for image with shape {image.raster.shape}")
+                QMessageBox.warning(
+                    self,
+                    "Error", 
+                    f"Coordinates ({x}, {y}) are outside image bounds"
+                )
+                return
+            
+            # Use centralized wavelength processing
+            wavelengths, wavelength_type = WavelengthProcessor.process_wavelength_data(
+                image.metadata.wavelengths,
+                image.raster.shape[2]
+            )
+            
+            # Get spectrum using safe pixel access
+            spectrum = BoundsValidator.safe_pixel_access(image.raster, safe_x, safe_y)
+            
+            # Handle invalid values in the spectral pair
+            clean_wavelengths, clean_spectrum, cleaning_success, cleaning_message = InvalidDataHandler.handle_spectral_pair(
+                wavelengths,
+                spectrum,
+                strategy=InvalidValueStrategy.INTERPOLATE,
+                sync_removal=False
+            )
+            
+            # Validate data quality
+            is_good_quality, quality_report = InvalidDataHandler.validate_spectral_data_quality(
+                clean_wavelengths, clean_spectrum, min_valid_percentage=30.0
+            )
+            
+            # Handle data quality issues
+            if not cleaning_success:
+                logger.warning(f"Invalid data handling issues: {cleaning_message}")
+            
+            if not is_good_quality:
+                logger.warning(f"Data quality issues: {quality_report.get('quality_issues', [])}")
+                QMessageBox.information(
+                    self,
+                    "Data Quality Warning",
+                    f"Data quality issues detected for pixel ({safe_x}, {safe_y}):\n" +
+                    "\n".join(quality_report.get('quality_issues', [])) +
+                    f"\n\nContinuing with processed data..."
+                )
+            
+            # Final validation
+            if len(clean_spectrum) == 0:
+                logger.error(f"No valid spectral data available for pixel ({safe_x}, {safe_y})")
+                QMessageBox.warning(
+                    self,
+                    "No Data",
+                    f"No valid spectral data available for pixel ({safe_x}, {safe_y})"
+                )
+                return
+            
+            # Create label with quality indicators
+            base_label = plot_data.get('title', f"Pixel ({safe_x}, {safe_y})")
+            if not cleaning_success or not is_good_quality:
+                base_label += " ⚠"
             
             # Add to plot
             spectrum_id = self.add_spectrum(
-                wavelengths=wavelengths,
-                values=spectrum,
-                label=plot_data.get('title', f"Pixel ({x}, {y})"),
-                coords=(x, y),
-                image_index=image_index
+                wavelengths=clean_wavelengths,
+                values=clean_spectrum,
+                label=base_label,
+                coords=(safe_x, safe_y),
+                image_index=image_index,
+                wavelength_type=wavelength_type
             )
             
-            logger.info(f"Added spectrum {spectrum_id} from dropped plot")
+            logger.info(f"Added spectrum {spectrum_id} from dropped plot (quality: {'good' if is_good_quality else 'issues'})")
             
         except Exception as e:
             logger.error(f"Error adding spectrum from plot data: {e}")
@@ -209,7 +268,6 @@ class PlotWindow(EnhancedImagePlotWidget):
                 "Error",
                 f"Could not add spectrum: {str(e)}"
             )
-
 
 class PlotManagerTab(DockableTab):
     """Advanced Plot Manager Tab with spectral control integration."""
@@ -500,7 +558,7 @@ class PlotManagerTab(DockableTab):
         thumb_layout.setSpacing(2)
         
         # Try to generate plot thumbnail
-        plot_pixmap = self._generate_plot_thumbnail(plot_data)
+        plot_pixmap = self._create_plot_thumbnail(plot_data)
         
         if plot_pixmap:
             thumb_button = QPushButton()
@@ -527,26 +585,47 @@ class PlotManagerTab(DockableTab):
         
         return thumb_widget
     
-    def _generate_plot_thumbnail(self, plot_data: dict, size=(80, 60)) -> Optional[QPixmap]:
-        """Generate a small thumbnail image of the plot."""
+    def _create_plot_thumbnail(self, plot_data: dict, size=(120, 80)) -> Optional[QPixmap]:
+        """Create a thumbnail representation of the plot data with invalid data handling."""
+        if not self.project_context:
+            return None
+            
         try:
             # Get the spectral data
             x, y = plot_data['coords']
             image = self.project_context.getImage(plot_data['image_index'])
             
-            # Get wavelengths
-            try:
-                wavelengths = np.char.strip(image.metadata.wavelengths.astype(str)).astype(float)
-            except ValueError:
-                wavelengths = np.arange(len(image.metadata.wavelengths), dtype=float)
+            # Validate coordinates before accessing pixel data
+            is_valid, (safe_x, safe_y) = BoundsValidator.validate_pixel_coordinates(
+                x, y, image.raster.shape, allow_clipping=True
+            )
             
-            # Get spectrum data and handle NaN values
-            spectrum = image.raster[y, x, :]
-            if np.any(np.isnan(spectrum)):
-                spectrum = np.nan_to_num(spectrum, nan=0.0)
+            if not is_valid:
+                logger.warning(f"Invalid coordinates ({x}, {y}) for thumbnail generation")
+                return None
             
-            if np.all(spectrum == 0) or len(spectrum) == 0:
-                spectrum = np.random.random(len(wavelengths)) * 100
+            # Use centralized wavelength processing
+            wavelengths, wavelength_type = WavelengthProcessor.process_wavelength_data(
+                image.metadata.wavelengths,
+                image.raster.shape[2]
+            )
+            
+            # Get spectrum data using safe pixel access
+            spectrum = BoundsValidator.safe_pixel_access(image.raster, safe_x, safe_y)
+            
+            # Handle invalid values in the spectral pair
+            clean_wavelengths, clean_spectrum, cleaning_success, cleaning_message = InvalidDataHandler.handle_spectral_pair(
+                wavelengths,
+                spectrum,
+                strategy=InvalidValueStrategy.INTERPOLATE,
+                sync_removal=False
+            )
+            
+            # Validate spectrum data for thumbnail generation
+            if len(clean_spectrum) == 0 or np.all(clean_spectrum == 0):
+                # Generate placeholder data if no valid spectrum
+                clean_spectrum = np.random.random(len(clean_wavelengths)) * 100
+                logger.debug("Generated placeholder data for thumbnail")
             
             # Create thumbnail plot
             import pyqtgraph as pg
@@ -559,8 +638,13 @@ class PlotManagerTab(DockableTab):
             thumb_plot.hideButtons()
             thumb_plot.setBackground('white')
             
+            # Choose color based on data quality
+            plot_color = 'blue'
+            if not cleaning_success:
+                plot_color = 'orange'  # Orange for data that needed cleaning
+            
             # Plot the data
-            thumb_plot.plot(wavelengths, spectrum, pen=pg.mkPen(color='blue', width=1))
+            thumb_plot.plot(clean_wavelengths, clean_spectrum, pen=pg.mkPen(color=plot_color, width=1))
             
             # Render to pixmap
             thumb_plot.resize(size[0], size[1])

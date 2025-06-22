@@ -1,11 +1,14 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox
 import pyqtgraph as pg
 import numpy as np
 
 import logging
 
 from varda.core.data import ProjectContext
+from varda.core.utilities.wavelength_processor import WavelengthProcessor
+from varda.core.utilities.bounds_validator import BoundsValidator
+from varda.core.utilities.invalid_data_handler import InvalidDataHandler, InvalidValueStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -32,36 +35,114 @@ class PixelPlot(QWidget):
         self.setLayout(layout)
 
     def plot(self, index, coords):
-        """Update the plot with new spectral data."""
+        """Update the plot with new spectral data and comprehensive data validation."""
         self.plotWidget.clear()
         image = self.proj.getImage(index)
         raster_data = image.raster
-        spectral_data = raster_data[coords[1], coords[0], :]
-
-        wavelengths = image.metadata.wavelengths
-        if (
-            wavelengths is None
-            or len(wavelengths) == 0
-            or len(wavelengths) != raster_data.shape[2]
-        ):
-            logger.warning(
-                f"Invalid wavelength data detected. Using band numbers instead."
-            )
-            wavelengths = np.arange(raster_data.shape[2])
-        else:
-            logger.info(
-                f"Using wavelength range: {wavelengths.min():.2f} - {wavelengths.max():.2f} nm"
-            )
-
-        logger.debug(f"Plotting spectrum for coordinates: {coords}")
-        logger.debug(
-            f"Wavelength range: {wavelengths.min():.2f} - {wavelengths.max():.2f} nm"
+        
+        # Validate coordinates before accessing pixel data
+        x, y = coords
+        is_valid, (safe_x, safe_y) = BoundsValidator.validate_pixel_coordinates(
+            x, y, raster_data.shape, allow_clipping=True
         )
-        logger.debug(
-            f"Spectral data range: {spectral_data.min():.2f} - {spectral_data.max():.2f}"
+        
+        if not is_valid:
+            logger.error(f"Invalid coordinates ({x}, {y}) for image with shape {raster_data.shape}")
+            QMessageBox.critical(
+                self,
+                "Invalid Coordinates",
+                f"Coordinates ({x}, {y}) are outside image bounds"
+            )
+            return
+        
+        # Get spectral data using safe pixel access
+        spectral_data = BoundsValidator.safe_pixel_access(raster_data, safe_x, safe_y)
+        
+        # Use centralized wavelength processing
+        wavelengths, wavelength_type = WavelengthProcessor.process_wavelength_data(
+            image.metadata.wavelengths,
+            raster_data.shape[2]
         )
+        
+        # Handle invalid values in the spectral pair
+        clean_wavelengths, clean_spectral_data, cleaning_success, cleaning_message = InvalidDataHandler.handle_spectral_pair(
+            wavelengths,
+            spectral_data,
+            strategy=InvalidValueStrategy.INTERPOLATE,
+            sync_removal=False
+        )
+        
+        # Validate data quality
+        is_good_quality, quality_report = InvalidDataHandler.validate_spectral_data_quality(
+            clean_wavelengths, clean_spectral_data, min_valid_percentage=25.0
+        )
+        
+        # Handle data quality issues
+        if not cleaning_success:
+            logger.warning(f"Invalid data handling issues: {cleaning_message}")
+            QMessageBox.information(
+                self,
+                "Data Processing",
+                f"Data processing applied: {cleaning_message}"
+            )
+        
+        if not is_good_quality:
+            logger.warning(f"Data quality issues for pixel ({safe_x}, {safe_y}): {quality_report.get('quality_issues', [])}")
+            QMessageBox.information(
+                self,
+                "Data Quality Warning",
+                f"Data quality issues detected:\n" + 
+                "\n".join(quality_report.get('quality_issues', [])) +
+                f"\n\nContinuing with available data..."
+            )
+        
+        # Final validation
+        if len(clean_spectral_data) == 0:
+            logger.error(f"No valid spectral data available for pixel ({safe_x}, {safe_y})")
+            QMessageBox.critical(
+                self,
+                "No Data",
+                f"No valid spectral data available for pixel ({safe_x}, {safe_y})"
+            )
+            return
+        
+        # Update plot axis label based on wavelength type
+        x_label = WavelengthProcessor.get_wavelength_label(wavelength_type)
+        self.plotWidget.setLabels(left="Intensity", bottom=x_label)
+        
+        # Create plot title with quality indicators
+        title_base = f"Pixel Spectrum at ({safe_x}, {safe_y})"
+        if not cleaning_success or not is_good_quality:
+            title_base += " ⚠"  # Warning indicator
+        
+        # Log processed data information
+        wavelength_info = WavelengthProcessor.format_wavelength_info(clean_wavelengths, wavelength_type)
+        logger.debug(f"Plotting spectrum for coordinates: ({safe_x}, {safe_y})")
+        logger.debug(f"Using wavelength range: {wavelength_info}")
+        logger.debug(f"Spectral data range: {clean_spectral_data.min():.2f} - {clean_spectral_data.max():.2f}")
+        logger.debug(f"Data cleaning: {cleaning_message}")
 
-        self.plotWidget.plot(wavelengths, spectral_data, pen="y")
-        self.plotWidget.setTitle(f"Pixel Spectrum at ({coords[0]}, {coords[1]})")
-        if not self.isVisible():
-            self.show()
+        # Choose plot color based on data quality
+        plot_color = "y"  # Default yellow
+        if not is_good_quality:
+            plot_color = "r"  # Red for poor quality
+        elif not cleaning_success:
+            plot_color = "orange"  # Orange for cleaning issues
+        
+        # Plot the spectrum
+        try:
+            self.plotWidget.plot(clean_wavelengths, clean_spectral_data, pen=plot_color)
+            self.plotWidget.setTitle(title_base)
+            
+            if not self.isVisible():
+                self.show()
+                
+            logger.info(f"Successfully plotted spectrum with {len(clean_wavelengths)} data points")
+            
+        except Exception as e:
+            logger.error(f"Failed to plot spectrum: {e}")
+            QMessageBox.critical(
+                self,
+                "Plot Error",
+                f"Failed to display spectrum: {str(e)}"
+            )
