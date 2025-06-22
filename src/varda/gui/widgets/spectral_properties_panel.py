@@ -513,6 +513,7 @@ class EnhancedImagePlotWidget(ImagePlotWidget):
         """Add properties panel to the widget."""
         # Create horizontal splitter
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setChildrenCollapsible(False)  # Prevent complete collapse
         
         # Move plot widget to splitter
         self.layout().removeWidget(self.plot_widget)
@@ -522,8 +523,17 @@ class EnhancedImagePlotWidget(ImagePlotWidget):
         self.properties_panel = SpectralPropertiesPanel(self)
         splitter.addWidget(self.properties_panel)
         
-        # Set sizes (plot gets more space)
-        splitter.setSizes([400, 200])
+        # Set sizes (plot gets more space) and configure properly
+        splitter.setSizes([600, 300])
+        splitter.setStretchFactor(0, 1)  # Plot widget can stretch
+        splitter.setStretchFactor(1, 0)  # Properties panel maintains size
+        
+        # Set minimum sizes to prevent issues
+        self.plot_widget.setMinimumSize(400, 300)
+        self.properties_panel.setMinimumSize(250, 300)
         
         # Add splitter to layout
         self.layout().addWidget(splitter)
+        
+        # Store splitter reference
+        self._main_splitter = splitter

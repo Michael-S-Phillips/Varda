@@ -93,8 +93,11 @@ class DraggablePlotThumbnail(QWidget):
     def mouseDoubleClickEvent(self, event):
         """Handle double-click to open plot."""
         if event.button() == Qt.MouseButton.LeftButton:
+            print(f"[DEBUG] Double-click detected on thumbnail for {self.plot_data['title']}")
             self.thumbnailClicked.emit(self.plot_data)
-        super().mouseDoubleClickEvent(event)
+            event.accept()  # Accept the event to prevent propagation
+        else:
+            super().mouseDoubleClickEvent(event)
 
 
 class PlotWindow(EnhancedImagePlotWidget):
@@ -111,7 +114,7 @@ class PlotWindow(EnhancedImagePlotWidget):
         
         self.plot_data = plot_data
         self.setWindowTitle(f"Spectral Plot - {plot_data.get('title', 'Unknown')}")
-        self.resize(800, 600)
+        self.resize(1000, 700)
         
         # Override window flags to remove stay-on-top behavior and ensure proper independence
         self.setWindowFlags(
@@ -133,15 +136,17 @@ class PlotWindow(EnhancedImagePlotWidget):
     
     def _load_initial_spectrum(self):
         """Load the initial spectrum for this plot."""
-        if not self.proj or not self.plot_data:
-            return
-        
-        coords = self.plot_data.get('coords')
-        image_index = self.plot_data.get('image_index')
-        
-        if coords and image_index is not None:
-            x, y = coords
-            self.showPixelSpectrum(x, y, image_index)
+        try:
+            x, y = self.plot_data['coords']
+            image_index = self.plot_data['image_index']
+            
+            if hasattr(self, 'showPixelSpectrum'):
+                self.showPixelSpectrum(x, y, image_index)
+            
+            logger.debug(f"Loaded spectrum for coordinates ({x}, {y})")
+            
+        except Exception as e:
+            logger.error(f"Error loading initial spectrum: {e}")
     
     def dragEnterEvent(self, event):
         """Handle drag enter events."""
@@ -571,7 +576,10 @@ class PlotManagerTab(DockableTab):
             thumb_button = QPushButton("📊")
             thumb_button.setFixedSize(80, 60)
         
-        thumb_button.setToolTip(f"Click to open {plot_data['title']}")
+        thumb_button.setToolTip(f"Double-click to open {plot_data['title']}")
+        
+        # Make the button transparent to mouse events so parent can handle double-clicks
+        thumb_button.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         
         # Create title label
         title_label = QLabel(plot_data['title'])
