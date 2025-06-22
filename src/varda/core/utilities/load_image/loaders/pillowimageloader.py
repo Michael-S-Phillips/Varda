@@ -10,7 +10,9 @@ from PIL import Image as PILImage
 from PIL.ExifTags import TAGS
 
 # local imports
-from varda.core.utilities.load_image.loaders.abstractimageloader import AbstractImageLoader
+from varda.core.utilities.load_image.loaders.abstractimageloader import (
+    AbstractImageLoader,
+)
 from varda.core.entities.metadata import Metadata
 from varda.core.entities import Band
 

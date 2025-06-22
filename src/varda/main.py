@@ -25,6 +25,7 @@ from varda.gui import maingui
 from varda.core.data import ProjectContext
 import varda
 
+
 def initPluginManager():
     """
     Initialize the plugin manager and load plugins.
@@ -46,20 +47,22 @@ def initPluginManager():
     registerPluginsInFolder(pm, pluginFolder)
     return pm
 
+
 def registerPluginsInFolder(pm, pluginFolder):
     for name in pluginFolder.iterdir():
         name = name.name
         path = pluginFolder.joinpath(name)
-        if name.endswith('.py'):
+        if name.endswith(".py"):
             # plugin is a standalone file
             moduleName = name[:-3]
-        elif path.is_dir() and path.joinpath('__init__.py').is_file():
+        elif path.is_dir() and path.joinpath("__init__.py").is_file():
             # plugin is a package
             moduleName = name
         else:
             continue
         mod = importlib.import_module(f"varda.user_plugins.{moduleName}")
         pm.register(mod)
+
 
 def initLogging():
     """Setup logging. Logs will be saved in the "logs" directory. with a unique timestamp
@@ -104,6 +107,7 @@ def cleanup():
     if app:
         app.quit()
 
+
 def main():
     initLogging()
 
@@ -121,6 +125,7 @@ def main():
     except Exception as e:
         logging.error(f"Error in main application: {e}", exc_info=True)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
