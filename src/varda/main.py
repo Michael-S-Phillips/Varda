@@ -3,4 +3,4 @@
 if __name__ == "__main__":
     import varda
 
-    varda.initVarda()
+    varda.app.initVarda()

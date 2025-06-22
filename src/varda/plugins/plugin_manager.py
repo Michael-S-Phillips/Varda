@@ -19,7 +19,7 @@ class VardaPluginManager:
 
         # load plugins from local "user_plugins" package
         # plugins can either be standalone .py files, or an installed package
-        currPath = Path(__file__).resolve().parent
+        currPath = Path(varda.__file__).resolve().parent
         pluginFolder = currPath / "plugins/user_plugins"
         self._registerPluginsInFolder(pluginFolder)
 

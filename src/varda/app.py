@@ -30,27 +30,41 @@ from varda.registries import WidgetRegistry, ImageLoaderRegistry
 logger = logging.getLogger(__name__)
 
 
+class VardaSessionContext:
+    """
+    Context for the current Varda session.
+    Includes the project context, registry, and plugin manager.
+    """
+
+    def __init__(self):
+        self.proj = ProjectContext()
+        self.registry = VardaRegistry()
+        self.pm = VardaPluginManager()
+
+
 class VardaRegistry:
+    """Registry to store dynamically loaded widgets and image loaders. (e.g. plugins)"""
+
     def __init__(self):
         self.widgets = WidgetRegistry()
         self.imageLoaders = ImageLoaderRegistry()
 
 
-proj = ProjectContext()
-registry = VardaRegistry()
-pm = VardaPluginManager()
+sessionContext = VardaSessionContext()
+
+q_app = QApplication(sys.argv)
 
 
 def initVarda():
     """
     Initialize and start the Varda application.
     """
-    global proj, registry, pm
+    global sessionContext, q_app
 
     # Initialize the application
-    app = QApplication(sys.argv)
-    app.setApplicationName("Varda")
-    app.setOrganizationName("Varda")
+    q_app = QApplication(sys.argv)
+    q_app.setApplicationName("Varda")
+    q_app.setOrganizationName("Varda")
 
     # Initialize logging
     _initLogging()
@@ -59,14 +73,8 @@ def initVarda():
     # Any configuration settings that need to be applied before starting the program goes here
     pg.setConfigOptions(imageAxisOrder="row-major")
 
-    # initialize project context
-    proj = ProjectContext()
-
-    # initialize registry
-    registry = VardaRegistry()
-
-    # Initialize the plugin manager
-    pm = _initPluginManager()
+    # initialize the session context
+    sessionContext = VardaSessionContext()
 
     # Now that initialization is done, launch the GUI
     startGUI()
@@ -74,11 +82,11 @@ def initVarda():
 
 def startGUI():
     """Enter the GUI event loop."""
-    global app
-    gui = MainGUI(proj)
+    global sessionContext, q_app
+    gui = MainGUI(sessionContext.proj)
     gui.showMaximized()
     logger.debug("starting the application event loop")
-    exitCode = app.exec()
+    exitCode = q_app.exec()
     logging.info("Application exiting, performing cleanup...")
     sys.exit(exitCode)
 
@@ -120,40 +128,3 @@ def _initLogging():
         level=logging.DEBUG,
         handlers=[logging.FileHandler(logName), logging.StreamHandler(sys.stdout)],
     )
-
-
-def _initPluginManager():
-    """
-    Initialize the plugin manager and load plugins.
-
-    Plugins installed with pip/conda will be automatically detected.
-    Plugins can also be placed inside the user_plugins folder,
-    this is easier for quick testing or writing plugins you don't intend to publish.
-    """
-    pm = PluginManager("varda")
-    pm.add_hookspecs(varda.plugins._hookspecs)
-    # load plugins from entrypoints
-    pm.load_setuptools_entrypoints("varda.plugins")
-
-    # load plugins from local "user_plugins" package
-    # plugins can either be standalone .py files, or an installed package
-    currPath = Path(__file__).resolve().parent
-    pluginFolder = currPath / "plugins/user_plugins"
-    _registerPluginsInFolder(pm, pluginFolder)
-    return pm
-
-
-def _registerPluginsInFolder(pm, pluginFolder):
-    for name in pluginFolder.iterdir():
-        name = name.name
-        path = pluginFolder.joinpath(name)
-        if name.endswith(".py"):
-            # plugin is a standalone file
-            moduleName = name[:-3]
-        elif path.is_dir() and path.joinpath("__init__.py").is_file():
-            # plugin is a package
-            moduleName = name
-        else:
-            continue
-        mod = importlib.import_module(f"varda.plugins.user_plugins.{moduleName}")
-        pm.register(mod)
