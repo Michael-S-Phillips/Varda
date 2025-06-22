@@ -411,20 +411,54 @@ class PlotManagerTab(DockableTab):
         thumb_layout.addWidget(thumb_button)
         thumb_layout.addWidget(title_label)
         
-        # Add to grid layout
-        row = len(self.stored_plots) // 3
-        col = (len(self.stored_plots) - 1) % 3
+        # Calculate grid position based on current layout count, not stored_plots length
+        current_count = self.plots_layout.count()
+        row = current_count // 3
+        col = current_count % 3
         self.plots_layout.addWidget(thumb_widget, row, col)
+        
+        print(f"[DEBUG] Added thumbnail for {plot_data['id']} at position ({row}, {col})")
 
     def _refresh_thumbnails(self):
         """Refresh all thumbnails (for when plots are updated)."""
+        print(f"[DEBUG] Refreshing thumbnails for {len(self.stored_plots)} plots")
+        
         # Clear existing thumbnails
         for i in reversed(range(self.plots_layout.count())):
-            self.plots_layout.itemAt(i).widget().setParent(None)
+            item = self.plots_layout.itemAt(i)
+            if item:
+                widget = item.widget()
+                if widget:
+                    widget.setParent(None)
         
-        # Re-add all thumbnails
-        for plot_data in self.stored_plots:
-            self._add_plot_thumbnail(plot_data)
+        # Re-add all thumbnails in order
+        for i, plot_data in enumerate(self.stored_plots):
+            # Create thumbnail container
+            thumb_widget = QWidget()
+            thumb_layout = QVBoxLayout(thumb_widget)
+            thumb_layout.setSpacing(2)
+            
+            # Create thumbnail button (placeholder for now)
+            thumb_button = QPushButton("📊")  # Using emoji as placeholder
+            thumb_button.setFixedSize(80, 60)
+            thumb_button.setToolTip(f"Click to open {plot_data['title']}")
+            thumb_button.clicked.connect(lambda checked, pd=plot_data: self._open_plot_popup(pd))
+            
+            # Create title label
+            title_label = QLabel(plot_data['title'])
+            title_label.setWordWrap(True)
+            title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            title_label.setMaximumWidth(80)
+            
+            thumb_layout.addWidget(thumb_button)
+            thumb_layout.addWidget(title_label)
+            
+            # Calculate correct grid position based on index
+            row = i // 3
+            col = i % 3
+            self.plots_layout.addWidget(thumb_widget, row, col)
+        
+        print(f"[DEBUG] Refreshed {len(self.stored_plots)} thumbnails")
 
     def _open_plot_popup(self, plot_data):
         """Open a popup window for the selected plot, creating new windows for each plot."""
