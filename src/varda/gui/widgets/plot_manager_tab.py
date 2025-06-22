@@ -95,8 +95,8 @@ class DraggablePlotThumbnail(QWidget):
         super().mouseDoubleClickEvent(event)
 
 
-class EnhancedPlotWindow(EnhancedImagePlotWidget):
-    """Enhanced plot window with drag-drop support and properties panel."""
+class PlotWindow(EnhancedImagePlotWidget):
+    """Advanced plot window with drag-drop support and properties panel."""
     
     def __init__(self, plot_data: dict, project_context: ProjectContext, parent=None):
         super().__init__(
@@ -108,7 +108,7 @@ class EnhancedPlotWindow(EnhancedImagePlotWidget):
         )
         
         self.plot_data = plot_data
-        self.setWindowTitle(f"Enhanced Plot - {plot_data.get('title', 'Unknown')}")
+        self.setWindowTitle(f"Spectral Plot - {plot_data.get('title', 'Unknown')}")
         self.resize(800, 600)
         
         # Set up drag and drop
@@ -199,15 +199,15 @@ class EnhancedPlotWindow(EnhancedImagePlotWidget):
             )
 
 
-class EnhancedPlotManagerTab(DockableTab):
-    """Enhanced Plot Manager Tab with full spectral control integration."""
+class PlotManagerTab(DockableTab):
+    """Advanced Plot Manager Tab with spectral control integration."""
     
     def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
-        super().__init__("Enhanced Plot Manager", parent)
+        super().__init__("Plot Manager", parent)
         self.project_context = proj
         self.imageIndex = imageIndex
         
-        # Track enhanced popup windows
+        # Track popup windows
         self.popup_windows = {}  # Dict to track popup windows by plot ID
         self.lastPixelCoords = (0, 0)
         
@@ -228,7 +228,7 @@ class EnhancedPlotManagerTab(DockableTab):
         self._connect_signals()
     
     def _init_ui(self):
-        """Initialize the enhanced UI."""
+        """Initialize the UI."""
         layout = QVBoxLayout(self)
         
         # Create main splitter
@@ -252,10 +252,6 @@ class EnhancedPlotManagerTab(DockableTab):
         self.main_checkbox.setChecked(self.main_enabled)
         self.zoom_checkbox.setChecked(self.zoom_enabled)
         
-        self.context_checkbox.toggled.connect(self._on_context_toggled)
-        self.main_checkbox.toggled.connect(self._on_main_toggled)
-        self.zoom_checkbox.toggled.connect(self._on_zoom_toggled)
-        
         view_layout.addWidget(self.context_checkbox)
         view_layout.addWidget(self.main_checkbox)
         view_layout.addWidget(self.zoom_checkbox)
@@ -272,8 +268,6 @@ class EnhancedPlotManagerTab(DockableTab):
         self.update_radio.setChecked(self.update_existing)
         self.create_radio.setChecked(not self.update_existing)
         
-        self.update_radio.toggled.connect(self._on_behavior_changed)
-        
         behavior_layout.addWidget(self.update_radio)
         behavior_layout.addWidget(self.create_radio)
         
@@ -282,10 +276,10 @@ class EnhancedPlotManagerTab(DockableTab):
         
         # Plot type settings
         plot_type_layout = QHBoxLayout()
-        self.enhanced_plots_checkbox = QCheckBox("Use Enhanced Plots")
-        self.enhanced_plots_checkbox.setChecked(True)
-        self.enhanced_plots_checkbox.setToolTip("Create plots with spectral properties panel")
-        plot_type_layout.addWidget(self.enhanced_plots_checkbox)
+        self.advanced_plots_checkbox = QCheckBox("Use Advanced Plots")
+        self.advanced_plots_checkbox.setChecked(True)
+        self.advanced_plots_checkbox.setToolTip("Create plots with spectral properties panel")
+        plot_type_layout.addWidget(self.advanced_plots_checkbox)
         plot_type_layout.addStretch()
         
         settings_layout.addLayout(plot_type_layout)
@@ -331,7 +325,7 @@ class EnhancedPlotManagerTab(DockableTab):
         current_group = QGroupBox("Current Plot Preview")
         current_layout = QVBoxLayout(current_group)
         
-        # Create enhanced embedded plot
+        # Create embedded plot
         self.current_plot = EnhancedImagePlotWidget(
             self.project_context, 
             self.imageIndex, 
@@ -343,12 +337,12 @@ class EnhancedPlotManagerTab(DockableTab):
         
         # Quick actions for current plot
         current_actions = QHBoxLayout()
-        self.open_enhanced_button = QPushButton("Open Enhanced")
-        self.open_enhanced_button.setToolTip("Open current plot in enhanced window")
+        self.open_advanced_button = QPushButton("Open Advanced")
+        self.open_advanced_button.setToolTip("Open current plot in advanced window")
         self.properties_button = QPushButton("Properties")
         self.properties_button.setToolTip("Show properties panel for current plot")
         
-        current_actions.addWidget(self.open_enhanced_button)
+        current_actions.addWidget(self.open_advanced_button)
         current_actions.addWidget(self.properties_button)
         current_actions.addStretch()
         
@@ -358,7 +352,7 @@ class EnhancedPlotManagerTab(DockableTab):
         # Add to main splitter
         main_splitter.addWidget(top_widget)
         main_splitter.addWidget(bottom_widget)
-        main_splitter.setSizes([300, 250])  # Give more space to plots section
+        main_splitter.setSizes([300, 250])
         
         layout.addWidget(main_splitter)
     
@@ -373,7 +367,7 @@ class EnhancedPlotManagerTab(DockableTab):
         # Control signals
         self.clear_all_button.clicked.connect(self._clear_all_plots)
         self.export_button.clicked.connect(self._export_plots)
-        self.open_enhanced_button.clicked.connect(self._open_current_enhanced)
+        self.open_advanced_button.clicked.connect(self._open_current_advanced)
         self.properties_button.clicked.connect(self._show_current_properties)
         
         # Current plot signals
@@ -453,7 +447,7 @@ class EnhancedPlotManagerTab(DockableTab):
                         existing_popup = self.popup_windows[self.active_plot_id]
                         if existing_popup and existing_popup.isVisible():
                             existing_popup.showPixelSpectrum(x, y, self.imageIndex)
-                            existing_popup.setWindowTitle(f"Enhanced Plot - {plot_data['title']}")
+                            existing_popup.setWindowTitle(f"Spectral Plot - {plot_data['title']}")
                     
                     logger.debug(f"Updated active plot {self.active_plot_id} with coords ({x}, {y})")
                     return
@@ -603,7 +597,7 @@ class EnhancedPlotManagerTab(DockableTab):
         logger.debug(f"Refreshed {len(self.stored_plots)} thumbnails")
     
     def _open_plot_popup(self, plot_data: dict):
-        """Open enhanced popup window for the selected plot."""
+        """Open advanced popup window for the selected plot."""
         plot_id = plot_data['id']
         
         # Check if window already exists
@@ -617,9 +611,9 @@ class EnhancedPlotManagerTab(DockableTab):
                 existing_popup.activateWindow()
                 return
         
-        # Create enhanced popup window
-        if self.enhanced_plots_checkbox.isChecked():
-            popup = EnhancedPlotWindow(plot_data, self.project_context, self)
+        # Create popup window
+        if self.advanced_plots_checkbox.isChecked():
+            popup = PlotWindow(plot_data, self.project_context, self)
         else:
             # Fallback to basic plot window
             popup = ImagePlotWidget(
@@ -657,9 +651,9 @@ class EnhancedPlotManagerTab(DockableTab):
         open_action.triggered.connect(lambda: self._open_plot_popup(plot_data))
         menu.addAction(open_action)
         
-        open_enhanced_action = QAction("Open Enhanced", self)
-        open_enhanced_action.triggered.connect(lambda: self._open_enhanced_popup(plot_data))
-        menu.addAction(open_enhanced_action)
+        open_advanced_action = QAction("Open Advanced", self)
+        open_advanced_action.triggered.connect(lambda: self._open_advanced_popup(plot_data))
+        menu.addAction(open_advanced_action)
         
         menu.addSeparator()
         
@@ -680,12 +674,12 @@ class EnhancedPlotManagerTab(DockableTab):
         
         menu.exec(position)
     
-    def _open_enhanced_popup(self, plot_data: dict):
-        """Force open enhanced popup regardless of settings."""
-        old_setting = self.enhanced_plots_checkbox.isChecked()
-        self.enhanced_plots_checkbox.setChecked(True)
+    def _open_advanced_popup(self, plot_data: dict):
+        """Force open advanced popup regardless of settings."""
+        old_setting = self.advanced_plots_checkbox.isChecked()
+        self.advanced_plots_checkbox.setChecked(True)
         self._open_plot_popup(plot_data)
-        self.enhanced_plots_checkbox.setChecked(old_setting)
+        self.advanced_plots_checkbox.setChecked(old_setting)
     
     def _duplicate_plot(self, plot_data: dict):
         """Duplicate a plot."""
@@ -699,8 +693,6 @@ class EnhancedPlotManagerTab(DockableTab):
     
     def _rename_plot(self, plot_data: dict):
         """Rename a plot."""
-        from PyQt6.QtWidgets import QInputDialog
-        
         new_name, ok = QInputDialog.getText(
             self,
             "Rename Plot",
@@ -722,7 +714,7 @@ class EnhancedPlotManagerTab(DockableTab):
             if plot_data['id'] in self.popup_windows:
                 popup = self.popup_windows[plot_data['id']]
                 if popup:
-                    popup.setWindowTitle(f"Enhanced Plot - {new_name}")
+                    popup.setWindowTitle(f"Spectral Plot - {new_name}")
     
     def _remove_plot(self, plot_data: dict):
         """Remove a plot."""
@@ -785,8 +777,8 @@ class EnhancedPlotManagerTab(DockableTab):
             "Will support CSV, JSON, and image export formats."
         )
     
-    def _open_current_enhanced(self):
-        """Open current plot in enhanced window."""
+    def _open_current_advanced(self):
+        """Open current plot in advanced window."""
         if not self.lastPixelCoords:
             QMessageBox.information(self, "No Plot", "No current plot to open.")
             return
@@ -800,16 +792,14 @@ class EnhancedPlotManagerTab(DockableTab):
             'title': f"Current Pixel ({x}, {y})"
         }
         
-        # Open enhanced popup
-        popup = EnhancedPlotWindow(temp_plot_data, self.project_context, self)
+        # Open advanced popup
+        popup = PlotWindow(temp_plot_data, self.project_context, self)
         popup.show()
     
     def _show_current_properties(self):
         """Show properties panel for current plot."""
         if not hasattr(self.current_plot, 'properties_panel'):
             # Add properties panel to current plot
-            from varda.gui.widgets.spectral_properties_panel import SpectralPropertiesPanel
-            
             properties_panel = SpectralPropertiesPanel(self.current_plot, self)
             
             # Create popup window for properties

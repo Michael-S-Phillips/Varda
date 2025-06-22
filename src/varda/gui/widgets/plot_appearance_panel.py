@@ -395,6 +395,7 @@ class PlotAppearancePanel(QWidget):
         
         self._apply_all_changes()
     
+    # TODO: Implement loading current settings from the plot widget
     def _load_current_settings(self):
         """Load current plot settings into the controls."""
         if not self.plot_widget:

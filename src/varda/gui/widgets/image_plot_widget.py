@@ -53,7 +53,7 @@ class SpectrumData:
 
 class ImagePlotWidget(QWidget):
     """
-    Enhanced widget for plotting spectral data from images.
+    Widget for plotting spectral data from images.
     Supports multiple spectra on the same plot with individual properties.
     Can be used as embedded widget or popup window.
     """
@@ -94,7 +94,7 @@ class ImagePlotWidget(QWidget):
         if self.proj is not None and self.imageIndex is not None:
             self.setImage(self.imageIndex)
         
-        logger.debug("Enhanced ImagePlotWidget initialized")
+        logger.debug("ImagePlotWidget initialized")
 
     def _init_ui(self):
         """Initialize the user interface."""
