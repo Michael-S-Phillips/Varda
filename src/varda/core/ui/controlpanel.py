@@ -304,9 +304,13 @@ class PlotManagerTab(DockableTab):
             # DO NOT call _refresh_thumbnails() here - just changing modes shouldn't affect display
 
     def _create_initial_plot(self):
+        from varda.gui.widgets.spectral_properties_panel import EnhancedImagePlotWidget
         """Create initial embedded plot widget for immediate viewing."""
-        self.current_plot = ImagePlotWidget(
-            self.project_context, self.imageIndex, parent=self
+        self.current_plot = EnhancedImagePlotWidget(
+            self.project_context, 
+            self.imageIndex, 
+            show_properties_panel=False,  # Keep compact for embedded use
+            parent=self
         )
         self.current_plot.sigClicked.connect(self.handlePixelPlotClicked)
         self.current_plot.setMaximumHeight(150)  # Keep it compact
@@ -749,6 +753,7 @@ class ControlPanel(QWidget):
         self.tabWidget.customContextMenuRequested.connect(self._show_tab_context_menu)
 
     def _setup_tabs(self):
+        from varda.gui.widgets.enhanced_plot_manager_tab import EnhancedPlotManagerTab
         """Create and setup all tabs."""
         # Create tabs
         self.tabs["metadata"] = MetadataTab(self.project_context, self.imageIndex, self)
@@ -759,7 +764,7 @@ class ControlPanel(QWidget):
         self.tabs["stretch"] = StretchTab(
             self.project_context, self.imageIndex, self.rasterView, self
         )
-        self.tabs["plot"] = PlotManagerTab(self.project_context, self.imageIndex, self)
+        self.tabs["plot"] = EnhancedPlotManagerTab(self.project_context, self.imageIndex, self)
 
         # Add tabs to widget
         for tab in self.tabs.values():
@@ -880,4 +885,4 @@ class ControlPanel(QWidget):
         }
         
         # Use the same popup method as thumbnails
-        self._open_plot_popup(current_plot_data)
+        self.tabs[current_plot_id]._open_plot_popup(current_plot_data)
