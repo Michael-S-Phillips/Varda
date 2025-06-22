@@ -386,9 +386,66 @@ class PlotManagerTab(DockableTab):
         else:
             print(f"[DEBUG] Created new plot {plot_id} in create mode")
 
-    def _add_plot_thumbnail(self, plot_data):
-        """Add a thumbnail for the stored plot."""
+    def _generate_plot_thumbnail(self, plot_data, size=(80, 60)):
+        """Generate a small thumbnail image of the plot."""
+        import pyqtgraph as pg
+        from pyqtgraph.exporters import ImageExporter  # Import ImageExporter directly
+        from PyQt6.QtGui import QPixmap, QPainter
+        from PyQt6.QtCore import QSize
+        import numpy as np
+        
+        try:
+            # Get the spectral data
+            x, y = plot_data['coords']
+            image = self.project_context.getImage(plot_data['image_index'])
+            
+            # Get wavelengths
+            try:
+                wavelengths = np.char.strip(image.metadata.wavelengths.astype(str)).astype(float)
+            except ValueError:
+                wavelengths = np.arange(len(image.metadata.wavelengths), dtype=float)
+            
+            # Get spectrum data
+            spectrum = image.raster[y, x, :]
+            
+            # Create a small plot widget for thumbnail generation
+            thumb_plot = pg.PlotWidget()
+            thumb_plot.setFixedSize(size[0], size[1])
+            thumb_plot.hideAxis('left')
+            thumb_plot.hideAxis('bottom')
+            thumb_plot.setMenuEnabled(False)
+            thumb_plot.setMouseEnabled(x=False, y=False)
+            thumb_plot.hideButtons()
+            thumb_plot.setBackground('white')
+            
+            # Plot the data with a simple line
+            thumb_plot.plot(wavelengths, spectrum, pen=pg.mkPen(color='blue', width=1))
+            
+            # Export as QPixmap using ImageExporter
+            exporter = ImageExporter(thumb_plot.plotItem)
+            exporter.parameters()['width'] = size[0]
+            exporter.parameters()['height'] = size[1]
+            
+            # Get the image data
+            img = exporter.export(toBytes=True)
+            pixmap = QPixmap()
+            pixmap.loadFromData(img)
+            
+            # Clean up the temporary plot widget
+            thumb_plot.close()
+            thumb_plot.deleteLater()
+            
+            return pixmap
+            
+        except Exception as e:
+            print(f"[DEBUG] Error generating thumbnail: {e}")
+            # Return None to fall back to text thumbnail
+            return None
+
+    def _create_thumbnail_widget(self, plot_data):
+        """Create a thumbnail widget with either plot image or fallback text."""
         from PyQt6.QtWidgets import QLabel, QPushButton, QVBoxLayout
+        from PyQt6.QtGui import QIcon
         from PyQt6.QtCore import QSize
         
         # Create thumbnail container
@@ -396,9 +453,22 @@ class PlotManagerTab(DockableTab):
         thumb_layout = QVBoxLayout(thumb_widget)
         thumb_layout.setSpacing(2)
         
-        # Create thumbnail button (placeholder for now)
-        thumb_button = QPushButton("📊")  # Using emoji as placeholder
-        thumb_button.setFixedSize(80, 60)
+        # Try to generate plot thumbnail
+        plot_pixmap = self._generate_plot_thumbnail(plot_data)
+        
+        if plot_pixmap:
+            # Use the actual plot image as thumbnail
+            thumb_button = QPushButton()
+            thumb_button.setIcon(QIcon(plot_pixmap))
+            thumb_button.setIconSize(QSize(80, 60))
+            thumb_button.setFixedSize(80, 60)
+            thumb_button.setFlat(True)  # Remove button border for cleaner look
+            thumb_button.setStyleSheet("QPushButton { border: 1px solid gray; }")
+        else:
+            # Fall back to emoji if thumbnail generation fails
+            thumb_button = QPushButton("📊")
+            thumb_button.setFixedSize(80, 60)
+        
         thumb_button.setToolTip(f"Click to open {plot_data['title']}")
         thumb_button.clicked.connect(lambda: self._open_plot_popup(plot_data))
         
@@ -407,11 +477,19 @@ class PlotManagerTab(DockableTab):
         title_label.setWordWrap(True)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setMaximumWidth(80)
+        title_label.setStyleSheet("font-size: 10px;")  # Smaller font for thumbnail
         
         thumb_layout.addWidget(thumb_button)
         thumb_layout.addWidget(title_label)
         
-        # Calculate grid position based on current layout count, not stored_plots length
+        return thumb_widget
+
+    def _add_plot_thumbnail(self, plot_data):
+        """Add a thumbnail for the stored plot."""
+        # Create thumbnail widget with actual plot image
+        thumb_widget = self._create_thumbnail_widget(plot_data)
+        
+        # Calculate grid position based on current layout count
         current_count = self.plots_layout.count()
         row = current_count // 3
         col = current_count % 3
@@ -433,25 +511,8 @@ class PlotManagerTab(DockableTab):
         
         # Re-add all thumbnails in order
         for i, plot_data in enumerate(self.stored_plots):
-            # Create thumbnail container
-            thumb_widget = QWidget()
-            thumb_layout = QVBoxLayout(thumb_widget)
-            thumb_layout.setSpacing(2)
-            
-            # Create thumbnail button (placeholder for now)
-            thumb_button = QPushButton("📊")  # Using emoji as placeholder
-            thumb_button.setFixedSize(80, 60)
-            thumb_button.setToolTip(f"Click to open {plot_data['title']}")
-            thumb_button.clicked.connect(lambda checked, pd=plot_data: self._open_plot_popup(pd))
-            
-            # Create title label
-            title_label = QLabel(plot_data['title'])
-            title_label.setWordWrap(True)
-            title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            title_label.setMaximumWidth(80)
-            
-            thumb_layout.addWidget(thumb_button)
-            thumb_layout.addWidget(title_label)
+            # Create thumbnail widget with actual plot image
+            thumb_widget = self._create_thumbnail_widget(plot_data)
             
             # Calculate correct grid position based on index
             row = i // 3
