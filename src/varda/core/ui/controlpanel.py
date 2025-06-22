@@ -190,6 +190,9 @@ class PlotManagerTab(DockableTab):
         self.zoom_enabled = False
         self.update_existing = True  # True: update existing, False: create new
         
+        # Track the "active" plot for update mode - only this plot gets updated
+        self.active_plot_id = None  # ID of the plot that should be updated in "update existing" mode
+        
         self._init_ui()
 
     def _init_ui(self):
@@ -280,10 +283,25 @@ class PlotManagerTab(DockableTab):
         
     def _on_behavior_changed(self, checked):
         """Handle update behavior radio button change."""
+        old_update_existing = self.update_existing
+        
         if checked:  # update_radio was checked
             self.update_existing = True
         else:
             self.update_existing = False
+            
+        # When switching modes, manage the active plot but don't refresh thumbnails
+        if old_update_existing != self.update_existing:
+            if self.update_existing and self.stored_plots:
+                # Switching to "update existing" - mark the most recent plot as the active one
+                self.active_plot_id = self.stored_plots[-1]['id']
+                print(f"[DEBUG] Switched to update mode. Active plot: {self.active_plot_id}")
+            else:
+                # Switching to "create new" - clear active plot
+                self.active_plot_id = None
+                print(f"[DEBUG] Switched to create new mode. Cleared active plot.")
+            
+            # DO NOT call _refresh_thumbnails() here - just changing modes shouldn't affect display
 
     def _create_initial_plot(self):
         """Create initial embedded plot widget for immediate viewing."""
@@ -321,34 +339,52 @@ class PlotManagerTab(DockableTab):
         from PyQt6.QtGui import QPixmap
         from PyQt6.QtCore import QSize
         
-        # Create plot data entry
-        plot_id = f"plot_{self.plot_counter}"
-        self.plot_counter += 1
-        
         plot_data = {
-            'id': plot_id,
             'coords': (x, y),
             'image_index': self.imageIndex,
             'title': f"Pixel ({x}, {y})"
         }
         
-        if self.update_existing and self.stored_plots:
-            # Update the most recent plot but preserve the original ID
-            old_plot_data = self.stored_plots[-1]
-            plot_data['id'] = old_plot_data['id']  # Keep the same ID for consistency
-            self.stored_plots[-1] = plot_data
-            self._refresh_thumbnails()
+        if self.update_existing and self.active_plot_id is not None:
+            # Update the active plot only
+            for i, stored_plot in enumerate(self.stored_plots):
+                if stored_plot['id'] == self.active_plot_id:
+                    # Update the existing plot data but keep the same ID
+                    plot_data['id'] = self.active_plot_id
+                    self.stored_plots[i] = plot_data
+                    
+                    # Only refresh thumbnails when actually updating a plot
+                    self._refresh_thumbnails()
+                    
+                    # If there's an existing popup for this plot, update it
+                    if self.active_plot_id in self.popup_windows:
+                        existing_popup = self.popup_windows[self.active_plot_id]
+                        if existing_popup and existing_popup.isVisible():
+                            existing_popup.showPixelSpectrum(x, y, self.imageIndex)
+                            existing_popup.setWindowTitle(f"Plot Manager - {plot_data['title']}")
+                    
+                    print(f"[DEBUG] Updated active plot {self.active_plot_id} with coords ({x}, {y})")
+                    return
             
-            # If there's an existing popup for this plot, update it
-            if plot_data['id'] in self.popup_windows:
-                existing_popup = self.popup_windows[plot_data['id']]
-                if existing_popup and existing_popup.isVisible():
-                    existing_popup.showPixelSpectrum(x, y, self.imageIndex)
-                    existing_popup.setWindowTitle(f"Plot Manager - {plot_data['title']}")
+            # If we get here, the active plot wasn't found - fall through to create new
+            print(f"[DEBUG] Active plot {self.active_plot_id} not found, creating new plot")
+            self.active_plot_id = None
+        
+        # Create new plot entry
+        plot_id = f"plot_{self.plot_counter}"
+        self.plot_counter += 1
+        plot_data['id'] = plot_id
+        
+        self.stored_plots.append(plot_data)
+        # Use _add_plot_thumbnail for new plots, not _refresh_thumbnails
+        self._add_plot_thumbnail(plot_data)
+        
+        # If we're in update mode, make this the new active plot
+        if self.update_existing:
+            self.active_plot_id = plot_id
+            print(f"[DEBUG] Created new plot {plot_id} and made it active")
         else:
-            # Create new plot entry
-            self.stored_plots.append(plot_data)
-            self._add_plot_thumbnail(plot_data)
+            print(f"[DEBUG] Created new plot {plot_id} in create mode")
 
     def _add_plot_thumbnail(self, plot_data):
         """Add a thumbnail for the stored plot."""
