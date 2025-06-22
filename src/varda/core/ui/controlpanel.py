@@ -375,4 +375,4 @@ class ControlPanel(QWidget):
         }
         
         # Use the same popup method as thumbnails
-        self.tabs[current_plot_id]._open_plot_popup(current_plot_data)
+        self.tabs["plot"]._open_plot_popup(current_plot_data)

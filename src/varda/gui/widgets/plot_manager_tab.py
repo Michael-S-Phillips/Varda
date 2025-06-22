@@ -879,8 +879,77 @@ class PlotManagerTab(DockableTab):
     
     def setup_view_click_handlers(self, raster_view):
         """Set up click handlers for different views."""
-        # This method maintains compatibility with existing code
-        pass
+        self.raster_view = raster_view
+        
+        # Store original click handlers
+        self._original_zoom_click = getattr(raster_view.zoomImage, 'mouseClickEvent', None)
+        
+        # Set up custom click handlers for each view
+        if hasattr(raster_view, 'contextImage'):
+            raster_view.contextImage.mouseClickEvent = lambda event: self._handle_context_click(event, raster_view)
+        
+        if hasattr(raster_view, 'mainImage'): 
+            raster_view.mainImage.mouseClickEvent = lambda event: self._handle_main_click(event, raster_view)
+            
+        if hasattr(raster_view, 'zoomImage'):
+            raster_view.zoomImage.mouseClickEvent = lambda event: self._handle_zoom_click(event, raster_view)
+
+    def _handle_context_click(self, event, raster_view):
+        """Handle clicks on context view."""
+        if not self.context_enabled:
+            return
+            
+        # Call original handling logic similar to zoom click
+        self._process_click_event(event, raster_view, 'context')
+
+    def _handle_main_click(self, event, raster_view):
+        """Handle clicks on main view."""
+        if not self.main_enabled:
+            return
+            
+        self._process_click_event(event, raster_view, 'main')
+
+    def _handle_zoom_click(self, event, raster_view):
+        """Handle clicks on zoom view."""
+        if not self.zoom_enabled:
+            return
+            
+        # Call original zoom click logic
+        if self._original_zoom_click:
+            self._original_zoom_click(event)
+        else:
+            self._process_click_event(event, raster_view, 'zoom')
+
+    def _process_click_event(self, event, raster_view, view_type):
+        """Process click event for any view type."""
+        from PyQt6.QtCore import Qt
+        
+        if event.button() == Qt.MouseButton.LeftButton:
+            if view_type == 'zoom':
+                # Use existing zoom logic
+                pos = raster_view.zoomImage.mapFromScene(event.scenePos())
+                x, y = int(pos.x()), int(pos.y())
+                final_x, final_y = raster_view._zoomCoordsToAbsolute(x, y)
+            else:
+                # For context and main views, we need different coordinate mapping
+                if view_type == 'context':
+                    pos = raster_view.contextImage.mapFromScene(event.scenePos())
+                    # Context coordinates are already in absolute image space
+                    final_x, final_y = int(pos.x()), int(pos.y())
+                elif view_type == 'main':
+                    pos = raster_view.mainImage.mapFromScene(event.scenePos())
+                    # Main coordinates need to be converted to absolute
+                    final_x = int(raster_view.contextROI.pos().x() + pos.x())
+                    final_y = int(raster_view.contextROI.pos().y() + pos.y())
+            
+            # Update crosshair if it's zoom view
+            if view_type == 'zoom' and hasattr(raster_view, '_updateCrosshair'):
+                raster_view._updateCrosshair(x, y)
+            
+            # Emit the click signal
+            raster_view.sigImageClicked.emit(final_x, final_y)
+            
+        event.accept()
     
     def closeEvent(self, event):
         """Clean up all popup windows when the tab is closed."""
