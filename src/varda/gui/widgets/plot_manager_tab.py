@@ -111,6 +111,18 @@ class PlotWindow(EnhancedImagePlotWidget):
         self.setWindowTitle(f"Spectral Plot - {plot_data.get('title', 'Unknown')}")
         self.resize(800, 600)
         
+        # Override window flags to remove stay-on-top behavior and ensure proper independence
+        self.setWindowFlags(
+            Qt.WindowType.Window | 
+            Qt.WindowType.WindowCloseButtonHint | 
+            Qt.WindowType.WindowMinMaxButtonsHint |
+            Qt.WindowType.WindowTitleHint
+        )
+        
+        # Ensure window is not transparent
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
+        self.setWindowOpacity(1.0)
+
         # Set up drag and drop
         self.setAcceptDrops(True)
         
@@ -275,14 +287,6 @@ class PlotManagerTab(DockableTab):
         settings_layout.addLayout(behavior_layout)
         
         # Plot type settings
-        plot_type_layout = QHBoxLayout()
-        self.advanced_plots_checkbox = QCheckBox("Use Advanced Plots")
-        self.advanced_plots_checkbox.setChecked(True)
-        self.advanced_plots_checkbox.setToolTip("Create plots with spectral properties panel")
-        plot_type_layout.addWidget(self.advanced_plots_checkbox)
-        plot_type_layout.addStretch()
-        
-        settings_layout.addLayout(plot_type_layout)
         top_layout.addWidget(settings_group)
         
         # Stored Plots Section with drag-drop support
@@ -611,23 +615,8 @@ class PlotManagerTab(DockableTab):
                 existing_popup.activateWindow()
                 return
         
-        # Create popup window
-        if self.advanced_plots_checkbox.isChecked():
-            popup = PlotWindow(plot_data, self.project_context, self)
-        else:
-            # Fallback to basic plot window
-            popup = ImagePlotWidget(
-                self.project_context,
-                plot_data['image_index'],
-                isWindow=True,
-                parent=self
-            )
-            popup.setWindowTitle(f"Plot - {plot_data['title']}")
-            popup.resize(600, 400)
-            
-            # Load spectrum
-            x, y = plot_data['coords']
-            popup.showPixelSpectrum(x, y, plot_data['image_index'])
+        # Always create advanced popup window
+        popup = PlotWindow(plot_data, self.project_context, self)
         
         # Set up cleanup
         def cleanup_popup():
@@ -646,14 +635,10 @@ class PlotManagerTab(DockableTab):
         """Show context menu for thumbnail."""
         menu = QMenu(self)
         
-        # Open actions
+        # Open action (always advanced now)
         open_action = QAction("Open Plot", self)
         open_action.triggered.connect(lambda: self._open_plot_popup(plot_data))
         menu.addAction(open_action)
-        
-        open_advanced_action = QAction("Open Advanced", self)
-        open_advanced_action.triggered.connect(lambda: self._open_advanced_popup(plot_data))
-        menu.addAction(open_advanced_action)
         
         menu.addSeparator()
         
@@ -673,13 +658,6 @@ class PlotManagerTab(DockableTab):
         menu.addAction(remove_action)
         
         menu.exec(position)
-    
-    def _open_advanced_popup(self, plot_data: dict):
-        """Force open advanced popup regardless of settings."""
-        old_setting = self.advanced_plots_checkbox.isChecked()
-        self.advanced_plots_checkbox.setChecked(True)
-        self._open_plot_popup(plot_data)
-        self.advanced_plots_checkbox.setChecked(old_setting)
     
     def _duplicate_plot(self, plot_data: dict):
         """Duplicate a plot."""
