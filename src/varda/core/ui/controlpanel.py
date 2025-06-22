@@ -175,7 +175,9 @@ class PlotManagerTab(DockableTab):
         super().__init__("Plot Manager", parent)
         self.project_context = proj
         self.imageIndex = imageIndex
-        self.pixelPlotPopup = None
+        
+        # Track multiple popup windows instead of just one
+        self.popup_windows = {}  # Dict to track popup windows by plot ID
         self.lastPixelCoords = (0, 0)
         
         # Plot storage and settings
@@ -331,9 +333,18 @@ class PlotManagerTab(DockableTab):
         }
         
         if self.update_existing and self.stored_plots:
-            # Update the most recent plot
+            # Update the most recent plot but preserve the original ID
+            old_plot_data = self.stored_plots[-1]
+            plot_data['id'] = old_plot_data['id']  # Keep the same ID for consistency
             self.stored_plots[-1] = plot_data
             self._refresh_thumbnails()
+            
+            # If there's an existing popup for this plot, update it
+            if plot_data['id'] in self.popup_windows:
+                existing_popup = self.popup_windows[plot_data['id']]
+                if existing_popup and existing_popup.isVisible():
+                    existing_popup.showPixelSpectrum(x, y, self.imageIndex)
+                    existing_popup.setWindowTitle(f"Plot Manager - {plot_data['title']}")
         else:
             # Create new plot entry
             self.stored_plots.append(plot_data)
@@ -380,20 +391,65 @@ class PlotManagerTab(DockableTab):
             self._add_plot_thumbnail(plot_data)
 
     def _open_plot_popup(self, plot_data):
-        """Open a popup window for the selected plot."""
+        """Open a popup window for the selected plot, creating new windows for each plot."""
+        plot_id = plot_data['id']
+        
+        # Check if a window for this plot already exists and is still open
+        if plot_id in self.popup_windows:
+            existing_popup = self.popup_windows[plot_id]
+            if existing_popup and not existing_popup.isVisible():
+                # Window was closed, remove from tracking
+                del self.popup_windows[plot_id]
+            elif existing_popup:
+                # Window exists and is visible, just bring it to front
+                existing_popup.show()
+                existing_popup.raise_()
+                existing_popup.activateWindow()
+                return
+
+        # Create a new popup window for this plot
         popup = ImagePlotWidget(
             self.project_context,
             plot_data['image_index'],
             isWindow=True,
-            parent=self.parent(),
+            parent=self.parent_control_panel.parent() if self.parent_control_panel else self,
         )
-        popup.setWindowTitle(f"Plot: {plot_data['title']}")
+        
+        popup.setWindowTitle(f"Plot Manager - {plot_data['title']}")
         popup.resize(600, 400)
-        popup.showPixelSpectrum(plot_data['coords'][0], plot_data['coords'][1])
+        
+        # Set up cleanup when window is destroyed
+        def cleanup_popup():
+            if plot_id in self.popup_windows:
+                del self.popup_windows[plot_id]
+        
+        popup.destroyed.connect(cleanup_popup)
+        
+        # Store reference to the popup
+        self.popup_windows[plot_id] = popup
+        
+        # Update the plot with the coordinates
+        x, y = plot_data['coords']
+        if hasattr(popup, "showPixelSpectrum"):
+            popup.showPixelSpectrum(x, y, plot_data['image_index'])
+        
+        # Show and bring to front
         popup.show()
         popup.raise_()
         popup.activateWindow()
     
+    def closeEvent(self, event):
+        """Clean up all popup windows when the tab is closed."""
+        # Close all popup windows
+        for popup in list(self.popup_windows.values()):
+            if popup and popup.isVisible():
+                popup.close()
+        
+        # Clear the tracking dict
+        self.popup_windows.clear()
+        
+        super().closeEvent(event)
+
     def setup_view_click_handlers(self, raster_view):
         """Set up click handlers for different views."""
         self.raster_view = raster_view
@@ -662,31 +718,21 @@ class ControlPanel(QWidget):
             self.pixelPlotPopup.showPixelSpectrum(x, y)
 
     def handlePixelPlotClicked(self):
-        """Handle pixel plot click to open popup window."""
-        self.sigPixelPlotClicked.emit()
-
-        # Create popup if it doesn't exist
-        plot_tab = self.tabs.get("plot")
-        if not plot_tab:
-            return
-
-        if plot_tab.pixelPlotPopup is None:
-            plot_tab.pixelPlotPopup = ImagePlotWidget(
-                self.project_context,
-                self.imageIndex,
-                isWindow=True,
-                parent=self.parent(),
-            )
-            plot_tab.pixelPlotPopup.setWindowTitle("Pixel Plot")
-            plot_tab.pixelPlotPopup.resize(400, 300)
-            plot_tab.pixelPlotPopup.destroyed.connect(
-                lambda: setattr(plot_tab, "pixelPlotPopup", None)
-            )
-
-        # Use last clicked pixel coordinates
+        """Handle pixel plot click - create popup for current embedded plot."""
+        # Get the current coordinates from the embedded plot
         x, y = self.lastPixelCoords
-        if hasattr(plot_tab.pixelPlotPopup, "showPixelSpectrum"):
-            plot_tab.pixelPlotPopup.showPixelSpectrum(x, y)
-        plot_tab.pixelPlotPopup.show()
-        plot_tab.pixelPlotPopup.raise_()
-        plot_tab.pixelPlotPopup.activateWindow()
+        
+        # Create a unique plot data entry for the current embedded plot
+        # Use a timestamp to ensure uniqueness
+        import time
+        current_plot_id = f"current_plot_{int(time.time() * 1000)}"
+        
+        current_plot_data = {
+            'id': current_plot_id,
+            'coords': (x, y),
+            'image_index': self.imageIndex,
+            'title': f"Current Pixel ({x}, {y})"
+        }
+        
+        # Use the same popup method as thumbnails
+        self._open_plot_popup(current_plot_data)
