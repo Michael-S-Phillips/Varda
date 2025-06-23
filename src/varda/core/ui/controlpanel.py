@@ -37,7 +37,8 @@ class DockableTab(QWidget):
         self.parent_control_panel = parent
         self.docked_widget = None
         # Override minimum width constraints
-        self.setMinimumWidth(20)  # Set your desired minimum width
+        self.setMinimumWidth(20)  # Set minimum width
+        self.setMinimumHeight(20)  # Set minimum height
 
     def pop_out(self):
         """Pop this tab out as a separate dockable widget."""
