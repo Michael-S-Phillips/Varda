@@ -443,7 +443,7 @@ class DualImageView(QWidget):
                         main_raster_view = main_gui.rasterViews[image_index]
                         if hasattr(main_raster_view, 'viewModel') and hasattr(main_raster_view.viewModel, 'stretchIndex'):
                             stretch_index = main_raster_view.viewModel.stretchIndex
-                            logger.debug(f"Found main view stretch index {stretch_index} for image {image_index}")
+                            # REMOVE this debug line: logger.debug(f"Found main view stretch index {stretch_index} for image {image_index}")
                             return stretch_index
                     break
                 parent = parent.parent()
@@ -455,7 +455,7 @@ class DualImageView(QWidget):
                     main_raster_view = main_gui.rasterViews[image_index]
                     if hasattr(main_raster_view, 'viewModel') and hasattr(main_raster_view.viewModel, 'stretchIndex'):
                         stretch_index = main_raster_view.viewModel.stretchIndex
-                        logger.debug(f"Found main view stretch index {stretch_index} for image {image_index} via project")
+                        # REMOVE this debug line: logger.debug(f"Found main view stretch index {stretch_index} for image {image_index} via project")
                         return stretch_index
                         
         except Exception as e:
@@ -875,6 +875,7 @@ class DualImageView(QWidget):
                         
                         # Synchronize the dual view
                         self._synchronize_stretch_index(image_index, main_stretch_index)
+                    # REMOVE the else clause that was logging every check
                         
         except Exception as e:
             logger.error(f"Error checking stretch index change for image {image_index}: {e}")
