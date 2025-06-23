@@ -33,18 +33,27 @@ class DraggablePlotThumbnail(QWidget):
         self.plot_data = plot_data
         self.thumbnail_widget = thumbnail_widget
         self.is_selected = False
+        self.is_pinned = False  # Add pin state
         
         # Set up drag and drop
         self.setAcceptDrops(True)
         
         # Create layout and add thumbnail
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(thumbnail_widget)
         
         # Style with selection support
         self._update_style()
+
+    def set_pinned(self, pinned: bool):
+        """Set pin state and update visual appearance."""
+        if self.is_pinned != pinned:
+            self.is_pinned = pinned
+            self._update_style()
+            self.repaint()
+            self.update()
 
     def _update_style(self):
         """Update widget style based on selection state."""
@@ -161,6 +170,46 @@ class DraggablePlotThumbnail(QWidget):
             event.acceptProposedAction()
         else:
             event.ignore()
+
+    def paintEvent(self, event):
+        """Custom paint event to show selection border and pin indicator."""
+        super().paintEvent(event)
+        
+        from PyQt6.QtGui import QPainter, QPen, QColor, QBrush, QFont
+        painter = QPainter(self)
+        
+        # Draw selection border
+        if self.is_selected:
+            pen = QPen(QColor(33, 150, 243), 3)  # Blue color, 3px width
+            painter.setPen(pen)
+            painter.drawRect(1, 1, self.width() - 3, self.height() - 3)
+            
+            # Optional: Add a semi-transparent background
+            brush = QBrush(QColor(33, 150, 243, 30))  # Semi-transparent blue
+            painter.setBrush(brush)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRect(2, 2, self.width() - 4, self.height() - 4)
+        
+        # Draw pin indicator
+        if self.is_pinned:
+            # Draw pin icon in top-right corner
+            pin_size = 16
+            pin_x = int(self.width()/3) + 4
+            pin_y = 4
+            
+            # Pin background circle
+            painter.setBrush(QBrush(QColor(255, 193, 7)))  # Amber color
+            painter.setPen(QPen(QColor(0, 0, 0), 1))
+            painter.drawEllipse(pin_x, pin_y, pin_size, pin_size)
+            
+            # Pin icon (📌)
+            painter.setPen(QPen(QColor(0, 0, 0)))
+            font = QFont()
+            font.setPointSize(10)
+            painter.setFont(font)
+            painter.drawText(pin_x + 2, pin_y + 12, "📌")
+        
+        painter.end()
 
 
 class PlotWindow(EnhancedImagePlotWidget):
@@ -421,6 +470,21 @@ class PlotWindow(EnhancedImagePlotWidget):
                 "Error",
                 f"Could not add spectrum: {str(e)}"
             )
+class ResponsiveButton(QPushButton):
+    """Button that changes text based on available width."""
+    
+    def __init__(self, full_text: str, short_text: str, parent=None):
+        super().__init__(full_text, parent)
+        self.full_text = full_text
+        self.short_text = short_text
+        self.threshold_width = 80  # Width below which to use short text
+    
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.width() < self.threshold_width:
+            self.setText(self.short_text)
+        else:
+            self.setText(self.full_text)
 
 class PlotManagerTab(DockableTab):
     """Advanced Plot Manager Tab with spectral control integration."""
@@ -433,6 +497,7 @@ class PlotManagerTab(DockableTab):
         # Track popup windows
         self.popup_windows = {}  # Dict to track popup windows by plot ID
         self.selected_plots = set()
+        self.pinned_plot_id = None 
         self.lastPixelCoords = (0, 0)
         
         # Plot storage and settings
@@ -511,9 +576,9 @@ class PlotManagerTab(DockableTab):
 
         # Selection controls
         selection_controls = QHBoxLayout()
-        self.select_all_button = QPushButton("Select All")
+        self.select_all_button = ResponsiveButton("☑ All", "☑")
         self.select_all_button.setToolTip("Select all plots")
-        self.clear_selection_button = QPushButton("Clear Selection")
+        self.clear_selection_button = ResponsiveButton("☐ Clear", "☐")
         self.clear_selection_button.setToolTip("Clear current selection")
 
         selection_controls.addWidget(self.select_all_button)
@@ -521,27 +586,39 @@ class PlotManagerTab(DockableTab):
 
         # Action controls
         action_controls = QHBoxLayout()
-        self.merge_button = QPushButton("Merge Selected")
+        self.merge_button = ResponsiveButton("⚡ Merge", "⚡")
         self.merge_button.setToolTip("Merge selected plots into one plot")
         self.merge_button.setEnabled(False)
 
-        self.delete_selected_button = QPushButton("Delete Selected")
+        self.delete_selected_button = ResponsiveButton("🗑 Delete", "🗑")
         self.delete_selected_button.setToolTip("Delete selected plots")
         self.delete_selected_button.setEnabled(False)
 
-        self.export_selected_button = QPushButton("Export Selected")
+        self.export_selected_button = ResponsiveButton("📤 Export", "📤")
         self.export_selected_button.setToolTip("Export selected plots")
         self.export_selected_button.setEnabled(False)
+
+        # Pin controls
+        self.pin_selected_button = ResponsiveButton("📌 Pin", "📌")
+        self.pin_selected_button.setToolTip("Pin selected plot for updates (update mode only)")
+        self.pin_selected_button.setEnabled(False)
+
+        self.unpin_all_button = ResponsiveButton("📌❌ Unpin", "📌❌")
+        self.unpin_all_button.setToolTip("Unpin all plots")
+        self.unpin_all_button.setEnabled(False)
 
         action_controls.addWidget(self.merge_button)
         action_controls.addWidget(self.delete_selected_button)
         action_controls.addWidget(self.export_selected_button)
+        action_controls.addWidget(QLabel("|"))  # Visual separator
+        action_controls.addWidget(self.pin_selected_button)
+        action_controls.addWidget(self.unpin_all_button)
 
         # basic controls
         basic_controls = QHBoxLayout()
-        self.clear_all_button = QPushButton("Remove All")
+        self.clear_all_button = QPushButton("🗑 All")
         self.clear_all_button.setToolTip("Remove all stored plots")
-        self.export_all_button = QPushButton("Export All")
+        self.export_all_button = QPushButton("📤 All")
         self.export_all_button.setToolTip("Export all plots")
 
         basic_controls.addWidget(self.clear_all_button)
@@ -564,7 +641,7 @@ class PlotManagerTab(DockableTab):
         
         self.plots_widget = QWidget()
         self.plots_layout = QGridLayout(self.plots_widget)
-        self.plots_layout.setSpacing(10)
+        self.plots_layout.setSpacing(5)
         
         self.scroll_area.setWidget(self.plots_widget)
         plots_layout.addWidget(self.scroll_area)
@@ -622,6 +699,10 @@ class PlotManagerTab(DockableTab):
         self.clear_all_button.clicked.connect(self._clear_all_plots)
         self.export_all_button.clicked.connect(self._export_all_plots)
 
+        # Pin control signals
+        self.pin_selected_button.clicked.connect(self._pin_selected_plot)
+        self.unpin_all_button.clicked.connect(self._unpin_all_plots)
+
         # Selection control signals
         self.select_all_button.clicked.connect(self._select_all_thumbnails)
         self.clear_selection_button.clicked.connect(self._clear_all_selections)
@@ -661,14 +742,27 @@ class PlotManagerTab(DockableTab):
             
         # When switching modes, manage the active plot
         if old_update_existing != self.update_existing:
-            if self.update_existing and self.stored_plots:
-                # Switching to "update existing" - mark the most recent plot as active
-                self.active_plot_id = self.stored_plots[-1]['id']
-                logger.debug(f"Switched to update mode. Active plot: {self.active_plot_id}")
+            if self.update_existing:
+                # Switching to "update existing" mode
+                if self.pinned_plot_id is not None:
+                    # If there's a pinned plot, use it as the active plot
+                    self.active_plot_id = self.pinned_plot_id
+                    logger.debug(f"Switched to update mode. Using pinned plot as active: {self.active_plot_id}")
+                elif self.stored_plots:
+                    # No pinned plot, use the most recent plot as active
+                    self.active_plot_id = self.stored_plots[-1]['id']
+                    logger.debug(f"Switched to update mode. Using most recent plot as active: {self.active_plot_id}")
+                else:
+                    # No plots at all
+                    self.active_plot_id = None
+                    logger.debug("Switched to update mode but no plots available")
             else:
                 # Switching to "create new" - clear active plot
                 self.active_plot_id = None
                 logger.debug("Switched to create new mode. Cleared active plot.")
+            
+            # Update pin button states since update mode affects pin availability
+            self._update_pin_buttons()
     
     def should_update_plot(self) -> bool:
         """Check if plot updates should be processed."""
@@ -685,6 +779,27 @@ class PlotManagerTab(DockableTab):
         # Store plot if enabled for any view
         if self.context_enabled or self.main_enabled or self.zoom_enabled:
             self._store_plot_data(x, y)
+    
+    def _pin_selected_plot(self):
+        """Pin the selected plot."""
+        if len(self.selected_plots) != 1:
+            QMessageBox.information(
+                self, 
+                "Pin Plot", 
+                "Please select exactly one plot to pin."
+            )
+            return
+        
+        if not self.update_existing:
+            QMessageBox.information(
+                self, 
+                "Pin Plot", 
+                "Plot pinning is only available in 'Update existing plots' mode."
+            )
+            return
+        
+        plot_id = list(self.selected_plots)[0]
+        self._pin_plot(plot_id)
     
     def _store_plot_data(self, x: int, y: int):
         """Store plot data and create thumbnail."""
@@ -703,8 +818,17 @@ class PlotManagerTab(DockableTab):
                     plot_data['id'] = self.active_plot_id
                     self.stored_plots[i] = plot_data
                     
+                    # Store pin state before refresh
+                    was_pinned = (self.active_plot_id == self.pinned_plot_id)
+                    
                     # Refresh thumbnails
                     self._refresh_thumbnails()
+                    
+                    # Restore pin state if it was pinned
+                    if was_pinned:
+                        thumb = self._get_thumbnail_widget(self.active_plot_id)
+                        if thumb:
+                            thumb.set_pinned(True)
                     
                     # Update existing popup if open
                     if self.active_plot_id in self.popup_windows:
@@ -828,22 +952,26 @@ class PlotManagerTab(DockableTab):
     def _update_selection_buttons(self):
         """Update button states based on current selection."""
         has_selection = len(self.selected_plots) > 0
+        single_selected = len(self.selected_plots) == 1
         multiple_selected = len(self.selected_plots) > 1
         
-        # Update button states (buttons will be created in next change)
+        # Update button states
         if hasattr(self, 'merge_button'):
             self.merge_button.setEnabled(multiple_selected)
         if hasattr(self, 'delete_selected_button'):
             self.delete_selected_button.setEnabled(has_selection)
         if hasattr(self, 'export_selected_button'):
             self.export_selected_button.setEnabled(has_selection)
+        
+        # Pin buttons
+        self._update_pin_buttons()
     
     def _create_basic_thumbnail_widget(self, plot_data: dict) -> QWidget:
         """Create basic thumbnail widget."""
         thumb_widget = QWidget()
         thumb_layout = QVBoxLayout(thumb_widget)
         thumb_layout.setSpacing(2)  # Small fixed spacing
-        thumb_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
+        thumb_layout.setContentsMargins(1, 1, 1, 1)  # Remove margins
         
         # Try to generate plot thumbnail
         plot_pixmap = self._create_plot_thumbnail(plot_data)
@@ -966,11 +1094,12 @@ class PlotManagerTab(DockableTab):
             return None
     
     def _refresh_thumbnails(self):
-        """Refresh all thumbnails while preserving selections."""
+        """Refresh all thumbnails while preserving selections and pin state."""
         logger.debug(f"Refreshing thumbnails for {len(self.stored_plots)} plots")
         
-        # Store current selections
+        # Store current selections and pin state
         current_selections = self.selected_plots.copy()
+        current_pinned = self.pinned_plot_id
         
         # Clear existing thumbnails
         for i in reversed(range(self.plots_layout.count())):
@@ -992,11 +1121,17 @@ class PlotManagerTab(DockableTab):
                 thumb = self._get_thumbnail_widget(plot_data['id'])
                 if thumb:
                     thumb.set_selected(True)
+            
+            # Restore pin state if this plot was pinned
+            if plot_data['id'] == current_pinned:
+                thumb = self._get_thumbnail_widget(plot_data['id'])
+                if thumb:
+                    thumb.set_pinned(True)
         
         # Update button states
         self._update_selection_buttons()
         
-        logger.debug(f"Refreshed {len(self.stored_plots)} thumbnails with {len(self.selected_plots)} selections restored")
+        logger.debug(f"Refreshed {len(self.stored_plots)} thumbnails with {len(self.selected_plots)} selections and pin state restored")
     
     def _get_thumbnail_widget(self, plot_id: str):
         """Get the thumbnail widget for a given plot ID."""
@@ -1052,6 +1187,18 @@ class PlotManagerTab(DockableTab):
             select_action = QAction("Select", self)
             select_action.triggered.connect(lambda: thumb.set_selected(True))
         menu.addAction(select_action)
+        
+        # Pin actions (only in update mode)
+        if self.update_existing:
+            menu.addSeparator()
+            if thumb and thumb.is_pinned:
+                unpin_action = QAction("Unpin Plot", self)
+                unpin_action.triggered.connect(lambda: self._unpin_plot(plot_data['id']))
+                menu.addAction(unpin_action)
+            else:
+                pin_action = QAction("Pin Plot", self)
+                pin_action.triggered.connect(lambda: self._pin_plot(plot_data['id']))
+                menu.addAction(pin_action)
         
         if len(self.selected_plots) > 1:
             merge_action = QAction(f"Merge {len(self.selected_plots)} Selected Plots", self)
@@ -1333,6 +1480,69 @@ class PlotManagerTab(DockableTab):
             
             logger.info(f"Removed original plots after merge")
             
+    def _pin_plot(self, plot_id: str):
+        """Pin a plot to make it the active plot for updates."""
+        # Unpin any currently pinned plot
+        if self.pinned_plot_id:
+            self._unpin_plot(self.pinned_plot_id)
+        
+        # Pin the new plot
+        self.pinned_plot_id = plot_id
+        
+        # If we're in update mode, this becomes the active plot immediately
+        if self.update_existing:
+            self.active_plot_id = plot_id
+            logger.debug(f"Pinned plot {plot_id} as active plot (update mode)")
+        else:
+            # In create mode, just pin it for when we switch to update mode
+            logger.debug(f"Pinned plot {plot_id} (will be active when switching to update mode)")
+        
+        # Update visual indicator
+        thumb = self._get_thumbnail_widget(plot_id)
+        if thumb:
+            thumb.set_pinned(True)
+        
+        # Update UI state
+        self._update_pin_buttons()
+
+    def _unpin_plot(self, plot_id: str):
+        """Unpin a plot."""
+        if plot_id == self.pinned_plot_id:
+            self.pinned_plot_id = None
+            
+            # If we're in update mode, keep this as active but unpinned
+            if self.update_existing:
+                self.active_plot_id = plot_id
+            else:
+                self.active_plot_id = None
+        
+        # Update visual indicator
+        thumb = self._get_thumbnail_widget(plot_id)
+        if thumb:
+            thumb.set_pinned(False)
+        
+        # Update UI state
+        self._update_pin_buttons()
+        
+        logger.debug(f"Unpinned plot {plot_id}")
+
+    def _unpin_all_plots(self):
+        """Unpin all plots."""
+        if self.pinned_plot_id:
+            self._unpin_plot(self.pinned_plot_id)
+
+    def _update_pin_buttons(self):
+        """Update pin button states based on current selection and pin state."""
+        has_selection = len(self.selected_plots) > 0
+        single_selected = len(self.selected_plots) == 1
+        has_pinned = self.pinned_plot_id is not None
+        
+        # Update button states (buttons will be created next)
+        if hasattr(self, 'pin_selected_button'):
+            self.pin_selected_button.setEnabled(single_selected and self.update_existing)
+        if hasattr(self, 'unpin_all_button'):
+            self.unpin_all_button.setEnabled(has_pinned)
+    
     def _delete_selected_plots(self):
         """Delete selected plots."""
         if not self.selected_plots:
