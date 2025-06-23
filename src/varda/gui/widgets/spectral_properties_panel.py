@@ -2,10 +2,10 @@ import logging
 from typing import Dict, List, Optional, Any
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QListWidget, QListWidgetItem,
-    QPushButton, QLabel, QComboBox, QSpinBox, QCheckBox, QColorDialog, 
-    QSplitter, QFrame, QScrollArea, QFormLayout, QMessageBox
+    QPushButton, QLabel, QComboBox, QSpinBox, QCheckBox, QColorDialog, QApplication,
+    QSplitter, QFrame, QScrollArea, QFormLayout, QMessageBox, QSizePolicy
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QObject
+from PyQt6.QtCore import Qt, pyqtSignal, QObject, QEventLoop, QTimer
 from PyQt6.QtGui import QColor, QPalette, QIcon, QPixmap, QPainter
 
 from varda.gui.widgets.image_plot_widget import ImagePlotWidget
@@ -349,10 +349,10 @@ class SpectralPropertiesPanel(QWidget):
         self._refresh_spectrum_list()
     
     def _init_ui(self):
-        """Initialize the panel UI."""
+        """Initialize the panel UI with absolutely minimal splitter intervention."""
         layout = QVBoxLayout(self)
         
-        # Create splitter for list and properties
+        # Create splitter with default settings - no custom configuration
         splitter = QSplitter(Qt.Orientation.Horizontal)
         
         # Left side - Spectrum list
@@ -365,41 +365,33 @@ class SpectralPropertiesPanel(QWidget):
         # List controls
         list_controls = QHBoxLayout()
         self.add_button = QPushButton("Add...")
-        self.add_button.setToolTip("Add a new spectrum")
         self.clear_button = QPushButton("Clear All")
-        self.clear_button.setToolTip("Remove all spectra")
-        
         list_controls.addWidget(self.add_button)
         list_controls.addWidget(self.clear_button)
         list_controls.addStretch()
-        
         list_layout.addLayout(list_controls)
         
         # Right side - Properties
         props_frame = QGroupBox("Properties")
         props_layout = QVBoxLayout(props_frame)
-        
         self.properties_widget = SpectrumPropertiesWidget()
         props_layout.addWidget(self.properties_widget)
         
-        # Add to splitter
+        # Add to splitter - no size constraints
         splitter.addWidget(list_frame)
         splitter.addWidget(props_frame)
-        splitter.setSizes([200, 300])  # Give more space to properties
+        
+        # NO splitter signal connections at all
         
         layout.addWidget(splitter)
         
         # Legend controls
         legend_frame = QGroupBox("Legend")
         legend_layout = QHBoxLayout(legend_frame)
-        
         self.legend_checkbox = QCheckBox("Show Legend")
         self.legend_checkbox.setChecked(True)
-        self.legend_checkbox.setToolTip("Show/hide plot legend")
-        
         legend_layout.addWidget(self.legend_checkbox)
         legend_layout.addStretch()
-        
         layout.addWidget(legend_frame)
     
     def _connect_signals(self):
@@ -510,30 +502,65 @@ class EnhancedImagePlotWidget(ImagePlotWidget):
             self._add_properties_panel()
     
     def _add_properties_panel(self):
-        """Add properties panel to the widget."""
-        # Create horizontal splitter
+        """Add properties panel to the widget with improved splitter handling."""
+        # Get the existing layout - ImagePlotWidget already created one
+        existing_layout = self.layout()
+        if not existing_layout:
+            logger.error("No existing layout found in ImagePlotWidget")
+            return
+
+        # Remove the plot_widget from the existing layout
+        existing_layout.removeWidget(self.plot_widget)
+        self.plot_widget.setParent(None)  # Explicitly unparent before adding to splitter
+
+        # Clear the layout to ensure only the splitter is present
+        while existing_layout.count():
+            item = existing_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+
+        # Create horizontal splitter with proper configuration
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setChildrenCollapsible(False)  # Prevent complete collapse
-        
-        # Move plot widget to splitter
-        self.layout().removeWidget(self.plot_widget)
+        splitter.setMinimumSize(400, 300)  # Set a minimum size for the splitter
+
+        # Configure splitter behavior
+        splitter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        splitter.setContentsMargins(0, 0, 0, 0)
+
+        # Ensure plot widget has proper size policy
+        self.plot_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        # Add plot widget to splitter
         splitter.addWidget(self.plot_widget)
-        
-        # Add properties panel
+
+        # Create properties panel with proper configuration
         self.properties_panel = SpectralPropertiesPanel(self)
+        self.properties_panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+
+        # Add properties panel to splitter
         splitter.addWidget(self.properties_panel)
-        
-        # Set sizes (plot gets more space) and configure properly
-        splitter.setSizes([600, 300])
-        splitter.setStretchFactor(0, 1)  # Plot widget can stretch
-        splitter.setStretchFactor(1, 0)  # Properties panel maintains size
-        
-        # Set minimum sizes to prevent issues
-        self.plot_widget.setMinimumSize(400, 300)
-        self.properties_panel.setMinimumSize(250, 300)
-        
-        # Add splitter to layout
-        self.layout().addWidget(splitter)
-        
-        # Store splitter reference
+
+        # Configure stretch factors (plot area gets priority)
+        splitter.setStretchFactor(0, 3)  # Plot widget gets 3x stretch
+        splitter.setStretchFactor(1, 1)  # Properties panel gets 1x stretch
+
+        # Add splitter to the existing layout
+        existing_layout.addWidget(splitter)
+        splitter.show()  # Force splitter to be shown
+
+        # Store splitter reference for later access
         self._main_splitter = splitter
+
+        # Set initial splitter sizes after widget is shown, to avoid zero-size issues
+        def set_splitter_sizes():
+            total_width = self.width() if self.width() > 0 else 900
+            plot_width = int(total_width * 0.7)
+            props_width = int(total_width * 0.3)
+            self._main_splitter.setSizes([plot_width, props_width])
+        QTimer.singleShot(0, set_splitter_sizes)
+
+        # Comment out forced layout updates
+        # self.updateGeometry()
+        # self.update()
