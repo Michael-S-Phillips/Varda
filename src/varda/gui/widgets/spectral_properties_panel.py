@@ -83,9 +83,8 @@ class SpectrumListWidget(QListWidget):
         # Create display text with color indicator
         label = spectrum_info.get('label', spectrum_id)
         visible = spectrum_info.get('visible', True)
-        visibility_marker = "👁" if visible else "🚫"
         
-        item.setText(f"{visibility_marker} {label}")
+        item.setText(f"{label}")
         item.setToolTip(f"ID: {spectrum_id}\nCoords: {spectrum_info.get('coords', 'N/A')}")
         
         # Set checkable for visibility toggle
@@ -102,9 +101,8 @@ class SpectrumListWidget(QListWidget):
             if item.data(Qt.ItemDataRole.UserRole) == spectrum_id:
                 label = spectrum_info.get('label', spectrum_id)
                 visible = spectrum_info.get('visible', True)
-                visibility_marker = "👁" if visible else "🚫"
                 
-                item.setText(f"{visibility_marker} {label}")
+                item.setText(f"{label}")
                 item.setCheckState(Qt.CheckState.Checked if visible else Qt.CheckState.Unchecked)
                 break
     

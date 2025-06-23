@@ -20,15 +20,19 @@ logger = logging.getLogger(__name__)
 
 
 class DraggablePlotThumbnail(QWidget):
-    """Draggable thumbnail widget for plot thumbnails."""
+    """Draggable thumbnail widget for plot thumbnails with selection support."""
     
     thumbnailClicked = pyqtSignal(dict)  # plot_data
     thumbnailRightClicked = pyqtSignal(dict, QPoint)  # plot_data, position
+    selectionChanged = pyqtSignal(str, bool)  # plot_id, is_selected
+    thumbnailPressed = pyqtSignal(dict)  # plot_data for single clicks
+    plotsMergeRequested = pyqtSignal(str, str)  # Add this new signal: source_plot_id, target_plot_id
     
     def __init__(self, plot_data: dict, thumbnail_widget: QWidget, parent=None):
         super().__init__(parent)
         self.plot_data = plot_data
         self.thumbnail_widget = thumbnail_widget
+        self.is_selected = False
         
         # Set up drag and drop
         self.setAcceptDrops(True)
@@ -36,24 +40,61 @@ class DraggablePlotThumbnail(QWidget):
         # Create layout and add thumbnail
         layout = QVBoxLayout(self)
         layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(0)
         layout.addWidget(thumbnail_widget)
         
-        # Style
-        self.setStyleSheet("""
-            DraggablePlotThumbnail {
-                border: 1px solid #CCCCCC;
-                border-radius: 4px;
-                background-color: #FFFFFF;
-            }
-            DraggablePlotThumbnail:hover {
-                border: 2px solid #4CAF50;
-                background-color: #F8F8F8;
-            }
-        """)
-    
+        # Style with selection support
+        self._update_style()
+
+    def _update_style(self):
+        """Update widget style based on selection state."""
+        # Remove any existing selection overlay
+        if hasattr(self, 'selection_overlay'):
+            self.selection_overlay.setParent(None)
+            delattr(self, 'selection_overlay')
+        
+        if self.is_selected:
+            # Create a colored overlay widget
+            from PyQt6.QtWidgets import QFrame
+            self.selection_overlay = QFrame(self)
+            self.selection_overlay.setStyleSheet("""
+                QFrame {
+                    border: 3px solid #2196F3;
+                    border-radius: 4px;
+                    background-color: rgba(33, 150, 243, 30);
+                }
+            """)
+            self.selection_overlay.setGeometry(0, 0, self.width(), self.height())
+            self.selection_overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            self.selection_overlay.show()
+            self.selection_overlay.raise_()
+        
+        self.update()
+
+    def resizeEvent(self, event):
+        """Handle resize events to update selection overlay."""
+        super().resizeEvent(event)
+        if hasattr(self, 'selection_overlay'):
+            self.selection_overlay.setGeometry(0, 0, self.width(), self.height())
+
+    def set_selected(self, selected: bool):
+        """Set selection state and update visual appearance."""
+        if self.is_selected != selected:
+            self.is_selected = selected
+            self._update_style()
+            self.selectionChanged.emit(self.plot_data['id'], selected)
+
     def mousePressEvent(self, event):
-        """Handle mouse press for drag initiation."""
+        """Handle mouse press for selection and drag initiation."""
         if event.button() == Qt.MouseButton.LeftButton:
+            # Check for Shift modifier for multi-selection
+            modifiers = QApplication.keyboardModifiers()
+            if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                # Toggle selection with Shift+Click
+                self.set_selected(not self.is_selected)
+            else:
+                # Single click - emit signal for selection handling
+                self.thumbnailPressed.emit(self.plot_data)
             self.drag_start_position = event.position().toPoint()
         elif event.button() == Qt.MouseButton.RightButton:
             self.thumbnailRightClicked.emit(self.plot_data, event.globalPosition().toPoint())
@@ -67,37 +108,59 @@ class DraggablePlotThumbnail(QWidget):
         if not hasattr(self, 'drag_start_position'):
             return
         
-        # Check if drag distance is sufficient
+        # Check if we've moved far enough to start a drag
         if ((event.position().toPoint() - self.drag_start_position).manhattanLength() < 
             QApplication.startDragDistance()):
             return
         
         # Start drag operation
         drag = QDrag(self)
-        mime_data = QMimeData()
+        mimeData = QMimeData()
+        mimeData.setData("application/x-varda-plot", self.plot_data['id'].encode())
         
-        # Store plot data as JSON
-        import json
-        mime_data.setText(json.dumps(self.plot_data))
-        mime_data.setData("application/x-varda-plot", json.dumps(self.plot_data).encode())
+        # Create drag pixmap (simplified thumbnail)
+        pixmap = QPixmap(60, 45)
+        pixmap.fill(Qt.GlobalColor.lightGray)
+        painter = QPainter(pixmap)
+        painter.setPen(Qt.GlobalColor.black)
+        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, "📊")
+        painter.end()
         
-        drag.setMimeData(mime_data)
-        
-        # Create drag pixmap
-        pixmap = self.grab()
         drag.setPixmap(pixmap)
+        drag.setMimeData(mimeData)
         
         # Execute drag
-        drop_action = drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
+        dropAction = drag.exec(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
     
     def mouseDoubleClickEvent(self, event):
         """Handle double-click to open plot."""
         if event.button() == Qt.MouseButton.LeftButton:
-            print(f"[DEBUG] Double-click detected on thumbnail for {self.plot_data['title']}")
             self.thumbnailClicked.emit(self.plot_data)
-            event.accept()  # Accept the event to prevent propagation
+            event.accept()
         else:
             super().mouseDoubleClickEvent(event)
+    
+    def dragEnterEvent(self, event):
+        """Handle drag enter events."""
+        if event.mimeData().hasFormat("application/x-varda-plot"):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+    
+    def dropEvent(self, event):
+        """Handle drop events for plot merging."""
+        if event.mimeData().hasFormat("application/x-varda-plot"):
+            source_plot_id = event.mimeData().data("application/x-varda-plot").data().decode()
+            target_plot_id = self.plot_data['id']
+            
+            if source_plot_id != target_plot_id:
+                # Emit merge signal to be handled by parent
+                self.plotsMergeRequested.emit(source_plot_id, target_plot_id)
+                logger.debug(f"Drop merge requested: {source_plot_id} -> {target_plot_id}")
+            
+            event.acceptProposedAction()
+        else:
+            event.ignore()
 
 
 class PlotWindow(EnhancedImagePlotWidget):
@@ -135,18 +198,103 @@ class PlotWindow(EnhancedImagePlotWidget):
         self._load_initial_spectrum()
     
     def _load_initial_spectrum(self):
-        """Load the initial spectrum for this plot."""
+        """Load the initial spectrum(s) for this plot."""
         try:
-            x, y = self.plot_data['coords']
-            image_index = self.plot_data['image_index']
-            
-            if hasattr(self, 'showPixelSpectrum'):
-                self.showPixelSpectrum(x, y, image_index)
-            
-            logger.debug(f"Loaded spectrum for coordinates ({x}, {y})")
-            
+            # Check if this is a merged plot
+            if self.plot_data.get('is_merged', False):
+                self._load_merged_spectra()
+            else:
+                # Load single spectrum
+                x, y = self.plot_data['coords']
+                image_index = self.plot_data['image_index']
+                
+                if hasattr(self, 'showPixelSpectrum'):
+                    self.showPixelSpectrum(x, y, image_index)
+                
+                logger.debug(f"Loaded spectrum for coordinates ({x}, {y})")
+                
         except Exception as e:
             logger.error(f"Error loading initial spectrum: {e}")
+
+    def _load_merged_spectra(self):
+        """Load multiple spectra for merged plots."""
+        try:
+            merged_spectra = self.plot_data.get('merged_spectra', [])
+            colors = ["blue", "red", "green", "orange", "purple", "brown", "pink", "gray", "olive", "cyan"]
+            
+            # Clear any existing spectra first
+            if hasattr(self, 'clear_all_spectra'):
+                self.clear_all_spectra()
+            
+            for i, plot_data in enumerate(merged_spectra):
+                x, y = plot_data['coords']
+                image_index = plot_data['image_index']
+                color = colors[i % len(colors)]
+                
+                # Create spectrum label
+                label = f"{plot_data['title']}"
+                
+                # Get the image and extract spectrum data
+                image = self.proj.getImage(image_index)
+                
+                # Validate coordinates
+                is_valid, (safe_x, safe_y) = BoundsValidator.validate_pixel_coordinates(
+                    x, y, image.raster.shape, allow_clipping=True
+                )
+                
+                if not is_valid:
+                    logger.warning(f"Invalid coordinates ({x}, {y}) for merged spectrum {i}")
+                    continue
+                
+                # Get wavelengths and spectrum data
+                wavelengths, wavelength_type = WavelengthProcessor.process_wavelength_data(
+                    image.metadata.wavelengths,
+                    image.raster.shape[2]
+                )
+                
+                spectrum = BoundsValidator.safe_pixel_access(image.raster, safe_x, safe_y)
+                
+                # Clean the data
+                clean_wavelengths, clean_spectrum, cleaning_success, cleaning_message = InvalidDataHandler.handle_spectral_pair(
+                    wavelengths,
+                    spectrum,
+                    strategy=InvalidValueStrategy.INTERPOLATE,
+                    sync_removal=False
+                )
+                
+                if len(clean_spectrum) == 0:
+                    logger.warning(f"No valid data for merged spectrum {i}")
+                    continue
+                
+                # Add spectrum using the correct method
+                spectrum_id = f"merged_{i}_{plot_data['id']}"
+                if hasattr(self, 'add_spectrum'):
+                    self.add_spectrum(
+                        wavelengths=clean_wavelengths,
+                        values=clean_spectrum,
+                        label=label,
+                        color=color,
+                        coords=(safe_x, safe_y),
+                        image_index=image_index,
+                        wavelength_type=wavelength_type,
+                        spectrum_id=spectrum_id
+                    )
+                    logger.debug(f"Added merged spectrum {spectrum_id}: {label}")
+                else:
+                    logger.error("add_spectrum method not available")
+                    return
+            
+            logger.debug(f"Successfully loaded {len(merged_spectra)} spectra into merged plot")
+            
+        except Exception as e:
+            logger.error(f"Error loading merged spectra: {e}")
+            # Fallback: show first spectrum
+            if self.plot_data.get('merged_spectra'):
+                first_plot = self.plot_data['merged_spectra'][0]
+                x, y = first_plot['coords']
+                image_index = first_plot['image_index']
+                if hasattr(self, 'showPixelSpectrum'):
+                    self.showPixelSpectrum(x, y, image_index)
     
     def dragEnterEvent(self, event):
         """Handle drag enter events."""
@@ -284,6 +432,7 @@ class PlotManagerTab(DockableTab):
         
         # Track popup windows
         self.popup_windows = {}  # Dict to track popup windows by plot ID
+        self.selected_plots = set()
         self.lastPixelCoords = (0, 0)
         
         # Plot storage and settings
@@ -304,6 +453,7 @@ class PlotManagerTab(DockableTab):
     
     def _init_ui(self):
         """Initialize the UI."""
+        print("DEBUG: Loading NEW plot manager UI with selection controls")
         layout = QVBoxLayout(self)
         
         # Create main splitter
@@ -358,15 +508,52 @@ class PlotManagerTab(DockableTab):
         
         # Plot controls
         plot_controls = QHBoxLayout()
-        self.clear_all_button = QPushButton("Clear All")
+
+        # Selection controls
+        selection_controls = QHBoxLayout()
+        self.select_all_button = QPushButton("Select All")
+        self.select_all_button.setToolTip("Select all plots")
+        self.clear_selection_button = QPushButton("Clear Selection")
+        self.clear_selection_button.setToolTip("Clear current selection")
+
+        selection_controls.addWidget(self.select_all_button)
+        selection_controls.addWidget(self.clear_selection_button)
+
+        # Action controls
+        action_controls = QHBoxLayout()
+        self.merge_button = QPushButton("Merge Selected")
+        self.merge_button.setToolTip("Merge selected plots into one plot")
+        self.merge_button.setEnabled(False)
+
+        self.delete_selected_button = QPushButton("Delete Selected")
+        self.delete_selected_button.setToolTip("Delete selected plots")
+        self.delete_selected_button.setEnabled(False)
+
+        self.export_selected_button = QPushButton("Export Selected")
+        self.export_selected_button.setToolTip("Export selected plots")
+        self.export_selected_button.setEnabled(False)
+
+        action_controls.addWidget(self.merge_button)
+        action_controls.addWidget(self.delete_selected_button)
+        action_controls.addWidget(self.export_selected_button)
+
+        # basic controls
+        basic_controls = QHBoxLayout()
+        self.clear_all_button = QPushButton("Remove All")
         self.clear_all_button.setToolTip("Remove all stored plots")
-        self.export_button = QPushButton("Export...")
-        self.export_button.setToolTip("Export plot data")
-        
-        plot_controls.addWidget(self.clear_all_button)
-        plot_controls.addWidget(self.export_button)
-        plot_controls.addStretch()
-        
+        self.export_all_button = QPushButton("Export All")
+        self.export_all_button.setToolTip("Export all plots")
+
+        basic_controls.addWidget(self.clear_all_button)
+        basic_controls.addWidget(self.export_all_button)
+
+        # Add all control groups to main layout
+        plot_controls.addLayout(selection_controls)
+        plot_controls.addWidget(QLabel("|"))  # Visual separator
+        plot_controls.addLayout(action_controls)
+        plot_controls.addWidget(QLabel("|"))  # Visual separator
+        plot_controls.addLayout(basic_controls)
+        plot_controls.addStretch()  # Push controls to the right
         plots_layout.addLayout(plot_controls)
         
         # Scroll area for plot thumbnails
@@ -433,7 +620,17 @@ class PlotManagerTab(DockableTab):
         
         # Control signals
         self.clear_all_button.clicked.connect(self._clear_all_plots)
-        self.export_button.clicked.connect(self._export_plots)
+        self.export_all_button.clicked.connect(self._export_all_plots)
+
+        # Selection control signals
+        self.select_all_button.clicked.connect(self._select_all_thumbnails)
+        self.clear_selection_button.clicked.connect(self._clear_all_selections)
+
+        # Action control signals
+        self.merge_button.clicked.connect(self._merge_selected_plots)
+        self.delete_selected_button.clicked.connect(self._delete_selected_plots)
+        self.export_selected_button.clicked.connect(self._export_selected_plots)
+
         self.open_advanced_button.clicked.connect(self._open_current_advanced)
         self.properties_button.clicked.connect(self._show_current_properties)
         
@@ -545,8 +742,11 @@ class PlotManagerTab(DockableTab):
         
         # Wrap in draggable container
         draggable_thumb = DraggablePlotThumbnail(plot_data, thumb_widget)
-        draggable_thumb.thumbnailClicked.connect(self._open_plot_popup)
+        draggable_thumb.thumbnailClicked.connect(self._on_thumbnail_double_clicked)
         draggable_thumb.thumbnailRightClicked.connect(self._show_thumbnail_context_menu)
+        draggable_thumb.selectionChanged.connect(self._on_thumbnail_selection_changed)
+        draggable_thumb.thumbnailPressed.connect(self._on_thumbnail_single_clicked)
+        draggable_thumb.plotsMergeRequested.connect(self._on_drag_merge_requested)  # Add this line
         
         # Calculate grid position
         current_count = self.plots_layout.count()
@@ -556,11 +756,94 @@ class PlotManagerTab(DockableTab):
         
         logger.debug(f"Added draggable thumbnail for {plot_data['id']} at position ({row}, {col})")
     
+    def _on_thumbnail_single_clicked(self, plot_data: dict):
+        """Handle single click on thumbnail for selection."""
+        modifiers = QApplication.keyboardModifiers()
+        
+        if not (modifiers & Qt.KeyboardModifier.ShiftModifier):
+            # Clear other selections for single click without Shift
+            self._clear_all_selections()
+        
+        # Find and select the clicked thumbnail
+        thumb = self._get_thumbnail_widget(plot_data['id'])
+        if thumb:
+            thumb.set_selected(True)
+    
+    def _on_thumbnail_selection_changed(self, plot_id: str, is_selected: bool):
+        """Handle thumbnail selection changes."""
+        if is_selected:
+            self.selected_plots.add(plot_id)
+        else:
+            self.selected_plots.discard(plot_id)
+        
+        # Update button states
+        self._update_selection_buttons()
+        logger.debug(f"Plot {plot_id} {'selected' if is_selected else 'deselected'}. Total selected: {len(self.selected_plots)}")
+
+    def _on_thumbnail_double_clicked(self, plot_data: dict):
+        """Handle double-click to open plot (unchanged behavior)."""
+        self._open_plot_popup(plot_data)
+
+    def _on_thumbnail_clicked(self, plot_data: dict):
+        """Handle single click on thumbnail for selection."""
+        modifiers = QApplication.keyboardModifiers()
+        
+        if not (modifiers & Qt.KeyboardModifier.ControlModifier):
+            # Clear other selections for single click
+            self._clear_all_selections()
+        
+        # Find and toggle the clicked thumbnail
+        for i in range(self.plots_layout.count()):
+            item = self.plots_layout.itemAt(i)
+            if item and item.widget():
+                thumb = item.widget()
+                if hasattr(thumb, 'plot_data') and thumb.plot_data['id'] == plot_data['id']:
+                    if modifiers & Qt.KeyboardModifier.ControlModifier:
+                        thumb.set_selected(not thumb.is_selected)
+                    else:
+                        thumb.set_selected(True)
+                    break
+
+    def _clear_all_selections(self):
+        """Clear all thumbnail selections."""
+        for i in range(self.plots_layout.count()):
+            item = self.plots_layout.itemAt(i)
+            if item and item.widget():
+                thumb = item.widget()
+                if hasattr(thumb, 'set_selected'):
+                    thumb.set_selected(False)
+        
+        self.selected_plots.clear()
+        self._update_selection_buttons()
+
+    def _select_all_thumbnails(self):
+        """Select all thumbnails."""
+        for i in range(self.plots_layout.count()):
+            item = self.plots_layout.itemAt(i)
+            if item and item.widget():
+                thumb = item.widget()
+                if hasattr(thumb, 'set_selected'):
+                    thumb.set_selected(True)
+
+    def _update_selection_buttons(self):
+        """Update button states based on current selection."""
+        has_selection = len(self.selected_plots) > 0
+        multiple_selected = len(self.selected_plots) > 1
+        
+        # Update button states (buttons will be created in next change)
+        if hasattr(self, 'merge_button'):
+            self.merge_button.setEnabled(multiple_selected)
+        if hasattr(self, 'delete_selected_button'):
+            self.delete_selected_button.setEnabled(has_selection)
+        if hasattr(self, 'export_selected_button'):
+            self.export_selected_button.setEnabled(has_selection)
+    
     def _create_basic_thumbnail_widget(self, plot_data: dict) -> QWidget:
         """Create basic thumbnail widget."""
         thumb_widget = QWidget()
         thumb_layout = QVBoxLayout(thumb_widget)
-        thumb_layout.setSpacing(2)
+        thumb_layout.setSpacing(2)  # Small fixed spacing
+        thumb_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
         
         # Try to generate plot thumbnail
         plot_pixmap = self._create_plot_thumbnail(plot_data)
@@ -590,6 +873,14 @@ class PlotManagerTab(DockableTab):
         
         thumb_layout.addWidget(thumb_button)
         thumb_layout.addWidget(title_label)
+        
+        # Set fixed size policy to prevent expansion
+        thumb_widget.setSizePolicy(
+            thumb_widget.sizePolicy().horizontalPolicy(),
+            thumb_widget.sizePolicy().Policy.Fixed
+        )
+        thumb_widget.setFixedHeight(90)  # Fixed height: 60px button + ~20px for label + spacing
+        thumb_layout.addStretch()  # Add stretch at the end to push content to top
         
         return thumb_widget
     
@@ -675,8 +966,11 @@ class PlotManagerTab(DockableTab):
             return None
     
     def _refresh_thumbnails(self):
-        """Refresh all thumbnails."""
+        """Refresh all thumbnails while preserving selections."""
         logger.debug(f"Refreshing thumbnails for {len(self.stored_plots)} plots")
+        
+        # Store current selections
+        current_selections = self.selected_plots.copy()
         
         # Clear existing thumbnails
         for i in reversed(range(self.plots_layout.count())):
@@ -686,11 +980,33 @@ class PlotManagerTab(DockableTab):
                 if widget:
                     widget.setParent(None)
         
+        # Clear selection tracking (will be restored)
+        self.selected_plots.clear()
+        
         # Re-add all thumbnails
         for i, plot_data in enumerate(self.stored_plots):
             self._add_plot_thumbnail(plot_data)
+            
+            # Restore selection if it was previously selected
+            if plot_data['id'] in current_selections:
+                thumb = self._get_thumbnail_widget(plot_data['id'])
+                if thumb:
+                    thumb.set_selected(True)
         
-        logger.debug(f"Refreshed {len(self.stored_plots)} thumbnails")
+        # Update button states
+        self._update_selection_buttons()
+        
+        logger.debug(f"Refreshed {len(self.stored_plots)} thumbnails with {len(self.selected_plots)} selections restored")
+    
+    def _get_thumbnail_widget(self, plot_id: str):
+        """Get the thumbnail widget for a given plot ID."""
+        for i in range(self.plots_layout.count()):
+            item = self.plots_layout.itemAt(i)
+            if item and item.widget():
+                thumb = item.widget()
+                if hasattr(thumb, 'plot_data') and thumb.plot_data['id'] == plot_id:
+                    return thumb
+        return None
     
     def _open_plot_popup(self, plot_data: dict):
         """Open advanced popup window for the selected plot."""
@@ -727,7 +1043,24 @@ class PlotManagerTab(DockableTab):
         """Show context menu for thumbnail."""
         menu = QMenu(self)
         
-        # Open action (always advanced now)
+        # Selection actions
+        thumb = self._get_thumbnail_widget(plot_data['id'])
+        if thumb and thumb.is_selected:
+            select_action = QAction("Deselect", self)
+            select_action.triggered.connect(lambda: thumb.set_selected(False))
+        else:
+            select_action = QAction("Select", self)
+            select_action.triggered.connect(lambda: thumb.set_selected(True))
+        menu.addAction(select_action)
+        
+        if len(self.selected_plots) > 1:
+            merge_action = QAction(f"Merge {len(self.selected_plots)} Selected Plots", self)
+            merge_action.triggered.connect(self._merge_selected_plots)
+            menu.addAction(merge_action)
+        
+        menu.addSeparator()
+        
+        # Open action
         open_action = QAction("Open Plot", self)
         open_action.triggered.connect(lambda: self._open_plot_popup(plot_data))
         menu.addAction(open_action)
@@ -847,6 +1180,226 @@ class PlotManagerTab(DockableTab):
             "Will support CSV, JSON, and image export formats."
         )
     
+    def _export_all_plots(self):
+        """Export all plot data."""
+        if not self.stored_plots:
+            QMessageBox.information(self, "No Plots", "No plots to export.")
+            return
+        
+        QMessageBox.information(
+            self,
+            "Export All Plots",
+            f"Export functionality for all {len(self.stored_plots)} plots will be implemented here.\n"
+            "Will support CSV, JSON, and image export formats."
+        )
+
+    def _merge_selected_plots(self):
+        """Merge selected plots into a single plot window and create merged thumbnail."""
+        if len(self.selected_plots) < 2:
+            QMessageBox.information(
+                self, 
+                "Merge Plots", 
+                "Please select at least 2 plots to merge."
+            )
+            return
+        
+        # Get selected plot data
+        selected_plot_data = [
+            plot for plot in self.stored_plots 
+            if plot['id'] in self.selected_plots
+        ]
+        
+        if not selected_plot_data:
+            return
+        
+        # Create merged plot data with multiple spectra info
+        merged_plot_data = {
+            'id': f"merged_{self.plot_counter}",
+            'title': f"Merged Plot ({len(selected_plot_data)} spectra)",
+            'coords': selected_plot_data[0]['coords'],  # Use first plot's coords as reference
+            'image_index': selected_plot_data[0]['image_index'],
+            'timestamp': str(QDateTime.currentDateTime().toString()),
+            'is_merged': True,
+            'merged_spectra': selected_plot_data  # Store all plot data for loading
+        }
+        self.plot_counter += 1
+        
+        # Option 1: Open plot window with merged data (existing behavior)
+        popup = PlotWindow(merged_plot_data, self.project_context, self)
+        popup.show()
+        popup.raise_()
+        popup.activateWindow()
+        
+        # Option 2: Also create a merged thumbnail in the manager (NEW)
+        # Ask user if they want to create a merged thumbnail
+        reply = QMessageBox.question(
+            self,
+            "Create Merged Thumbnail",
+            f"Would you like to create a merged thumbnail in the Plot Manager?\n\n"
+            f"This will create a single thumbnail representing all {len(selected_plot_data)} selected spectra.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # Add merged plot to stored plots
+            self.stored_plots.append(merged_plot_data)
+            self._add_plot_thumbnail(merged_plot_data)
+            
+            # Clear the selection since we've created a new merged plot
+            self._clear_all_selections()
+        
+        logger.debug(f"Created merged plot with {len(selected_plot_data)} spectra")
+
+    def _on_drag_merge_requested(self, source_plot_id: str, target_plot_id: str):
+        """Handle drag-and-drop merge request between two plots."""
+        # Find the source and target plot data
+        source_plot = None
+        target_plot = None
+        
+        for plot in self.stored_plots:
+            if plot['id'] == source_plot_id:
+                source_plot = plot
+            elif plot['id'] == target_plot_id:
+                target_plot = plot
+        
+        if not source_plot or not target_plot:
+            logger.error(f"Could not find plots for merge: source={source_plot_id}, target={target_plot_id}")
+            return
+        
+        # Ask user for confirmation
+        reply = QMessageBox.question(
+            self,
+            "Merge Plots",
+            f"Merge '{source_plot['title']}' into '{target_plot['title']}'?\n\n"
+            f"This will create a new merged plot with both spectra.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        
+        # Create merged plot data
+        merged_plot_data = {
+            'id': f"merged_{self.plot_counter}",
+            'title': f"Merged: {target_plot['title']} + {source_plot['title']}",
+            'coords': target_plot['coords'],  # Use target plot's coords as reference
+            'image_index': target_plot['image_index'],
+            'timestamp': str(QDateTime.currentDateTime().toString()),
+            'is_merged': True,
+            'merged_spectra': [target_plot, source_plot]  # Target first, then source
+        }
+        self.plot_counter += 1
+        
+        # Add merged plot to stored plots and create thumbnail
+        self.stored_plots.append(merged_plot_data)
+        self._add_plot_thumbnail(merged_plot_data)
+        
+        # Option: Also open the merged plot window
+        popup = PlotWindow(merged_plot_data, self.project_context, self)
+        popup.show()
+        popup.raise_()
+        popup.activateWindow()
+        
+        logger.info(f"Created drag-merged plot: {source_plot['title']} + {target_plot['title']}")
+        
+        # Optional: Remove the original plots
+        remove_originals = QMessageBox.question(
+            self,
+            "Remove Original Plots",
+            f"Would you like to remove the original plots?\n\n"
+            f"• {source_plot['title']}\n"
+            f"• {target_plot['title']}\n\n"
+            f"The merged plot will remain.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if remove_originals == QMessageBox.StandardButton.Yes:
+            # Remove original plots
+            self.stored_plots = [
+                plot for plot in self.stored_plots 
+                if plot['id'] not in [source_plot_id, target_plot_id]
+            ]
+            
+            # Close any open popups for the removed plots
+            for plot_id in [source_plot_id, target_plot_id]:
+                if plot_id in self.popup_windows:
+                    popup = self.popup_windows[plot_id]
+                    if popup:
+                        popup.close()
+                    del self.popup_windows[plot_id]
+            
+            # Refresh thumbnails
+            self._refresh_thumbnails()
+            
+            logger.info(f"Removed original plots after merge")
+            
+    def _delete_selected_plots(self):
+        """Delete selected plots."""
+        if not self.selected_plots:
+            QMessageBox.information(self, "No Selection", "No plots selected for deletion.")
+            return
+        
+        # Get selected plot titles for confirmation
+        selected_titles = [
+            plot['title'] for plot in self.stored_plots 
+            if plot['id'] in self.selected_plots
+        ]
+        
+        reply = QMessageBox.question(
+            self,
+            "Delete Selected Plots",
+            f"Delete {len(selected_titles)} selected plots?\n\n" + 
+            "\n".join(f"• {title}" for title in selected_titles[:5]) +
+            (f"\n... and {len(selected_titles) - 5} more" if len(selected_titles) > 5 else ""),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # Close any open popups for selected plots
+            for plot_id in self.selected_plots:
+                if plot_id in self.popup_windows:
+                    popup = self.popup_windows[plot_id]
+                    if popup:
+                        popup.close()
+                    del self.popup_windows[plot_id]
+            
+            # Remove selected plots from stored plots
+            self.stored_plots = [
+                plot for plot in self.stored_plots 
+                if plot['id'] not in self.selected_plots
+            ]
+            
+            # Update active plot if it was deleted
+            if self.active_plot_id in self.selected_plots:
+                self.active_plot_id = None
+            
+            # Clear selection and refresh
+            self.selected_plots.clear()
+            self._refresh_thumbnails()
+            self._update_selection_buttons()
+            
+            logger.debug(f"Deleted {len(selected_titles)} plots")
+
+    def _export_selected_plots(self):
+        """Export selected plots."""
+        if not self.selected_plots:
+            QMessageBox.information(self, "No Selection", "No plots selected for export.")
+            return
+        
+        selected_titles = [
+            plot['title'] for plot in self.stored_plots 
+            if plot['id'] in self.selected_plots
+        ]
+        
+        QMessageBox.information(
+            self,
+            "Export Selected Plots",
+            f"Export functionality for {len(selected_titles)} selected plots will be implemented here.\n"
+            "Will support CSV, JSON, and image export formats.\n\n"
+            "Selected plots:\n" + "\n".join(f"• {title}" for title in selected_titles[:5]) +
+            (f"\n... and {len(selected_titles) - 5} more" if len(selected_titles) > 5 else "")
+        )
+
     def _open_current_advanced(self):
         """Open current plot in advanced window."""
         if not self.lastPixelCoords:
@@ -871,14 +1424,15 @@ class PlotManagerTab(DockableTab):
         if not hasattr(self.current_plot, 'properties_panel'):
             # Add properties panel to current plot
             properties_panel = SpectralPropertiesPanel(self.current_plot, self)
+            self.current_plot.properties_panel = properties_panel
             
-            # Create popup window for properties
-            properties_window = QWidget()
-            properties_window.setWindowTitle("Current Plot Properties")
-            properties_layout = QVBoxLayout(properties_window)
-            properties_layout.addWidget(properties_panel)
-            properties_window.resize(400, 600)
-            properties_window.show()
+        # Create popup window for properties
+        properties_window = QWidget()
+        properties_window.setWindowTitle("Current Plot Properties")
+        properties_layout = QVBoxLayout(properties_window)
+        properties_layout.addWidget(self.current_plot.properties_panel)
+        properties_window.resize(400, 600)
+        properties_window.show()
         
     def handlePixelPlotClicked(self):
         """Handle pixel plot click - delegate to parent control panel."""
