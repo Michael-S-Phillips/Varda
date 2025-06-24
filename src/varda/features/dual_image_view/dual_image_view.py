@@ -28,6 +28,8 @@ from PyQt6.QtGui import QAction, QIcon
 
 from .dual_image_types import DualImageMode, LinkType, DualImageConfig
 from .dual_image_view_controller import DualImageViewController
+from .dual_image_tool_manager import DualImageToolManager
+from .spectral_plot_tool import SpectralPlotTool
 from varda.features.image_view_raster.raster_view import RasterView
 from varda.core.data import ProjectContext
 
@@ -60,6 +62,10 @@ class DualImageView(QWidget):
         # Initialize controller
         self.controller = DualImageViewController(project_context, self)
 
+        # Initialize tool manager
+        self.tool_manager = DualImageToolManager(project_context, self)
+        self._setup_tools()
+
         # State tracking
         self._primary_index: Optional[int] = None
         self._secondary_index: Optional[int] = None
@@ -71,6 +77,7 @@ class DualImageView(QWidget):
         self.secondary_view_container = None
         self.control_panel = None
         self.splitter = None
+        self.tool_panel_splitter = None  # Splitter for tool panel
 
         # Control widgets
         self.mode_combo = None
@@ -81,12 +88,14 @@ class DualImageView(QWidget):
         self.link_button = None
         self.sync_navigation_cb = None
         self.sync_rois_cb = None
+        self.spectral_tool_button = None
 
         # Initialize UI
         self._init_ui()
         self._connect_signals()
 
-        logger.debug("DualImageView initialized")
+        logger.debug("DualImageView initialized with tool manager")
+
 
     def _init_ui(self):
         """Initialize the user interface"""
@@ -99,7 +108,13 @@ class DualImageView(QWidget):
         self.control_panel = self._create_control_panel()
         main_layout.addWidget(self.control_panel)
 
-        # Image view splitter
+        # Main content splitter (horizontal: images | tools)
+        self.tool_panel_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.tool_panel_splitter.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+
+        # Image view splitter (left side of main splitter)
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
@@ -113,15 +128,73 @@ class DualImageView(QWidget):
         self.secondary_view_container = self._create_view_container("Secondary Image")
         self.splitter.addWidget(self.secondary_view_container)
 
-        # Set equal split
+        # Set equal split for images
         self.splitter.setSizes([400, 400])
 
-        main_layout.addWidget(self.splitter)
+        # Add image splitter to main splitter
+        self.tool_panel_splitter.addWidget(self.splitter)
+
+        # Add tool panel to main splitter (right side)
+        tool_panel = self.tool_manager.get_tool_panel_widget()
+        tool_panel.setMaximumWidth(350)  # Limit tool panel width
+        tool_panel.setMinimumWidth(250)
+        self.tool_panel_splitter.addWidget(tool_panel)
+
+        # Set proportional split: 80% images, 20% tools
+        self.tool_panel_splitter.setSizes([800, 200])
+
+        main_layout.addWidget(self.tool_panel_splitter)
 
         # Initially disable controls
         self._update_control_states()
 
+    def _setup_tools(self):
+        """Register available tools with the tool manager"""
+        # Register spectral plot tool
+        self.tool_manager.register_tool(SpectralPlotTool, "spectral_plot")
+        
+        # Connect tool manager signals
+        self.tool_manager.tool_activated.connect(self._on_tool_activated)
+        self.tool_manager.tool_deactivated.connect(self._on_tool_deactivated)
+        self.tool_manager.click_handled.connect(self._on_tool_click_handled)
+
+    def _create_tool_controls(self) -> QWidget:
+        """Create tool activation controls"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(5, 5, 5, 5)
+
+        # Tool activation button
+        self.spectral_tool_button = QPushButton("Spectral Tool")
+        self.spectral_tool_button.setCheckable(True)
+        self.spectral_tool_button.setToolTip(
+            "Activate spectral plotting tool - click on images to plot spectra"
+        )
+        self.spectral_tool_button.clicked.connect(self._toggle_spectral_tool)
+        layout.addWidget(self.spectral_tool_button)
+
+        return widget
+    
+    def _toggle_spectral_tool(self):
+        """Toggle the spectral plotting tool"""
+        if self.spectral_tool_button.isChecked():
+            # Activate spectral tool
+            if self.tool_manager.activate_tool("spectral_plot"):
+                self.spectral_tool_button.setText("Stop Spectral")
+                logger.info("Spectral plotting tool activated")
+            else:
+                self.spectral_tool_button.setChecked(False)
+                logger.error("Failed to activate spectral plotting tool")
+        else:
+            # Deactivate spectral tool
+            if self.tool_manager.deactivate_tool("spectral_plot"):
+                self.spectral_tool_button.setText("Spectral Tool")
+                logger.info("Spectral plotting tool deactivated")
+            else:
+                logger.error("Failed to deactivate spectral plotting tool")
+
     def _create_control_panel(self) -> QGroupBox:
+        # from PyQt6.QtWidgets import QFrame
         """Create the dual view control panel"""
         panel = QGroupBox("Dual View Controls")
         layout = QHBoxLayout(panel)
@@ -170,10 +243,21 @@ class DualImageView(QWidget):
         sync_group = self._create_sync_controls()
         layout.addWidget(sync_group)
 
+        # Separator
+        separator5 = QFrame()
+        separator5.setFrameShape(QFrame.Shape.VLine)
+        separator5.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(separator5)
+
+        # Tool controls
+        tool_group = self._create_tool_controls()
+        layout.addWidget(tool_group)
+
         # Stretch to fill available space
         layout.addStretch()
 
         return panel
+
 
     def _create_link_controls(self) -> QWidget:
         """Create link/unlink controls"""
@@ -318,6 +402,10 @@ class DualImageView(QWidget):
         # Update link state if both images are set
         self._check_auto_link()
 
+
+        if self._secondary_index is not None:
+            self.tool_manager.set_image_indices(self._primary_index, self._secondary_index)
+
         self.primary_image_changed.emit(image_index)
         logger.debug(f"Set primary image to index {image_index}")
         return True
@@ -351,6 +439,9 @@ class DualImageView(QWidget):
         # Update link state if both images are set
         self._check_auto_link()
 
+        if self._primary_index is not None:
+            self.tool_manager.set_image_indices(self._primary_index, self._secondary_index)
+
         self.secondary_image_changed.emit(image_index)
         logger.debug(f"Set secondary image to index {image_index}")
         return True
@@ -363,7 +454,7 @@ class DualImageView(QWidget):
             # Get the current stretch from the project
             image = self.proj.getImage(image_index)
             
-            # NEW: Try to get the stretch index from the main view's RasterView
+            # Try to get the stretch index from the main view's RasterView
             main_stretch_index = self._get_main_view_stretch_index(image_index)
             if main_stretch_index is not None:
                 stretch_index = main_stretch_index
@@ -805,32 +896,88 @@ class DualImageView(QWidget):
                 
                 logger.debug(f"Connected ViewModel signals for image {image_index}")
 
-            # NEW: Set up polling to monitor main view stretch index changes
+            # Set up polling to monitor main view stretch index changes
             self._setup_stretch_monitoring(image_index)
             
-            # Also connect navigation and ROI signals (existing code)
+            # Also connect navigation and ROI signals 
+            # if hasattr(raster_view, "sigNavigationChanged"):
+            #     try:
+            #         raster_view.sigNavigationChanged.disconnect()
+            #     except:
+            #         pass
+            #     raster_view.sigNavigationChanged.connect(
+            #         lambda state, idx=image_index: self._on_navigation_changed(idx, state)
+            #     )
+                
+            # if hasattr(raster_view, "sigROIChanged"):
+            #     try:
+            #         raster_view.sigROIChanged.disconnect()
+            #     except:
+            #         pass
+            #     raster_view.sigROIChanged.connect(
+            #         lambda roi_id, idx=image_index: self._on_roi_changed(idx, roi_id)
+            #     )
+                
+            if hasattr(raster_view, "sigImageClicked"):
+                # Connect for navigation sync
+                raster_view.sigImageClicked.connect(
+                    lambda x, y, idx=image_index: self._on_view_clicked(idx, x, y)
+                )
+
             if hasattr(raster_view, "sigNavigationChanged"):
-                try:
-                    raster_view.sigNavigationChanged.disconnect()
-                except:
-                    pass
                 raster_view.sigNavigationChanged.connect(
                     lambda state, idx=image_index: self._on_navigation_changed(idx, state)
                 )
-                
+
             if hasattr(raster_view, "sigROIChanged"):
-                try:
-                    raster_view.sigROIChanged.disconnect()
-                except:
-                    pass
                 raster_view.sigROIChanged.connect(
                     lambda roi_id, idx=image_index: self._on_roi_changed(idx, roi_id)
                 )
-                
-            logger.debug(f"Successfully connected all signals for image {image_index}")
+
+            if hasattr(raster_view, "sigStretchChanged"):
+                raster_view.sigStretchChanged.connect(
+                    lambda idx=image_index: self._on_stretch_changed(idx)
+                )
+
+            logger.debug(f"Connected signals for raster view {image_index}")
 
         except Exception as e:
             logger.error(f"Failed to connect signals for raster view {image_index}: {e}")
+
+    def _on_view_clicked(self, image_index: int, x: int, y: int):
+        """Handle clicks on either image view"""
+        # Determine view type
+        view_type = "primary" if image_index == self._primary_index else "secondary"
+        
+        # Route to tool manager first
+        tool_handled = self.tool_manager.handle_click(image_index, x, y, view_type)
+        
+        if not tool_handled:
+            # If no tool handled it, continue with normal click handling
+            logger.debug(f"Click at ({x}, {y}) on {view_type} image not handled by tools")
+    
+    # Methods to handle tool activation/deactivation
+    def _on_tool_activated(self, tool_name: str):
+        """Handle tool activation"""
+        logger.info(f"Tool activated: {tool_name}")
+        
+        # Update UI based on which tool was activated
+        if tool_name == "spectral_plot":
+            self.spectral_tool_button.setChecked(True)
+            self.spectral_tool_button.setText("Stop Spectral")
+
+    def _on_tool_deactivated(self, tool_name: str):
+        """Handle tool deactivation"""
+        logger.info(f"Tool deactivated: {tool_name}")
+        
+        # Update UI based on which tool was deactivated
+        if tool_name == "spectral_plot":
+            self.spectral_tool_button.setChecked(False)
+            self.spectral_tool_button.setText("Spectral Tool")
+
+    def _on_tool_click_handled(self, tool_name: str, image_index: int, x: int, y: int, view_type: str):
+        """Handle notification that a tool processed a click"""
+        logger.debug(f"Tool '{tool_name}' handled click at ({x}, {y}) on {view_type} image")
 
     def _setup_stretch_monitoring(self, image_index: int):
         """Set up monitoring for stretch index changes in the main view"""
