@@ -52,6 +52,10 @@ class VardaRegistry:
 
 sessionContext = VardaSessionContext()
 
+proj = ProjectContext()
+registry = VardaRegistry()
+pm = VardaPluginManager()
+
 q_app = QApplication(sys.argv)
 
 
@@ -59,7 +63,7 @@ def initVarda():
     """
     Initialize and start the Varda application.
     """
-    global sessionContext, q_app
+    global sessionContext, proj, registry, pm, q_app
 
     # Initialize the application
     q_app = QApplication(sys.argv)
@@ -75,6 +79,10 @@ def initVarda():
 
     # initialize the session context
     sessionContext = VardaSessionContext()
+
+    proj = ProjectContext()
+    registry = VardaRegistry()
+    pm = VardaPluginManager()
 
     # Now that initialization is done, launch the GUI
     startGUI()

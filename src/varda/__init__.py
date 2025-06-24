@@ -1,2 +1,2 @@
 from . import api
-import app
+from .app import sessionContext
