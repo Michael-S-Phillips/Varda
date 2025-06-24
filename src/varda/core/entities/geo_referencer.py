@@ -23,7 +23,7 @@ class GeoReferencer:
         Args:
             transform (Affine): The affine transformation matrix for the raster.
             crs (str): The coordinate reference system of the raster as WKT string.
-            
+
         Raises:
             ValueError: If the CRS cannot be parsed or transformers cannot be created.
         """
@@ -31,16 +31,16 @@ class GeoReferencer:
         self.crs = None
         self.toGeo = None
         self.fromGeo = None
-        
+
         try:
             # Ensure the CRS is properly initialized from its WKT representation
             self.crs = CRS.from_wkt(crs)
-            
+
             # Check if the CRS has a geodetic CRS for transformation
             if self.crs.geodetic_crs is None:
                 logger.warning(f"CRS has no geodetic CRS, cannot create transformers")
                 raise ValueError("CRS has no geodetic CRS")
-            
+
             # transformer: map coordinates (meters) → geographic coordinates (longitude/latitude)
             self.toGeo = Transformer.from_crs(
                 self.crs, self.crs.geodetic_crs, always_xy=True
@@ -49,7 +49,7 @@ class GeoReferencer:
             self.fromGeo = Transformer.from_crs(
                 self.crs.geodetic_crs, self.crs, always_xy=True
             )
-            
+
         except (CRSError, ValueError) as e:
             logger.warning(f"Failed to create GeoReferencer: {e}")
             raise ValueError(f"Invalid CRS or unsupported coordinate system: {e}")
@@ -64,13 +64,13 @@ class GeoReferencer:
 
         Returns:
             Tuple[float, float]: The geographic coordinates (longitude, latitude).
-            
+
         Raises:
             RuntimeError: If transformers are not available.
         """
         if self.toGeo is None:
             raise RuntimeError("Geographic transformation not available")
-            
+
         # Convert pixel coordinates to map coordinates (x, y)
         x, y = rasterio.transform.xy(self.transform, px, py)
         # Transform map coordinates to geographic coordinates
@@ -87,13 +87,13 @@ class GeoReferencer:
 
         Returns:
             Tuple[int, int]: The pixel coordinates (column, row) as integers.
-            
+
         Raises:
             RuntimeError: If transformers are not available.
         """
         if self.fromGeo is None:
             raise RuntimeError("Geographic transformation not available")
-            
+
         # Transform geographic coordinates to map coordinates (x, y)
         x, y = self.fromGeo.transform(lon, lat)
         # Convert map coordinates to pixel coordinates

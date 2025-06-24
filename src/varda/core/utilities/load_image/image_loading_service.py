@@ -317,14 +317,18 @@ class ImageLoadingService:
                         metadata.geoReferencer = GeoReferencer(
                             metadata.transform, metadata.crs
                         )
-                        logger.debug(f"Successfully created GeoReferencer for {metadata.filePath}")
+                        logger.debug(
+                            f"Successfully created GeoReferencer for {metadata.filePath}"
+                        )
                     except ValueError as e:
-                        logger.warning(f"Could not create GeoReferencer for {metadata.filePath}: {e}")
+                        logger.warning(
+                            f"Could not create GeoReferencer for {metadata.filePath}: {e}"
+                        )
                         metadata.geoReferencer = None
                         # Add this to the metadata's extra metadata for user visibility
-                        if not hasattr(metadata, 'extraMetadata'):
+                        if not hasattr(metadata, "extraMetadata"):
                             metadata.extraMetadata = {}
-                        metadata.extraMetadata['geo_referencing_error'] = str(e)
+                        metadata.extraMetadata["geo_referencing_error"] = str(e)
                 logger.info(f"Done loading image: {metadata.filePath}")
 
                 # Check if there are load warnings
