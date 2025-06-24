@@ -8,7 +8,7 @@ import logging
 from typing import List, Dict, Optional, Tuple
 import numpy as np
 
-from PyQt6.QtCore import QObject, pyqtSignal, QPointF, QTimer
+from PyQt6.QtCore import Qt, QObject, pyqtSignal, QPointF, QTimer
 from PyQt6.QtWidgets import QMenu, QToolBar, QLabel
 from PyQt6.QtGui import QAction
 
@@ -185,6 +185,14 @@ class ROIDrawingManager(QObject):
         if self.active_roi_selector:
             self.active_roi_selector.cancelDrawing()
 
+        self._cleanupROIDrawingState()
+        
+        # Temporarily disable navigation on main and zoom views
+        self._disableNavigationForROIDrawing()
+
+        # Enable ROI drawing on all three views
+        self._enableROIDrawingOnViews()
+
         # Get the next color
         color = self.roi_colors[self.next_color_index]
         self.next_color_index = (self.next_color_index + 1) % len(self.roi_colors)
@@ -193,13 +201,12 @@ class ROIDrawingManager(QObject):
         self.active_roi_selector = ROISelector(color, self.draw_mode)
         self.active_roi_selector.setImageIndex(self.view_model.imageIndex)
 
-        # Anchor the ROI to the image
+        # Use contextImage instead of mainImage for absolute coordinates
         if imageItem is None:
-            # TODO: fix all of this tight coupling to raster_view
-            if hasattr(self.raster_view, "mainImage"):
-                imageItem = self.raster_view.mainImage
+            if hasattr(self.raster_view, "contextImage"):
+                imageItem = self.raster_view.contextImage
             else:
-                logger.error("No image item available for ROI drawing")
+                logger.error("No context image item available for ROI drawing")
                 return
         self.active_roi_selector.setTargetImageItem(imageItem)
 
@@ -212,29 +219,176 @@ class ROIDrawingManager(QObject):
         self.active_roi_selector.sigDrawingComplete.connect(self.onDrawingComplete)
         self.active_roi_selector.sigDrawingCanceled.connect(self.onDrawingCanceled)
 
-        # Add to view
-        self.raster_view.mainView.addItem(self.active_roi_selector)
+        # Add to context view instead of main view for absolute coordinates
+        self.raster_view.contextView.addItem(self.active_roi_selector)
         self.active_roi_selector.draw()
 
         # Set instructions based on mode
         instructions = {
-            ROIMode.FREEHAND: "Click and drag to draw freehand ROI. Release to complete.",
-            ROIMode.RECTANGLE: "Click and drag to define rectangle. Release to complete.",
-            ROIMode.ELLIPSE: "Click and drag to define ellipse. Release to complete.",
-            ROIMode.POLYGON: "Click to add points. Double-click or press Enter to complete. Esc to cancel.",
+            ROIMode.FREEHAND: "Click and drag to draw freehand ROI on any view. Release to complete.",
+            ROIMode.RECTANGLE: "Click and drag to define rectangle on any view. Release to complete.",
+            ROIMode.ELLIPSE: "Click and drag to define ellipse on any view. Release to complete.",
+            ROIMode.POLYGON: "Click to add points on any view. Double-click or press Enter to complete. Esc to cancel.",
         }
         self.status_label.setText(instructions[self.draw_mode])
+
+    def _cleanupROIDrawingState(self):
+        """Clean up all ROI drawing state and restore normal operation"""
+        # Remove event filters from all views
+        self._removeEventFiltersFromAllViews()
+        
+        # Restore navigation on main and zoom views
+        self._restoreNavigationAfterROIDrawing()
+        
+        # Make sure no views think they're in ROI drawing mode
+        self._clearROIDrawingFlags()
+        
+    def _disableNavigationForROIDrawing(self):
+        """Temporarily disable navigation behavior on main and zoom views"""
+        # Store original navigation state
+        self._original_navigation_state = {}
+        
+        if hasattr(self.raster_view, "mainView"):
+            # Disable navigation on main view
+            self._original_navigation_state['mainView'] = getattr(self.raster_view.mainView, '_roi_drawing_disabled_nav', False)
+            self.raster_view.mainView._roi_drawing_disabled_nav = True
+        
+        if hasattr(self.raster_view, "zoomView"):
+            # Disable navigation on zoom view
+            self._original_navigation_state['zoomView'] = getattr(self.raster_view.zoomView, '_roi_drawing_disabled_nav', False)
+            self.raster_view.zoomView._roi_drawing_disabled_nav = True
+            
+    def _enableROIDrawingOnViews(self):
+        """Enable ROI drawing on all three views by installing event filters"""
+        # Install event filters on all view scenes to detect where user starts drawing
+        if hasattr(self.raster_view, "contextView") and self.raster_view.contextView:
+            scene = self.raster_view.contextView.scene()
+            if scene:
+                scene.installEventFilter(self)
+        
+        if hasattr(self.raster_view, "mainView") and self.raster_view.mainView:
+            scene = self.raster_view.mainView.scene()
+            if scene:
+                scene.installEventFilter(self)
+        
+        if hasattr(self.raster_view, "zoomView") and self.raster_view.zoomView:
+            scene = self.raster_view.zoomView.scene()
+            if scene:
+                scene.installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        """Handle mouse events to detect which view the user wants to draw on"""
+        if event.type() == event.Type.GraphicsSceneMousePress:
+            if event.button() == Qt.MouseButton.LeftButton:
+                # Determine which view this event came from
+                view_type = self._detectViewFromScene(obj)
+                if view_type:
+                    # Start ROI drawing on the detected view
+                    self._startROIOnSpecificView(view_type, event)
+                    return True
+        
+        return False
+    
+    def _detectViewFromScene(self, scene):
+        """Detect which view a scene belongs to"""
+        if hasattr(self.raster_view, "contextView") and self.raster_view.contextView.scene() == scene:
+            return "context"
+        elif hasattr(self.raster_view, "mainView") and self.raster_view.mainView.scene() == scene:
+            return "main"
+        elif hasattr(self.raster_view, "zoomView") and self.raster_view.zoomView.scene() == scene:
+            return "zoom"
+        return None
+        
+    def _startROIOnSpecificView(self, view_type, initial_event):
+        """Start ROI drawing on a specific view"""
+        # Remove event filters from all views since we now know which one to use
+        self._removeEventFiltersFromAllViews()
+        
+        # Get the next color
+        color = self.roi_colors[self.next_color_index]
+        self.next_color_index = (self.next_color_index + 1) % len(self.roi_colors)
+
+        # Create a new ROI selector with view type information
+        self.active_roi_selector = ROISelector(color, self.draw_mode)
+        self.active_roi_selector.setImageIndex(self.view_model.imageIndex)
+        self.active_roi_selector.view_type = view_type
+        # Store reference to raster view for coordinate transformations
+        self.active_roi_selector.raster_view = self.raster_view
+
+        # Set up the ROI selector for the detected view
+        success = self._setupROIForView(view_type)
+        if not success:
+            return
+
+        # Try to set geo transform if available
+        image = self.view_model.proj.getImage(self.view_model.imageIndex)
+        if hasattr(image.metadata, "transform"):
+            self.active_roi_selector.setGeoTransform(image.metadata.transform)
+
+        # Connect signals
+        self.active_roi_selector.sigDrawingComplete.connect(self.onDrawingComplete)
+        self.active_roi_selector.sigDrawingCanceled.connect(self.onDrawingCanceled)
+
+        # Start drawing and process the initial mouse event
+        self.active_roi_selector.draw()
+        
+        # Forward the initial mouse event to start drawing immediately
+        self.active_roi_selector.eventFilter(None, initial_event)
+
+        # Update status to show which view is being used
+        view_name = view_type.capitalize()
+        instructions = {
+            ROIMode.FREEHAND: f"Drawing freehand ROI on {view_name} view. Release to complete.",
+            ROIMode.RECTANGLE: f"Drawing rectangle on {view_name} view. Release to complete.",
+            ROIMode.ELLIPSE: f"Drawing ellipse on {view_name} view. Release to complete.",
+            ROIMode.POLYGON: f"Drawing polygon on {view_name} view. Double-click or Enter to complete.",
+        }
+        self.status_label.setText(instructions[self.draw_mode])
+
+    def _removeEventFiltersFromAllViews(self):
+        """Remove event filters from all view scenes"""
+        for view_attr in ["contextView", "mainView", "zoomView"]:
+            if hasattr(self.raster_view, view_attr):
+                view = getattr(self.raster_view, view_attr)
+                if view and view.scene():
+                    view.scene().removeEventFilter(self)
+
+    def _setupROIForView(self, view_type):
+        """Set up ROI selector for the specified view type"""
+        if view_type == "context":
+            if hasattr(self.raster_view, "contextImage"):
+                self.active_roi_selector.setTargetImageItem(self.raster_view.contextImage)
+                self.raster_view.contextView.addItem(self.active_roi_selector)
+                return True
+        
+        elif view_type == "main":
+            if hasattr(self.raster_view, "mainImage"):
+                self.active_roi_selector.setTargetImageItem(self.raster_view.mainImage)
+                self.raster_view.mainView.addItem(self.active_roi_selector)
+                return True
+        
+        elif view_type == "zoom":
+            if hasattr(self.raster_view, "zoomImage"):
+                self.active_roi_selector.setTargetImageItem(self.raster_view.zoomImage)
+                self.raster_view.zoomView.addItem(self.active_roi_selector)
+                return True
+        
+        logger.error(f"Failed to set up ROI for {view_type} view")
+        return False
 
     def onDrawingComplete(self, roi_data):
         # update onDrawingComplete call to include the roi_data
         # pass the geo_points to the freehandROI class
         # update the table to inlcude the geo_points
         # ask michael roi thresholds
-        """Handle completion of ROI drawing"""
+        """Handle completion of ROI drawing with cleanup"""
+        # Clean up event filters and restore navigation
+        self._cleanupROIDrawingState()
+        
         # Reset active selector
         self.active_roi_selector = None
 
-        # Create FreehandROI from the points
+        # Process the ROI data (existing logic continues...)
         if not roi_data or "points" not in roi_data:
             return
 
@@ -316,8 +470,35 @@ class ROIDrawingManager(QObject):
             self.status_label.setText(f"Error creating ROI")
         self.raster_view.draw_all_polygons()
 
+    def _restoreNavigationAfterROIDrawing(self):
+        """Restore original navigation behavior"""
+        if hasattr(self, '_original_navigation_state'):
+            if hasattr(self.raster_view, "mainView") and 'mainView' in self._original_navigation_state:
+                self.raster_view.mainView._roi_drawing_disabled_nav = self._original_navigation_state['mainView']
+            
+            if hasattr(self.raster_view, "zoomView") and 'zoomView' in self._original_navigation_state:
+                self.raster_view.zoomView._roi_drawing_disabled_nav = self._original_navigation_state['zoomView']
+            
+            delattr(self, '_original_navigation_state')
+
+    def _clearROIDrawingFlags(self):
+        """Clear any ROI drawing flags on the views"""
+        # Clear any drawing state flags that might be set on the views
+        for view_attr in ["contextView", "mainView", "zoomView"]:
+            if hasattr(self.raster_view, view_attr):
+                view = getattr(self.raster_view, view_attr)
+                if view:
+                    # Clear any drawing state flags
+                    if hasattr(view, '_roi_drawing_active'):
+                        view._roi_drawing_active = False
+
     def onDrawingCanceled(self):
-        """Handle cancellation of ROI drawing"""
+        """Handle cancellation of ROI drawing with cleanup"""
+        # Clean up event filters
+        self._removeEventFiltersFromAllViews()
+        self._restoreNavigationAfterROIDrawing()
+        
+        # Reset active selector
         self.active_roi_selector = None
         self.status_label.setText("ROI drawing canceled")
 
