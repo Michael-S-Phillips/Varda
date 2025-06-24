@@ -42,7 +42,6 @@ class ROIDrawingManager(QObject):
         # ROI drawing variables
         self.active_roi_selector = None
         self.draw_mode = ROIMode.FREEHAND
-        self.roi_selectors = []  # List of active ROI selectors
         self.roi_colors = [
             (255, 0, 0, 100),  # Red
             (0, 255, 0, 100),  # Green
@@ -73,10 +72,6 @@ class ROIDrawingManager(QObject):
                 self.view_model.roiRemoved.connect(self.onRoiRemoved)
             if hasattr(self.view_model, "roiUpdated"):
                 self.view_model.roiUpdated.connect(self.onRoiUpdated)
-
-            # Connect to the more generic data changed signal that both view models have
-            if hasattr(self.view_model, "sigROIChanged"):
-                self.view_model.sigROIChanged.connect(self.onROIChanged)
 
         # Set up view change handlers
         self.setupViewChangeHandlers()
@@ -163,19 +158,6 @@ class ROIDrawingManager(QObject):
         # Add status label
         self.toolbar.addWidget(self.status_label)
 
-    def onROIChanged(self):
-        """
-        Handle changes to ROIs through the generic sigROIChanged signal.
-        This method will reload all ROIs when any change is detected.
-        """
-        # Clear existing ROIs
-        for roi_id, selector in list(self.roi_lookup.items()):
-            self.raster_view.mainView.removeItem(selector)
-        self.roi_lookup.clear()
-
-        # Reload all ROIs
-        self.loadExistingROIs()
-
     def getToolbar(self):
         """Get the ROI toolbar"""
         return self.toolbar
@@ -258,9 +240,6 @@ class ROIDrawingManager(QObject):
 
         points = roi_data["points"]
         geo_points = roi_data.get("geo_points")
-        print("\n")
-        print(type(roi_data))
-        print("\n")
         image_index = roi_data.get("image_index", self.view_model.imageIndex)
         color = roi_data.get("color", (255, 0, 0, 100))
 
@@ -318,15 +297,7 @@ class ROIDrawingManager(QObject):
                         self.view_model, "index"
                     ):
                         # If it's RasterViewModel, use the project context directly
-                        try:
-                            roi_id = self.view_model.proj.add_roi(roi, [image_index])
-                        except Exception as e:
-                            # Try legacy method as fallback
-                            try:
-                                idx = self.view_model.proj.addROI(image_index, roi)
-                                roi_id = roi.id if hasattr(roi, "id") else str(idx)
-                            except Exception as e2:
-                                logger.error(f"Error adding ROI (legacy): {e2}")
+                        roi_id = self.view_model.proj.add_roi(roi, [image_index])
 
                     # Display the ROI
                     if roi_id:
@@ -473,34 +444,15 @@ class ROIDrawingManager(QObject):
 
     def getRoiById(self, roi_id):
         """Helper method to get an ROI by ID, trying different approaches."""
-        roi = None
-
         # Try different methods to get the ROI
         if hasattr(self.view_model, "getRoi"):
             # If it's ROIViewModel
-            roi = self.view_model.getRoi(roi_id)
+            return self.view_model.getRoi(roi_id)
         elif hasattr(self.view_model, "proj"):
             # If it's RasterViewModel, use the project context directly
-            try:
-                # Try the new API
-                roi = self.view_model.proj.get_roi(roi_id)
-            except (AttributeError, Exception) as e:
-                # If that fails, try to find it in the list of ROIs
-                try:
-                    image_index = getattr(
-                        self.view_model,
-                        "index",
-                        getattr(self.view_model, "imageIndex", 0),
-                    )
-                    rois = self.view_model.proj.get_rois_for_image(image_index)
-                    for r in rois:
-                        if hasattr(r, "id") and r.id == roi_id:
-                            roi = r
-                            break
-                except Exception as e2:
-                    logger.error(f"Error finding ROI by ID: {e2}")
-
-        return roi
+            return self.view_model.proj.roi_manager.get_roi(roi_id)
+        
+        return None
 
     def highlightROI(self, roi_id):
         """Highlight a specific ROI"""
@@ -562,28 +514,7 @@ class ROIDrawingManager(QObject):
 
     def getROIData(self, roi_id):
         """Get data for a specific ROI"""
-        roi = None
-
-        # Try to get the ROI depending on view model type
-        if hasattr(self.view_model, "getRoi"):
-            # If it's ROIViewModel
-            roi = self.view_model.getRoi(roi_id)
-        elif hasattr(self.view_model, "proj") and hasattr(self.view_model, "index"):
-            # If it's RasterViewModel, use the project context directly
-            try:
-                roi = self.view_model.proj.get_roi(roi_id)
-            except Exception as e:
-                # Try to get the ROI from the list of ROIs for this image
-                try:
-                    rois = self.view_model.proj.get_rois_for_image(
-                        self.view_model.index
-                    )
-                    for r in rois:
-                        if hasattr(r, "id") and r.id == roi_id:
-                            roi = r
-                            break
-                except Exception as e2:
-                    logger.error(f"Error getting ROI: {e2}")
+        roi = self.getRoiById(roi_id)
 
         if not roi:
             return None
