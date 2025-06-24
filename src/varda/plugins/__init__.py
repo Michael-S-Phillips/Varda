@@ -1,1 +1,1 @@
-from . import _hookspecs
+from ._hooks import hookimpl

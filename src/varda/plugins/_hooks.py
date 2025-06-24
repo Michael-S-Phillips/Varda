@@ -1,6 +1,7 @@
 import pluggy
 
 hookspec = pluggy.HookspecMarker("varda")
+hookimpl = pluggy.HookimplMarker("varda")
 
 @hookspec
 def onLoad():

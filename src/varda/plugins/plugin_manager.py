@@ -13,7 +13,7 @@ class VardaPluginManager:
 
     def __init__(self):
         self.pm = PluginManager("varda")
-        self.pm.add_hookspecs(varda.plugins._hookspecs)
+        self.pm.add_hookspecs(varda.plugins._hooks.hookspec)
         # load plugins from entrypoints
         self.pm.load_setuptools_entrypoints("varda.plugins")
 
@@ -27,7 +27,7 @@ class VardaPluginManager:
         for name in pluginFolder.iterdir():
             name = name.name
             path = pluginFolder.joinpath(name)
-            if name.endswith(".py"):
+            if path.is_file() and name.endswith(".py"):
                 # plugin is a standalone file
                 moduleName = name[:-3]
             elif path.is_dir() and path.joinpath("__init__.py").is_file():
