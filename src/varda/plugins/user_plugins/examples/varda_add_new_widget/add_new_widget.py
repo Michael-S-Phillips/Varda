@@ -1,17 +1,18 @@
 import logging
 
-from PyQt6.QtWidgets import QWidget, QPushButton, QLabel
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QPushButton, QLabel, QVBoxLayout
 
 import varda
 
 logger = logging.getLogger(__name__)
 
 
-@varda.api.hookimpl
+@varda.plugins.hookimpl
 def onLoad():
     """Hook called on plugin load."""
     logger.info("Plugin hook implementation called: varda_add_new_widget :O")
-    varda.api.registerWidget(MyNewWidget)
+    varda.app.registry.registerWidget(MyNewWidget)
 
 
 class MyNewWidget(QWidget):
@@ -22,9 +23,16 @@ class MyNewWidget(QWidget):
 
     def initUI(self):
         self.setWindowTitle("My New Widget")
+        self.setMinimumSize(200, 200)
+        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint)
         self.label = QLabel(self)
-        button = QPushButton("Click Me", self)
-        button.clicked.connect(self.onButtonClick)
+        self.button = QPushButton("Click Me", self)
+        self.button.clicked.connect(self.onButtonClick)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.button)
+        layout.addWidget(self.label)
+        self.setLayout(layout)
 
     def onButtonClick(self):
         """Handle button click event."""

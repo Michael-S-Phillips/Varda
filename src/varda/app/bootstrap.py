@@ -3,103 +3,73 @@ Composition Root for Varda
 
 This module initializes all the core components of Varda right away, and then starts the GUI.
 
-These core components are then accessible under the varda namespace, e.g. `varda.proj`, `varda.widgetRegistry`, etc.
+These core components are then accessible via the "varda.app" namespace
 """
 
 # standard library
 from datetime import datetime
-import importlib
 import logging
 from pathlib import Path
 import sys
+from typing import NoReturn
 
 # third party imports
 from PyQt6.QtCore import QStandardPaths
 from PyQt6.QtWidgets import QApplication
 import pyqtgraph as pg
-from pluggy import PluginManager
 
 # local imports
-import varda
-from varda.core.data import ProjectContext
+from varda.core.data import VardaSessionContext
 from varda.gui.maingui import MainGUI
-from varda.plugins.plugin_manager import VardaPluginManager
-from varda.registries import WidgetRegistry, ImageLoaderRegistry
+
 
 
 logger = logging.getLogger(__name__)
 
 
-class VardaSessionContext:
-    """
-    Context for the current Varda session.
-    Includes the project context, registry, and plugin manager.
-    """
 
-    def __init__(self):
-        self.proj = ProjectContext()
-        self.registry = VardaRegistry()
-        self.pm = VardaPluginManager()
+sessionContext: VardaSessionContext = VardaSessionContext()
+q_app: QApplication = None
 
 
-class VardaRegistry:
-    """Registry to store dynamically loaded widgets and image loaders. (e.g. plugins)"""
-
-    def __init__(self):
-        self.widgets = WidgetRegistry()
-        self.imageLoaders = ImageLoaderRegistry()
-
-
-sessionContext = VardaSessionContext()
-
-proj = ProjectContext()
-registry = VardaRegistry()
-pm = VardaPluginManager()
-
-q_app = QApplication(sys.argv)
-
-
-def initVarda():
+def initVarda(startGui=True) -> None:
     """
     Initialize and start the Varda application.
     """
-    global sessionContext, proj, registry, pm, q_app
+    global sessionContext, q_app
 
-    # Initialize the application
+    q_app = initPyQtAndLogging()
+
+    # Any configuration settings that need to be applied before starting the program goes here
+    setConfigurations()
+
+    # Initialize the core components
+    sessionContext = VardaSessionContext()
+
+    # start gui
+    logger.info("Varda initialized successfully!")
+    if startGui:
+        startGUI()
+
+
+def initPyQtAndLogging() -> QApplication:
+    """Initialize the QApplication and logging for Varda.
+
+    They go together because logging relies on PyQt to determine where to store logs.
+    """
+    global q_app
+    # Initialize the QApplication
     q_app = QApplication(sys.argv)
     q_app.setApplicationName("Varda")
     q_app.setOrganizationName("Varda")
 
     # Initialize logging
-    _initLogging()
-    logger.debug("Initializing VardaApp")
-
-    # Any configuration settings that need to be applied before starting the program goes here
-    pg.setConfigOptions(imageAxisOrder="row-major")
-
-    # initialize the session context
-    sessionContext = VardaSessionContext()
-
-    proj = ProjectContext()
-    registry = VardaRegistry()
-    pm = VardaPluginManager()
-
-    # Now that initialization is done, launch the GUI
-    startGUI()
+    initLogging()
+    logger.debug("QApplication and logging initialized")
+    return q_app
 
 
-def startGUI():
-    """Enter the GUI event loop."""
-    global sessionContext, q_app
-    gui = MainGUI(sessionContext.proj)
-    gui.showMaximized()
-    logger.debug("starting the application event loop")
-    exitCode = q_app.exec()
-    logging.info("Application exiting, performing cleanup...")
-    sys.exit(exitCode)
-
-
-def _initLogging():
+def initLogging() -> None:
     """Setup logging. Logs will be saved in the user's local appdata folder.
     # TODO: Add a GUI button to open the log folder.
 
@@ -112,6 +82,9 @@ def _initLogging():
       logger.warning("This is a warning message")
       logger.error("This is an error message")
     """
+    if q_app is None:
+        raise RuntimeError("QApplication must be initialized before logging.")
+
     logFolder = (
         Path(
             QStandardPaths.writableLocation(
@@ -136,3 +109,28 @@ def _initLogging():
         level=logging.DEBUG,
         handlers=[logging.FileHandler(logName), logging.StreamHandler(sys.stdout)],
     )
+
+
+def setConfigurations() -> None:
+    """Initialize any configuration settings for Varda.
+
+    This function can be used to set up default configurations, load user preferences,
+    or apply any other necessary settings before starting the application.
+    """
+    pg.setConfigOptions(imageAxisOrder="row-major")
+
+
+def startGUI() -> NoReturn:
+    """Enter the GUI event loop. This function never returns."""
+    global sessionContext, q_app
+
+    if sessionContext is None or q_app is None:
+        raise RuntimeError("Varda must be initialized before starting the GUI.")
+
+    gui = MainGUI(sessionContext.proj)
+    gui.showMaximized()
+    logger.debug("starting the GUI event loop...")
+    exitCode = q_app.exec()
+    logger.info("Application exiting, performing cleanup...")
+    sys.exit(exitCode)
+

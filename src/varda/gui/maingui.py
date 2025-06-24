@@ -9,6 +9,7 @@ from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt
 from qasync import QEventLoop, QApplication
 
+import varda
 from varda.core.data import ProjectContext
 from varda.core.ui import ControlPanel
 from varda.features.image_view_raster.raster_view import RasterView
@@ -54,6 +55,15 @@ class MainGUI(QtWidgets.QMainWindow):
         self.connectSignals()
 
         logger.info("MainGUI Initialized")
+
+        varda.app.pm.hook.onLoad()
+        self.pluginwidgets = []
+        for name, widget in varda.app.registry._widgets:
+            logger.debug(f"Adding widget {name}")
+            widget = widget()
+            self.pluginwidgets.append(widget)
+            widget.show()
+
 
     def initUI(self):
         self.setMenuBar(MainMenuBar())
