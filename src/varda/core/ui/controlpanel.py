@@ -36,6 +36,9 @@ class DockableTab(QWidget):
         self.title = title
         self.parent_control_panel = parent
         self.docked_widget = None
+        # Override minimum width constraints
+        self.setMinimumWidth(20)  # Set minimum width
+        self.setMinimumHeight(20)  # Set minimum height
 
     def pop_out(self):
         """Pop this tab out as a separate dockable widget."""
@@ -168,39 +171,6 @@ class StretchTab(DockableTab):
         layout.addWidget(self.histogramView)
 
 
-class PlotTab(DockableTab):
-    """Tab for plot options functionality."""
-
-    def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
-        super().__init__("Plot Options", parent)
-        self.project_context = proj
-        self.imageIndex = imageIndex
-        self.pixelPlotPopup = None
-        self.lastPixelCoords = (0, 0)
-        self._init_ui()
-
-    def _init_ui(self):
-        layout = QVBoxLayout(self)
-
-        self.pixelPlot = ImagePlotWidget(
-            self.project_context, self.imageIndex, parent=self
-        )
-        self.pixelPlot.sigClicked.connect(self.handlePixelPlotClicked)
-
-        layout.addWidget(self.pixelPlot)
-
-    def handlePixelPlotClicked(self):
-        """Handle pixel plot click - delegate to parent control panel."""
-        if hasattr(self.parent_control_panel, "handlePixelPlotClicked"):
-            self.parent_control_panel.handlePixelPlotClicked()
-
-    def showPixelSpectrum(self, x, y):
-        """Update the pixel plot with new coordinates using the correct method."""
-        self.lastPixelCoords = (x, y)
-        if hasattr(self.pixelPlot, "showPixelSpectrum"):
-            self.pixelPlot.showPixelSpectrum(x, y)
-
-
 class ControlPanel(QWidget):
     """
     Control panel tied dynamically to the currently selected image.
@@ -275,6 +245,8 @@ class ControlPanel(QWidget):
         self.tabWidget.customContextMenuRequested.connect(self._show_tab_context_menu)
 
     def _setup_tabs(self):
+        from varda.gui.widgets.plot_manager_tab import PlotManagerTab
+
         """Create and setup all tabs."""
         # Create tabs
         self.tabs["metadata"] = MetadataTab(self.project_context, self.imageIndex, self)
@@ -285,7 +257,7 @@ class ControlPanel(QWidget):
         self.tabs["stretch"] = StretchTab(
             self.project_context, self.imageIndex, self.rasterView, self
         )
-        self.tabs["plot"] = PlotTab(self.project_context, self.imageIndex, self)
+        self.tabs["plot"] = PlotManagerTab(self.project_context, self.imageIndex, self)
 
         # Add tabs to widget
         for tab in self.tabs.values():
@@ -299,6 +271,12 @@ class ControlPanel(QWidget):
             print(
                 "[DEBUG] Connected rasterView.sigImageClicked to updatePixelPlotFromCrosshair"
             )
+            
+        # Set up view-specific click handlers if plot manager exists
+        if "plot" in self.tabs:
+            plot_tab = self.tabs["plot"]
+            if hasattr(plot_tab, 'setup_view_click_handlers'):
+                plot_tab.setup_view_click_handlers(self.rasterView)
 
     def _show_tab_context_menu(self, position):
         """Show context menu for tab operations."""
@@ -359,6 +337,14 @@ class ControlPanel(QWidget):
         print(f"[DEBUG] updatePixelPlotFromCrosshair called with coords: ({x}, {y})")
         self.lastPixelCoords = (x, y)
 
+        # Check if plot manager allows this update
+        if "plot" in self.tabs:
+            plot_tab = self.tabs["plot"]
+            if hasattr(plot_tab, 'should_update_plot'):
+                if not plot_tab.should_update_plot():
+                    print(f"[DEBUG] Plot update blocked by Plot Manager settings")
+                    return
+
         # Update the plot tab using the correct method
         if "plot" in self.tabs:
             plot_tab = self.tabs["plot"]
@@ -375,31 +361,21 @@ class ControlPanel(QWidget):
             self.pixelPlotPopup.showPixelSpectrum(x, y)
 
     def handlePixelPlotClicked(self):
-        """Handle pixel plot click to open popup window."""
-        self.sigPixelPlotClicked.emit()
-
-        # Create popup if it doesn't exist
-        plot_tab = self.tabs.get("plot")
-        if not plot_tab:
-            return
-
-        if plot_tab.pixelPlotPopup is None:
-            plot_tab.pixelPlotPopup = ImagePlotWidget(
-                self.project_context,
-                self.imageIndex,
-                isWindow=True,
-                parent=self.parent(),
-            )
-            plot_tab.pixelPlotPopup.setWindowTitle("Pixel Plot")
-            plot_tab.pixelPlotPopup.resize(400, 300)
-            plot_tab.pixelPlotPopup.destroyed.connect(
-                lambda: setattr(plot_tab, "pixelPlotPopup", None)
-            )
-
-        # Use last clicked pixel coordinates
+        """Handle pixel plot click - create popup for current embedded plot."""
+        # Get the current coordinates from the embedded plot
         x, y = self.lastPixelCoords
-        if hasattr(plot_tab.pixelPlotPopup, "showPixelSpectrum"):
-            plot_tab.pixelPlotPopup.showPixelSpectrum(x, y)
-        plot_tab.pixelPlotPopup.show()
-        plot_tab.pixelPlotPopup.raise_()
-        plot_tab.pixelPlotPopup.activateWindow()
+        
+        # Create a unique plot data entry for the current embedded plot
+        # Use a timestamp to ensure uniqueness
+        import time
+        current_plot_id = f"current_plot_{int(time.time() * 1000)}"
+        
+        current_plot_data = {
+            'id': current_plot_id,
+            'coords': (x, y),
+            'image_index': self.imageIndex,
+            'title': f"Current Pixel ({x}, {y})"
+        }
+        
+        # Use the same popup method as thumbnails
+        self.tabs["plot"]._open_plot_popup(current_plot_data)

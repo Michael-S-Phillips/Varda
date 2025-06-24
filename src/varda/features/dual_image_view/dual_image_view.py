@@ -28,6 +28,8 @@ from PyQt6.QtGui import QAction, QIcon
 
 from .dual_image_types import DualImageMode, LinkType, DualImageConfig
 from .dual_image_view_controller import DualImageViewController
+from .dual_image_tool_manager import DualImageToolManager
+from .spectral_plot_tool import SpectralPlotTool
 from varda.features.image_view_raster.raster_view import RasterView
 from varda.core.data import ProjectContext
 
@@ -60,17 +62,23 @@ class DualImageView(QWidget):
         # Initialize controller
         self.controller = DualImageViewController(project_context, self)
 
+        # Initialize tool manager
+        self.tool_manager = DualImageToolManager(project_context, self)
+        self._setup_tools()
+
         # State tracking
         self._primary_index: Optional[int] = None
         self._secondary_index: Optional[int] = None
         self._raster_views: Dict[int, RasterView] = {}  # image_index -> RasterView
         self._is_linked = False
+        self._current_active_tool: Optional[str] = None
 
         # UI components
         self.primary_view_container = None
         self.secondary_view_container = None
         self.control_panel = None
         self.splitter = None
+        self.tool_panel_splitter = None  # Splitter for tool panel
 
         # Control widgets
         self.mode_combo = None
@@ -81,12 +89,17 @@ class DualImageView(QWidget):
         self.link_button = None
         self.sync_navigation_cb = None
         self.sync_rois_cb = None
+        self.spectral_tool_button = None
+        self.tool_buttons = {} 
+        self._tool_controls_layout = None
+        self.future_tools_label = None
 
         # Initialize UI
         self._init_ui()
         self._connect_signals()
 
-        logger.debug("DualImageView initialized")
+        logger.debug("DualImageView initialized with tool manager")
+
 
     def _init_ui(self):
         """Initialize the user interface"""
@@ -99,7 +112,13 @@ class DualImageView(QWidget):
         self.control_panel = self._create_control_panel()
         main_layout.addWidget(self.control_panel)
 
-        # Image view splitter
+        # Main content splitter (horizontal: images | tools)
+        self.tool_panel_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.tool_panel_splitter.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+
+        # Image view splitter (left side of main splitter)
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
@@ -113,15 +132,90 @@ class DualImageView(QWidget):
         self.secondary_view_container = self._create_view_container("Secondary Image")
         self.splitter.addWidget(self.secondary_view_container)
 
-        # Set equal split
+        # Set equal split for images
         self.splitter.setSizes([400, 400])
 
-        main_layout.addWidget(self.splitter)
+        # Add image splitter to main splitter
+        self.tool_panel_splitter.addWidget(self.splitter)
+
+        # Add tool panel to main splitter (right side) - ALWAYS VISIBLE
+        tool_panel = self.tool_manager.get_tool_panel_widget()
+        
+        tool_panel.setMaximumWidth(350)
+        tool_panel.setMinimumWidth(280)
+        self.tool_panel_splitter.addWidget(tool_panel)
+
+        # Set proportional split: 75% images, 25% tools
+        self.tool_panel_splitter.setSizes([750, 250])
+
+        main_layout.addWidget(self.tool_panel_splitter)
 
         # Initially disable controls
         self._update_control_states()
 
+    def _setup_tools(self):
+        """Register available tools with the tool manager"""
+        # Register spectral plot tool
+        self.tool_manager.register_tool(SpectralPlotTool, "spectral_plot")
+        
+        # Connect tool manager signals
+        self.tool_manager.tool_activated.connect(self._on_tool_activated)
+        self.tool_manager.tool_deactivated.connect(self._on_tool_deactivated)
+        self.tool_manager.click_handled.connect(self._on_tool_click_handled)
+
+    def _create_tool_controls(self) -> QWidget:
+        """Create tool activation controls - redesigned as tool switcher"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(5, 5, 5, 5)
+        
+        # STORE LAYOUT REFERENCE for adding future tools
+        self._tool_controls_layout = layout
+
+        # Tool switcher buttons
+        self.spectral_tool_button = QPushButton("Spectral")
+        self.spectral_tool_button.setCheckable(True)
+        self.spectral_tool_button.setToolTip("Spectral plotting tool")
+        self.spectral_tool_button.clicked.connect(lambda: self._switch_to_tool("spectral_plot"))
+        layout.addWidget(self.spectral_tool_button)
+        
+        # Store for future reference
+        self.tool_buttons["spectral_plot"] = self.spectral_tool_button
+
+        # Placeholder for future tools - store reference to this too
+        self.future_tools_label = QLabel("More tools coming...")
+        self.future_tools_label.setStyleSheet("color: gray; font-style: italic; font-size: 10px;")
+        layout.addWidget(self.future_tools_label)
+
+        return widget
+    
+    def _switch_to_tool(self, tool_name: str):
+        """Switch active tool in the tool canvas"""
+        logger.debug(f"Switching to tool: {tool_name}")
+        
+        # Deactivate current tool if different
+        if self._current_active_tool and self._current_active_tool != tool_name:
+            self.tool_manager.deactivate_tool(self._current_active_tool)
+            # Update button state for old tool
+            if self._current_active_tool in self.tool_buttons:
+                self.tool_buttons[self._current_active_tool].setChecked(False)
+        
+        # Activate new tool
+        if tool_name != self._current_active_tool:
+            if self.tool_manager.activate_tool(tool_name):
+                self._current_active_tool = tool_name
+                # Update button state for new tool
+                if tool_name in self.tool_buttons:
+                    self.tool_buttons[tool_name].setChecked(True)
+                logger.info(f"Switched to tool: {tool_name}")
+            else:
+                logger.error(f"Failed to switch to tool: {tool_name}")
+                # Reset button if activation failed
+                if tool_name in self.tool_buttons:
+                    self.tool_buttons[tool_name].setChecked(False)
+
     def _create_control_panel(self) -> QGroupBox:
+        # from PyQt6.QtWidgets import QFrame
         """Create the dual view control panel"""
         panel = QGroupBox("Dual View Controls")
         layout = QHBoxLayout(panel)
@@ -170,10 +264,21 @@ class DualImageView(QWidget):
         sync_group = self._create_sync_controls()
         layout.addWidget(sync_group)
 
+        # Separator
+        separator5 = QFrame()
+        separator5.setFrameShape(QFrame.Shape.VLine)
+        separator5.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(separator5)
+
+        # Tool controls
+        tool_group = self._create_tool_controls()
+        layout.addWidget(tool_group)
+
         # Stretch to fill available space
         layout.addStretch()
 
         return panel
+
 
     def _create_link_controls(self) -> QWidget:
         """Create link/unlink controls"""
@@ -312,8 +417,15 @@ class DualImageView(QWidget):
             f"Primary Image ({self._get_image_name(image_index)})",
         )
 
-        # Update link state if both images are set
+        # Force stretch update after setting the image
+        self._force_stretch_update(raster_view, image_index)
+
+        # Update link state and activate default tool if both images are set
         self._check_auto_link()
+
+        # Update tool manager with new image indices
+        if self._secondary_index is not None:
+            self.tool_manager.set_image_indices(self._primary_index, self._secondary_index)
 
         self.primary_image_changed.emit(image_index)
         logger.debug(f"Set primary image to index {image_index}")
@@ -342,12 +454,127 @@ class DualImageView(QWidget):
             f"Secondary Image ({self._get_image_name(image_index)})",
         )
 
-        # Update link state if both images are set
+        # Force stretch update after setting the image
+        self._force_stretch_update(raster_view, image_index)
+
+        # Update link state and activate default tool if both images are set
         self._check_auto_link()
+
+        # Update tool manager with new image indices
+        if self._primary_index is not None:
+            self.tool_manager.set_image_indices(self._primary_index, self._secondary_index)
 
         self.secondary_image_changed.emit(image_index)
         logger.debug(f"Set secondary image to index {image_index}")
         return True
+
+    def _force_stretch_update(self, raster_view, image_index: int):
+        """Force the raster view to update with current stretch values"""
+        try:
+            logger.debug(f"=== FORCING STRETCH UPDATE FOR IMAGE {image_index} ===")
+            
+            # Get the current stretch from the project
+            image = self.proj.getImage(image_index)
+            
+            # Try to get the stretch index from the main view's RasterView
+            main_stretch_index = self._get_main_view_stretch_index(image_index)
+            if main_stretch_index is not None:
+                stretch_index = main_stretch_index
+                logger.debug(f"Using main view stretch index: {stretch_index}")
+            else:
+                stretch_index = raster_view.viewModel.stretchIndex
+                logger.debug(f"Using dual view stretch index: {stretch_index}")
+            
+            # Update the dual view's stretch index to match
+            raster_view.viewModel.stretchIndex = stretch_index
+            
+            logger.debug(f"Image has {len(image.stretch)} stretches, using index {stretch_index}")
+            
+            current_stretch = image.stretch[stretch_index]
+            stretch_levels = current_stretch.toList()
+            
+            logger.debug(f"Current stretch levels for image {image_index}: {stretch_levels}")
+            logger.debug(f"Stretch levels type: {type(stretch_levels[0][0])}")
+            
+            # Get current raster data
+            raster_data = raster_view.viewModel.getRasterFromBand()
+            logger.debug(f"Raster data shape: {raster_data.shape}")
+            logger.debug(f"Raster data range: {raster_data.min()} to {raster_data.max()}")
+            
+            # Update the cache in the raster view
+            raster_view.current_stretch_levels = stretch_levels
+            logger.debug(f"Updated raster_view.current_stretch_levels")
+            
+            # Apply the stretch to all image components
+            if hasattr(raster_view, 'contextImage') and raster_view.contextImage:
+                logger.debug("Updating contextImage with stretch levels")
+                raster_view.contextImage.setImage(raster_data, levels=stretch_levels)
+                
+            if hasattr(raster_view, 'mainImage') and raster_view.mainImage:
+                logger.debug("Updating mainImage with stretch levels")
+                raster_view.mainImage.setLevels(stretch_levels)
+                
+            if hasattr(raster_view, 'zoomImage') and raster_view.zoomImage:
+                logger.debug("Updating zoomImage with stretch levels")
+                raster_view.zoomImage.setLevels(stretch_levels)
+            
+            # Force view updates
+            if hasattr(raster_view, 'contextView') and raster_view.contextView:
+                raster_view.contextView.update()
+                logger.debug("Updated contextView")
+                
+            if hasattr(raster_view, 'mainView') and raster_view.mainView:
+                raster_view.mainView.update()
+                logger.debug("Updated mainView")
+                
+            if hasattr(raster_view, 'zoomView') and raster_view.zoomView:
+                raster_view.zoomView.update()
+                logger.debug("Updated zoomView")
+                
+            # Also try updating the raster view itself
+            raster_view.update()
+            raster_view.repaint()
+            logger.debug("Updated raster_view widget")
+                
+            logger.debug(f"=== COMPLETED FORCED STRETCH UPDATE FOR IMAGE {image_index} ===")
+            
+        except Exception as e:
+            logger.error(f"Error forcing stretch update for image {image_index}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    def _get_main_view_stretch_index(self, image_index: int) -> Optional[int]:
+        """Try to get the stretch index from the main view's RasterView"""
+        try:
+            # Walk up the parent hierarchy to find MainGUI
+            parent = self.parent()
+            while parent:
+                if hasattr(parent, 'rasterViews') and hasattr(parent, 'proj'):
+                    # Found MainGUI
+                    main_gui = parent
+                    if image_index in main_gui.rasterViews:
+                        main_raster_view = main_gui.rasterViews[image_index]
+                        if hasattr(main_raster_view, 'viewModel') and hasattr(main_raster_view.viewModel, 'stretchIndex'):
+                            stretch_index = main_raster_view.viewModel.stretchIndex
+                            # REMOVE this debug line: logger.debug(f"Found main view stretch index {stretch_index} for image {image_index}")
+                            return stretch_index
+                    break
+                parent = parent.parent()
+            
+            # Also try to get MainGUI through the project context if it has a reference
+            if hasattr(self.proj, 'main_window'):
+                main_gui = self.proj.main_window
+                if hasattr(main_gui, 'rasterViews') and image_index in main_gui.rasterViews:
+                    main_raster_view = main_gui.rasterViews[image_index]
+                    if hasattr(main_raster_view, 'viewModel') and hasattr(main_raster_view.viewModel, 'stretchIndex'):
+                        stretch_index = main_raster_view.viewModel.stretchIndex
+                        # REMOVE this debug line: logger.debug(f"Found main view stretch index {stretch_index} for image {image_index} via project")
+                        return stretch_index
+                        
+        except Exception as e:
+            logger.error(f"Error getting main view stretch index for image {image_index}: {e}")
+        
+        return None
 
     def get_primary_index(self) -> Optional[int]:
         """Get the primary image index"""
@@ -436,10 +663,11 @@ class DualImageView(QWidget):
         )
 
     def _check_auto_link(self):
-        """Check if we should auto-link when both images are set"""
-        if self._can_link() and not self._is_linked:
-            # Enable link button
-            self.link_button.setEnabled(True)
+        """Check if both images are set and activate default tool"""
+        if self._primary_index is not None and self._secondary_index is not None:
+            # Both images are set, activate default tool if none is active
+            if not self._current_active_tool:
+                self._switch_to_tool("spectral_plot")
 
     def _get_current_config(self) -> DualImageConfig:
         """Build current configuration from UI state"""
@@ -497,46 +725,399 @@ class DualImageView(QWidget):
             # Connect navigation signals immediately
             self._connect_view_signals(raster_view, image_index)
 
+            # Connect directly to project context signals for this image
+            self._connect_project_signals(image_index)
+
             return raster_view
 
         except Exception as e:
             logger.error(f"Failed to create raster view for image {image_index}: {e}")
             return None
 
+    def _connect_project_signals(self, image_index: int):
+        """Connect to project context signals for an image"""
+        try:
+            # Connect to BOTH versions of the project data change signals
+            # Version 1: 2-parameter signal (used by RasterViewModel)
+            self.proj.sigDataChanged[int, ProjectContext.ChangeType].connect(
+                lambda idx, change_type, idx_to_monitor=image_index: self._on_project_data_changed(
+                    idx, change_type, idx_to_monitor
+                )
+            )
+            
+            # Version 2: 3-parameter signal (used by HistogramViewModel and others)
+            self.proj.sigDataChanged[int, ProjectContext.ChangeType, ProjectContext.ChangeModifier].connect(
+                lambda idx, change_type, change_modifier, idx_to_monitor=image_index: self._on_project_data_changed_3param(
+                    idx, change_type, change_modifier, idx_to_monitor
+                )
+            )
+            
+            logger.debug(f"Connected to both signal versions for image {image_index}")
+        except Exception as e:
+            logger.error(f"Failed to connect project signals for image {image_index}: {e}")
+
+    def _on_project_data_changed_3param(self, changed_index: int, change_type, change_modifier, monitored_index: int):
+        """Handle 3-parameter project data changes for monitored images"""
+        # Only process UPDATE changes (not ADD/REMOVE)
+        from varda.core.data import ProjectContext
+        if change_modifier != ProjectContext.ChangeModifier.UPDATE:
+            return
+            
+        # Delegate to the main handler
+        self._on_project_data_changed(changed_index, change_type, monitored_index)
+
+    def _on_project_data_changed(self, changed_index: int, change_type, monitored_index: int):
+        """Handle project data changes for monitored images"""
+        # Only process changes for the images we're monitoring
+        if changed_index != monitored_index:
+            return
+            
+        try:
+            from varda.core.data import ProjectContext
+            
+            logger.debug(f"=== DUAL VIEW: Project data changed for image {changed_index}, type: {change_type} ===")
+            
+            # Get the raster view for this image
+            raster_view = self._raster_views.get(changed_index)
+            if not raster_view:
+                logger.error(f"No raster view found for image {changed_index}")
+                return
+                
+            logger.debug(f"Found raster view for image {changed_index}")
+            
+            if change_type == ProjectContext.ChangeType.STRETCH:
+                logger.debug(f"Processing stretch change for image {changed_index}")
+                self._refresh_image_display(raster_view, changed_index, "stretch")
+                
+            elif change_type == ProjectContext.ChangeType.BAND:
+                logger.debug(f"Processing band change for image {changed_index}")
+                self._refresh_image_display(raster_view, changed_index, "band")
+                
+        except Exception as e:
+            logger.error(f"Error handling project data change for image {changed_index}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    def _refresh_image_display(self, raster_view, image_index: int, change_type: str):
+        """Force a complete refresh of the image display"""
+        try:
+            logger.debug(f"=== REFRESHING DISPLAY FOR IMAGE {image_index} ({change_type}) ===")
+            
+            if not hasattr(raster_view, 'viewModel') or not raster_view.viewModel:
+                logger.error(f"RasterView for image {image_index} has no viewModel")
+                return
+                
+            # Log the current stretch values
+            current_stretch = raster_view.viewModel.getSelectedStretch()
+            stretch_levels = current_stretch.toList()
+            logger.debug(f"Current stretch levels: {stretch_levels}")
+            
+            # Get fresh raster data
+            raster_data = raster_view.viewModel.getRasterFromBand()
+            logger.debug(f"Raster data shape: {raster_data.shape}")
+            
+            # Method 1: Try calling the existing change handlers
+            logger.debug("Method 1: Calling existing change handlers")
+            if change_type == "stretch":
+                raster_view._onStretchChanged()
+            elif change_type == "band":
+                raster_view._onBandChanged()
+            
+            # Method 2: Force complete view refresh similar to _updateViews
+            logger.debug("Method 2: Force complete view refresh")
+            try:
+                raster_view._updateViews()
+            except Exception as e:
+                logger.error(f"Error calling _updateViews: {e}")
+            
+            # Method 3: Direct image item updates
+            logger.debug("Method 3: Direct image item updates")
+            if hasattr(raster_view, 'contextImage') and raster_view.contextImage:
+                logger.debug("Updating contextImage")
+                raster_view.contextImage.setImage(raster_data, levels=stretch_levels)
+                
+            # Method 4: Force widget updates at multiple levels
+            logger.debug("Method 4: Force widget updates")
+            self._force_view_updates(raster_view)
+            
+            # Method 5: Update container
+            if image_index == self._primary_index:
+                logger.debug("Updating primary container")
+                self._force_container_update(self.primary_view_container)
+            elif image_index == self._secondary_index:
+                logger.debug("Updating secondary container")
+                self._force_container_update(self.secondary_view_container)
+                
+            logger.debug(f"=== COMPLETED REFRESH FOR IMAGE {image_index} ===")
+            
+        except Exception as e:
+            logger.error(f"Error refreshing display for image {image_index}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    def _force_view_updates(self, raster_view):
+        """Force all views within a raster view to update"""
+        try:
+            # Update individual view widgets
+            if hasattr(raster_view, 'contextView') and raster_view.contextView:
+                raster_view.contextView.update()
+                
+            if hasattr(raster_view, 'mainView') and raster_view.mainView:
+                raster_view.mainView.update()
+                
+            if hasattr(raster_view, 'zoomView') and raster_view.zoomView:
+                raster_view.zoomView.update()
+                
+            # Update the raster view itself
+            raster_view.update()
+            raster_view.repaint()
+            
+        except Exception as e:
+            logger.error(f"Error forcing view updates: {e}")
+
+    def _force_container_update(self, container):
+        """Force a container to update its display"""
+        try:
+            container.update()
+            container.repaint()
+            
+            # Also update the child widgets
+            for i in range(container.layout().count()):
+                widget = container.layout().itemAt(i).widget()
+                if widget:
+                    widget.update()
+                    widget.repaint()
+                    
+        except Exception as e:
+            logger.error(f"Error forcing container update: {e}")
+
     def _connect_view_signals(self, raster_view: RasterView, image_index: int):
         """Connect signals for a raster view"""
         try:
-            # Disconnect first to avoid duplicate connections
-            try:
-                raster_view.sigNavigationChanged.disconnect()
-            except:
-                pass
+            logger.debug(f"Connecting signals for raster view {image_index}")
+            
+            # Connect to the RasterViewModel signals directly
+            if hasattr(raster_view, 'viewModel') and raster_view.viewModel:
+                vm = raster_view.viewModel
+                
+                # Disconnect any existing connections first
+                try:
+                    vm.sigStretchChanged.disconnect()
+                    vm.sigBandChanged.disconnect()
+                except:
+                    pass
+                
+                # Connect stretch change signal with proper slot
+                vm.sigStretchChanged.connect(
+                    lambda idx=image_index: self._on_viewmodel_stretch_changed(idx)
+                )
+                
+                # Connect band change signal with proper slot  
+                vm.sigBandChanged.connect(
+                    lambda idx=image_index: self._on_viewmodel_band_changed(idx)
+                )
+                
+                logger.debug(f"Connected ViewModel signals for image {image_index}")
 
-            try:
-                raster_view.sigROIChanged.disconnect()
-            except:
-                pass
+            # Set up polling to monitor main view stretch index changes
+            self._setup_stretch_monitoring(image_index)
+            
+            # Also connect navigation and ROI signals 
+            # if hasattr(raster_view, "sigNavigationChanged"):
+            #     try:
+            #         raster_view.sigNavigationChanged.disconnect()
+            #     except:
+            #         pass
+            #     raster_view.sigNavigationChanged.connect(
+            #         lambda state, idx=image_index: self._on_navigation_changed(idx, state)
+            #     )
+                
+            # if hasattr(raster_view, "sigROIChanged"):
+            #     try:
+            #         raster_view.sigROIChanged.disconnect()
+            #     except:
+            #         pass
+            #     raster_view.sigROIChanged.connect(
+            #         lambda roi_id, idx=image_index: self._on_roi_changed(idx, roi_id)
+            #     )
+                
+            if hasattr(raster_view, "sigImageClicked"):
+                # Connect for navigation sync
+                raster_view.sigImageClicked.connect(
+                    lambda x, y, idx=image_index: self._on_view_clicked(idx, x, y)
+                )
 
-            # Connect navigation change signal
             if hasattr(raster_view, "sigNavigationChanged"):
                 raster_view.sigNavigationChanged.connect(
-                    lambda state, idx=image_index: self._on_navigation_changed(
-                        idx, state
-                    )
+                    lambda state, idx=image_index: self._on_navigation_changed(idx, state)
                 )
-                logger.debug(f"Connected navigation signal for image {image_index}")
 
-            # Connect ROI change signal
             if hasattr(raster_view, "sigROIChanged"):
                 raster_view.sigROIChanged.connect(
                     lambda roi_id, idx=image_index: self._on_roi_changed(idx, roi_id)
                 )
-                logger.debug(f"Connected ROI signal for image {image_index}")
+
+            if hasattr(raster_view, "sigStretchChanged"):
+                raster_view.sigStretchChanged.connect(
+                    lambda idx=image_index: self._on_stretch_changed(idx)
+                )
+
+            logger.debug(f"Connected signals for raster view {image_index}")
 
         except Exception as e:
-            logger.error(
-                f"Failed to connect signals for raster view {image_index}: {e}"
-            )
+            logger.error(f"Failed to connect signals for raster view {image_index}: {e}")
+
+    def _on_view_clicked(self, image_index: int, x: int, y: int):
+        """Handle clicks on either image view"""
+        # Determine view type
+        view_type = "primary" if image_index == self._primary_index else "secondary"
+        
+        # Route to tool manager first
+        tool_handled = self.tool_manager.handle_click(image_index, x, y, view_type)
+        
+        if not tool_handled:
+            # If no tool handled it, continue with normal click handling
+            logger.debug(f"Click at ({x}, {y}) on {view_type} image not handled by tools")
+    
+    # Methods to handle tool activation/deactivation
+    def _on_tool_activated(self, tool_name: str):
+        """Handle tool activation"""
+        logger.info(f"Tool activated: {tool_name}")
+        self._current_active_tool = tool_name
+
+    def _on_tool_deactivated(self, tool_name: str):
+        """Handle tool deactivation"""
+        logger.info(f"Tool deactivated: {tool_name}")
+        if self._current_active_tool == tool_name:
+            self._current_active_tool = None
+
+    def _on_tool_click_handled(self, tool_name: str, image_index: int, x: int, y: int, view_type: str):
+        """Handle notification that a tool processed a click"""
+        logger.debug(f"Tool '{tool_name}' handled click at ({x}, {y}) on {view_type} image")
+
+    def add_tool_button(self, tool_name: str, display_name: str, tooltip: str = ""):
+        """Add a new tool button to the control panel"""
+        if hasattr(self, '_tool_controls_layout') and self._tool_controls_layout:
+            button = QPushButton(display_name)
+            button.setCheckable(True)
+            button.setToolTip(tooltip)
+            button.clicked.connect(lambda: self._switch_to_tool(tool_name))
+            
+            # Insert before the "More tools coming..." label
+            # Find the position of the label
+            label_index = -1
+            for i in range(self._tool_controls_layout.count()):
+                item = self._tool_controls_layout.itemAt(i)
+                if item and item.widget() == self.future_tools_label:
+                    label_index = i
+                    break
+            
+            if label_index >= 0:
+                self._tool_controls_layout.insertWidget(label_index, button)
+            else:
+                # Fallback: add at the end
+                self._tool_controls_layout.addWidget(button)
+            
+            self.tool_buttons[tool_name] = button
+            logger.debug(f"Added tool button: {tool_name}")
+        else:
+            logger.error("Tool controls layout not available for adding button")
+
+    def _setup_stretch_monitoring(self, image_index: int):
+        """Set up monitoring for stretch index changes in the main view"""
+        try:
+            if not hasattr(self, '_stretch_monitors'):
+                self._stretch_monitors = {}
+            
+            # Create a timer to periodically check the main view's stretch index
+            from PyQt6.QtCore import QTimer
+            
+            timer = QTimer(self)
+            timer.timeout.connect(lambda idx=image_index: self._check_stretch_index_change(idx))
+            timer.start(500)  # Check every 500ms
+            
+            self._stretch_monitors[image_index] = {
+                'timer': timer,
+                'last_stretch_index': None
+            }
+            
+            logger.debug(f"Set up stretch monitoring for image {image_index}")
+            
+        except Exception as e:
+            logger.error(f"Failed to set up stretch monitoring for image {image_index}: {e}")
+
+    def _check_stretch_index_change(self, image_index: int):
+        """Check if the main view's stretch index has changed"""
+        try:
+            # Get the current stretch index from the main view
+            main_stretch_index = self._get_main_view_stretch_index(image_index)
+            
+            if main_stretch_index is not None:
+                # Get the last known index
+                if image_index in self._stretch_monitors:
+                    last_index = self._stretch_monitors[image_index]['last_stretch_index']
+                    
+                    # Check if it changed
+                    if last_index != main_stretch_index:
+                        logger.debug(f"Detected stretch index change for image {image_index}: {last_index} -> {main_stretch_index}")
+                        
+                        # Update our record
+                        self._stretch_monitors[image_index]['last_stretch_index'] = main_stretch_index
+                        
+                        # Synchronize the dual view
+                        self._synchronize_stretch_index(image_index, main_stretch_index)
+                    # REMOVE the else clause that was logging every check
+                        
+        except Exception as e:
+            logger.error(f"Error checking stretch index change for image {image_index}: {e}")
+
+    def _synchronize_stretch_index(self, image_index: int, new_stretch_index: int):
+        """Synchronize the dual view's stretch index with the main view"""
+        try:
+            dual_raster_view = self._raster_views.get(image_index)
+            
+            if dual_raster_view and hasattr(dual_raster_view, 'viewModel'):
+                current_index = dual_raster_view.viewModel.stretchIndex
+                
+                if current_index != new_stretch_index:
+                    logger.debug(f"Synchronizing stretch index for image {image_index}: {current_index} -> {new_stretch_index}")
+                    
+                    # Update the dual view's stretch index
+                    dual_raster_view.viewModel.stretchIndex = new_stretch_index
+                    
+                    # Force a refresh with the new stretch
+                    self._force_stretch_update(dual_raster_view, image_index)
+                
+        except Exception as e:
+            logger.error(f"Error synchronizing stretch index for image {image_index}: {e}")
+
+    def _on_viewmodel_stretch_changed(self, image_index: int):
+        """Handle stretch changes from the ViewModel directly"""
+        logger.debug(f"=== DUAL VIEW: ViewModel stretch changed for image {image_index} ===")
+        
+        try:
+            raster_view = self._raster_views.get(image_index)
+            if raster_view:
+                logger.debug(f"Found raster view for image {image_index}, forcing refresh")
+                self._force_stretch_update(raster_view, image_index)
+            else:
+                logger.error(f"No raster view found for image {image_index}")
+        except Exception as e:
+            logger.error(f"Error handling ViewModel stretch change for image {image_index}: {e}")
+
+    def _on_viewmodel_band_changed(self, image_index: int):
+        """Handle band changes from the ViewModel directly"""
+        logger.debug(f"=== DUAL VIEW: ViewModel band changed for image {image_index} ===")
+        
+        try:
+            raster_view = self._raster_views.get(image_index)
+            if raster_view:
+                logger.debug(f"Found raster view for image {image_index}, forcing refresh")
+                self._force_stretch_update(raster_view, image_index)
+            else:
+                logger.error(f"No raster view found for image {image_index}")
+        except Exception as e:
+            logger.error(f"Error handling ViewModel band change for image {image_index}: {e}")
 
     def _update_view_container(self, container: QGroupBox, view: QWidget, title: str):
         """Update a view container with a new view"""
@@ -765,6 +1346,63 @@ class DualImageView(QWidget):
         """Handle ROI changes from one of the views"""
         if self._is_linked and self.controller:
             self.controller.sync_roi(source_index, roi_id)
+    
+    def _on_stretch_changed(self, image_index: int):
+        """Handle stretch changes for an image in dual view"""
+        try:
+            logger.debug(f"Stretch changed for image {image_index} in dual view")
+            
+            # Get the raster view for this image
+            raster_view = self._raster_views.get(image_index)
+            if raster_view:
+                # Force the view to update its display with new stretch values
+                raster_view._onStretchChanged()
+                
+                # Also update the view containers to reflect the change
+                if image_index == self._primary_index:
+                    self._update_primary_display()
+                elif image_index == self._secondary_index:
+                    self._update_secondary_display()
+                    
+        except Exception as e:
+            logger.error(f"Error handling stretch change for image {image_index}: {e}")
+
+    def _on_band_changed(self, image_index: int):
+        """Handle band changes for an image in dual view"""
+        try:
+            logger.debug(f"Band changed for image {image_index} in dual view")
+            
+            # Get the raster view for this image
+            raster_view = self._raster_views.get(image_index)
+            if raster_view:
+                # Force the view to update its display with new band configuration
+                raster_view._onBandChanged()
+                
+                # Also update the view containers to reflect the change
+                if image_index == self._primary_index:
+                    self._update_primary_display()
+                elif image_index == self._secondary_index:
+                    self._update_secondary_display()
+                    
+        except Exception as e:
+            logger.error(f"Error handling band change for image {image_index}: {e}")
+
+    def _update_primary_display(self):
+        """Update the primary image display"""
+        if self._primary_index is not None:
+            raster_view = self._raster_views.get(self._primary_index)
+            if raster_view:
+                # Force a refresh of the display
+                raster_view.update()
+
+    def _update_secondary_display(self):
+        """Update the secondary image display"""
+        if self._secondary_index is not None:
+            raster_view = self._raster_views.get(self._secondary_index)
+            if raster_view:
+                # Force a refresh of the display
+                raster_view.update()
+
 
     def _on_view_sync_requested(self, target_index: int, sync_data: dict):
         """Handle view synchronization requests from controller"""
