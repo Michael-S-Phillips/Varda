@@ -71,6 +71,7 @@ class DualImageView(QWidget):
         self._secondary_index: Optional[int] = None
         self._raster_views: Dict[int, RasterView] = {}  # image_index -> RasterView
         self._is_linked = False
+        self._current_active_tool: Optional[str] = None
 
         # UI components
         self.primary_view_container = None
@@ -89,6 +90,9 @@ class DualImageView(QWidget):
         self.sync_navigation_cb = None
         self.sync_rois_cb = None
         self.spectral_tool_button = None
+        self.tool_buttons = {} 
+        self._tool_controls_layout = None
+        self.future_tools_label = None
 
         # Initialize UI
         self._init_ui()
@@ -134,14 +138,34 @@ class DualImageView(QWidget):
         # Add image splitter to main splitter
         self.tool_panel_splitter.addWidget(self.splitter)
 
-        # Add tool panel to main splitter (right side)
+        # Add tool panel to main splitter (right side) - ALWAYS VISIBLE
         tool_panel = self.tool_manager.get_tool_panel_widget()
-        tool_panel.setMaximumWidth(350)  # Limit tool panel width
-        tool_panel.setMinimumWidth(250)
+        # tool_panel.setStyleSheet("""
+        #     QWidget {
+        #         background-color: #f5f5f5;
+        #         border-left: 1px solid #ccc;
+        #     }
+        #     QGroupBox {
+        #         font-weight: bold;
+        #         border: 1px solid #bbb;
+        #         border-radius: 3px;
+        #         margin-top: 5px;
+        #         padding-top: 8px;
+        #         background-color: white;
+        #     }
+        #     QGroupBox::title {
+        #         subcontrol-origin: margin;
+        #         left: 10px;
+        #         padding: 0 5px 0 5px;
+        #     }
+        # """)
+        
+        tool_panel.setMaximumWidth(350)
+        tool_panel.setMinimumWidth(280)
         self.tool_panel_splitter.addWidget(tool_panel)
 
-        # Set proportional split: 80% images, 20% tools
-        self.tool_panel_splitter.setSizes([800, 200])
+        # Set proportional split: 75% images, 25% tools
+        self.tool_panel_splitter.setSizes([750, 250])
 
         main_layout.addWidget(self.tool_panel_splitter)
 
@@ -159,39 +183,55 @@ class DualImageView(QWidget):
         self.tool_manager.click_handled.connect(self._on_tool_click_handled)
 
     def _create_tool_controls(self) -> QWidget:
-        """Create tool activation controls"""
+        """Create tool activation controls - redesigned as tool switcher"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(5, 5, 5, 5)
+        
+        # STORE LAYOUT REFERENCE for adding future tools
+        self._tool_controls_layout = layout
 
-        # Tool activation button
-        self.spectral_tool_button = QPushButton("Spectral Tool")
+        # Tool switcher buttons
+        self.spectral_tool_button = QPushButton("Spectral")
         self.spectral_tool_button.setCheckable(True)
-        self.spectral_tool_button.setToolTip(
-            "Activate spectral plotting tool - click on images to plot spectra"
-        )
-        self.spectral_tool_button.clicked.connect(self._toggle_spectral_tool)
+        self.spectral_tool_button.setToolTip("Spectral plotting tool")
+        self.spectral_tool_button.clicked.connect(lambda: self._switch_to_tool("spectral_plot"))
         layout.addWidget(self.spectral_tool_button)
+        
+        # Store for future reference
+        self.tool_buttons["spectral_plot"] = self.spectral_tool_button
+
+        # Placeholder for future tools - store reference to this too
+        self.future_tools_label = QLabel("More tools coming...")
+        self.future_tools_label.setStyleSheet("color: gray; font-style: italic; font-size: 10px;")
+        layout.addWidget(self.future_tools_label)
 
         return widget
     
-    def _toggle_spectral_tool(self):
-        """Toggle the spectral plotting tool"""
-        if self.spectral_tool_button.isChecked():
-            # Activate spectral tool
-            if self.tool_manager.activate_tool("spectral_plot"):
-                self.spectral_tool_button.setText("Stop Spectral")
-                logger.info("Spectral plotting tool activated")
+    def _switch_to_tool(self, tool_name: str):
+        """Switch active tool in the tool canvas"""
+        logger.debug(f"Switching to tool: {tool_name}")
+        
+        # Deactivate current tool if different
+        if self._current_active_tool and self._current_active_tool != tool_name:
+            self.tool_manager.deactivate_tool(self._current_active_tool)
+            # Update button state for old tool
+            if self._current_active_tool in self.tool_buttons:
+                self.tool_buttons[self._current_active_tool].setChecked(False)
+        
+        # Activate new tool
+        if tool_name != self._current_active_tool:
+            if self.tool_manager.activate_tool(tool_name):
+                self._current_active_tool = tool_name
+                # Update button state for new tool
+                if tool_name in self.tool_buttons:
+                    self.tool_buttons[tool_name].setChecked(True)
+                logger.info(f"Switched to tool: {tool_name}")
             else:
-                self.spectral_tool_button.setChecked(False)
-                logger.error("Failed to activate spectral plotting tool")
-        else:
-            # Deactivate spectral tool
-            if self.tool_manager.deactivate_tool("spectral_plot"):
-                self.spectral_tool_button.setText("Spectral Tool")
-                logger.info("Spectral plotting tool deactivated")
-            else:
-                logger.error("Failed to deactivate spectral plotting tool")
+                logger.error(f"Failed to switch to tool: {tool_name}")
+                # Reset button if activation failed
+                if tool_name in self.tool_buttons:
+                    self.tool_buttons[tool_name].setChecked(False)
 
     def _create_control_panel(self) -> QGroupBox:
         # from PyQt6.QtWidgets import QFrame
@@ -399,10 +439,10 @@ class DualImageView(QWidget):
         # Force stretch update after setting the image
         self._force_stretch_update(raster_view, image_index)
 
-        # Update link state if both images are set
+        # Update link state and activate default tool if both images are set
         self._check_auto_link()
 
-
+        # Update tool manager with new image indices
         if self._secondary_index is not None:
             self.tool_manager.set_image_indices(self._primary_index, self._secondary_index)
 
@@ -436,9 +476,10 @@ class DualImageView(QWidget):
         # Force stretch update after setting the image
         self._force_stretch_update(raster_view, image_index)
 
-        # Update link state if both images are set
+        # Update link state and activate default tool if both images are set
         self._check_auto_link()
 
+        # Update tool manager with new image indices
         if self._primary_index is not None:
             self.tool_manager.set_image_indices(self._primary_index, self._secondary_index)
 
@@ -641,10 +682,11 @@ class DualImageView(QWidget):
         )
 
     def _check_auto_link(self):
-        """Check if we should auto-link when both images are set"""
-        if self._can_link() and not self._is_linked:
-            # Enable link button
-            self.link_button.setEnabled(True)
+        """Check if both images are set and activate default tool"""
+        if self._primary_index is not None and self._secondary_index is not None:
+            # Both images are set, activate default tool if none is active
+            if not self._current_active_tool:
+                self._switch_to_tool("spectral_plot")
 
     def _get_current_config(self) -> DualImageConfig:
         """Build current configuration from UI state"""
@@ -960,24 +1002,45 @@ class DualImageView(QWidget):
     def _on_tool_activated(self, tool_name: str):
         """Handle tool activation"""
         logger.info(f"Tool activated: {tool_name}")
-        
-        # Update UI based on which tool was activated
-        if tool_name == "spectral_plot":
-            self.spectral_tool_button.setChecked(True)
-            self.spectral_tool_button.setText("Stop Spectral")
+        self._current_active_tool = tool_name
 
     def _on_tool_deactivated(self, tool_name: str):
         """Handle tool deactivation"""
         logger.info(f"Tool deactivated: {tool_name}")
-        
-        # Update UI based on which tool was deactivated
-        if tool_name == "spectral_plot":
-            self.spectral_tool_button.setChecked(False)
-            self.spectral_tool_button.setText("Spectral Tool")
+        if self._current_active_tool == tool_name:
+            self._current_active_tool = None
 
     def _on_tool_click_handled(self, tool_name: str, image_index: int, x: int, y: int, view_type: str):
         """Handle notification that a tool processed a click"""
         logger.debug(f"Tool '{tool_name}' handled click at ({x}, {y}) on {view_type} image")
+
+    def add_tool_button(self, tool_name: str, display_name: str, tooltip: str = ""):
+        """Add a new tool button to the control panel"""
+        if hasattr(self, '_tool_controls_layout') and self._tool_controls_layout:
+            button = QPushButton(display_name)
+            button.setCheckable(True)
+            button.setToolTip(tooltip)
+            button.clicked.connect(lambda: self._switch_to_tool(tool_name))
+            
+            # Insert before the "More tools coming..." label
+            # Find the position of the label
+            label_index = -1
+            for i in range(self._tool_controls_layout.count()):
+                item = self._tool_controls_layout.itemAt(i)
+                if item and item.widget() == self.future_tools_label:
+                    label_index = i
+                    break
+            
+            if label_index >= 0:
+                self._tool_controls_layout.insertWidget(label_index, button)
+            else:
+                # Fallback: add at the end
+                self._tool_controls_layout.addWidget(button)
+            
+            self.tool_buttons[tool_name] = button
+            logger.debug(f"Added tool button: {tool_name}")
+        else:
+            logger.error("Tool controls layout not available for adding button")
 
     def _setup_stretch_monitoring(self, image_index: int):
         """Set up monitoring for stretch index changes in the main view"""

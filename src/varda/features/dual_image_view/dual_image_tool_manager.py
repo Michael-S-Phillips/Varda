@@ -67,6 +67,79 @@ class DualImageToolManager(QObject):
             
         self._registered_tools[tool_name] = tool_class
         logger.debug(f"Registered tool: {tool_name}")
+
+    def set_default_tool(self, tool_name: str):
+        """Set and activate a default tool"""
+        if tool_name in self._registered_tools:
+            self.activate_tool(tool_name)
+            logger.info(f"Set default tool: {tool_name}")
+        else:
+            logger.error(f"Cannot set default tool '{tool_name}' - not registered")
+
+    def switch_active_tool(self, new_tool_name: str) -> bool:
+        """
+        Switch from current active tool to a new tool.
+        Ensures only one tool is active at a time in the canvas.
+        
+        Args:
+            new_tool_name: Name of tool to switch to
+            
+        Returns:
+            bool: True if switch was successful
+        """
+        # Get currently active tools
+        current_active = list(self._active_tools.keys())
+        
+        # If the new tool is already active, nothing to do
+        if new_tool_name in current_active and len(current_active) == 1:
+            logger.debug(f"Tool '{new_tool_name}' is already the active tool")
+            return True
+        
+        # Deactivate all current tools
+        for tool_name in current_active:
+            if not self.deactivate_tool(tool_name):
+                logger.warning(f"Failed to deactivate tool '{tool_name}' during switch")
+        
+        # Activate the new tool
+        if self.activate_tool(new_tool_name):
+            logger.info(f"Successfully switched to tool: {new_tool_name}")
+            return True
+        else:
+            logger.error(f"Failed to switch to tool: {new_tool_name}")
+            return False
+
+    def get_active_tool(self) -> Optional[str]:
+        """Get the currently active tool (should be only one in canvas mode)"""
+        active_tools = list(self._active_tools.keys())
+        if len(active_tools) == 1:
+            return active_tools[0]
+        elif len(active_tools) == 0:
+            return None
+        else:
+            logger.warning(f"Multiple tools active: {active_tools}")
+            return active_tools[0]  # Return first one
+
+    def ensure_tool_active(self, preferred_tool: str = "spectral_plot") -> str:
+        """
+        Ensure at least one tool is active, activating preferred tool if none active.
+        
+        Args:
+            preferred_tool: Tool to activate if none are currently active
+            
+        Returns:
+            str: Name of the active tool
+        """
+        current_active = self.get_active_tool()
+        if current_active:
+            return current_active
+        
+        # No tool active, activate preferred
+        if self.activate_tool(preferred_tool):
+            logger.info(f"Activated default tool: {preferred_tool}")
+            return preferred_tool
+        else:
+            logger.error(f"Failed to activate default tool: {preferred_tool}")
+            return None
         
     def activate_tool(self, tool_name: str) -> bool:
         """
@@ -199,10 +272,6 @@ class DualImageToolManager(QObject):
         """Enable or disable click event routing to tools"""
         self._click_routing_enabled = enabled
         logger.debug(f"Click routing {'enabled' if enabled else 'disabled'}")
-        
-    def get_active_tools(self) -> List[str]:
-        """Get list of currently active tool names"""
-        return list(self._active_tools.keys())
         
     def get_registered_tools(self) -> List[str]:
         """Get list of all registered tool names"""
