@@ -140,25 +140,6 @@ class DualImageView(QWidget):
 
         # Add tool panel to main splitter (right side) - ALWAYS VISIBLE
         tool_panel = self.tool_manager.get_tool_panel_widget()
-        # tool_panel.setStyleSheet("""
-        #     QWidget {
-        #         background-color: #f5f5f5;
-        #         border-left: 1px solid #ccc;
-        #     }
-        #     QGroupBox {
-        #         font-weight: bold;
-        #         border: 1px solid #bbb;
-        #         border-radius: 3px;
-        #         margin-top: 5px;
-        #         padding-top: 8px;
-        #         background-color: white;
-        #     }
-        #     QGroupBox::title {
-        #         subcontrol-origin: margin;
-        #         left: 10px;
-        #         padding: 0 5px 0 5px;
-        #     }
-        # """)
         
         tool_panel.setMaximumWidth(350)
         tool_panel.setMinimumWidth(280)
