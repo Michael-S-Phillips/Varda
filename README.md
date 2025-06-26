@@ -28,26 +28,21 @@ in your terminal, navigate to the directory you want to install the project in, 
    cd Varda
 ```
 
-## Create and activate a virtual environment:
+## Setup Development environment:
 
 ```bash
-python -m venv .venv
+python -m venv .venv       # Create the virtual environment
 source .venv/bin/activate  # Linux/Mac
 .venv\Scripts\activate     # Windows
+
+pip install -e .                    # This should install runtime dependencies and build the project in editable/development mode
+pip install -r requirements-dev.txt # For now, you may have to do this to manually install the development dependencies (pytest, pylint, black...)
 ```
-
-## Install dependencies:
-
-```bash
-pip install -r requirements.txt -r requirements-dev.txt
-```
-
-if you are only interested in running the program and are not planning on doing any development, you may omit the `-r requirements-dev.txt` portion. It only contains tools to assist with development.
 
 ## Run Varda:
 
 ```bash
-python varda/main.py
+varda  # this is the command to start the program
 ```
 
 ## Run pytest (unit testing):
@@ -61,14 +56,14 @@ pytest
 ## Run Pylint (static code analyzer):
 
 ```bash
-pylint varda/
+pylint src/
 ```
 
 ## Run Black (formatter):
 
 ```bash
 # to simply check for formatting issues
-black --check varda/
+black --check src/
 # To actually apply formatting
-black varda/
+black src/
 ```
