@@ -107,19 +107,6 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                 metadata_dict["resolution"] = src.res
                 metadata_dict["filePath"] = filePath
 
-                # # TODO: Im not totally sure if these are the correct conditions to be looking for
-                # if varda.transform != affine.identity and varda.crs is not None:
-                #     transform = varda.transform
-                #     logger.debug(f"Transform:\n{transform}")
-                #     crs = varda.crs.to_wkt() if varda.crs else None
-                #     logger.debug(f"crs:\n{crs}")
-                #     metadata_dict["transform"] = transform
-                #     metadata_dict["crs"] = crs
-                #     # metadata_dict["geoReferencer"] = GeoReferencer(
-                #     #     transform=transform, crs=crs
-                #     # )
-                # else:
-                #     logger.debug(f"Image does not contain geospatial information.")
                 # Optional metadata that might not be available
                 try:
                     metadata_dict["dtype"] = src.dtypes[0]
@@ -163,31 +150,6 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                 except:
                     errors.append("Could not parse description metadata")
 
-                # Extract default bands
-                try:
-                    defaultBands = enviData.get("default_bands")
-                    if defaultBands:
-                        defaultBands = [
-                            int(band)
-                            for band in enviData["default_bands"].strip("{}").split(",")
-                        ]
-                        metadata_dict["defaultBand"] = Band(
-                            "default", defaultBands[0], defaultBands[1], defaultBands[2]
-                        )
-                    else:
-                        # Set reasonable default bands if not specified
-                        if raster.shape[2] >= 3:
-                            metadata_dict["defaultBand"] = Band("default", 0, 1, 2)
-                        else:
-                            metadata_dict["defaultBand"] = Band("default", 0, 0, 0)
-                except:
-                    # Create a sensible default
-                    if raster.shape[2] >= 3:
-                        metadata_dict["defaultBand"] = Band("default", 0, 1, 2)
-                    else:
-                        metadata_dict["defaultBand"] = Band("default", 0, 0, 0)
-                    errors.append("Could not parse default bands, using fallback")
-
                 # Extract wavelength units
                 try:
                     wavelengthUnits = enviData.get("wavelength_units")
@@ -195,29 +157,61 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                 except:
                     errors.append("Could not parse wavelength units")
 
-                # Extract band names
+                # Extract band names first, as they may be needed for wavelength processing
                 try:
                     bandNames = None
                     if "band_names" in enviData:
-                        bandNames = enviData["band_names"].strip("{}").split(",")
+                        bandNames = [
+                            name.strip()
+                            for name in enviData["band_names"].strip("{}").split(",")
+                        ]
                         metadata_dict["band_names"] = bandNames
                 except:
                     errors.append("Could not parse band names")
 
-                # Extract wavelengths
+                # Extract wavelengths - handle both numeric and parameter types
                 try:
                     wavelengths = None
+                    wavelength_units = enviData.get("wavelength_units", "").lower()
+
                     if "wavelength" in enviData:
-                        wavelengths = np.asarray(
-                            [
-                                float(wavelength)
-                                for wavelength in enviData["wavelength"]
-                                .strip("{}")
-                                .split(",")
-                            ]
-                        )
-                        metadata_dict["wavelengths"] = wavelengths
-                        metadata_dict["wavelengths_type"] = float
+                        wavelength_strings = [
+                            w.strip()
+                            for w in enviData["wavelength"].strip("{}").split(",")
+                        ]
+
+                        # Check if wavelength_units indicates these are parameters
+                        if (
+                            wavelength_units == "parameters"
+                            or wavelength_units == "parameter"
+                        ):
+                            # Store as string array for spectral parameters
+                            metadata_dict["wavelengths"] = np.asarray(
+                                wavelength_strings, dtype="U50"
+                            )
+                            metadata_dict["wavelengths_type"] = str
+                            logger.debug(
+                                "Using spectral parameter names as wavelengths"
+                            )
+                        else:
+                            # Try to parse as numeric wavelengths
+                            try:
+                                wavelengths = np.asarray(
+                                    [float(w) for w in wavelength_strings]
+                                )
+                                metadata_dict["wavelengths"] = wavelengths
+                                metadata_dict["wavelengths_type"] = float
+                                logger.debug("Parsed numeric wavelengths")
+                            except ValueError:
+                                # Fall back to parameter names if can't parse as numbers
+                                metadata_dict["wavelengths"] = np.asarray(
+                                    wavelength_strings, dtype="U50"
+                                )
+                                metadata_dict["wavelengths_type"] = str
+                                logger.debug(
+                                    "Falling back to parameter names for wavelengths"
+                                )
+
                     elif bandNames is not None:
                         # Try to extract numeric values from band names if they look like wavelengths
                         try:
@@ -229,7 +223,7 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                         except ValueError:
                             # Band names don't look like wavelengths, use them as is
                             metadata_dict["wavelengths"] = np.asarray(
-                                bandNames, dtype="S"
+                                bandNames, dtype="U50"
                             )
                             metadata_dict["wavelengths_type"] = str
                     else:
@@ -240,6 +234,7 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                         errors.append(
                             "No wavelength information found, using band indices"
                         )
+
                 except Exception as e:
                     # Last resort fallback for wavelengths
                     bandCount = metadata_dict["bandCount"]
@@ -248,6 +243,70 @@ class ENVIImageLoader(AbstractImageLoader):  # pylint: disable=too-few-public-me
                     errors.append(
                         f"Error extracting wavelengths: {e}, using band indices"
                     )
+
+                # Extract default bands - handle both numeric and named bands
+                try:
+                    defaultBands = enviData.get("default_bands")
+                    if defaultBands:
+                        defaultBandNames = [
+                            band.strip()
+                            for band in enviData["default_bands"].strip("{}").split(",")
+                        ]
+
+                        # Try to convert to indices
+                        try:
+                            # First try as numeric indices
+                            defaultBandIndices = [
+                                int(band) for band in defaultBandNames
+                            ]
+                        except ValueError:
+                            # If not numeric, try to find indices by name
+                            if bandNames:
+                                defaultBandIndices = []
+                                for bandName in defaultBandNames:
+                                    try:
+                                        idx = bandNames.index(bandName)
+                                        defaultBandIndices.append(idx)
+                                    except ValueError:
+                                        logger.warning(
+                                            f"Default band '{bandName}' not found in band names"
+                                        )
+                            else:
+                                # Fall back to first three bands
+                                defaultBandIndices = [0, 1, 2]
+                                errors.append(
+                                    "Could not resolve default band names, using first 3 bands"
+                                )
+
+                        # Ensure we have at least 3 indices and they're valid
+                        while len(defaultBandIndices) < 3:
+                            defaultBandIndices.append(0)
+
+                        # Clamp indices to valid range
+                        max_band = metadata_dict["bandCount"] - 1
+                        defaultBandIndices = [
+                            min(idx, max_band) for idx in defaultBandIndices
+                        ]
+
+                        metadata_dict["defaultBand"] = Band(
+                            "default",
+                            defaultBandIndices[0],
+                            defaultBandIndices[1],
+                            defaultBandIndices[2],
+                        )
+                    else:
+                        # Set reasonable default bands if not specified
+                        if metadata_dict["bandCount"] >= 3:
+                            metadata_dict["defaultBand"] = Band("default", 0, 1, 2)
+                        else:
+                            metadata_dict["defaultBand"] = Band("default", 0, 0, 0)
+                except Exception as e:
+                    # Create a sensible default
+                    if metadata_dict["bandCount"] >= 3:
+                        metadata_dict["defaultBand"] = Band("default", 0, 1, 2)
+                    else:
+                        metadata_dict["defaultBand"] = Band("default", 0, 0, 0)
+                    errors.append(f"Could not parse default bands: {e}, using fallback")
 
                 # Add extra metadata fields
                 extraMetadata = {}

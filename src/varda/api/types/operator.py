@@ -7,6 +7,7 @@ class Operator(Protocol):
     A protocol defining the interface for Varda operators.
     Operators should implement this interface to be recognized by the Varda application.
     """
+
     v_name: str
     v_description: str
 

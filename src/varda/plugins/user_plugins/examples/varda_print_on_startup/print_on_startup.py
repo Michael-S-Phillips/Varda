@@ -14,4 +14,5 @@ def mySecondHook():
     """Hook called on plugin load."""
     logger.info("Plugin hook implementation #2 called: varda_print_on_startup :O")
 
+
 logger.info("Plugin varda_print_on_startup Loaded! :O")

@@ -313,9 +313,22 @@ class ImageLoadingService:
             if loadingProcess.status == ImageLoadingService.LoadStatus.SUCCESS:
                 raster, metadata = loadingProcess.result
                 if metadata.transform != affine.identity and metadata.crs is not None:
-                    metadata.geoReferencer = GeoReferencer(
-                        metadata.transform, metadata.crs
-                    )
+                    try:
+                        metadata.geoReferencer = GeoReferencer(
+                            metadata.transform, metadata.crs
+                        )
+                        logger.debug(
+                            f"Successfully created GeoReferencer for {metadata.filePath}"
+                        )
+                    except ValueError as e:
+                        logger.warning(
+                            f"Could not create GeoReferencer for {metadata.filePath}: {e}"
+                        )
+                        metadata.geoReferencer = None
+                        # Add this to the metadata's extra metadata for user visibility
+                        if not hasattr(metadata, "extraMetadata"):
+                            metadata.extraMetadata = {}
+                        metadata.extraMetadata["geo_referencing_error"] = str(e)
                 logger.info(f"Done loading image: {metadata.filePath}")
 
                 # Check if there are load warnings

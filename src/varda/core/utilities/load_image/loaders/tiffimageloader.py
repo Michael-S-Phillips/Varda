@@ -16,7 +16,9 @@ from rasterio.errors import RasterioIOError
 from varda.core.entities import GeoReferencer
 
 # local imports
-from varda.core.utilities.load_image.loaders.abstractimageloader import AbstractImageLoader
+from varda.core.utilities.load_image.loaders.abstractimageloader import (
+    AbstractImageLoader,
+)
 from varda.core.entities import Metadata
 from varda.core.entities import Band
 
