@@ -9,6 +9,7 @@ from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt
 from qasync import QEventLoop, QApplication
 
+import varda
 from varda.core.data import ProjectContext
 from varda.core.ui import ControlPanel
 from varda.features.image_view_raster.raster_view import RasterView
@@ -54,6 +55,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.connectSignals()
 
         logger.info("MainGUI Initialized")
+
 
     def initUI(self):
         self.setMenuBar(MainMenuBar())
@@ -812,32 +814,3 @@ class MainGUI(QtWidgets.QMainWindow):
     def dropEvent(self, event, **kwargs):
         self.statusBar().showLoadingMessage()
         self.proj.loadNewImage(str(Path(event.mimeData().urls()[0].toLocalFile())))
-
-
-def startGui(proj: ProjectContext):
-    app = QApplication(sys.argv)
-
-    # Set the application name and organization
-    app.setApplicationName("Varda")
-    app.setOrganizationName("Varda")
-
-    # Set up a signal handler for graceful shutdown
-    def signal_handler(sig, frame):
-        logger.info(f"Received signal {sig}. Shutting down...")
-        app.quit()
-
-    # Set up the event loop
-    eventLoop = QEventLoop(app)
-    asyncio.set_event_loop(eventLoop)
-
-    # Create and show the main window
-    window = MainGUI(proj)
-    window.showMaximized()
-    window.show()
-
-    # Register the cleanup handler for when the application is about to quit
-    app.aboutToQuit.connect(lambda: logger.info("Application is about to quit"))
-
-    # Run the event loop until it's stopped
-    with eventLoop:
-        eventLoop.run_forever()

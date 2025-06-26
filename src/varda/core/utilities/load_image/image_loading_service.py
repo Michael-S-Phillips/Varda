@@ -471,13 +471,13 @@ class ImageLoadingService:
         image_path = Path(filePath)
         file_extension = image_path.suffix.lower()
 
-        # First check the registry for a direct extension match
+        # First check the registries for a direct extension match
         if file_extension in LOADER_REGISTRY:
             return LOADER_REGISTRY[file_extension]()
         logger.warning(f"Could not find match in loader registry for {file_extension}")
 
         # NOTE: under normal circumstances, the below code will never run
-        # since the user isn't allowed to select a file extension that isn't already in the registry
+        # since the user isn't allowed to select a file extension that isn't already in the registries
 
         # If no exact match, try content-based detection for common formats
         try:

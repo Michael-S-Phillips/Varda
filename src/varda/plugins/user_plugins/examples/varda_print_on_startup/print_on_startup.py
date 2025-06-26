@@ -4,15 +4,13 @@ import varda
 
 logger = logging.getLogger(__name__)
 
-
-@varda.api.hookimpl(specname="onLoad")
-def onLoad1():
+@varda.plugins.hookimpl(specname="onLoad")
+def myFirstHook():
     """Hook called on plugin load."""
     logger.info("Plugin hook implementation #1 called: varda_print_on_startup :O")
 
-
-@varda.api.hookimpl(specname="onLoad")
-def onLoad2():
+@varda.plugins.hookimpl(specname="onLoad")
+def mySecondHook():
     """Hook called on plugin load."""
     logger.info("Plugin hook implementation #2 called: varda_print_on_startup :O")
 

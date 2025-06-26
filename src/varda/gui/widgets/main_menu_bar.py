@@ -3,10 +3,11 @@ import logging
 
 # third party imports
 from PyQt6 import QtCore
-from PyQt6.QtGui import QKeySequence
+from PyQt6.QtGui import QKeySequence, QAction
 from PyQt6.QtWidgets import QMenuBar, QMenu
 
 # local imports
+import varda
 
 logger = logging.getLogger(__name__)
 
@@ -36,33 +37,31 @@ class MainMenuBar(QMenuBar):
         self._initUI()
 
     def _initUI(self):
-        self.addMenu(self._initFileMenu())
-        self.addMenu(self._initViewMenu())  # NEW: Add View menu
-        self.addMenu(self._initHelpmenu())
-        self.addMenu(self._initDebugMenu())
-        self.addMenu(self._initProcessMenu())
+        self._initFileMenu()
+        self._initViewMenu()  # NEW: Add View menu
+        self._initHelpmenu()
+        self._initDebugMenu()
+        self._initProcessMenu()
+
+        self._initPluginMenu()
+
 
     # Note: adding "self" as the parent of the QMenu is important, to keep it from
     # being garbage collected immediately
     def _initFileMenu(self):
         fileMenu = QMenu("File", self)
-        fileMenu.addMenu(self._initImportMenu())
+
+        importMenu = QMenu("Import", self)
+        importMenu.addAction("Import Image", QKeySequence("Ctrl+N"), self.sigImportFile)
+        fileMenu.addMenu(importMenu)
+
         fileMenu.addAction("Open...", QKeySequence("Ctrl+O"), self.sigOpenProject)
         # fileMenu.addMenu(self._initOpenRecentMenu())
         fileMenu.addAction("Save", QKeySequence("Ctrl+S"), self.sigSaveProject)
         # fileMenu.addAction("Save As..", self.sigSaveProjectAs)
         fileMenu.addAction("Exit", self.sigExitApp)
+        self.addMenu(fileMenu)
         return fileMenu
-
-    def _initImportMenu(self):
-        importMenu = QMenu("Import", self)
-        importMenu.addAction("Import Image", QKeySequence("Ctrl+N"), self.sigImportFile)
-        return importMenu
-
-    def _initOpenRecentMenu(self):
-        openRecentMenu = QMenu("Open Recent", self)
-        openRecentMenu.addAction("Open", self.sigOpenProject)
-        return openRecentMenu
 
     # NEW VIEW MENU FOR DUAL IMAGE FUNCTIONALITY
     def _initViewMenu(self):
@@ -84,13 +83,13 @@ class MainMenuBar(QMenuBar):
         )
 
         viewMenu.addMenu(dualImageMenu)
-
-        return viewMenu
+        
+        self.addMenu(viewMenu)
 
     def _initHelpmenu(self):
         helpMenu = QMenu("Help", self)
         helpMenu.addAction("About", self.sigAboutDialog)
-        return helpMenu
+        self.addMenu(helpMenu)
 
     def _initDebugMenu(self):
         debugMenu = QMenu("Debug", self)
@@ -98,9 +97,29 @@ class MainMenuBar(QMenuBar):
         debugMenu.addAction(
             "Project Data Dump", QKeySequence("F12"), self.sigDumpProjectData
         )
-        return debugMenu
+        self.addMenu(debugMenu)
 
     def _initProcessMenu(self):
         processMenu = QMenu("Process", self)
         processMenu.addAction("Image Processing...", self.sigOpenProcessingMenu)
-        return processMenu
+        self.addMenu(processMenu)
+
+    def _initPluginMenu(self):
+        # Get all plugin menus from the registry
+        pluginMenu = QMenu("Plugins", self)
+
+        pluginWidgets = varda.app.registry.widgets
+        for name, widgetClass in pluginWidgets:
+            logger.debug(f"Adding widget {name}, class {widgetClass}")
+            action = QAction(name, self)
+            action.triggered.connect(lambda : self.openWidget(widgetClass))
+            pluginMenu.addAction(action)
+            logger.debug(f"Added plugin menu item: {name}")
+        self.addMenu(pluginMenu)
+
+    def openWidget(self, widgetClass):
+        """Open a widget in the main window."""
+        logger.debug(f"Opening widget {widgetClass}")
+        widget = widgetClass(self.parent())
+        widget.show()
+
