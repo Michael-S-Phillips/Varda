@@ -24,7 +24,7 @@ class MyNewWidget(QWidget):
     def initUI(self):
         self.setWindowTitle("My New Widget")
         self.setMinimumSize(200, 200)
-        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint)
+        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.label = QLabel(self)
         self.button = QPushButton("Click Me", self)
         self.button.clicked.connect(self.onButtonClick)

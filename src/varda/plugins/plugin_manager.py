@@ -16,6 +16,7 @@ class VardaPluginManager:
     def __init__(self):
         self.pm = PluginManager("varda")
         self.pm.add_hookspecs(varda.plugins._hooks)
+        self.pm.register(varda.plugins._hooks)
         # load plugins from entrypoints
         self.pm.load_setuptools_entrypoints("varda.plugins")
 

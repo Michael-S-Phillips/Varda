@@ -19,9 +19,9 @@ from PyQt6.QtWidgets import QApplication
 import pyqtgraph as pg
 
 # local imports
+import varda.app
 from varda.core.data import VardaSessionContext
 from varda.gui.maingui import MainGUI
-
 
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,13 @@ def initVarda(startGui=True) -> None:
 
     # Initialize the core components
     sessionContext = VardaSessionContext()
+
+    varda.app.proj = sessionContext.proj
+    varda.app.registry = sessionContext.registry
+    varda.app.pm = sessionContext.pm
+
+    # let plugins run their startup code -- can only be done after the app api has been set up
+    sessionContext.pm.hook.onLoad()
 
     # start gui
     logger.info("Varda initialized successfully!")

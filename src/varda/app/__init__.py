@@ -1,5 +1,5 @@
-from .bootstrap import initVarda
+proj = None
+registry = None
+pm = None
 
-proj = bootstrap.sessionContext.proj
-registry = bootstrap.sessionContext.registry
-pm = bootstrap.sessionContext.pm
+from .bootstrap import initVarda

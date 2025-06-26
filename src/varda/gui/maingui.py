@@ -56,7 +56,6 @@ class MainGUI(QtWidgets.QMainWindow):
 
         logger.info("MainGUI Initialized")
 
-        varda.app.pm.hook.onLoad()
         self.pluginwidgets = []
         for name, widget in varda.app.registry._widgets:
             logger.debug(f"Adding widget {name}")

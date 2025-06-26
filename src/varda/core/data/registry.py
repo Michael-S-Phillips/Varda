@@ -30,6 +30,20 @@ class Registry:
         """Unregister an image loader class."""
         self._imageLoaders.unregisterLoader(loader)
 
+    @property
+    def widgets(self):
+        """
+        Get the registered widgets.
+        """
+        return self._widgets
+
+    @property
+    def imageLoaders(self):
+        """
+        Get the registered image loaders.
+        """
+        return self._imageLoaders
+
 
 class WidgetRegistry:
     """
