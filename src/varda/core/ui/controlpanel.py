@@ -271,11 +271,11 @@ class ControlPanel(QWidget):
             print(
                 "[DEBUG] Connected rasterView.sigImageClicked to updatePixelPlotFromCrosshair"
             )
-            
+
         # Set up view-specific click handlers if plot manager exists
         if "plot" in self.tabs:
             plot_tab = self.tabs["plot"]
-            if hasattr(plot_tab, 'setup_view_click_handlers'):
+            if hasattr(plot_tab, "setup_view_click_handlers"):
                 plot_tab.setup_view_click_handlers(self.rasterView)
 
     def _show_tab_context_menu(self, position):
@@ -340,7 +340,7 @@ class ControlPanel(QWidget):
         # Check if plot manager allows this update
         if "plot" in self.tabs:
             plot_tab = self.tabs["plot"]
-            if hasattr(plot_tab, 'should_update_plot'):
+            if hasattr(plot_tab, "should_update_plot"):
                 if not plot_tab.should_update_plot():
                     print(f"[DEBUG] Plot update blocked by Plot Manager settings")
                     return
@@ -364,18 +364,19 @@ class ControlPanel(QWidget):
         """Handle pixel plot click - create popup for current embedded plot."""
         # Get the current coordinates from the embedded plot
         x, y = self.lastPixelCoords
-        
+
         # Create a unique plot data entry for the current embedded plot
         # Use a timestamp to ensure uniqueness
         import time
+
         current_plot_id = f"current_plot_{int(time.time() * 1000)}"
-        
+
         current_plot_data = {
-            'id': current_plot_id,
-            'coords': (x, y),
-            'image_index': self.imageIndex,
-            'title': f"Current Pixel ({x}, {y})"
+            "id": current_plot_id,
+            "coords": (x, y),
+            "image_index": self.imageIndex,
+            "title": f"Current Pixel ({x}, {y})",
         }
-        
+
         # Use the same popup method as thumbnails
         self.tabs["plot"]._open_plot_popup(current_plot_data)

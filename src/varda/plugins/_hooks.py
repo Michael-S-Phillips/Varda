@@ -8,9 +8,11 @@ logger = logging.getLogger(__package__)
 hookspec = pluggy.HookspecMarker("varda")
 hookimpl = pluggy.HookimplMarker("varda")
 
+
 @hookspec
 def onLoad():
     """Hook called on plugin load."""
+
 
 @hookspec
 def onUnload():
@@ -24,9 +26,9 @@ def onLoad():
         yield
         logger.info(f"Plugins initialized successfully!")
     except Exception as e:
-        logger.error(f"One of the plugins failed to initialize! Exception: {e}", exc_info=True)
-
-
+        logger.error(
+            f"One of the plugins failed to initialize! Exception: {e}", exc_info=True
+        )
 
 
 # def hookimpl(func=None, **hookopts):

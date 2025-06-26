@@ -6,6 +6,7 @@ from varda.plugins.plugin_manager import VardaPluginManager
 
 logger = logging.getLogger(__name__)
 
+
 class VardaSessionContext:
     """
     Context for the current Varda session.

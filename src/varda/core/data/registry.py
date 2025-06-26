@@ -6,6 +6,7 @@ from varda.core.utilities.load_image.loaders import AbstractImageLoader
 
 logger = logging.getLogger(__name__)
 
+
 class Registry:
     """Registry to store dynamically loaded widgets and image loaders. (e.g. plugins)"""
 
@@ -49,6 +50,7 @@ class WidgetRegistry:
     """
     A registry for widgets that can be used in the application.
     """
+
     def __init__(self):
         self._widgets = {}
 
@@ -77,8 +79,6 @@ class WidgetRegistry:
             logger.info(f"Unregistered widget {widget.__name__}")
         else:
             logger.warning(f"Widget {widget.__name__} not found in registry.")
-
-
 
 
 class ImageLoaderRegistry:

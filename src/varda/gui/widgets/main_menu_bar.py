@@ -45,7 +45,6 @@ class MainMenuBar(QMenuBar):
 
         self._initPluginMenu()
 
-
     # Note: adding "self" as the parent of the QMenu is important, to keep it from
     # being garbage collected immediately
     def _initFileMenu(self):
@@ -83,7 +82,7 @@ class MainMenuBar(QMenuBar):
         )
 
         viewMenu.addMenu(dualImageMenu)
-        
+
         self.addMenu(viewMenu)
 
     def _initHelpmenu(self):
@@ -112,7 +111,7 @@ class MainMenuBar(QMenuBar):
         for name, widgetClass in pluginWidgets:
             logger.debug(f"Adding widget {name}, class {widgetClass}")
             action = QAction(name, self)
-            action.triggered.connect(lambda : self.openWidget(widgetClass))
+            action.triggered.connect(lambda: self.openWidget(widgetClass))
             pluginMenu.addAction(action)
             logger.debug(f"Added plugin menu item: {name}")
         self.addMenu(pluginMenu)
@@ -122,4 +121,3 @@ class MainMenuBar(QMenuBar):
         logger.debug(f"Opening widget {widgetClass}")
         widget = widgetClass(self.parent())
         widget.show()
-

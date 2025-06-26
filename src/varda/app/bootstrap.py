@@ -27,7 +27,6 @@ from varda.gui.maingui import MainGUI
 logger = logging.getLogger(__name__)
 
 
-
 sessionContext: VardaSessionContext = VardaSessionContext()
 q_app: QApplication = None
 
@@ -140,4 +139,3 @@ def startGUI() -> NoReturn:
     exitCode = q_app.exec()
     logger.info("Application exiting, performing cleanup...")
     sys.exit(exitCode)
-

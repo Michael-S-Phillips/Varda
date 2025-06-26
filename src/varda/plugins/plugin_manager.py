@@ -8,6 +8,7 @@ import varda
 
 logger = logging.getLogger(__name__)
 
+
 class VardaPluginManager:
     """
     PluginManager for Varda that automatically discovers and loads plugins.

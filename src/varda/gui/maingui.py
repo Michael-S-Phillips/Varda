@@ -56,7 +56,6 @@ class MainGUI(QtWidgets.QMainWindow):
 
         logger.info("MainGUI Initialized")
 
-
     def initUI(self):
         self.setMenuBar(MainMenuBar())
         self.setStatusBar(StatusBar(self.proj))
