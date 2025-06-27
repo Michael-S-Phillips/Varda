@@ -27,6 +27,10 @@ dependencies = [
     "appdirs~=1.4.4",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest", "pylint", "black"]
+
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"

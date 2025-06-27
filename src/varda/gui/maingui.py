@@ -1,13 +1,10 @@
 from pathlib import Path
 import logging
-import sys
-import asyncio
 from typing import Dict, Optional
 
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt
-from qasync import QEventLoop, QApplication
 
 import varda
 from varda.core.data import ProjectContext
@@ -55,6 +52,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.connectSignals()
 
         logger.info("MainGUI Initialized")
+
 
     def initUI(self):
         self.setMenuBar(MainMenuBar())
@@ -744,6 +742,7 @@ class MainGUI(QtWidgets.QMainWindow):
             and changeModifier == self.proj.ChangeModifier.ADD
         ):
             print(f"New image added at index {index}")
+        self.testWorkflow = varda.features.workflows.GeneralImageAnalysis()
 
     # TODO: Delete?
     def trackPixelPlotWindow(self, window):

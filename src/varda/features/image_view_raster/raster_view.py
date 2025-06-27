@@ -485,6 +485,10 @@ class RasterView(QWidget):
         """Select a new stretch to apply to the image."""
         self.viewModel.selectStretch(stretchIndex)
 
+    def selectBand(self, bandIndex):
+        """Select a new band to apply to the image."""
+        self.viewModel.selectBand(bandIndex)
+
     def _onStretchChanged(self):
         """Handle stretch changes."""
         # Get the current stretch values directly from the view model

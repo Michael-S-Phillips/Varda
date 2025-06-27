@@ -2,21 +2,15 @@
 
 # standard library
 import logging
-from pathlib import Path
 
 # third party imports
 import os
 
-import affine
 import numpy as np
 import rasterio
-from pyproj import CRS
-from rasterio.errors import RasterioIOError
-
-from varda.core.entities import GeoReferencer
 
 # local imports
-from varda.core.utilities.load_image.loaders.abstractimageloader import (
+from varda.app.services.load_image.loaders.abstractimageloader import (
     AbstractImageLoader,
 )
 from varda.core.entities import Metadata

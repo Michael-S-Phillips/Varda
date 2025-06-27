@@ -2,7 +2,6 @@
 
 # standard library
 import logging
-from pathlib import Path
 
 # third party imports
 import numpy as np
@@ -10,7 +9,7 @@ from PIL import Image as PILImage
 from PIL.ExifTags import TAGS
 
 # local imports
-from varda.core.utilities.load_image.loaders.abstractimageloader import (
+from varda.app.services.load_image.loaders.abstractimageloader import (
     AbstractImageLoader,
 )
 from varda.core.entities.metadata import Metadata

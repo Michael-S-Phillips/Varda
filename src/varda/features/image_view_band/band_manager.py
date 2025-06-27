@@ -1,7 +1,7 @@
 import logging
 
 import numpy as np
-from PyQt6.QtCore import pyqtSlot, Qt
+from PyQt6.QtCore import pyqtSlot, Qt, pyqtSignal
 from PyQt6.QtGui import QIntValidator, QStandardItemModel
 from PyQt6.QtWidgets import (
     QWidget,
@@ -32,7 +32,7 @@ class BandManager(QWidget):
 
     This includes being able to create, delete, and rename bands.
     """
-
+    sigBandChanged = pyqtSignal(int)
     def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Band Manager")
@@ -226,6 +226,7 @@ class BandManager(QWidget):
         if selectedItems:
             row = selectedItems[0].row()
             print("row selected!", row)
+            self.sigBandChanged.emit(row)
             self.bandView.viewModel.selectBand(row)
 
     @pyqtSlot(int, ProjectContext.ChangeType)

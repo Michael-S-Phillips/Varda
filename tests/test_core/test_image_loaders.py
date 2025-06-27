@@ -5,7 +5,7 @@ import pytest
 import numpy as np
 
 from core import TIFFImageLoader
-from varda.core.utilities.load_image.loaders.pillowimageloader import PillowImageLoader
+from varda.app.services.load_image.loaders.pillowimageloader import PillowImageLoader
 from core import ImageLoadingService
 
 

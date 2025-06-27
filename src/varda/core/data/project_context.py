@@ -14,14 +14,12 @@ from PyQt6.QtWidgets import (
     QWidget,
     QFileDialog,
     QMessageBox,
-    QApplication,
 )
 import numpy as np
 
 # local imports
 from varda.core.entities import Image, Metadata, Band, Stretch, FreehandROI, Plot
-from varda.core.entities.geo_referencer import GeoReferencer
-from varda.core.utilities.load_image import ImageLoadingService
+from varda.app.services.load_image import ImageLoadingService
 from varda.core.utilities.signal_utils import guard_signals
 from varda.gui.widgets import FileInputDialog
 

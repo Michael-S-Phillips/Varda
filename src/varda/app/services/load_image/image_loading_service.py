@@ -1,11 +1,8 @@
 # standard library
 import os
 import numpy as np
-from typing import Callable, List, Dict, Optional
 from pathlib import Path
 import logging
-import importlib
-import pkgutil
 from enum import Enum
 import traceback
 
@@ -25,10 +22,10 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
 )
 import affine
-from varda.core.entities import Metadata, GeoReferencer
+from varda.core.entities import GeoReferencer
 
 # local imports
-from varda.core.utilities.load_image.loaders import (
+from varda.app.services.load_image.loaders import (
     LOADER_REGISTRY,
     AbstractImageLoader,
     PillowImageLoader,

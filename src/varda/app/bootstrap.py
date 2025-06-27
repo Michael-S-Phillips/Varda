@@ -20,7 +20,7 @@ import pyqtgraph as pg
 
 # local imports
 import varda.app
-from varda.core.data import VardaSessionContext
+from varda.app.varda_session_context import VardaSessionContext
 from varda.gui.maingui import MainGUI
 
 

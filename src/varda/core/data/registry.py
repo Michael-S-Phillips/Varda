@@ -2,7 +2,7 @@ import logging
 
 from PyQt6.QtWidgets import QWidget
 
-from varda.core.utilities.load_image.loaders import AbstractImageLoader
+from varda.app.services.load_image.loaders import AbstractImageLoader
 
 logger = logging.getLogger(__name__)
 
