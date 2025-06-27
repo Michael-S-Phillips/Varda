@@ -53,7 +53,6 @@ class MainGUI(QtWidgets.QMainWindow):
 
         logger.info("MainGUI Initialized")
 
-
     def initUI(self):
         self.setMenuBar(MainMenuBar())
         self.setStatusBar(StatusBar(self.proj))
@@ -742,7 +741,8 @@ class MainGUI(QtWidgets.QMainWindow):
             and changeModifier == self.proj.ChangeModifier.ADD
         ):
             print(f"New image added at index {index}")
-        self.testWorkflow = varda.features.workflows.GeneralImageAnalysis()
+        if not hasattr(self, "testWorkflow"):
+            self.testWorkflow = varda.features.workflows.GeneralImageAnalysis()
 
     # TODO: Delete?
     def trackPixelPlotWindow(self, window):

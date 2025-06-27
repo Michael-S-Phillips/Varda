@@ -20,7 +20,7 @@ import numpy as np
 
 from varda.core.data import ProjectContext
 from varda.features.image_view_roi import getROIView
-from varda.features.image_view_band import BandManager
+from varda.features.components.band_management.band_manager import BandManager
 from varda.features.image_view_stretch import StretchManager
 from varda.features.image_view_metadata import openMetadataEditor
 from varda.gui.widgets.image_plot_widget import ImagePlotWidget

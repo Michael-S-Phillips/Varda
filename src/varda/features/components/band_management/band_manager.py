@@ -32,7 +32,9 @@ class BandManager(QWidget):
 
     This includes being able to create, delete, and rename bands.
     """
+
     sigBandChanged = pyqtSignal(int)
+
     def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Band Manager")

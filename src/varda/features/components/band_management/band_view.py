@@ -5,7 +5,7 @@ import logging
 # third-party imports
 import pyqtgraph as pg
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
-from PyQt6.QtCore import Qt, QTimer, pyqtSlot
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QSignalBlocker, pyqtSignal
 
 # local imports
 from .band_viewmodel import BandViewModel
@@ -17,6 +17,8 @@ class BandView(QWidget):
     """A basic view for editing band configurations of an image. Cannot create new
     parameters at the moment. only edit existing ones.
     """
+
+    sigSliderChanged = pyqtSignal(float, float, float)
 
     viewModel: BandViewModel
     rBandSlider: pg.InfiniteLine
@@ -98,6 +100,8 @@ class BandView(QWidget):
             lambda: self._onSliderChanged(self.bBandSlider)
         )
 
+        self.sigSliderChanged.connect(self.viewModel.updateBand)
+
     @pyqtSlot(pg.InfiniteLine)
     def _onSliderChanged(self, slider):
         # snap slider to nearest wavelength value
@@ -111,24 +115,21 @@ class BandView(QWidget):
         logger.debug(f"minValue: {minValue} maxValue {maxValue}")
         slider.setValue(max(min(finalVal, maxValue), minValue))
 
-        # update the correct band
-        if slider is self.rBandSlider:
-            self.viewModel.updateBand(r=slider.value())
-        elif slider is self.gBandSlider:
-            self.viewModel.updateBand(g=slider.value())
-        elif slider is self.bBandSlider:
-            self.viewModel.updateBand(b=slider.value())
+        # update the bands
+        self.sigSliderChanged.emit(
+            self.rBandSlider.value(), self.gBandSlider.value(), self.bBandSlider.value()
+        )
 
     @pyqtSlot(float, float, float)
     def _onBandChanged(self, r, g, b):
         logger.debug(f"BandView: Received band changed signal with r={r}, g={g}, b={b}")
 
-        # Block signals temporarily to prevent recursive updates
-        self.rBandSlider.blockSignals(True)
-        self.gBandSlider.blockSignals(True)
-        self.bBandSlider.blockSignals(True)
+        with QSignalBlocker(self):
+            # Block signals temporarily to prevent recursive updates
+            # self.rBandSlider.blockSignals(True)
+            # self.gBandSlider.blockSignals(True)
+            # self.bBandSlider.blockSignals(True)
 
-        try:
             # The r, g, b values are already band indices, not wavelength values
             # We need to convert them to the slider coordinate system
             if self.viewModel.useWavelengthIndeces:
@@ -151,24 +152,18 @@ class BandView(QWidget):
             self.bBandSlider.setValue(b_slider_pos)
 
             # Manually trigger label updates
-            logger.debug("BandView: Manually triggering label updates")
-            if hasattr(self, "rLabel"):
-                self.rLabel.valueChanged()
-            if hasattr(self, "gLabel"):
-                self.gLabel.valueChanged()
-            if hasattr(self, "bLabel"):
-                self.bLabel.valueChanged()
+            # logger.debug("BandView: Manually triggering label updates")
+            # if hasattr(self, "rLabel"):
+            #     self.rLabel.valueChanged()
+            # if hasattr(self, "gLabel"):
+            #     self.gLabel.valueChanged()
+            # if hasattr(self, "bLabel"):
+            #     self.bLabel.valueChanged()
 
-            # Force a repaint of the view to ensure visual update
-            self.update()
+            # # Force a repaint of the view to ensure visual update
+            # self.update()
 
             logger.debug("BandView: Slider positions updated successfully")
-
-        finally:
-            # Always restore signal connections
-            self.rBandSlider.blockSignals(False)
-            self.gBandSlider.blockSignals(False)
-            self.bBandSlider.blockSignals(False)
 
     # pylint: disable=abstract-method
     class MyInfLineLabel(pg.InfLineLabel):
