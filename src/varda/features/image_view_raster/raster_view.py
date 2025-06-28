@@ -15,7 +15,7 @@ from skimage.draw import polygon
 from varda.features.shared.selection_controls import StretchSelector, BandSelector
 from varda.features.image_view_roi.roi_drawing_manager import ROIDrawingManager
 from varda.gui.widgets.roi_selector import ROISelector
-from varda.core.entities.freehandROI import FreehandROI
+from varda.core.entities.roi import ROI
 from .raster_viewmodel import RasterViewModel
 
 logger = logging.getLogger(__name__)

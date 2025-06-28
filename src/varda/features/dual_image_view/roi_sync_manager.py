@@ -10,7 +10,7 @@ import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from varda.core.data import ProjectContext
-from varda.core.entities.freehandROI import FreehandROI
+from varda.core.entities.roi import ROI
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +172,7 @@ class ROISyncManager(QObject):
             try:
                 # Remove the synced ROI from target image
                 if hasattr(self.proj, "roi_manager"):
-                    success = self.proj.roi_manager.remove_roi(
+                    success = self.proj.roi_manager.removeROI(
                         target_index, synced_roi_id
                     )
                 else:
@@ -213,7 +213,7 @@ class ROISyncManager(QObject):
         try:
             # Get existing ROIs from primary image
             if hasattr(self.proj, "roi_manager"):
-                primary_rois = self.proj.roi_manager.get_rois_for_image(primary_index)
+                primary_rois = self.proj.roi_manager.getROIsForImage(primary_index)
             else:
                 primary_rois = self.proj.getROIs(primary_index)
 
@@ -229,7 +229,7 @@ class ROISyncManager(QObject):
         """Get an ROI by ID from a specific image"""
         try:
             if hasattr(self.proj, "roi_manager"):
-                return self.proj.roi_manager.get_roi(roi_id)
+                return self.proj.roi_manager.getROI(roi_id)
             else:
                 # Fallback to legacy ROI access
                 rois = self.proj.getROIs(image_index)
@@ -262,9 +262,9 @@ class ROISyncManager(QObject):
     def _copy_roi(self, roi):
         """Create a copy of an ROI"""
         try:
-            if isinstance(roi, FreehandROI):
+            if isinstance(roi, ROI):
                 # Create a new FreehandROI with copied properties
-                new_roi = FreehandROI()
+                new_roi = ROI()
 
                 # Copy basic properties
                 if hasattr(roi, "points") and roi.points is not None:
@@ -321,7 +321,7 @@ class ROISyncManager(QObject):
         try:
             if hasattr(self.proj, "roi_manager"):
                 # Use new ROI manager
-                roi_id = self.proj.roi_manager.add_roi(target_index, roi)
+                roi_id = self.proj.roi_manager.addROI(target_index, roi)
                 return roi_id
             else:
                 # Fallback to legacy ROI creation
@@ -340,7 +340,7 @@ class ROISyncManager(QObject):
         try:
             if hasattr(self.proj, "roi_manager"):
                 # Update the existing ROI
-                success = self.proj.roi_manager.update_roi(synced_roi_id, roi)
+                success = self.proj.roi_manager.updateROI(synced_roi_id, roi)
                 return synced_roi_id if success else None
             else:
                 # Fallback to legacy ROI update
@@ -359,7 +359,7 @@ class ROISyncManager(QObject):
             for source_roi_id, synced_roi_id in self._roi_mappings[pair_key].items():
                 try:
                     if hasattr(self.proj, "roi_manager"):
-                        self.proj.roi_manager.remove_roi(secondary_index, synced_roi_id)
+                        self.proj.roi_manager.removeROI(secondary_index, synced_roi_id)
                     else:
                         self._remove_roi_legacy(secondary_index, synced_roi_id)
                 except Exception as e:
@@ -405,7 +405,7 @@ class ROISyncManager(QObject):
         """Sync the latest ROIs from source to target"""
         try:
             if hasattr(self.proj, "roi_manager"):
-                source_rois = self.proj.roi_manager.get_rois_for_image(source_index)
+                source_rois = self.proj.roi_manager.getROIsForImage(source_index)
             else:
                 source_rois = self.proj.getROIs(source_index)
 

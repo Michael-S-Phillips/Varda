@@ -34,7 +34,7 @@ class ROICustomData:
 
 
 @dataclass
-class FreehandROI:
+class ROI:
     """Enhanced data container for a region of interest in an image.
 
     Attributes:

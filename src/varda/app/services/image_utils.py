@@ -1,6 +1,9 @@
 import logging
 
 import numpy as np
+import rasterio
+from affine import Affine
+from pyproj import Transformer, CRS
 
 from varda.core.entities import Image, Stretch, Band
 
@@ -33,3 +36,35 @@ def getRasterFromBand(image: Image, band: Band):
         # Return a placeholder if there's an error
         h, w = image.raster.shape[0:2]
         return np.zeros((h, w, 3))
+
+
+def transformPixelToGeoCoord(
+    image: Image, px: int, py: int
+) -> tuple[float, float]:
+    """Transform pixel coordinates to geospatial coordinates.
+
+    Args:
+        image (Image): The image object containing geospatial metadata.
+        px (int): The pixel x-coordinate.
+        py (int): The pixel y-coordinate.
+
+    Returns:
+        tuple[float, float]: The transformed geospatial coordinates (longitude, latitude).
+    """
+
+
+    if not image.metadata.hasGeospatialData:
+        raise ValueError(f"No geospatial data found for image {image}")
+
+    transform = image.metadata.transform
+    crs = image.metadata.crs
+
+    # Convert pixel coordinates to map coordinates (x, y)
+    mx, my = rasterio.transform.xy(transform, px, py)
+    # Transform map coordinates to geographic coordinates
+    toGeo = Transformer.from_crs(
+        crs, crs.geodetic_crs, always_xy=True
+    )
+    lon, lat = toGeo.transform(mx, my)
+    return lon, lat
+

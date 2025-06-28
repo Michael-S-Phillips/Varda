@@ -56,7 +56,7 @@ class ROIViewModel(QObject):
         """Get all ROIs associated with the current image"""
         if hasattr(self.proj, "roi_manager"):
             rois = {}
-            for roi in self.proj.roi_manager.get_rois_for_image(self.imageIndex):
+            for roi in self.proj.roi_manager.getROIsForImage(self.imageIndex):
                 rois[roi.id] = roi
             return rois
         else:
@@ -76,7 +76,7 @@ class ROIViewModel(QObject):
     def getRoi(self, roi_id):
         """Get a specific ROI by ID"""
         if hasattr(self.proj, "roi_manager"):
-            return self.proj.roi_manager.get_roi(roi_id)
+            return self.proj.roi_manager.getROI(roi_id)
         else:
             # Fallback to searching in the image's ROIs
             for roi in self.proj.getROIs(self.imageIndex):
@@ -88,7 +88,7 @@ class ROIViewModel(QObject):
         """Add a new ROI"""
         if hasattr(self.proj, "roi_manager"):
             # Use ROI Manager API
-            roi_id = self.proj.roi_manager.add_roi(roi, [self.imageIndex])
+            roi_id = self.proj.roi_manager.addROI(roi, [self.imageIndex])
             if roi_id:
                 self.roiAdded.emit(roi_id)
             return roi_id
@@ -103,7 +103,7 @@ class ROIViewModel(QObject):
         """Remove an ROI"""
         if hasattr(self.proj, "roi_manager"):
             # Use ROI Manager API
-            result = self.proj.roi_manager.remove_roi(roi_id)
+            result = self.proj.roi_manager.removeROI(roi_id)
             if result:
                 self.roiRemoved.emit(roi_id)
             return result
@@ -121,7 +121,7 @@ class ROIViewModel(QObject):
         """Update ROI properties"""
         if hasattr(self.proj, "roi_manager"):
             # Use ROI Manager API
-            result = self.proj.roi_manager.update_roi(roi_id, **properties)
+            result = self.proj.roi_manager.updateROI(roi_id, **properties)
             if result:
                 self.roiUpdated.emit(roi_id)
             return result
@@ -178,7 +178,7 @@ class ROIViewModel(QObject):
     def get_roi(self, roi_id):
         """Get a specific ROI by ID"""
         if hasattr(self.proj, "roi_manager"):
-            return self.proj.roi_manager.get_roi(roi_id)
+            return self.proj.roi_manager.getROI(roi_id)
         else:
             # Fallback to searching in the image's ROIs
             for roi in self.proj.getROIs(self.imageIndex):
@@ -192,7 +192,7 @@ class ROIViewModel(QObject):
 
         if hasattr(self.proj, "roi_manager"):
             # Use ROI Manager API
-            result = self.proj.roi_manager.update_roi(roi_id, **properties)
+            result = self.proj.roi_manager.updateROI(roi_id, **properties)
             if result:
                 self.roiUpdated.emit(roi_id)
         else:
@@ -226,7 +226,7 @@ class ROIViewModel(QObject):
         """Plot the spectrum of an ROI"""
         try:
             # Get the ROI
-            roi = self.viewModel.get_roi(roi_id)
+            roi = self.viewModel.getROI(roi_id)
             if not roi or roi.mean_spectrum is None:
                 QMessageBox.warning(
                     self,

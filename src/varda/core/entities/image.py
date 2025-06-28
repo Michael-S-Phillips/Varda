@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import QWidget
 from .band import Band
 from .stretch import Stretch
 from .metadata import Metadata
-from .freehandROI import FreehandROI
+from .roi import ROI
 from .plot import Plot
 
 
@@ -36,7 +36,7 @@ class Image:
     metadata: Metadata
     stretch: List[Stretch]
     band: List[Band]
-    rois: List[FreehandROI]
+    rois: List[ROI]
     plots: List[Plot]
     ROIview: QWidget
     index: int

@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import QMenu, QToolBar, QLabel
 from PyQt6.QtGui import QAction
 
 from varda.gui.widgets.roi_selector import ROISelector, ROIMode
-from varda.core.entities.freehandROI import FreehandROI
+from varda.core.entities.roi import ROI
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class ROIDrawingManager(QObject):
         # If it's RasterViewModel, use proj.get_rois_for_image
         elif hasattr(self.view_model, "proj") and hasattr(self.view_model, "index"):
             try:
-                rois = self.view_model.proj.get_rois_for_image(self.view_model.index)
+                rois = self.view_model.proj.getROIsForImage(self.view_model.index)
             except Exception as e:
                 logger.error(f"Error getting ROIs: {e}")
 
@@ -298,7 +298,7 @@ class ROIDrawingManager(QObject):
                 )
 
                 # Create the ROI object
-                roi = FreehandROI(
+                roi = ROI(
                     points=np.array(points),
                     geo_points=np.array(geo_points) if geo_points else None,
                     image_indices=[image_index],
@@ -319,7 +319,7 @@ class ROIDrawingManager(QObject):
                     ):
                         # If it's RasterViewModel, use the project context directly
                         try:
-                            roi_id = self.view_model.proj.add_roi(roi, [image_index])
+                            roi_id = self.view_model.proj.addROI(roi, [image_index])
                         except Exception as e:
                             # Try legacy method as fallback
                             try:
@@ -483,7 +483,7 @@ class ROIDrawingManager(QObject):
             # If it's RasterViewModel, use the project context directly
             try:
                 # Try the new API
-                roi = self.view_model.proj.get_roi(roi_id)
+                roi = self.view_model.proj.getROI(roi_id)
             except (AttributeError, Exception) as e:
                 # If that fails, try to find it in the list of ROIs
                 try:
@@ -492,7 +492,7 @@ class ROIDrawingManager(QObject):
                         "index",
                         getattr(self.view_model, "imageIndex", 0),
                     )
-                    rois = self.view_model.proj.get_rois_for_image(image_index)
+                    rois = self.view_model.proj.getROIsForImage(image_index)
                     for r in rois:
                         if hasattr(r, "id") and r.id == roi_id:
                             roi = r
@@ -571,13 +571,11 @@ class ROIDrawingManager(QObject):
         elif hasattr(self.view_model, "proj") and hasattr(self.view_model, "index"):
             # If it's RasterViewModel, use the project context directly
             try:
-                roi = self.view_model.proj.get_roi(roi_id)
+                roi = self.view_model.proj.getROI(roi_id)
             except Exception as e:
                 # Try to get the ROI from the list of ROIs for this image
                 try:
-                    rois = self.view_model.proj.get_rois_for_image(
-                        self.view_model.index
-                    )
+                    rois = self.view_model.proj.getROIsForImage(self.view_model.index)
                     for r in rois:
                         if hasattr(r, "id") and r.id == roi_id:
                             roi = r
@@ -642,7 +640,7 @@ class ROIDrawingManager(QObject):
                                 mean_spectrum=roi.mean_spectrum,
                             )
                         elif hasattr(self.view_model, "proj"):
-                            self.view_model.proj.update_roi(
+                            self.view_model.proj.updateROI(
                                 roi_id,
                                 array_slice=roi.array_slice,
                                 mean_spectrum=roi.mean_spectrum,

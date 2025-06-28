@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor, QBrush, QAction
 
-from varda.core.entities.freehandROI import FreehandROI
+from varda.core.entities.roi import ROI
 from .roi_viewmodel import ROIViewModel
 
 
@@ -222,7 +222,7 @@ class ROIPropertyEditor(QWidget):
         self.setLayout(layout)
         self.setEnabled(False)  # Disable until an ROI is selected
 
-    def set_roi(self, roi: FreehandROI, index: int):
+    def set_roi(self, roi: ROI, index: int):
         """Set the ROI to edit"""
         if roi is None:
             self.current_roi_index = None

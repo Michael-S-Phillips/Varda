@@ -161,6 +161,11 @@ class Metadata:
         }
         return {**coreMetadata, **self.extraMetadata}
 
+    @property
+    def hasGeospatialData(self):
+        """Check if the metadata contains geospatial data."""
+        return self.crs is not None and self.transform is not None
+
     # magic methods to add the ability to iterate through the items
     def __iter__(self):
         items = self.toFlatDict().items()

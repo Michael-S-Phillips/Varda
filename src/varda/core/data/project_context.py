@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
 import numpy as np
 
 # local imports
-from varda.core.entities import Image, Metadata, Band, Stretch, FreehandROI, Plot
+from varda.core.entities import Image, Metadata, Band, Stretch, ROI, Plot
 from varda.app.services.load_image import ImageLoadingService
 from varda.core.utilities.signal_utils import guard_signals
 from varda.gui.widgets import FileInputDialog
@@ -68,7 +68,7 @@ class ProjectContext(QObject):
         # Initialize the ROI Manager
         from varda.core.data.roi_manager import ROIManager
 
-        self.roi_manager = ROIManager(self)
+        self.roi_manager = ROIManager()
 
         # Flag for generating stretch presets during image creation
         self._generate_stretch_presets = True
@@ -391,7 +391,7 @@ class ProjectContext(QObject):
         metadata: Metadata,
         stretch: List[Stretch] = None,
         band: List[Band] = None,
-        roi: List[FreehandROI] = None,
+        roi: List[ROI] = None,
         plot: List[Plot] = None,
         ROIview: QWidget = None,
     ):
@@ -478,9 +478,9 @@ class ProjectContext(QObject):
         """
         # First remove all ROIs associated with this image
         if hasattr(self, "roi_manager"):
-            rois = self.roi_manager.get_rois_for_image(index)
+            rois = self.roi_manager.getROIsForImage(index)
             for roi in rois:
-                self.roi_manager.remove_roi(roi.id)
+                self.roi_manager.removeROI(roi.id)
 
         # Then remove the image
         self._images.pop(index)
@@ -689,7 +689,7 @@ class ProjectContext(QObject):
         Returns:
             str: The ID of the added ROI.
         """
-        roi_id = self.roi_manager.add_roi(roi, image_indices)
+        roi_id = self.roi_manager.addROI(roi, image_indices)
         if roi_id and image_indices:
             self._emitChange(
                 image_indices[0], self.ChangeType.ROI, self.ChangeModifier.ADD
@@ -707,9 +707,9 @@ class ProjectContext(QObject):
         Returns:
             bool: True if the ROI was removed, False otherwise.
         """
-        roi = self.roi_manager.get_roi(roi_id)
+        roi = self.roi_manager.getROI(roi_id)
         image_indices = roi.image_indices if roi else []
-        result = self.roi_manager.remove_roi(roi_id)
+        result = self.roi_manager.removeROI(roi_id)
         if result and image_indices:
             self._emitChange(
                 image_indices[0], self.ChangeType.ROI, self.ChangeModifier.REMOVE
@@ -728,9 +728,9 @@ class ProjectContext(QObject):
         Returns:
             bool: True if the ROI was updated, False otherwise.
         """
-        roi = self.roi_manager.get_roi(roi_id)
+        roi = self.roi_manager.getROI(roi_id)
         image_indices = roi.image_indices if roi else []
-        result = self.roi_manager.update_roi(roi_id, **properties)
+        result = self.roi_manager.updateROI(roi_id, **properties)
         if result and image_indices:
             self._emitChange(
                 image_indices[0], self.ChangeType.ROI, self.ChangeModifier.UPDATE
@@ -745,18 +745,18 @@ class ProjectContext(QObject):
             roi_id: The ID of the ROI to get.
 
         Returns:
-            FreehandROI: The requested ROI, or None if not found.
+            ROI: The requested ROI, or None if not found.
         """
-        return self.roi_manager.get_roi(roi_id)
+        return self.roi_manager.getROI(roi_id)
 
     def get_all_rois(self):
         """
         Get all ROIs in the project.
 
         Returns:
-            Dict[str, FreehandROI]: Dictionary of ROI IDs to ROI objects.
+            Dict[str, ROI]: Dictionary of ROI IDs to ROI objects.
         """
-        return self.roi_manager.get_all_rois()
+        return self.roi_manager.getAllROIs()
 
     def get_rois_for_image(self, image_index):
         """
@@ -766,9 +766,9 @@ class ProjectContext(QObject):
             image_index: The image index.
 
         Returns:
-            List[FreehandROI]: List of ROIs associated with the image.
+            List[ROI]: List of ROIs associated with the image.
         """
-        return self.roi_manager.get_rois_for_image(image_index)
+        return self.roi_manager.getROIsForImage(image_index)
 
     @guard_signals
     def associate_roi_with_image(self, roi_id, image_index):
@@ -782,7 +782,7 @@ class ProjectContext(QObject):
         Returns:
             bool: True if the association was created, False otherwise.
         """
-        result = self.roi_manager.associate_roi_with_image(roi_id, image_index)
+        result = self.roi_manager.associateROIWithImage(roi_id, image_index)
         if result:
             self._emitChange(
                 image_index, self.ChangeType.ROI, self.ChangeModifier.UPDATE
@@ -801,7 +801,7 @@ class ProjectContext(QObject):
         Returns:
             bool: True if the association was removed, False otherwise.
         """
-        result = self.roi_manager.dissociate_roi_from_image(roi_id, image_index)
+        result = self.roi_manager.dissociateROIFromImage(roi_id, image_index)
         if result:
             self._emitChange(
                 image_index, self.ChangeType.ROI, self.ChangeModifier.UPDATE
@@ -822,7 +822,7 @@ class ProjectContext(QObject):
         Returns:
             ROITableColumn: The created column, or None if an error occurred.
         """
-        column = self.roi_manager.add_column(name, data_type, formula)
+        column = self.roi_manager.addColumn(name, data_type, formula)
         if column:
             # Signal that ROI table structure has changed
             self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
@@ -839,7 +839,7 @@ class ProjectContext(QObject):
         Returns:
             bool: True if the column was removed, False otherwise.
         """
-        result = self.roi_manager.remove_column(name)
+        result = self.roi_manager.removeColumn(name)
         if result:
             # Signal that ROI table structure has changed
             self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
@@ -857,7 +857,7 @@ class ProjectContext(QObject):
         Returns:
             bool: True if the column was updated, False otherwise.
         """
-        result = self.roi_manager.update_column(name, **properties)
+        result = self.roi_manager.updateColumn(name, **properties)
         if result:
             # Signal that ROI table structure has changed
             self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
@@ -873,7 +873,7 @@ class ProjectContext(QObject):
         Returns:
             ROITableColumn: The column, or None if not found.
         """
-        return self.roi_manager.get_column(name)
+        return self.roi_manager.getColumn(name)
 
     def get_all_roi_columns(self):
         """
@@ -882,12 +882,12 @@ class ProjectContext(QObject):
         Returns:
             List[ROITableColumn]: List of all columns.
         """
-        return self.roi_manager.get_all_columns()
+        return self.roi_manager.getAllColumns()
 
     @guard_signals
     def calculate_roi_formulas(self):
         """Calculate all formula columns."""
-        self.roi_manager.calculate_formula_columns()
+        self.roi_manager.calculateFormulaColumns()
         # Signal that ROI data has changed
         self._emitChange(0, self.ChangeType.ROI, self.ChangeModifier.UPDATE)
 
@@ -904,7 +904,7 @@ class ProjectContext(QObject):
         Returns:
             bool: True if successful, False otherwise.
         """
-        roi = self.roi_manager.get_roi(roi_id)
+        roi = self.roi_manager.getROI(roi_id)
         if roi:
             roi.set_custom_value(column_name, value)
             image_indices = roi.image_indices
@@ -927,7 +927,7 @@ class ProjectContext(QObject):
         Returns:
             Any: The custom value, or the default if not found.
         """
-        roi = self.roi_manager.get_roi(roi_id)
+        roi = self.roi_manager.getROI(roi_id)
         if roi:
             return roi.get_custom_value(column_name, default)
         return default
@@ -947,7 +947,7 @@ class ProjectContext(QObject):
             str or int: The ID of the added ROI, or its index for legacy ROIs.
         """
         # Handle both new-style FreehandROI and legacy ROIs
-        if isinstance(roi, FreehandROI):
+        if isinstance(roi, ROI):
             # New-style ROI
             return self.add_roi(roi, [index])
         else:
@@ -959,7 +959,7 @@ class ProjectContext(QObject):
                 color = roi.color if hasattr(roi, "color") else (255, 0, 0, 128)
 
                 # Create a new ROI with data from the legacy one
-                new_roi = FreehandROI(
+                new_roi = ROI(
                     points=points,
                     image_indices=[index],
                     color=color,
@@ -1012,7 +1012,7 @@ class ProjectContext(QObject):
             index: The image index.
 
         Returns:
-            List[FreehandROI]: List of ROIs for the image.
+            List[ROI]: List of ROIs for the image.
         """
         try:
             # Try to get new-style ROIs first
