@@ -32,9 +32,15 @@ class NavigableViewBox(pg.ViewBox):
         self._drag_start_scene_pos = None
         self._is_navigating = False
         self._initial_roi_pos = None
+        self._roi_drawing_disabled_nav = False
 
     def mouseDragEvent(self, ev, axis=None):
         """Override mouse drag to implement image navigation instead of view panning"""
+        if getattr(self, '_roi_drawing_disabled_nav', False):
+            # Let the event pass through to ROI drawing instead of handling navigation
+            super().mouseDragEvent(ev, axis)
+            return
+        
         if ev.button() == QtCore.Qt.MouseButton.LeftButton:
             if ev.isStart():
                 self._drag_start_pos = ev.pos()

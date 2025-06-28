@@ -42,9 +42,6 @@ class ROISyncManager(QObject):
         # Track ROI mappings between images: {(primary_idx, secondary_idx): {roi_id: synced_roi_id}}
         self._roi_mappings: Dict[tuple, Dict[str, str]] = {}
 
-        # Connect to project signals
-        self.proj.sigDataChanged.connect(self._on_project_data_changed)
-
     def setup_roi_sync(self, primary_index: int, secondary_index: int):
         """
         Set up ROI synchronization between two images.
@@ -104,7 +101,7 @@ class ROISyncManager(QObject):
 
         try:
             # Get the source ROI
-            source_roi = self._get_roi_by_id(roi_id, source_index)
+            source_roi = self._get_roi_by_id(roi_id)
             if not source_roi:
                 logger.warning(f"Source ROI {roi_id} not found in image {source_index}")
                 return False
@@ -212,10 +209,7 @@ class ROISyncManager(QObject):
         """Sync all existing ROIs from primary to secondary image"""
         try:
             # Get existing ROIs from primary image
-            if hasattr(self.proj, "roi_manager"):
-                primary_rois = self.proj.roi_manager.getROIsForImage(primary_index)
-            else:
-                primary_rois = self.proj.getROIs(primary_index)
+            primary_rois = self.proj.roi_manager.getROIsForImage(primary_index)
 
             # Sync each ROI
             for roi in primary_rois:
@@ -225,17 +219,10 @@ class ROISyncManager(QObject):
         except Exception as e:
             logger.error(f"Error syncing existing ROIs: {e}")
 
-    def _get_roi_by_id(self, roi_id: str, image_index: int):
-        """Get an ROI by ID from a specific image"""
+    def _get_roi_by_id(self, roi_id: str):
+        """Get an ROI by ID"""
         try:
-            if hasattr(self.proj, "roi_manager"):
-                return self.proj.roi_manager.getROI(roi_id)
-            else:
-                # Fallback to legacy ROI access
-                rois = self.proj.getROIs(image_index)
-                for roi in rois:
-                    if hasattr(roi, "id") and roi.id == roi_id:
-                        return roi
+            return self.proj.roi_manager.getROI(roi_id)
         except Exception as e:
             logger.error(f"Error getting ROI {roi_id}: {e}")
 
@@ -319,15 +306,8 @@ class ROISyncManager(QObject):
     def _create_new_synced_roi(self, roi, target_index: int) -> Optional[str]:
         """Create a new synced ROI in the target image"""
         try:
-            if hasattr(self.proj, "roi_manager"):
-                # Use new ROI manager
-                roi_id = self.proj.roi_manager.addROI(target_index, roi)
-                return roi_id
-            else:
-                # Fallback to legacy ROI creation
-                # This would need to be implemented based on the legacy ROI system
-                logger.warning("Legacy ROI creation not implemented")
-                return None
+            roi_id = self.proj.roi_manager.addROI(roi, [target_index])
+            return roi_id
 
         except Exception as e:
             logger.error(f"Error creating new synced ROI: {e}")
@@ -338,14 +318,8 @@ class ROISyncManager(QObject):
     ) -> Optional[str]:
         """Update an existing synced ROI"""
         try:
-            if hasattr(self.proj, "roi_manager"):
-                # Update the existing ROI
-                success = self.proj.roi_manager.updateROI(synced_roi_id, roi)
-                return synced_roi_id if success else None
-            else:
-                # Fallback to legacy ROI update
-                logger.warning("Legacy ROI update not implemented")
-                return synced_roi_id
+            success = self.proj.roi_manager.updateROI(synced_roi_id, roi)
+            return synced_roi_id if success else None
 
         except Exception as e:
             logger.error(f"Error updating synced ROI {synced_roi_id}: {e}")
@@ -358,56 +332,14 @@ class ROISyncManager(QObject):
         if pair_key in self._roi_mappings:
             for source_roi_id, synced_roi_id in self._roi_mappings[pair_key].items():
                 try:
-                    if hasattr(self.proj, "roi_manager"):
-                        self.proj.roi_manager.removeROI(secondary_index, synced_roi_id)
-                    else:
-                        self._remove_roi_legacy(secondary_index, synced_roi_id)
+                    self.proj.roi_manager.removeROI(synced_roi_id)
                 except Exception as e:
                     logger.error(f"Error removing synced ROI {synced_roi_id}: {e}")
-
-    def _remove_roi_legacy(self, image_index: int, roi_id: str) -> bool:
-        """Legacy ROI removal method"""
-        try:
-            # This would need to be implemented based on the legacy ROI system
-            logger.warning(f"Legacy ROI removal not implemented for {roi_id}")
-            return False
-        except Exception as e:
-            logger.error(f"Error in legacy ROI removal: {e}")
-            return False
-
-    def _on_project_data_changed(self, index, change_type, change_modifier=None):
-        """Handle project data changes"""
-        if change_type == self.proj.ChangeType.ROI:
-            # ROI was added, updated, or removed
-            self._handle_roi_change(index, change_modifier)
-
-    def _handle_roi_change(self, image_index: int, change_modifier):
-        """Handle ROI changes for synchronization"""
-        try:
-            # Find all images linked to this one
-            linked_pairs = []
-            for pair_key, mapping in self._roi_mappings.items():
-                if image_index in pair_key:
-                    other_index = (
-                        pair_key[1] if pair_key[0] == image_index else pair_key[0]
-                    )
-                    linked_pairs.append(other_index)
-
-            # Sync changes to linked images
-            for target_index in linked_pairs:
-                # Get the latest ROIs and sync any new ones
-                self._sync_latest_rois(image_index, target_index)
-
-        except Exception as e:
-            logger.error(f"Error handling ROI change: {e}")
 
     def _sync_latest_rois(self, source_index: int, target_index: int):
         """Sync the latest ROIs from source to target"""
         try:
-            if hasattr(self.proj, "roi_manager"):
-                source_rois = self.proj.roi_manager.getROIsForImage(source_index)
-            else:
-                source_rois = self.proj.getROIs(source_index)
+            source_rois = self.proj.roi_manager.getROIsForImage(source_index)
 
             pair_key = self._get_pair_key(source_index, target_index)
             synced_roi_ids = set(self._roi_mappings.get(pair_key, {}).keys())

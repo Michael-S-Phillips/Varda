@@ -5,11 +5,11 @@ have created for an image
 """
 
 from .roi_viewmodel import ROIViewModel
-from .enhanced_roi_view import EnhancedROIView
+from .roi_view import ROIView
 
 
 def getROIView(proj, index, parent):
     """Sets up and returns an instance of ROIView."""
     viewModel = ROIViewModel(proj, index, parent)
-    view = EnhancedROIView(viewModel, parent)
+    view = ROIView(viewModel, parent)
     return view
