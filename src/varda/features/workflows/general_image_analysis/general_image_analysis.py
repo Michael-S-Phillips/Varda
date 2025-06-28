@@ -18,7 +18,7 @@ from varda.features.components.roi_drawing.raster_view_roi_adapter import (
 from varda.features.components.roi_drawing.roi_drawing_controller import (
     ROIDrawingConfig,
 )
-from varda.features.image_view_roi.enhanced_roi_view import getROIView
+from varda.features.image_view_roi import getROIView
 from varda.features.image_view_roi.roi_viewmodel import ROIViewModel
 
 logger = logging.getLogger(__name__)

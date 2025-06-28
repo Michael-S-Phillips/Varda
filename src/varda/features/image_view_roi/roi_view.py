@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor, QBrush, QAction
 
-from varda.core.entities.freehandROI import FreehandROI
+from varda.core.entities import ROI
 from .roi_viewmodel import ROIViewModel
 
 
@@ -149,8 +149,9 @@ class ROIPropertyEditor(QWidget):
 
     propertyChanged = pyqtSignal(int, str, object)  # ROI index, property name, value
 
-    def __init__(self, parent=None):
+    def __init__(self, roiManager, parent=None):
         super().__init__(parent)
+        self.roiManager = roiManager
         self.current_roi_index = None
 
         layout = QVBoxLayout()
@@ -222,7 +223,7 @@ class ROIPropertyEditor(QWidget):
         self.setLayout(layout)
         self.setEnabled(False)  # Disable until an ROI is selected
 
-    def set_roi(self, roi: FreehandROI, index: int):
+    def set_roi(self, roi: ROI, index: int):
         """Set the ROI to edit"""
         if roi is None:
             self.current_roi_index = None
@@ -248,11 +249,11 @@ class ROIPropertyEditor(QWidget):
         else:
             self.points_label.setText("0")
 
-        self.image_index_label.setText(str(roi.image_indices[0]))
+        self.image_index_label.setText(str(self.roiManager.getImagesForROI(roi.id)[0]))
 
         # Update statistics if available
-        if roi.mean_spectrum is not None:
-            mean_value = float(roi.mean_spectrum.mean())
+        if roi.meanSpectrum is not None:
+            mean_value = float(roi.meanSpectrum.mean())
             self.mean_label.setText(f"{mean_value:.4f}")
 
             # Std is not available in the current ROI class, so we'll set a placeholder
@@ -263,7 +264,7 @@ class ROIPropertyEditor(QWidget):
 
         self.blockSignals(False)
 
-    def update_color_button(self, color: str):
+    def update_color_button(self, color):
         """Update the color button with the given color"""
         if isinstance(color, str):
             qcolor = QColor(color)
@@ -425,7 +426,7 @@ class ROIView(QWidget):
         splitter.addWidget(self.roi_table)
 
         # Property editor
-        self.property_editor = ROIPropertyEditor(self)
+        self.property_editor = ROIPropertyEditor(self.viewModel.proj.roi_manager)
         splitter.addWidget(self.property_editor)
 
         # Set initial sizes

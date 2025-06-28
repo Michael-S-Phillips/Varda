@@ -190,6 +190,18 @@ class ROIManager:
         roi_ids = self.imageROIMap.get(imageIndex, [])
         return [self.rois[roiID] for roiID in roi_ids if roiID in self.rois]
 
+    def getImagesForROI(self, roiID: str) -> List[int]:
+        """
+        Get all images associated with an ROI
+
+        Args:
+            roiID: The ID of the ROI
+
+        Returns:
+            List of image indices associated with the ROI
+        """
+        return self.ROIImageMap.get(roiID, [])
+
     def associateROIWithImage(self, roiID: str, imageIndex: int) -> bool:
         """
         Associate an ROI with an image

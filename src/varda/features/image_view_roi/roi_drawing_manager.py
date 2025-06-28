@@ -186,7 +186,7 @@ class ROIDrawingManager(QObject):
             self.active_roi_selector.cancelDrawing()
 
         self._cleanupROIDrawingState()
-        
+
         # Temporarily disable navigation on main and zoom views
         self._disableNavigationForROIDrawing()
 
@@ -236,28 +236,32 @@ class ROIDrawingManager(QObject):
         """Clean up all ROI drawing state and restore normal operation"""
         # Remove event filters from all views
         self._removeEventFiltersFromAllViews()
-        
+
         # Restore navigation on main and zoom views
         self._restoreNavigationAfterROIDrawing()
-        
+
         # Make sure no views think they're in ROI drawing mode
         self._clearROIDrawingFlags()
-        
+
     def _disableNavigationForROIDrawing(self):
         """Temporarily disable navigation behavior on main and zoom views"""
         # Store original navigation state
         self._original_navigation_state = {}
-        
+
         if hasattr(self.raster_view, "mainView"):
             # Disable navigation on main view
-            self._original_navigation_state['mainView'] = getattr(self.raster_view.mainView, '_roi_drawing_disabled_nav', False)
+            self._original_navigation_state["mainView"] = getattr(
+                self.raster_view.mainView, "_roi_drawing_disabled_nav", False
+            )
             self.raster_view.mainView._roi_drawing_disabled_nav = True
-        
+
         if hasattr(self.raster_view, "zoomView"):
             # Disable navigation on zoom view
-            self._original_navigation_state['zoomView'] = getattr(self.raster_view.zoomView, '_roi_drawing_disabled_nav', False)
+            self._original_navigation_state["zoomView"] = getattr(
+                self.raster_view.zoomView, "_roi_drawing_disabled_nav", False
+            )
             self.raster_view.zoomView._roi_drawing_disabled_nav = True
-            
+
     def _enableROIDrawingOnViews(self):
         """Enable ROI drawing on all three views by installing event filters"""
         # Install event filters on all view scenes to detect where user starts drawing
@@ -265,12 +269,12 @@ class ROIDrawingManager(QObject):
             scene = self.raster_view.contextView.scene()
             if scene:
                 scene.installEventFilter(self)
-        
+
         if hasattr(self.raster_view, "mainView") and self.raster_view.mainView:
             scene = self.raster_view.mainView.scene()
             if scene:
                 scene.installEventFilter(self)
-        
+
         if hasattr(self.raster_view, "zoomView") and self.raster_view.zoomView:
             scene = self.raster_view.zoomView.scene()
             if scene:
@@ -286,24 +290,33 @@ class ROIDrawingManager(QObject):
                     # Start ROI drawing on the detected view
                     self._startROIOnSpecificView(view_type, event)
                     return True
-        
+
         return False
-    
+
     def _detectViewFromScene(self, scene):
         """Detect which view a scene belongs to"""
-        if hasattr(self.raster_view, "contextView") and self.raster_view.contextView.scene() == scene:
+        if (
+            hasattr(self.raster_view, "contextView")
+            and self.raster_view.contextView.scene() == scene
+        ):
             return "context"
-        elif hasattr(self.raster_view, "mainView") and self.raster_view.mainView.scene() == scene:
+        elif (
+            hasattr(self.raster_view, "mainView")
+            and self.raster_view.mainView.scene() == scene
+        ):
             return "main"
-        elif hasattr(self.raster_view, "zoomView") and self.raster_view.zoomView.scene() == scene:
+        elif (
+            hasattr(self.raster_view, "zoomView")
+            and self.raster_view.zoomView.scene() == scene
+        ):
             return "zoom"
         return None
-        
+
     def _startROIOnSpecificView(self, view_type, initial_event):
         """Start ROI drawing on a specific view"""
         # Remove event filters from all views since we now know which one to use
         self._removeEventFiltersFromAllViews()
-        
+
         # Get the next color
         color = self.roi_colors[self.next_color_index]
         self.next_color_index = (self.next_color_index + 1) % len(self.roi_colors)
@@ -331,7 +344,7 @@ class ROIDrawingManager(QObject):
 
         # Start drawing and process the initial mouse event
         self.active_roi_selector.draw()
-        
+
         # Forward the initial mouse event to start drawing immediately
         self.active_roi_selector.eventFilter(None, initial_event)
 
@@ -357,22 +370,24 @@ class ROIDrawingManager(QObject):
         """Set up ROI selector for the specified view type"""
         if view_type == "context":
             if hasattr(self.raster_view, "contextImage"):
-                self.active_roi_selector.setTargetImageItem(self.raster_view.contextImage)
+                self.active_roi_selector.setTargetImageItem(
+                    self.raster_view.contextImage
+                )
                 self.raster_view.contextView.addItem(self.active_roi_selector)
                 return True
-        
+
         elif view_type == "main":
             if hasattr(self.raster_view, "mainImage"):
                 self.active_roi_selector.setTargetImageItem(self.raster_view.mainImage)
                 self.raster_view.mainView.addItem(self.active_roi_selector)
                 return True
-        
+
         elif view_type == "zoom":
             if hasattr(self.raster_view, "zoomImage"):
                 self.active_roi_selector.setTargetImageItem(self.raster_view.zoomImage)
                 self.raster_view.zoomView.addItem(self.active_roi_selector)
                 return True
-        
+
         logger.error(f"Failed to set up ROI for {view_type} view")
         return False
 
@@ -384,7 +399,7 @@ class ROIDrawingManager(QObject):
         """Handle completion of ROI drawing with cleanup"""
         # Clean up event filters and restore navigation
         self._cleanupROIDrawingState()
-        
+
         # Reset active selector
         self.active_roi_selector = None
 
@@ -434,7 +449,6 @@ class ROIDrawingManager(QObject):
                 roi = ROI(
                     points=np.array(points),
                     geoPoints=np.array(geo_points) if geo_points else None,
-                    image_indices=[image_index],
                     color=color,
                     arraySlice=array_slice,
                     meanSpectrum=mean_spectrum,
@@ -451,7 +465,9 @@ class ROIDrawingManager(QObject):
                         self.view_model, "index"
                     ):
                         # If it's RasterViewModel, use the project context directly
-                        roi_id = self.view_model.proj.addROI(roi, [image_index])
+                        roi_id = self.view_model.proj.roi_manager.addROI(
+                            roi, [image_index]
+                        )
 
                     # Display the ROI
                     if roi_id:
@@ -472,14 +488,24 @@ class ROIDrawingManager(QObject):
 
     def _restoreNavigationAfterROIDrawing(self):
         """Restore original navigation behavior"""
-        if hasattr(self, '_original_navigation_state'):
-            if hasattr(self.raster_view, "mainView") and 'mainView' in self._original_navigation_state:
-                self.raster_view.mainView._roi_drawing_disabled_nav = self._original_navigation_state['mainView']
-            
-            if hasattr(self.raster_view, "zoomView") and 'zoomView' in self._original_navigation_state:
-                self.raster_view.zoomView._roi_drawing_disabled_nav = self._original_navigation_state['zoomView']
-            
-            delattr(self, '_original_navigation_state')
+        if hasattr(self, "_original_navigation_state"):
+            if (
+                hasattr(self.raster_view, "mainView")
+                and "mainView" in self._original_navigation_state
+            ):
+                self.raster_view.mainView._roi_drawing_disabled_nav = (
+                    self._original_navigation_state["mainView"]
+                )
+
+            if (
+                hasattr(self.raster_view, "zoomView")
+                and "zoomView" in self._original_navigation_state
+            ):
+                self.raster_view.zoomView._roi_drawing_disabled_nav = (
+                    self._original_navigation_state["zoomView"]
+                )
+
+            delattr(self, "_original_navigation_state")
 
     def _clearROIDrawingFlags(self):
         """Clear any ROI drawing flags on the views"""
@@ -489,7 +515,7 @@ class ROIDrawingManager(QObject):
                 view = getattr(self.raster_view, view_attr)
                 if view:
                     # Clear any drawing state flags
-                    if hasattr(view, '_roi_drawing_active'):
+                    if hasattr(view, "_roi_drawing_active"):
                         view._roi_drawing_active = False
 
     def onDrawingCanceled(self):
@@ -497,7 +523,7 @@ class ROIDrawingManager(QObject):
         # Clean up event filters
         self._removeEventFiltersFromAllViews()
         self._restoreNavigationAfterROIDrawing()
-        
+
         # Reset active selector
         self.active_roi_selector = None
         self.status_label.setText("ROI drawing canceled")
@@ -632,7 +658,7 @@ class ROIDrawingManager(QObject):
         elif hasattr(self.view_model, "proj"):
             # If it's RasterViewModel, use the project context directly
             return self.view_model.proj.roi_manager.getROI(roi_id)
-        
+
         return None
 
     def highlightROI(self, roi_id):

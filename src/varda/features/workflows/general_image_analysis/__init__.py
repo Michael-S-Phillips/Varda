@@ -1,1 +1,1 @@
-from .general_image_analysis import GeneralImageAnalysis
+from .general_image_analysis import GeneralImageAnalysisWorkflow
