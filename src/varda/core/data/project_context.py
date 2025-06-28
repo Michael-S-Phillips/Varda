@@ -963,8 +963,8 @@ class ProjectContext(QObject):
                     points=points,
                     image_indices=[index],
                     color=color,
-                    array_slice=getattr(roi, "arraySlice", None),
-                    mean_spectrum=getattr(roi, "meanSpectrum", None),
+                    arraySlice=getattr(roi, "arraySlice", None),
+                    meanSpectrum=getattr(roi, "meanSpectrum", None),
                 )
 
                 return self.add_roi(new_roi, [index])

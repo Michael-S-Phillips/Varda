@@ -106,7 +106,6 @@ class ROIManager:
         if imageIndices:
             for idx in imageIndices:
                 self.associateROIWithImage(roi.id, idx)
-                roi.add_image_index(idx)
 
         logger.info(f"Added ROI {roi.id} to manager")
         return roi.id
@@ -270,7 +269,7 @@ class ROIManager:
 
         # Initialize this column for all existing ROIs
         for roi in self.rois.values():
-            roi.custom_data.values[name] = None
+            roi.customData.values[name] = None
 
         logger.info(f"Added column '{name}' of type '{dataType}' to ROI table")
         return column
@@ -302,8 +301,8 @@ class ROIManager:
 
         # Remove this column's data from all ROIs
         for roi in self.rois.values():
-            if name in roi.custom_data.values:
-                del roi.custom_data.values[name]
+            if name in roi.customData.values:
+                del roi.customData.values[name]
 
         logger.info(f"Removed column '{name}' from ROI table")
         return True
@@ -367,7 +366,7 @@ class ROIManager:
                 try:
                     # Evaluate the formula for this ROI
                     result = self._evaluateFormula(col.formula, roi)
-                    roi.custom_data.values[col.name] = result
+                    roi.customData.values[col.name] = result
                 except Exception as e:
                     logger.error(f"Error calculating formula for {col.name}: {e}")
 

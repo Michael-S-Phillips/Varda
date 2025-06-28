@@ -4,6 +4,7 @@ from datetime import datetime
 import uuid
 from typing import List, Dict, Tuple, Optional, Any
 import logging
+import rasterio.transform
 
 logger = logging.getLogger(__name__)
 
@@ -42,36 +43,32 @@ class ROI:
         name: User-friendly name for the ROI
         points: Points defining the ROI in pixel coordinates [x, y]
         geo_points: Points in geographic coordinates (if available) [lon, lat]
-        image_indices: List of image indices this ROI is associated with
         color: RGBA color tuple (0-255 for each component)
-        line_width: Width of the ROI outline
+        lineWidth: Width of the ROI outline
         fill_opacity: Opacity of the ROI fill (0.0 to 1.0)
         visible: Whether the ROI is currently visible
-        creation_time: When the ROI was created
+        creationTime: When the ROI was created
         description: User description of the ROI
         metadata: Additional metadata about the ROI
-        array_slice: Extracted image data within the ROI (optional)
-        mean_spectrum: Mean spectral values within the ROI (optional)
-        custom_data: Custom user-defined data associated with the ROI
+        arraySlice: Extracted image data within the ROI (optional)
+        meanSpectrum: Mean spectral values within the ROI (optional)
+        customData: Custom user-defined data associated with the ROI
     """
 
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = "New ROI"
     points: np.ndarray = field(default_factory=lambda: np.array([]))
-    geo_points: Optional[np.ndarray] = None
-    image_indices: List[int] = field(
-        default_factory=list
-    )  # This should be a list by default
+    geoPoints: Optional[np.ndarray] = None
     color: Tuple[int, int, int, int] = (255, 0, 0, 128)  # RGBA
-    line_width: float = 1.0
-    fill_opacity: float = 0.5
+    lineWidth: float = 1.0
+    fillOpacity: float = 0.5
     visible: bool = True
-    creation_time: datetime = field(default_factory=datetime.now)
+    creationTime: datetime = field(default_factory=datetime.now)
     description: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)
-    array_slice: Optional[np.ndarray] = None
-    mean_spectrum: Optional[np.ndarray] = None
-    custom_data: ROICustomData = field(default_factory=ROICustomData)
+    arraySlice: Optional[np.ndarray] = None
+    meanSpectrum: Optional[np.ndarray] = None
+    customData: ROICustomData = field(default_factory=ROICustomData)
 
     def __post_init__(self):
         """Validate and initialize the ROI after creation"""
@@ -86,29 +83,19 @@ class ROI:
                 self.points = np.array([])
 
         # Same for geo_points
-        if self.geo_points is not None and not isinstance(self.geo_points, np.ndarray):
-            if isinstance(self.geo_points, list):
-                self.geo_points = np.array(self.geo_points)
+        if self.geoPoints is not None and not isinstance(self.geoPoints, np.ndarray):
+            if isinstance(self.geoPoints, list):
+                self.geoPoints = np.array(self.geoPoints)
             else:
                 logger.warning(
-                    f"Converting invalid geo_points type {type(self.geo_points)} to None"
+                    f"Converting invalid geo_points type {type(self.geoPoints)} to None"
                 )
-                self.geo_points = None
+                self.geoPoints = None
 
         # Ensure color is a valid RGBA tuple
         if not isinstance(self.color, tuple) or len(self.color) != 4:
             logger.warning(f"Invalid color {self.color}, using default")
             self.color = (255, 0, 0, 128)
-
-        # Ensure image_indices is a list
-        if not isinstance(self.image_indices, list):
-            logger.warning(
-                f"Converting image_indices from {type(self.image_indices)} to list"
-            )
-            if self.image_indices is None:
-                self.image_indices = []
-            else:
-                self.image_indices = [self.image_indices]
 
     def get_pixel_points(self):
         """Get the ROI points in pixel coordinates"""
@@ -116,23 +103,13 @@ class ROI:
 
     def get_geo_points(self):
         """Get the ROI points in geographic coordinates"""
-        return self.geo_points
+        return self.geoPoints
 
     def set_geo_points(self, geo_points):
         """Set the geographic coordinates for this ROI"""
         if isinstance(geo_points, list):
             geo_points = np.array(geo_points)
-        self.geo_points = geo_points
-
-    def add_image_index(self, image_index):
-        """Associate this ROI with an image index"""
-        if image_index not in self.image_indices:
-            self.image_indices.append(image_index)
-
-    def remove_image_index(self, image_index):
-        """Remove association with an image index"""
-        if image_index in self.image_indices:
-            self.image_indices.remove(image_index)
+        self.geoPoints = geo_points
 
     def update_color(self, color):
         """Update the ROI color"""
@@ -140,7 +117,7 @@ class ROI:
 
     def update_opacity(self, op):
         # update fill opacity (to hide roi)
-        self.fill_opacity = op
+        self.fillOpacity = op
 
     def update_properties(self, **kwargs):
         """Update multiple ROI properties at once"""
@@ -152,11 +129,11 @@ class ROI:
 
     def get_custom_value(self, column_name, default=None):
         """Get a custom data value by column name"""
-        return self.custom_data.values.get(column_name, default)
+        return self.customData.values.get(column_name, default)
 
     def set_custom_value(self, column_name, value):
         """Set a custom data value"""
-        self.custom_data.values[column_name] = value
+        self.customData.values[column_name] = value
 
     def pixel_to_geo(self, transform):
         """
@@ -172,7 +149,6 @@ class ROI:
             return None
 
         try:
-            import rasterio.transform
 
             # Convert points using the geotransform
             geo_x, geo_y = [], []
@@ -183,8 +159,8 @@ class ROI:
                 geo_x.append(geo_coord[0])
                 geo_y.append(geo_coord[1])
 
-            self.geo_points = np.array([geo_x, geo_y])
-            return self.geo_points
+            self.geoPoints = np.array([geo_x, geo_y])
+            return self.geoPoints
         except Exception as e:
             logger.error(f"Error converting to geo coordinates: {e}")
             return None
@@ -196,42 +172,39 @@ class ROI:
             self.points.tolist() if isinstance(self.points, np.ndarray) else []
         )
         geo_points_list = (
-            self.geo_points.tolist()
-            if isinstance(self.geo_points, np.ndarray)
-            else None
+            self.geoPoints.tolist() if isinstance(self.geoPoints, np.ndarray) else None
         )
 
         # Convert array_slice and mean_spectrum to lists if they exist
         array_slice_list = None
-        if self.array_slice is not None:
-            if isinstance(self.array_slice, np.ndarray):
-                array_slice_list = self.array_slice.tolist()
+        if self.arraySlice is not None:
+            if isinstance(self.arraySlice, np.ndarray):
+                array_slice_list = self.arraySlice.tolist()
             else:
-                array_slice_list = self.array_slice
+                array_slice_list = self.arraySlice
 
         mean_spectrum_list = None
-        if self.mean_spectrum is not None:
-            if isinstance(self.mean_spectrum, np.ndarray):
-                mean_spectrum_list = self.mean_spectrum.tolist()
+        if self.meanSpectrum is not None:
+            if isinstance(self.meanSpectrum, np.ndarray):
+                mean_spectrum_list = self.meanSpectrum.tolist()
             else:
-                mean_spectrum_list = self.mean_spectrum
+                mean_spectrum_list = self.meanSpectrum
 
         return {
             "id": self.id,
             "name": self.name,
             "points": points_list,
             "geo_points": geo_points_list,
-            "image_indices": self.image_indices,
             "color": self.color,
-            "line_width": self.line_width,
-            "fill_opacity": self.fill_opacity,
+            "line_width": self.lineWidth,
+            "fill_opacity": self.fillOpacity,
             "visible": self.visible,
-            "creation_time": self.creation_time.isoformat(),
+            "creation_time": self.creationTime.isoformat(),
             "description": self.description,
             "metadata": self.metadata,
             "array_slice": array_slice_list,
             "mean_spectrum": mean_spectrum_list,
-            "custom_data": self.custom_data.serialize(),
+            "custom_data": self.customData.serialize(),
         }
 
     @classmethod
@@ -275,18 +248,17 @@ class ROI:
             id=data.get("id", str(uuid.uuid4())),
             name=data.get("name", "ROI"),
             points=points,
-            geo_points=geo_points,
-            image_indices=image_indices,
+            geoPoints=geo_points,
             color=data.get("color", (255, 0, 0, 128)),
-            line_width=data.get("line_width", 2.0),
-            fill_opacity=data.get("fill_opacity", 0.5),
+            lineWidth=data.get("line_width", 2.0),
+            fillOpacity=data.get("fill_opacity", 0.5),
             visible=data.get("visible", True),
-            creation_time=creation_time,
+            creationTime=creation_time,
             description=data.get("description", ""),
             metadata=data.get("metadata", {}),
-            array_slice=array_slice,
-            mean_spectrum=mean_spectrum,
-            custom_data=custom_data,
+            arraySlice=array_slice,
+            meanSpectrum=mean_spectrum,
+            customData=custom_data,
         )
 
     def __str__(self):

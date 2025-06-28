@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import QWidget, QToolBar, QVBoxLayout
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 
+
 class ROIMode:
     """Enum to define different ROI drawing modes"""
 
@@ -10,8 +11,11 @@ class ROIMode:
     ELLIPSE = 2
     POLYGON = 3  # Click-by-click polygon
 
+
 class ROIToolbarWidget(QWidget):
-    def __init__(self, status_label, setDrawingMode, showAllROIs, hideAllROIs, parent=None):
+    def __init__(
+        self, status_label, setDrawingMode, showAllROIs, hideAllROIs, parent=None
+    ):
         super().__init__(parent)
         self.status_label = status_label
         self.setDrawingMode = setDrawingMode
@@ -78,3 +82,20 @@ class ROIToolbarWidget(QWidget):
         layout.addWidget(self.toolbar)
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
+
+    def setDrawingMode(self, mode):
+        """Set the current ROI drawing mode"""
+        self.draw_mode = mode
+
+        # Update action checkboxes
+        for action in self.draw_mode_actions:
+            action.setChecked(False)
+        self.draw_mode_actions[mode].setChecked(True)
+
+        # Update status message
+        mode_names = ["Freehand", "Rectangle", "Ellipse", "Polygon"]
+        self.status_label.setText(f"Drawing Mode: {mode_names[mode]}")
+
+        # Update active ROI selector if any
+        if self.active_roi_selector:
+            self.active_roi_selector.setMode(mode)

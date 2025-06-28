@@ -98,7 +98,7 @@ def _evaluateFormula(formula: str, roi: ROI) -> Any:
     }
 
     # Add custom data
-    for key, value in roi.custom_data.values.items():
+    for key, value in roi.customData.values.items():
         if isinstance(key, str) and key.isidentifier():
             env[key] = value
 

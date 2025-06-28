@@ -251,8 +251,8 @@ class ROIPropertyEditor(QWidget):
         self.image_index_label.setText(str(roi.image_indices[0]))
 
         # Update statistics if available
-        if roi.mean_spectrum is not None:
-            mean_value = float(roi.mean_spectrum.mean())
+        if roi.meanSpectrum is not None:
+            mean_value = float(roi.meanSpectrum.mean())
             self.mean_label.setText(f"{mean_value:.4f}")
 
             # Std is not available in the current ROI class, so we'll set a placeholder
@@ -506,14 +506,14 @@ class EnhancedROIView(QWidget):
             else:
                 item.setText("0")
         elif column_name == "Geospatial Points":
-            if roi.geo_points is not None:
-                item.setText(str(roi.geo_points))
+            if roi.geoPoints is not None:
+                item.setText(str(roi.geoPoints))
             else:
                 item.setText("Not availible")
         elif column_name == "Image Index":
             item.setText(str(self.viewModel.imageIndex))
         elif column_name == "Mean Spectrum":
-            if roi.mean_spectrum is not None:
+            if roi.meanSpectrum is not None:
                 item.setText("Available")
             else:
                 item.setText("Not calculated")
@@ -639,7 +639,7 @@ class EnhancedROIView(QWidget):
             roi = rois[roi_index]
 
             # Check if spectrum is available
-            if not hasattr(roi, "mean_spectrum") or roi.mean_spectrum is None:
+            if not hasattr(roi, "mean_spectrum") or roi.meanSpectrum is None:
                 QMessageBox.warning(
                     self,
                     "No Spectrum",
@@ -667,9 +667,7 @@ class EnhancedROIView(QWidget):
             coords_label = (
                 f"ROI {roi.name}" if hasattr(roi, "name") else f"ROI {roi_index}"
             )
-            self.pixelPlotWindow.updatePlot(
-                wavelengths, roi.mean_spectrum, coords_label
-            )
+            self.pixelPlotWindow.updatePlot(wavelengths, roi.meanSpectrum, coords_label)
             self.pixelPlotWindow.show()
             self.pixelPlotWindow.raise_()  # Bring to front
 
@@ -848,7 +846,7 @@ class EnhancedROIView(QWidget):
             (
                 "Created",
                 (
-                    roi.creation_time.strftime("%Y-%m-%d %H:%M:%S")
+                    roi.creationTime.strftime("%Y-%m-%d %H:%M:%S")
                     if hasattr(roi, "creation_time")
                     else "Unknown"
                 ),

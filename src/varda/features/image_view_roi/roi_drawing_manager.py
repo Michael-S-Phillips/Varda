@@ -300,11 +300,11 @@ class ROIDrawingManager(QObject):
                 # Create the ROI object
                 roi = ROI(
                     points=np.array(points),
-                    geo_points=np.array(geo_points) if geo_points else None,
+                    geoPoints=np.array(geo_points) if geo_points else None,
                     image_indices=[image_index],
                     color=color,
-                    array_slice=array_slice,
-                    mean_spectrum=mean_spectrum,
+                    arraySlice=array_slice,
+                    meanSpectrum=mean_spectrum,
                 )
 
                 # Add the ROI to the project context

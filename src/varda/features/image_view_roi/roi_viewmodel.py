@@ -154,8 +154,8 @@ class ROIViewModel(QObject):
     def addRoiCustomField(self, roi_id, field_name, value):
         """Add a custom field to an ROI"""
         roi = self.getRoi(roi_id)
-        if roi and hasattr(roi, "custom_data") and hasattr(roi.custom_data, "values"):
-            roi.custom_data.values[field_name] = value
+        if roi and hasattr(roi, "custom_data") and hasattr(roi.customData, "values"):
+            roi.customData.values[field_name] = value
             self.roiUpdated.emit(roi_id)
             return True
         return False
@@ -227,7 +227,7 @@ class ROIViewModel(QObject):
         try:
             # Get the ROI
             roi = self.viewModel.getROI(roi_id)
-            if not roi or roi.mean_spectrum is None:
+            if not roi or roi.meanSpectrum is None:
                 QMessageBox.warning(
                     self,
                     "No Spectrum",
@@ -247,7 +247,7 @@ class ROIViewModel(QObject):
 
             # Update the plot with ROI data
             self.pixelPlotWindow.updatePlot(
-                wavelengths, roi.mean_spectrum, f"ROI {roi.name}"
+                wavelengths, roi.meanSpectrum, f"ROI {roi.name}"
             )
             self.pixelPlotWindow.show()
             self.pixelPlotWindow.raise_()  # Bring to front
@@ -280,8 +280,8 @@ class ROIViewModel(QObject):
             roi.statistics = stats.get_summary()
         else:
             # For older ROI objects, store in custom_data
-            if hasattr(roi, "custom_data") and hasattr(roi.custom_data, "values"):
-                roi.custom_data.values["statistics"] = stats.get_summary()
+            if hasattr(roi, "custom_data") and hasattr(roi.customData, "values"):
+                roi.customData.values["statistics"] = stats.get_summary()
 
         # Signal that the ROI has been updated
         self.roiUpdated.emit(roi_id)
