@@ -123,7 +123,7 @@ def setConfigurations() -> None:
     This function can be used to set up default configurations, load user preferences,
     or apply any other necessary settings before starting the application.
     """
-    pg.setConfigOptions(imageAxisOrder="row-major", background="w")
+    pg.setConfigOptions(imageAxisOrder="row-major")
 
 
 def startGUI() -> NoReturn:
