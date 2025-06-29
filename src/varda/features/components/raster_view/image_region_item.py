@@ -25,21 +25,15 @@ class ImageRegionItem(pg.ImageItem):
         # tried naming self.image but ImageItem already has an image property and so stuff broke lol
         self.imageEntity = image
         self.region = region
-
+        self.imageRegion = None
         self.band = Band.createDefault()
         self.stretch = None
 
-        # set the image data
-        if region is None:
-            # if no region is set, use the full image size
-            self.setRegion(
-                pg.RectROI([0, 0], [image.metadata.width, image.metadata.height])
-            )
-        else:
-            self.setRegion(region)
-
-    def setRegion(self, region: pg.ROI):
+    def setRegion(self, region: pg.ROI, sourceImageItem: "ImageRegionItem"):
         """Set the region of interest for zooming."""
+        self.imageRegion, coords = region.getArrayRegion(
+            sourceImageItem.image, sourceImageItem, returnMappedCoords=True
+        )
         self.region = region
 
         self._updateImage()

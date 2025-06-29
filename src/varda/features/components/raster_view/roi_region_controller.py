@@ -1,6 +1,5 @@
 import logging
 
-from PyQt6 import QtCore
 from PyQt6.QtCore import QObject, QEvent, Qt
 import pyqtgraph as pg
 
