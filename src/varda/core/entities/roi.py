@@ -2,11 +2,21 @@ from dataclasses import dataclass, field
 import numpy as np
 from datetime import datetime
 import uuid
+from enum import Enum
 from typing import List, Dict, Tuple, Optional, Any
 import logging
 import rasterio.transform
 
 logger = logging.getLogger(__name__)
+
+
+class ROIMode(Enum):
+    """Enum to define different ROI drawing modes"""
+
+    FREEHAND = 0
+    RECTANGLE = 1
+    ELLIPSE = 2
+    POLYGON = 3  # Click-by-click polygon
 
 
 @dataclass
@@ -41,11 +51,12 @@ class ROI:
     Attributes:
         id: Unique identifier for the ROI
         name: User-friendly name for the ROI
+        mode: Drawing mode for the ROI (e.g., freehand, rectangle)
         points: Points defining the ROI in pixel coordinates [x, y]
-        geo_points: Points in geographic coordinates (if available) [lon, lat]
+        geoPoints: Points in geographic coordinates (if available) [lon, lat]
         color: RGBA color tuple (0-255 for each component)
         lineWidth: Width of the ROI outline
-        fill_opacity: Opacity of the ROI fill (0.0 to 1.0)
+        fillOpacity: Opacity of the ROI fill (0.0 to 1.0)
         visible: Whether the ROI is currently visible
         creationTime: When the ROI was created
         description: User description of the ROI
@@ -57,6 +68,8 @@ class ROI:
 
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = "New ROI"
+    mode: ROIMode = ROIMode.FREEHAND
+    sourceImageIndex: int = -1
     points: np.ndarray = field(default_factory=lambda: np.array([]))
     geoPoints: Optional[np.ndarray] = None
     color: Tuple[int, int, int, int] = (255, 0, 0, 128)  # RGBA

@@ -465,7 +465,7 @@ class ROIDrawingManager(QObject):
                         self.view_model, "index"
                     ):
                         # If it's RasterViewModel, use the project context directly
-                        roi_id = self.view_model.proj.roi_manager.addROI(
+                        roi_id = self.view_model.proj.roiManager.addROI(
                             roi, [image_index]
                         )
 
@@ -657,7 +657,7 @@ class ROIDrawingManager(QObject):
             return self.view_model.getRoi(roi_id)
         elif hasattr(self.view_model, "proj"):
             # If it's RasterViewModel, use the project context directly
-            return self.view_model.proj.roi_manager.getROI(roi_id)
+            return self.view_model.proj.roiManager.getROI(roi_id)
 
         return None
 

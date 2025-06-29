@@ -742,7 +742,8 @@ class MainGUI(QtWidgets.QMainWindow):
         ):
             print(f"New image added at index {index}")
         if not hasattr(self, "testWorkflow"):
-            self.testWorkflow = varda.features.workflows.GeneralImageAnalysis()
+            self.testWorkflow = varda.features.workflows.GeneralImageAnalysisWorkflow()
+            self.testWorkflow.show()
 
     # TODO: Delete?
     def trackPixelPlotWindow(self, window):

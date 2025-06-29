@@ -1,18 +1,362 @@
-from PyQt6.QtCore import pyqtSignal, QPointF, QRectF, Qt, QPoint
-import pyqtgraph as pg
+from PyQt6.QtCore import pyqtSignal, QObject, QPointF, QRectF, Qt
 import numpy as np
 import logging
+
+import pyqtgraph as pg
+
+from varda.core.entities import ROI, ROIMode, Image
+from varda.app.services import roi_utils, image_utils
 
 logger = logging.getLogger(__name__)
 
 
-class ROIMode:
-    """Enum to define different ROI drawing modes"""
+class BaseROIDrawingTool(QObject):
+    """
+    Base class for ROI drawing tools.
 
-    FREEHAND = 0
-    RECTANGLE = 1
-    ELLIPSE = 2
-    POLYGON = 3  # Click-by-click polygon
+    Each tool is an event filter that can be installed on viewports to capture
+    drawing interactions. Tools only record points and emit signals - they don't
+    handle display/rendering.
+    """
+
+    # Signals
+    sigPointsUpdated = pyqtSignal(object)  # Emits ROI data during drawing
+    sigDrawingComplete = pyqtSignal(object)  # Emits final ROI data
+    sigDrawingCanceled = pyqtSignal()  # Emits when drawing is canceled
+
+    def __init__(self, image: Image, targetImageItem: pg.ImageItem):
+        super().__init__()
+        self.isDrawing = False
+        self.points = [[], []]
+        self.image = image
+        self.targetImageItem = targetImageItem
+        self.roiEntity = ROI(sourceImageIndex=image.index)
+        self.ROIItem = roi_utils.VardaROI(self.roiEntity)
+
+    def startDrawing(self):
+        """Start the drawing process"""
+        self.isDrawing = True
+        self.points = [[], []]  # Reset points
+
+    def updateDrawing(self):
+        """drawing process has updated"""
+        self.sigPointsUpdated.emit(self)
+
+    def cancelDrawing(self):
+        """Cancel the current drawing operation"""
+        self.isDrawing = False
+        self.points = [[], []]
+        self.sigDrawingCanceled.emit()
+
+    def completeDrawing(self):
+        """Complete the drawing and emit result"""
+        if not self.points or len(self.points[0]) < 3:
+            self.cancelDrawing()
+            return
+
+        self.isDrawing = False
+
+        # Calculate geo coordinates if transform is available
+        geoPoints = (
+            image_utils.transformPixelToGeoCoord(
+                self.image, self.points[0][0], self.points[1][0]
+            )
+            if self.image.metadata.hasGeospatialData
+            else None
+        )
+
+        self.roiEntity.points = np.array(self.points)
+        self.roiEntity.geoPoints = np.array(geoPoints)
+        self.sigDrawingComplete.emit(self)
+
+    def getMode(self):
+        """Return the drawing mode - to be implemented by subclasses"""
+        raise NotImplementedError
+
+    def _mapPosition(self, scene_pos):
+        """Map scene position to image coordinates"""
+        return self.targetImageItem.mapFromScene(scene_pos)
+
+    def eventFilter(self, obj, event):
+        """Handle events - to be implemented by subclasses"""
+        return False
+
+
+class FreehandDrawingTool(BaseROIDrawingTool):
+    """Tool for freehand ROI drawing"""
+
+    def getMode(self):
+        return ROIMode.FREEHAND
+
+    def eventFilter(self, obj, event):
+        if not self.isDrawing:
+            return False
+
+        # Handle key presses
+        if event.type() == event.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Escape:
+                self.cancelDrawing()
+                return True
+
+        # Handle mouse events
+        elif event.type() == event.Type.GraphicsSceneMousePress:
+            if event.button() == Qt.MouseButton.LeftButton:
+                pos = self._mapPosition(event.scenePos())
+                self.points = [[pos.x()], [pos.y()]]
+                self.updateDrawing()
+                return True
+            elif event.button() == Qt.MouseButton.RightButton:
+                self.cancelDrawing()
+                return True
+
+        elif event.type() == event.Type.GraphicsSceneMouseMove:
+            if self.points and len(self.points[0]) > 0:
+                pos = self._mapPosition(event.scenePos())
+                self.points[0].append(pos.x())
+                self.points[1].append(pos.y())
+                self.updateDrawing()
+                return True
+
+        elif event.type() == event.Type.GraphicsSceneMouseRelease:
+            if event.button() == Qt.MouseButton.LeftButton:
+                if len(self.points[0]) >= 3:
+                    self.completeDrawing()
+                else:
+                    self.cancelDrawing()
+                return True
+
+        return False
+
+
+class RectangleDrawingTool(BaseROIDrawingTool):
+    """Tool for rectangle ROI drawing"""
+
+    def __init__(self, image: Image, targetImageItem: pg.ImageItem):
+        super().__init__(image, targetImageItem)
+        self.startPoint = None
+
+    def getMode(self):
+        return ROIMode.RECTANGLE
+
+    def startDrawing(self):
+        super().startDrawing()
+        self.startPoint = None
+
+    def _rect_to_points(self, rect):
+        """Convert QRectF to point arrays"""
+        x1, y1, x2, y2 = rect.getCoords()
+        return [
+            [x1, x2, x2, x1],  # x-coordinates
+            [y1, y1, y2, y2],  # y-coordinates
+        ]
+
+    def eventFilter(self, obj, event):
+        if not self.isDrawing:
+            return False
+
+        # Handle key presses
+        if event.type() == event.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Escape:
+                self.cancelDrawing()
+                return True
+
+        # Handle mouse events
+        elif event.type() == event.Type.GraphicsSceneMousePress:
+            if event.button() == Qt.MouseButton.LeftButton:
+                pos = self._mapPosition(event.scenePos())
+                self.startPoint = pos
+                self.points = self._rect_to_points(QRectF(pos, pos))
+                self.updateDrawing()
+                return True
+            elif event.button() == Qt.MouseButton.RightButton:
+                self.cancelDrawing()
+                return True
+
+        elif event.type() == event.Type.GraphicsSceneMouseMove:
+            if self.startPoint is not None:
+                pos = self._mapPosition(event.scenePos())
+                rect = QRectF(self.startPoint, pos).normalized()
+                self.points = self._rect_to_points(rect)
+                self.updateDrawing()
+                return True
+
+        elif event.type() == event.Type.GraphicsSceneMouseRelease:
+            if (
+                event.button() == Qt.MouseButton.LeftButton
+                and self.startPoint is not None
+            ):
+                pos = self._mapPosition(event.scenePos())
+                rect = QRectF(self.startPoint, pos).normalized()
+                if rect.width() > 5 and rect.height() > 5:
+                    self.points = self._rect_to_points(rect)
+                    self.completeDrawing()
+                else:
+                    self.cancelDrawing()
+                return True
+
+        return False
+
+
+class EllipseDrawingTool(BaseROIDrawingTool):
+    """Tool for ellipse ROI drawing"""
+
+    def __init__(self, image: Image, targetImageItem: pg.ImageItem):
+        super().__init__(image, targetImageItem)
+        self.startPoint = None
+
+    def getMode(self):
+        return ROIMode.ELLIPSE
+
+    def startDrawing(self):
+        super().startDrawing()
+        self.startPoint = None
+
+    def _ellipseToPoints(self, rect, num_points=36):
+        """Convert QRectF to ellipse point arrays"""
+        center_x = rect.center().x()
+        center_y = rect.center().y()
+        radius_x = rect.width() / 2
+        radius_y = rect.height() / 2
+
+        theta = np.linspace(0, 2 * np.pi, num_points)
+        x = center_x + radius_x * np.cos(theta)
+        y = center_y + radius_y * np.sin(theta)
+
+        return [x.tolist(), y.tolist()]
+
+    def eventFilter(self, obj, event):
+        if not self.isDrawing:
+            return False
+
+        # Handle key presses
+        if event.type() == event.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Escape:
+                self.cancelDrawing()
+                return True
+
+        # Handle mouse events
+        elif event.type() == event.Type.GraphicsSceneMousePress:
+            if event.button() == Qt.MouseButton.LeftButton:
+                pos = self._mapPosition(event.scenePos())
+                self.startPoint = pos
+                self.points = self._ellipseToPoints(QRectF(pos, pos))
+                self.updateDrawing()
+                return True
+            elif event.button() == Qt.MouseButton.RightButton:
+                self.cancelDrawing()
+                return True
+
+        elif event.type() == event.Type.GraphicsSceneMouseMove:
+            if self.startPoint is not None:
+                pos = self._mapPosition(event.scenePos())
+                rect = QRectF(self.startPoint, pos).normalized()
+                self.points = self._ellipseToPoints(rect)
+                self.updateDrawing()
+                return True
+
+        elif event.type() == event.Type.GraphicsSceneMouseRelease:
+            if (
+                event.button() == Qt.MouseButton.LeftButton
+                and self.startPoint is not None
+            ):
+                pos = self._mapPosition(event.scenePos())
+                rect = QRectF(self.startPoint, pos).normalized()
+                if rect.width() > 5 and rect.height() > 5:
+                    self.points = self._ellipseToPoints(rect)
+                    self.completeDrawing()
+                else:
+                    self.cancelDrawing()
+                return True
+
+        return False
+
+
+class PolygonDrawingTool(BaseROIDrawingTool):
+    """Tool for polygon ROI drawing (click-by-click)"""
+
+    def __init__(self, image: Image, targetImageItem: pg.ImageItem):
+        super().__init__(image, targetImageItem)
+        self.tempPoint = None
+
+    def getMode(self):
+        return ROIMode.POLYGON
+
+    def startDrawing(self):
+        super().startDrawing()
+        self.tempPoint = None
+
+    def eventFilter(self, obj, event):
+        if not self.isDrawing:
+            return False
+
+        # Handle key presses
+        if event.type() == event.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Escape:
+                self.cancelDrawing()
+                return True
+            elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                if len(self.points[0]) >= 3:
+                    self.completeDrawing()
+                return True
+            elif event.key() == Qt.Key.Key_Backspace:
+                if len(self.points[0]) > 0:
+                    self.points[0].pop()
+                    self.points[1].pop()
+                    self.updateDrawing()
+                return True
+
+        # Handle mouse events
+        elif event.type() == event.Type.GraphicsSceneMousePress:
+            if event.button() == Qt.MouseButton.LeftButton:
+                pos = self._mapPosition(event.scenePos())
+                self.points[0].append(pos.x())
+                self.points[1].append(pos.y())
+                self.updateDrawing()
+                return True
+            elif event.button() == Qt.MouseButton.RightButton:
+                self.cancelDrawing()
+                return True
+
+        elif event.type() == event.Type.GraphicsSceneMouseDoubleClick:
+            if event.button() == Qt.MouseButton.LeftButton:
+                if len(self.points[0]) >= 3:
+                    self.completeDrawing()
+                return True
+
+        elif event.type() == event.Type.GraphicsSceneMouseMove:
+            pos = self._mapPosition(event.scenePos())
+            self.tempPoint = pos
+            # Emit current points with temp point for preview
+            if len(self.points[0]) > 0:
+                preview_points = [
+                    self.points[0] + [pos.x()],
+                    self.points[1] + [pos.y()],
+                ]
+                self.updateDrawing()
+            return True
+
+        return False
+
+
+class ROIDrawingToolFactory:
+    """Factory class to create appropriate drawing tools"""
+
+    @staticmethod
+    def createTool(mode, image: Image, targetImageItem: pg.ImageItem):
+        """Create a drawing tool for the specified mode"""
+        if mode == ROIMode.FREEHAND:
+            return FreehandDrawingTool(image, targetImageItem)
+        elif mode == ROIMode.RECTANGLE:
+            return RectangleDrawingTool(image, targetImageItem)
+        elif mode == ROIMode.ELLIPSE:
+            return EllipseDrawingTool(image, targetImageItem)
+        elif mode == ROIMode.POLYGON:
+            return PolygonDrawingTool(image, targetImageItem)
+        else:
+            raise ValueError(f"Unknown ROI mode: {mode}")
+
+
+from PyQt6.QtCore import pyqtSignal, QPointF, QRectF, Qt, QPoint
 
 
 class ROIDrawingObject(pg.GraphicsObject):

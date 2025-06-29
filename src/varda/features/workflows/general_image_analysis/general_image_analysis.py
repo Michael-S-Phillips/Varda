@@ -18,8 +18,10 @@ from varda.features.components.roi_drawing.raster_view_roi_adapter import (
 from varda.features.components.roi_drawing.roi_drawing_controller import (
     ROIDrawingConfig,
 )
+from varda.features.components.band_management.band_manager import BandManager
 from varda.features.image_view_roi import getROIView
 from varda.features.image_view_roi.roi_viewmodel import ROIViewModel
+from varda.features.components.raster_view.triple_raster_view import TripleRasterView
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +57,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.stretchView = None
 
         # Initialize UI and connections
-        self.initComponents()
+        self._initComponents()
         self.initUI()
         self.connectWorkflowSignals()
 
@@ -65,18 +67,17 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             f"General Image Analysis Workflow initialized for image {imageIndex}"
         )
 
-    def initComponents(self):
+    def _initComponents(self):
         """Initialize all workflow components"""
 
         # Initialize raster view
+        self.tripleRasterView = TripleRasterView(self.imageIndex, self.project, self)
         self.rasterView = varda.features.image_view_raster.getRasterView(
             self.project, self.imageIndex, self
         )
 
         # Initialize band selection view
-        self.bandView = varda.features.image_view_band.getBandView(
-            self.project, self.imageIndex, self
-        )
+        self.bandView = BandManager(self.project, self.imageIndex, self)
 
         # Initialize stretch controls
         self.stretchView = varda.features.image_view_stretch.StretchManager(
@@ -106,7 +107,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.setWindowTitle(f"General Image Analysis - Image {self.imageIndex}")
 
         # Set the raster view as the central widget
-        self.setCentralWidget(self.rasterView)
+        self.setCentralWidget(self.tripleRasterView)
 
         # Create dock widgets for controls
         self.setupDockWidgets()

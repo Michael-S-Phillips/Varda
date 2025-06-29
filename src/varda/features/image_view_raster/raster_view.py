@@ -36,11 +36,11 @@ class NavigableViewBox(pg.ViewBox):
 
     def mouseDragEvent(self, ev, axis=None):
         """Override mouse drag to implement image navigation instead of view panning"""
-        if getattr(self, '_roi_drawing_disabled_nav', False):
+        if getattr(self, "_roi_drawing_disabled_nav", False):
             # Let the event pass through to ROI drawing instead of handling navigation
             super().mouseDragEvent(ev, axis)
             return
-        
+
         if ev.button() == QtCore.Qt.MouseButton.LeftButton:
             if ev.isStart():
                 self._drag_start_pos = ev.pos()
@@ -1472,7 +1472,7 @@ class RasterView(QWidget):
                     )
 
                     # add points to main polygon, clamping to bounds
-                    mainImageCoords = self.mainImage.getLocalCoords(QPointF(x, y))
+                    mainImageCoords = self.mainImage.absoluteToLocal(QPointF(x, y))
                     polygonForMain.append(pg.Qt.QtCore.QPointF(mainImageCoords))
                     logger.debug(
                         "Adding point to polygon for main: ({}, {})".format(

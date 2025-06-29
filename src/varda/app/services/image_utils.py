@@ -9,7 +9,8 @@ from varda.core.entities import Image, Stretch, Band
 
 logger = logging.getLogger(__name__)
 
-def getRasterFromBand(image: Image, band: Band):
+
+def getRasterFromBand(image: Image | np.ndarray, band: Band):
     """Get a subset of the raster data for RGB display.
 
     Creates a 3-band subset of the raster data based on the RGB channels
@@ -21,7 +22,12 @@ def getRasterFromBand(image: Image, band: Band):
 
     try:
         # Get the RGB bands from the raster data
-        rgb_data = image.raster[:, :, [band.r, band.g, band.b]]
+        if isinstance(image, Image):
+            rgb_data = image.raster[:, :, [band.r, band.g, band.b]]
+        elif isinstance(image, np.ndarray):
+            rgb_data = image[:, :, [band.r, band.g, band.b]]
+        else:
+            raise TypeError("image input must be an Image entity or a numpy ndarray.")
 
         # Handle any out-of-range values
         if np.isnan(rgb_data).any():
@@ -32,15 +38,17 @@ def getRasterFromBand(image: Image, band: Band):
 
         return rgb_data
     except IndexError as e:
-        logger.error(f"Error extracting RGB bands: {e}")
+        logger.error(f"Error extracting RGB bands", exc_info=e)
         # Return a placeholder if there's an error
-        h, w = image.raster.shape[0:2]
+        if isinstance(image, Image):
+            h, w = image.raster.shape[0:2]
+        else:
+            h, w = image.shape[0:2]
+
         return np.zeros((h, w, 3))
 
 
-def transformPixelToGeoCoord(
-    image: Image, px: int, py: int
-) -> tuple[float, float]:
+def transformPixelToGeoCoord(image: Image, px: int, py: int) -> tuple[float, float]:
     """Transform pixel coordinates to geospatial coordinates.
 
     Args:
@@ -52,7 +60,6 @@ def transformPixelToGeoCoord(
         tuple[float, float]: The transformed geospatial coordinates (longitude, latitude).
     """
 
-
     if not image.metadata.hasGeospatialData:
         raise ValueError(f"No geospatial data found for image {image}")
 
@@ -62,9 +69,6 @@ def transformPixelToGeoCoord(
     # Convert pixel coordinates to map coordinates (x, y)
     mx, my = rasterio.transform.xy(transform, px, py)
     # Transform map coordinates to geographic coordinates
-    toGeo = Transformer.from_crs(
-        crs, crs.geodetic_crs, always_xy=True
-    )
+    toGeo = Transformer.from_crs(crs, crs.geodetic_crs, always_xy=True)
     lon, lat = toGeo.transform(mx, my)
     return lon, lat
-

@@ -169,7 +169,7 @@ class ROISyncManager(QObject):
             try:
                 # Remove the synced ROI from target image
                 if hasattr(self.proj, "roi_manager"):
-                    success = self.proj.roi_manager.removeROI(
+                    success = self.proj.roiManager.removeROI(
                         target_index, synced_roi_id
                     )
                 else:
@@ -209,7 +209,7 @@ class ROISyncManager(QObject):
         """Sync all existing ROIs from primary to secondary image"""
         try:
             # Get existing ROIs from primary image
-            primary_rois = self.proj.roi_manager.getROIsForImage(primary_index)
+            primary_rois = self.proj.roiManager.getROIsForImage(primary_index)
 
             # Sync each ROI
             for roi in primary_rois:
@@ -222,7 +222,7 @@ class ROISyncManager(QObject):
     def _get_roi_by_id(self, roi_id: str):
         """Get an ROI by ID"""
         try:
-            return self.proj.roi_manager.getROI(roi_id)
+            return self.proj.roiManager.getROI(roi_id)
         except Exception as e:
             logger.error(f"Error getting ROI {roi_id}: {e}")
 
@@ -306,7 +306,7 @@ class ROISyncManager(QObject):
     def _create_new_synced_roi(self, roi, target_index: int) -> Optional[str]:
         """Create a new synced ROI in the target image"""
         try:
-            roi_id = self.proj.roi_manager.addROI(roi, [target_index])
+            roi_id = self.proj.roiManager.addROI(roi, [target_index])
             return roi_id
 
         except Exception as e:
@@ -318,7 +318,7 @@ class ROISyncManager(QObject):
     ) -> Optional[str]:
         """Update an existing synced ROI"""
         try:
-            success = self.proj.roi_manager.updateROI(synced_roi_id, roi)
+            success = self.proj.roiManager.updateROI(synced_roi_id, roi)
             return synced_roi_id if success else None
 
         except Exception as e:
@@ -332,14 +332,14 @@ class ROISyncManager(QObject):
         if pair_key in self._roi_mappings:
             for source_roi_id, synced_roi_id in self._roi_mappings[pair_key].items():
                 try:
-                    self.proj.roi_manager.removeROI(synced_roi_id)
+                    self.proj.roiManager.removeROI(synced_roi_id)
                 except Exception as e:
                     logger.error(f"Error removing synced ROI {synced_roi_id}: {e}")
 
     def _sync_latest_rois(self, source_index: int, target_index: int):
         """Sync the latest ROIs from source to target"""
         try:
-            source_rois = self.proj.roi_manager.getROIsForImage(source_index)
+            source_rois = self.proj.roiManager.getROIsForImage(source_index)
 
             pair_key = self._get_pair_key(source_index, target_index)
             synced_roi_ids = set(self._roi_mappings.get(pair_key, {}).keys())

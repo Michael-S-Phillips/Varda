@@ -426,7 +426,7 @@ class ROIView(QWidget):
         splitter.addWidget(self.roi_table)
 
         # Property editor
-        self.property_editor = ROIPropertyEditor(self.viewModel.proj.roi_manager)
+        self.property_editor = ROIPropertyEditor(self.viewModel.proj.roiManager)
         splitter.addWidget(self.property_editor)
 
         # Set initial sizes

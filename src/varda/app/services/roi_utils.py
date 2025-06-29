@@ -4,52 +4,44 @@ import uuid
 import numpy as np
 from typing import List, Tuple, Dict, Optional, Any
 
-from varda.app.models.roi import ROI
-from varda.app.models.roi_models import ROIMode
-from varda.app.services.geospatial_service import GeospatialService
-from varda.core.data import ProjectContext
+import pyqtgraph as pg
+from PyQt6 import QtCore, QtGui
+
+import varda
+from varda.app.services import image_utils
+from varda.core.entities import ROI
+from varda.core.entities import ROIMode
 
 logger = logging.getLogger(__name__)
 
 
-def create_roi(
-    self,
+def createROI(
     points: List[Tuple[float, float]],
-    image_index: int,
+    sourceImageIndex: int,
     color: Tuple[int, int, int, int],
     mode: ROIMode,
 ) -> ROI:
     """Create a new ROI and save it to the project"""
-    # Generate unique ID
-    roi_id = f"roi_{uuid.uuid4().hex[:8]}"
+    kwargs = {
+        "points": np.array(points),
+        "sourceImageIndex": sourceImageIndex,
+        "color": color,
+        "mode": mode,
+    }
 
     # Calculate geo coordinates if available
-    geo_points = None
-    try:
-        image = self._get_image(image_index)
-        if image and image.metadata.hasGeospatialData:
-            px_list = [p[0] for p in points]
-            py_list = [p[1] for p in points]
-            lon_list, lat_list = self.geospatial_service.pixels_to_geo(
-                image, px_list, py_list
-            )
-            geo_points = list(zip(lon_list, lat_list))
-    except Exception as e:
-        logger.warning(f"Failed to calculate geo coordinates: {e}")
+    image = varda.app.proj.getImage(sourceImageIndex)
+    if image.metadata.hasGeospatialData:
+        geoPoints = [image_utils.transformPixelToGeoCoord(image, *p) for p in points]
+        geoPoints = np.array(geoPoints)
+        kwargs["geoPoints"] = geoPoints
 
     # Create ROI object
-    roi = ROI(
-        id=roi_id,
-        points=points,
-        image_index=image_index,
-        color=color,
-        geo_points=geo_points,
-        mode=mode,
-    )
+    roi = ROI(**kwargs)
 
     # Save to project
-    self._save_roi(roi)
-
+    varda.app.proj.roiManager.addROI(roi)
+    varda.app.proj.roiManager.associateROIWithImage(roi, sourceImageIndex)
     return roi
 
 
@@ -122,3 +114,70 @@ def _evaluateFormula(formula: str, roi: ROI) -> Any:
     except Exception as e:
         logger.error(f"Error evaluating formula '{formula}': {e}")
         return None
+
+
+class VardaROI(pg.ROI):
+    """
+    ROI class for drawing freehand polygons in pyqtgraph.
+    Uses pyqtgraph's base ROI class for logic drawing and extracting array regions etc. But compatible with Varda's ROI entity.
+    """
+
+    def __init__(self, roiEntity: ROI, **kwargs):
+        """
+        Initialize VardaROI from entity data or standard ROI parameters
+
+        Args:
+            entity: ROI entity to initialize from
+            **kwargs: Standard pyqtgraph ROI parameters
+        """
+        super().__init__(pen=roiEntity.color, **kwargs)
+        self.roiEntity = roiEntity
+
+        self.poly = QtGui.QPolygonF()
+
+        self.calculatePolygon()
+
+    def setROIData(self, roiEntity: ROI):
+        """Set the ROI data from an existing ROI entity"""
+        self.roiEntity = roiEntity
+        self.calculatePolygon()
+        self.update()
+
+    def calculatePolygon(self):
+        """Calculate the polygon from the ROI points"""
+        # Create a QPolygonF from the ROI points
+        polygon = QtGui.QPolygonF()
+        points = self.roiEntity.points
+        for point in points:
+            polygon.append(QtCore.QPointF(*point))
+
+        # Store the polygon for later use
+        self.poly = polygon
+
+    def shape(self):
+        """This defines the shape of the ROI. Is used when getting array regions."""
+        p = QtGui.QPainterPath()
+        p.addPolygon(self.poly)
+        return p
+
+    def paint(self, p, opt, widget):
+        """This defines how the ROI is drawn."""
+        self.currentPen = pg.mkPen(*self.roiEntity.color)
+        self.currentBrush = pg.mkBrush(
+            *self.roiEntity.color, alpha=self.roiEntity.fillOpacity
+        )
+        p.setPen(self.currentPen)
+        p.setBrush(self.currentBrush)
+        p.drawPolygon(self.poly)
+
+    def boundingRect(self):
+        """Return the bounding rectangle of the ROI."""
+        return self.shape().boundingRect()
+
+    def getArrayRegion(
+        self, data, img, axes=(0, 1), returnMappedCoords=False, **kwargs
+    ):
+        """get the array region within the bounds of the ROI. see pg.ROI.getArrayRegion() for arg descriptions."""
+        return self._getArrayRegionForArbitraryShape(
+            data, img, axes, returnMappedCoords, **kwargs
+        )

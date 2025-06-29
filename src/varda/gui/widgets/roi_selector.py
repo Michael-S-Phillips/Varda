@@ -275,69 +275,76 @@ class ROISelector(pg.GraphicsObject):
         """
         # Map scene position to item coordinates
         itemPos = self.mapFromScene(scenePos)
-        
+
         # Get view type (default to context if not set)
-        view_type = getattr(self, 'view_type', 'context')
-        
+        view_type = getattr(self, "view_type", "context")
+
         if view_type == "context":
             # Context view coordinates are already absolute
             return itemPos
-        
+
         elif view_type == "main":
             # Main view: ROI is parented to mainImage, so coordinates are relative to mainImage
             # No additional transformation needed - PyQtGraph handles it via parent-child relationship
             return itemPos
-        
+
         elif view_type == "zoom":
             # Zoom view: ROI is parented to zoomImage
             # Use getAbsoluteCoords only for zoom since zoomImage has the region transform
-            if (self.targetImageItem and 
-                hasattr(self.targetImageItem, 'getAbsoluteCoords')):
-                return self.targetImageItem.getAbsoluteCoords(itemPos)
+            if self.targetImageItem and hasattr(
+                self.targetImageItem, "getAbsoluteCoords"
+            ):
+                return self.targetImageItem.localToAbsolute(itemPos)
             else:
                 return itemPos
-        
+
         # Default case
         return itemPos
-    
+
     def _convertMainViewToAbsolute(self, itemPos):
         """Convert main view coordinates to absolute coordinates"""
         try:
             # Find the raster view through the scene
             scene = self.scene()
-            if scene and hasattr(scene, 'views') and len(scene.views()) > 0:
+            if scene and hasattr(scene, "views") and len(scene.views()) > 0:
                 # Look for raster view in scene items
                 raster_view = None
                 for item in scene.items():
-                    if hasattr(item, 'raster_view'):
+                    if hasattr(item, "raster_view"):
                         raster_view = item.raster_view
                         break
-                
+
                 # Try to find raster view through parent relationships
                 if not raster_view:
                     current = self.parentItem()
                     while current and not raster_view:
-                        if hasattr(current, 'raster_view'):
+                        if hasattr(current, "raster_view"):
                             raster_view = current.raster_view
                             break
                         # Check if current item's scene has a raster_view reference
-                        if hasattr(current, 'scene') and hasattr(current.scene(), 'raster_view'):
+                        if hasattr(current, "scene") and hasattr(
+                            current.scene(), "raster_view"
+                        ):
                             raster_view = current.scene().raster_view
                             break
                         current = current.parentItem()
-                
+
                 # Get context ROI offset
-                if raster_view and hasattr(raster_view, 'contextROI') and raster_view.contextROI:
+                if (
+                    raster_view
+                    and hasattr(raster_view, "contextROI")
+                    and raster_view.contextROI
+                ):
                     offset_x = raster_view.contextROI.pos().x()
                     offset_y = raster_view.contextROI.pos().y()
-                    
+
                     abs_x = itemPos.x() + offset_x
                     abs_y = itemPos.y() + offset_y
                     return QPointF(abs_x, abs_y)
-            
+
             # Fallback: return original coordinates
             return itemPos
-            
+
         except Exception as e:
             logger.error(f"Error converting main view coordinates: {e}")
             return itemPos
@@ -347,65 +354,72 @@ class ROISelector(pg.GraphicsObject):
         try:
             # Find the raster view through the scene (similar to main view)
             scene = self.scene()
-            if scene and hasattr(scene, 'views') and len(scene.views()) > 0:
+            if scene and hasattr(scene, "views") and len(scene.views()) > 0:
                 raster_view = None
                 for item in scene.items():
-                    if hasattr(item, 'raster_view'):
+                    if hasattr(item, "raster_view"):
                         raster_view = item.raster_view
                         break
-                
+
                 if not raster_view:
                     current = self.parentItem()
                     while current and not raster_view:
-                        if hasattr(current, 'raster_view'):
+                        if hasattr(current, "raster_view"):
                             raster_view = current.raster_view
                             break
                         current = current.parentItem()
-                
+
                 # Get both context and main ROI offsets for zoom view
-                if (raster_view and 
-                    hasattr(raster_view, 'contextROI') and raster_view.contextROI and
-                    hasattr(raster_view, 'mainROI') and raster_view.mainROI):
-                    
+                if (
+                    raster_view
+                    and hasattr(raster_view, "contextROI")
+                    and raster_view.contextROI
+                    and hasattr(raster_view, "mainROI")
+                    and raster_view.mainROI
+                ):
+
                     context_offset_x = raster_view.contextROI.pos().x()
                     context_offset_y = raster_view.contextROI.pos().y()
                     main_offset_x = raster_view.mainROI.pos().x()
                     main_offset_y = raster_view.mainROI.pos().y()
-                    
+
                     abs_x = itemPos.x() + context_offset_x + main_offset_x
                     abs_y = itemPos.y() + context_offset_y + main_offset_y
                     return QPointF(abs_x, abs_y)
-            
+
             # Fallback: return original coordinates
             return itemPos
-            
+
         except Exception as e:
             logger.error(f"Error converting zoom view coordinates: {e}")
             return itemPos
-    
+
     def updatePath(self):
         """Update the path from current points and trigger visual update"""
         if self.pts is None or len(self.pts[0]) < 2:
             return
-            
+
         # Prepare for geometry change
         self.prepareGeometryChange()
-        
+
         # Create path from points
         from PyQt6.QtGui import QPainterPath
+
         self.path = QPainterPath()
-        
+
         # Start the path at the first point
         self.path.moveTo(self.pts[0][0], self.pts[1][0])
-        
+
         # Add lines to subsequent points
         for i in range(1, len(self.pts[0])):
             self.path.lineTo(self.pts[0][i], self.pts[1][i])
-        
+
         # Close the path if we have enough points and it's not polygon mode during drawing
-        if len(self.pts[0]) >= 3 and not (self.mode == ROIMode.POLYGON and self.isDrawing):
+        if len(self.pts[0]) >= 3 and not (
+            self.mode == ROIMode.POLYGON and self.isDrawing
+        ):
             self.path.closeSubpath()
-        
+
         # Force immediate visual update
         self.update()
 
@@ -468,7 +482,7 @@ class ROISelector(pg.GraphicsObject):
                 "image_index": self.imageIndex,
                 "color": self.color,
                 "mode": self.mode,
-                "view_type": getattr(self, 'view_type', 'context')
+                "view_type": getattr(self, "view_type", "context"),
             }
             self.sigDrawingComplete.emit(result)
         else:
@@ -478,68 +492,76 @@ class ROISelector(pg.GraphicsObject):
         """Transform coordinates from view-specific to absolute image coordinates"""
         if points is None:
             return None
-            
-        view_type = getattr(self, 'view_type', 'context')
-        
+
+        view_type = getattr(self, "view_type", "context")
+
         if view_type == "context":
             # Context coordinates are already absolute
             return points
-        
+
         elif view_type == "main":
             # For main view, we need to add the contextROI offset
             try:
                 # Find the raster view to get contextROI position
                 raster_view = self._findRasterView()
-                
-                if raster_view and hasattr(raster_view, 'contextROI') and raster_view.contextROI:
+
+                if (
+                    raster_view
+                    and hasattr(raster_view, "contextROI")
+                    and raster_view.contextROI
+                ):
                     offset_x = raster_view.contextROI.pos().x()
                     offset_y = raster_view.contextROI.pos().y()
-                    
+
                     abs_x = [x + offset_x for x in points[0]]
                     abs_y = [y + offset_y for y in points[1]]
                     return [abs_x, abs_y]
-            
+
             except Exception as e:
                 logger.error(f"Error transforming main view coordinates: {e}")
-            
+
             # Fallback to original points
             return points
-        
+
         elif view_type == "zoom":
             # For zoom view, coordinates should already be transformed by getAbsoluteCoords
             # But if they're not, apply the full transformation
             try:
                 raster_view = self._findRasterView()
-                
-                if (raster_view and 
-                    hasattr(raster_view, 'contextROI') and raster_view.contextROI and
-                    hasattr(raster_view, 'mainROI') and raster_view.mainROI):
-                    
+
+                if (
+                    raster_view
+                    and hasattr(raster_view, "contextROI")
+                    and raster_view.contextROI
+                    and hasattr(raster_view, "mainROI")
+                    and raster_view.mainROI
+                ):
+
                     context_offset_x = raster_view.contextROI.pos().x()
                     context_offset_y = raster_view.contextROI.pos().y()
                     main_offset_x = raster_view.mainROI.pos().x()
                     main_offset_y = raster_view.mainROI.pos().y()
-                    
+
                     abs_x = [x + context_offset_x + main_offset_x for x in points[0]]
                     abs_y = [y + context_offset_y + main_offset_y for y in points[1]]
                     return [abs_x, abs_y]
-            
+
             except Exception as e:
                 logger.error(f"Error transforming zoom view coordinates: {e}")
-            
+
             # Fallback to original points
             return points
-        
+
         # Default case
         return points
-    
+
     def _findRasterView(self):
         """Find the raster view instance through various means"""
         # Method 1: Check if we have a direct reference
-        if hasattr(self, 'raster_view'):
+        if hasattr(self, "raster_view"):
             return self.raster_view
         return None
-    
+
     def _pixelToGeoFromAbsolute(self, absolute_points):
         """Convert absolute pixel coordinates to geographic coordinates"""
         if self.geoTransform is None or absolute_points is None:
@@ -561,7 +583,7 @@ class ROISelector(pg.GraphicsObject):
         except Exception as e:
             logger.error(f"Error converting to geo coordinates: {e}")
             return None
-        
+
     def cancelDrawing(self):
         """Cancel the current drawing operation"""
         self.isDrawing = False
@@ -655,7 +677,7 @@ class ROISelector(pg.GraphicsObject):
             point_brush = pg.mkBrush("yellow")
             p.setPen(point_pen)
             p.setBrush(point_brush)
-            
+
             for i in range(len(self.pts[0])):
                 p.drawEllipse(QPointF(self.pts[0][i], self.pts[1][i]), 3, 3)
 
@@ -663,9 +685,7 @@ class ROISelector(pg.GraphicsObject):
             if self.tempPoint is not None and len(self.pts[0]) > 0:
                 temp_pen = pg.mkPen("yellow", width=2, style=Qt.PenStyle.DashLine)
                 p.setPen(temp_pen)
-                p.drawLine(
-                    QPointF(self.pts[0][-1], self.pts[1][-1]), self.tempPoint
-                )
+                p.drawLine(QPointF(self.pts[0][-1], self.pts[1][-1]), self.tempPoint)
 
     def getLinePts(self):
         """Get the ROI points as a tuple of arrays ([x points], [y points])"""

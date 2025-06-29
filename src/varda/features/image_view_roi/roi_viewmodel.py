@@ -48,7 +48,7 @@ class ROIViewModel(QObject):
     def getAllRois(self):
         """Get all ROIs associated with the current image"""
         rois = {}
-        for roi in self.proj.roi_manager.getROIsForImage(self.imageIndex):
+        for roi in self.proj.roiManager.getROIsForImage(self.imageIndex):
             rois[roi.id] = roi
         return rois
 
@@ -59,25 +59,25 @@ class ROIViewModel(QObject):
 
     def getRoi(self, roi_id):
         """Get a specific ROI by ID"""
-        return self.proj.roi_manager.getROI(roi_id)
-    
+        return self.proj.roiManager.getROI(roi_id)
+
     def addRoi(self, roi):
         """Add a new ROI"""
-        roi_id = self.proj.roi_manager.addROI(roi, [self.imageIndex])
+        roi_id = self.proj.roiManager.addROI(roi, [self.imageIndex])
         if roi_id:
             self.roiAdded.emit(roi_id)
         return roi_id
 
     def removeRoi(self, roi_id):
         """Remove an ROI"""
-        result = self.proj.roi_manager.removeROI(roi_id)
+        result = self.proj.roiManager.removeROI(roi_id)
         if result:
             self.roiRemoved.emit(roi_id)
         return result
 
     def updateRoi(self, roi_id, **properties):
         """Update ROI properties"""
-        result = self.proj.roi_manager.updateROI(roi_id, **properties)
+        result = self.proj.roiManager.updateROI(roi_id, **properties)
         if result:
             self.roiUpdated.emit(roi_id)
         return result

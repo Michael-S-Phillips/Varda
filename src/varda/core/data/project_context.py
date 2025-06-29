@@ -66,7 +66,7 @@ class ProjectContext(QObject):
         # Initialize the ROI Manager
         from varda.core.data.roi_manager import ROIManager
 
-        self.roi_manager = ROIManager()
+        self.roiManager = ROIManager()
 
         # Flag for generating stretch presets during image creation
         self._generate_stretch_presets = True
@@ -193,7 +193,7 @@ class ProjectContext(QObject):
 
         # Serialize the ROI Manager
         roi_manager_data = (
-            self.roi_manager.serialize() if hasattr(self, "roi_manager") else {}
+            self.roiManager.serialize() if hasattr(self, "roi_manager") else {}
         )
 
         return {"images": imageDictList, "roi_manager": roi_manager_data}
@@ -212,7 +212,7 @@ class ProjectContext(QObject):
         # Store current state to restore in case of failure
         imagesTemp = self._images
         projectNameTemp = self.currentProj
-        roi_manager_temp = self.roi_manager if hasattr(self, "roi_manager") else None
+        roi_manager_temp = self.roiManager if hasattr(self, "roi_manager") else None
 
         # Temporarily disable stretch preset generation during deserialization
         # since we're loading existing stretches from the file
@@ -295,12 +295,12 @@ class ProjectContext(QObject):
             if "roi_manager" in data:
                 from varda.core.data.roi_manager import ROIManager
 
-                self.roi_manager = ROIManager.deserialize(data["roi_manager"], self)
+                self.roiManager = ROIManager.deserialize(data["roi_manager"], self)
             else:
                 # If no ROI Manager in the data, create a new one
                 from varda.core.data.roi_manager import ROIManager
 
-                self.roi_manager = ROIManager(self)
+                self.roiManager = ROIManager(self)
 
             # If no images to load, emit the signal immediately
             if expected_loads == 0:
@@ -314,7 +314,7 @@ class ProjectContext(QObject):
             self.currentProj = projectNameTemp
             self._images = imagesTemp
             if roi_manager_temp:
-                self.roi_manager = roi_manager_temp
+                self.roiManager = roi_manager_temp
             return False
         finally:
             # Always restore the original preset generation setting
@@ -475,9 +475,9 @@ class ProjectContext(QObject):
         """
         # First remove all ROIs associated with this image
         if hasattr(self, "roi_manager"):
-            rois = self.roi_manager.getROIsForImage(index)
+            rois = self.roiManager.getROIsForImage(index)
             for roi in rois:
-                self.roi_manager.removeROI(roi.id)
+                self.roiManager.removeROI(roi.id)
 
         # Then remove the image
         self._images.pop(index)
@@ -685,9 +685,9 @@ class ProjectContext(QObject):
         Returns:
             str: The ID of the added ROI.
         """
-        roi_id = self.roi_manager.addROI(roi, image_indices)
+        roi_id = self.roiManager.addROI(roi, image_indices)
         return roi_id
-    
+
     def remove_roi(self, roi_id):
         """
         Remove an ROI from the project.
@@ -698,9 +698,9 @@ class ProjectContext(QObject):
         Returns:
             bool: True if the ROI was removed, False otherwise.
         """
-        result = self.roi_manager.removeROI(roi_id)
+        result = self.roiManager.removeROI(roi_id)
         return result
-    
+
     def update_roi(self, roi_id, **properties):
         """
         Update an ROI's properties.
@@ -712,7 +712,7 @@ class ProjectContext(QObject):
         Returns:
             bool: True if the ROI was updated, False otherwise.
         """
-        result = self.roi_manager.updateROI(roi_id, **properties)
+        result = self.roiManager.updateROI(roi_id, **properties)
         return result
 
     def get_roi(self, roi_id):
@@ -725,7 +725,7 @@ class ProjectContext(QObject):
         Returns:
             ROI: The requested ROI, or None if not found.
         """
-        return self.roi_manager.getROI(roi_id)
+        return self.roiManager.getROI(roi_id)
 
     def get_all_rois(self):
         """
@@ -734,7 +734,7 @@ class ProjectContext(QObject):
         Returns:
             Dict[str, ROI]: Dictionary of ROI IDs to ROI objects.
         """
-        return self.roi_manager.getAllROIs()
+        return self.roiManager.getAllROIs()
 
     def get_rois_for_image(self, image_index):
         """
@@ -746,8 +746,8 @@ class ProjectContext(QObject):
         Returns:
             List[ROI]: List of ROIs associated with the image.
         """
-        return self.roi_manager.getROIsForImage(image_index)
-    
+        return self.roiManager.getROIsForImage(image_index)
+
     def associate_roi_with_image(self, roi_id, image_index):
         """
         Associate an ROI with an image.
@@ -759,9 +759,9 @@ class ProjectContext(QObject):
         Returns:
             bool: True if the association was created, False otherwise.
         """
-        result = self.roi_manager.associateROIWithImage(roi_id, image_index)
+        result = self.roiManager.associateROIWithImage(roi_id, image_index)
         return result
-    
+
     def dissociate_roi_from_image(self, roi_id, image_index):
         """
         Dissociate an ROI from an image.
@@ -773,7 +773,7 @@ class ProjectContext(QObject):
         Returns:
             bool: True if the association was removed, False otherwise.
         """
-        result = self.roi_manager.dissociateROIFromImage(roi_id, image_index)
+        result = self.roiManager.dissociateROIFromImage(roi_id, image_index)
         return result
 
     # ROI Table Column methods
@@ -789,7 +789,7 @@ class ProjectContext(QObject):
         Returns:
             ROITableColumn: The created column, or None if an error occurred.
         """
-        column = self.roi_manager.addColumn(name, data_type, formula)
+        column = self.roiManager.addColumn(name, data_type, formula)
         return result
 
     def remove_roi_column(self, name):
@@ -802,7 +802,7 @@ class ProjectContext(QObject):
         Returns:
             bool: True if the column was removed, False otherwise.
         """
-        result = self.roi_manager.removeColumn(name)
+        result = self.roiManager.removeColumn(name)
         return result
 
     def update_roi_column(self, name, **properties):
@@ -816,7 +816,7 @@ class ProjectContext(QObject):
         Returns:
             bool: True if the column was updated, False otherwise.
         """
-        result = self.roi_manager.updateColumn(name, **properties)
+        result = self.roiManager.updateColumn(name, **properties)
         return result
 
     def get_roi_column(self, name):
@@ -829,7 +829,7 @@ class ProjectContext(QObject):
         Returns:
             ROITableColumn: The column, or None if not found.
         """
-        return self.roi_manager.getColumn(name)
+        return self.roiManager.getColumn(name)
 
     def get_all_roi_columns(self):
         """
@@ -838,11 +838,11 @@ class ProjectContext(QObject):
         Returns:
             List[ROITableColumn]: List of all columns.
         """
-        return self.roi_manager.getAllColumns()
+        return self.roiManager.getAllColumns()
 
     def calculate_roi_formulas(self):
         """Calculate all formula columns."""
-        self.roi_manager.calculateFormulaColumns()
+        self.roiManager.calculateFormulaColumns()
 
     def set_roi_custom_value(self, roi_id, column_name, value):
         """
@@ -856,7 +856,7 @@ class ProjectContext(QObject):
         Returns:
             bool: True if successful, False otherwise.
         """
-        roi = self.roi_manager.getROI(roi_id)
+        roi = self.roiManager.getROI(roi_id)
         if roi:
             roi.set_custom_value(column_name, value)
             return True
@@ -874,7 +874,7 @@ class ProjectContext(QObject):
         Returns:
             Any: The custom value, or the default if not found.
         """
-        roi = self.roi_manager.getROI(roi_id)
+        roi = self.roiManager.getROI(roi_id)
         if roi:
             return roi.get_custom_value(column_name, default)
         return default
