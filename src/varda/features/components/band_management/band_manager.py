@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.core.data import ProjectContext
-from varda.features.image_view_band import getBandView
+from varda.features.components.band_management.image_view_band import getBandView
 
 logger = logging.getLogger(__name__)
 

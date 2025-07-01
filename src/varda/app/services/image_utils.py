@@ -64,7 +64,7 @@ def transformPixelToGeoCoord(image: Image, px: int, py: int) -> tuple[float, flo
         raise ValueError(f"No geospatial data found for image {image}")
 
     transform = image.metadata.transform
-    crs = image.metadata.crs
+    crs = CRS(image.metadata.crs)
 
     # Convert pixel coordinates to map coordinates (x, y)
     mx, my = rasterio.transform.xy(transform, px, py)

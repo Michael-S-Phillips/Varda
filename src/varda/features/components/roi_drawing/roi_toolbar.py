@@ -2,14 +2,7 @@ from PyQt6.QtWidgets import QWidget, QToolBar, QVBoxLayout
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 
-
-class ROIMode:
-    """Enum to define different ROI drawing modes"""
-
-    FREEHAND = 0
-    RECTANGLE = 1
-    ELLIPSE = 2
-    POLYGON = 3  # Click-by-click polygon
+from varda.core.entities import ROIMode
 
 
 class ROIToolbarWidget(QWidget):
@@ -85,7 +78,7 @@ class ROIToolbarWidget(QWidget):
 
     def setDrawingMode(self, mode):
         """Set the current ROI drawing mode"""
-        self.draw_mode = mode
+        self.drawingMode = mode
 
         # Update action checkboxes
         for action in self.draw_mode_actions:
@@ -95,7 +88,3 @@ class ROIToolbarWidget(QWidget):
         # Update status message
         mode_names = ["Freehand", "Rectangle", "Ellipse", "Polygon"]
         self.status_label.setText(f"Drawing Mode: {mode_names[mode]}")
-
-        # Update active ROI selector if any
-        if self.active_roi_selector:
-            self.active_roi_selector.setMode(mode)

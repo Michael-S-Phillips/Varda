@@ -6,24 +6,23 @@ ROI drawing, band selection, stretch controls, and metadata management.
 """
 
 import logging
-from typing import Optional
 
 from PyQt6.QtWidgets import (
     QMainWindow,
     QDockWidget,
     QVBoxLayout,
     QWidget,
-    QSplitter,
     QStatusBar,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
 import varda
+from varda.core.entities import ROIMode
 
 from varda.features.components.band_management.band_manager import BandManager
 from varda.features.image_view_roi import getROIView
-from varda.features.image_view_roi.roi_viewmodel import ROIViewModel
 from varda.features.components.raster_view.triple_raster_view import TripleRasterView
+from varda.features.components import roi_drawing
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +40,13 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     """
 
     # Workflow-level signals
-    roiCreated = pyqtSignal(object)  # Emitted when a new ROI is created
-    roiSelected = pyqtSignal(str)  # Emitted when an ROI is selected
-    workflowClosed = pyqtSignal()  # Emitted when workflow is closed
+    workflowClosed: pyqtSignal = pyqtSignal()  # Emitted when workflow is closed
 
     def __init__(self, imageIndex=0, parent=None):
         super().__init__(parent)
 
         self.imageIndex = imageIndex
+        self.image = varda.app.proj.getImage(imageIndex)
         self.project = varda.app.proj
 
         # Initialize core components
@@ -60,13 +58,18 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         # Initialize UI and connections
         self._initComponents()
-        self.initUI()
-        self.connectWorkflowSignals()
+        self._initUI()
+        self._connectSignals()
 
         self.showMaximized()
 
-        logger.info(
+        self.setStatusMessage(
             f"General Image Analysis Workflow initialized for image {imageIndex}"
+        )
+        self.drawingController = roi_drawing.ROIDrawingControllerNew()
+
+        self.drawingController.startDrawing(
+            ROIMode.FREEHAND, self.tripleRasterView.viewport1
         )
 
     def _initComponents(self):
@@ -74,9 +77,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         # Initialize raster view
         self.tripleRasterView = TripleRasterView(self.imageIndex, self.project, self)
-        self.rasterView = varda.features.image_view_raster.getRasterView(
-            self.project, self.imageIndex, self
-        )
+        # self.rasterView = varda.features.image_view_raster.getRasterView(
+        #     self.project, self.imageIndex, self
+        # )
 
         # Initialize band selection view
         self.bandView = BandManager(self.project, self.imageIndex, self)
@@ -89,9 +92,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # Initialize ROI view/table
         self.roiView = getROIView(self.project, self.imageIndex, self)
 
-        logger.debug("All workflow components initialized")
-
-    def initUI(self):
+    def _initUI(self):
         """Initialize the user interface for the workflow"""
         self.setWindowTitle(f"General Image Analysis - Image {self.imageIndex}")
 
@@ -99,16 +100,11 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.setCentralWidget(self.tripleRasterView)
 
         # Create dock widgets for controls
-        self.setupDockWidgets()
-
-        # Add ROI drawing toolbar to the main window
-        roiToolbar = self.roiAdapter.getToolbar()
-        if roiToolbar:
-            self.addToolBar(Qt.ToolBarArea.TopToolBarArea, roiToolbar)
+        self._setupDockWidgets()
 
         self.setStatusBar(QStatusBar(self))
 
-    def setupDockWidgets(self):
+    def _setupDockWidgets(self):
         """Setup dock widgets for the various control panels"""
 
         # ROI Management Dock (left side)
@@ -136,15 +132,20 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         )
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, imageControlsDock)
 
-    def connectWorkflowSignals(self):
+    def _connectSignals(self):
         """Connect signals between workflow components"""
 
         # Connect basic image display signals
-        self.bandView.sigBandChanged.connect(self.rasterView.selectBand)
-        self.stretchView.sigStretchSelected.connect(self.rasterView.selectStretch)
+        # self.bandView.sigBandChanged.connect(self.rasterView.selectBand)
+        # self.stretchView.sigStretchSelected.connect(self.rasterView.selectStretch)
 
         logger.debug("All workflow signals connected")
 
+    def setStatusMessage(self, message):
+        """Set a status message in the status bar"""
+        self.statusBar().showMessage(message)
+
     def closeEvent(self, event):
         """Handle workflow closure"""
+        self.workflowClosed.emit()  # Emit signal before closing
         super().closeEvent(event)

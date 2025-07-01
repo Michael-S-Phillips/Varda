@@ -456,8 +456,8 @@ class RasterView(QWidget):
 
         self._makeROISquare(self.contextROI)
 
-        self.mainImage.setRegion(
-            self.contextImage.image, self.contextROI, self.contextImage
+        self.mainImage.setROI(
+            self.contextImage.imageEntity, self.contextROI, self.contextImage
         )
 
         if self.mainROI is not None:
@@ -470,7 +470,7 @@ class RasterView(QWidget):
 
         self._makeROISquare(self.mainROI)
 
-        self.zoomImage.setRegion(self.mainImage.image, self.mainROI, self.mainImage)
+        self.zoomImage.setROI(self.mainImage.imageEntity, self.mainROI, self.mainImage)
 
     def _updateImageItem(self, imageItem, rasterData):
         """Update an image item with new raster data."""

@@ -4,7 +4,7 @@ A core entity representing an image in varda.
 """
 
 # standard library
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 # third party imports
@@ -33,13 +33,19 @@ class Image:
     """
 
     raster: np.ndarray
-    metadata: Metadata
-    stretch: List[Stretch]
-    band: List[Band]
-    rois: List[ROI]
-    plots: List[Plot]
-    ROIview: QWidget
-    index: int
+    metadata: Metadata = None
+    stretch: List[Stretch] = field(default_factory=list)
+    band: List[Band] = field(default_factory=list)
+    rois: List[ROI] = field(default_factory=list)
+    plots: List[Plot] = field(default_factory=list)
+    ROIview: QWidget = None
+    index: int = -1
+
+    def height(self):
+        return self.raster.shape[0]
+
+    def width(self):
+        return self.raster.shape[1]
 
     def __eq__(self, other):
         return self.index == other.index

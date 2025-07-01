@@ -1,39 +1,106 @@
+from typing import Protocol
+
+import numpy as np
 from PyQt6.QtCore import pyqtSignal, QRectF, QPointF, QSizeF
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 
 from varda.core.entities import Image, Stretch
-from varda.features.components.raster_view.image_region_item import ImageRegionItem
+from varda.features.components.raster_view.image_region_item import (
+    VardaImageItem,
+)
 from varda.app.services import image_utils
 
 
-class ImageViewport(QWidget):
+class IViewport(Protocol):
+    """
+    Protocol for a viewport, which is a widget that displays image data.
+    The purpose of this is to generalize an interface that can be used by controllers/tools/workflows.
+    """
+
+    sigImageChanged: pyqtSignal
+
+    def enableSelfUpdating(self):
+        """Enable self-updating of the image item."""
+        ...
+
+    def disableSelfUpdating(self):
+        """Disable self-updating of the image item."""
+        ...
+
+    def setBand(self, band):
+        """Set the band for the image item."""
+        ...
+
+    def setStretch(self, stretch):
+        """Set the stretch for the image item."""
+        ...
+
+    def addItem(self, item):
+        """Add a graphics item to the viewport"""
+        ...
+
+    def _attemptUpdate(self):
+        """Update the image item with the current band and stretch."""
+        ...
+
+    @property
+    def imageItem(self) -> VardaImageItem:
+        """Get the ImageRegionItem for this viewport."""
+        ...
+
+    @property
+    def imageEntity(self) -> Image:
+        """Get the Image entity for this viewport."""
+        ...
+
+    @property
+    def viewBox(self) -> pg.ViewBox:
+        """Get the ViewBox for this viewport."""
+        ...
+
+    @property
+    def graphicsScene(self):
+        """Get the GraphicsScene for this viewport."""
+        ...
+
+
+class ViewportMeta(type(QWidget), type(IViewport)):
+    pass
+
+
+class ImageViewport(QWidget, IViewport, metaclass=ViewportMeta):
     """
     Generic image viewer: holds a single Viewbox with an ImageRegionItem, and helper methods
     """
 
-    def __init__(self, image: Image, parent=None):
+    sigImageChanged = pyqtSignal()
+
+    def __init__(self, imageEntity: Image, parent=None):
         super().__init__(parent)
         self.selfUpdating = True
-        self.image = image
-        self.band = image.metadata.defaultBand
-        self.stretch = Stretch.createDefault()
+        self._imageEntity = imageEntity
 
-        self.vb = pg.ViewBox(lockAspect=True, invertY=True)
-        self.vb.setMouseEnabled(x=False, y=False)
+        self._imageItem = VardaImageItem(imageEntity)
 
-        self.imageItem = pg.ImageItem(
-            image_utils.getRasterFromBand(self.image, self.band),
-            levels=self.stretch.toList(),
-        )
+        self._vb = pg.ViewBox(lockAspect=True, invertY=True)
+        self._vb.setMouseEnabled(x=False, y=False)
+
+        # self._imageItem = pg.ImageItem(
+        #     image_utils.getRasterFromBand(self.imageEntity, self.band),
+        #     levels=self.stretch.toList(),
+        # )
         # self.imageItem = ImageRegionItem(image, autoLevels=False)
-        self.vb.addItem(self.imageItem)
 
-        gv = pg.GraphicsView()
-        gv.setCentralItem(self.vb)
+        self._vb.addItem(self.imageItem)
+
+        self._gv = pg.GraphicsView()
+        self._gv.setCentralItem(self._vb)
         layout = QVBoxLayout(self)
-        layout.addWidget(gv)
+        layout.addWidget(self._gv)
         self.setLayout(layout)
+
+        self.imageItem.sigImageChanged.connect(self.sigImageChanged)
 
     def disableSelfUpdating(self):
         """Disable self-updating of the image item."""
@@ -42,22 +109,35 @@ class ImageViewport(QWidget):
     def enableSelfUpdating(self):
         """Enable self-updating of the image item."""
         self.selfUpdating = True
-        self._attemptUpdate()
 
     def setBand(self, band):
         """Set the band for the image item."""
-        self.band = band
-        self._attemptUpdate()
+        self.imageItem.setBand(band)
 
     def setStretch(self, stretch):
         """Set the stretch for the image item."""
-        self.stretch = stretch
-        self._attemptUpdate()
+        self.imageItem.setStretch(stretch)
 
-    def _attemptUpdate(self):
-        """Update the image item with the current band and stretch."""
-        if self.selfUpdating:
-            self.imageItem.setImage(
-                image_utils.getRasterFromBand(self.image, self.band),
-                levels=self.stretch.toList(),
-            )
+    def addItem(self, item):
+        """Add a graphics item to the viewport."""
+        self._vb.addItem(item)
+
+    @property
+    def imageEntity(self) -> Image:
+        """Get the Image entity for this viewport."""
+        return self._imageEntity
+
+    @property
+    def imageItem(self) -> VardaImageItem:
+        """Get the ImageRegionItem for this viewport."""
+        return self._imageItem
+
+    @property
+    def viewBox(self) -> pg.ViewBox:
+        """Get the ViewBox for this viewport."""
+        return self._vb
+
+    @property
+    def graphicsScene(self):
+        """Get the GraphicsScene for this viewport."""
+        return self._gv.scene()

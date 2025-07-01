@@ -1,84 +1,127 @@
 # third-party imports
-from typing import override
+from typing import override, Optional
+import logging
 
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import QPointF, QRectF, QRect, QPoint
 
 from varda.app.services import image_utils
+from varda.app.services import roi_utils
+from varda.app.services.roi_utils import RegionCoordinateTransform
 from varda.core.entities import Image, Band, Stretch
 
+logger = logging.getLogger(__name__)
 
-class ImageRegionItem(pg.ImageItem):
+
+class VardaImageItem(pg.ImageItem):
+    """A modification of the pyqtgraph ImageItem. To support hyperspectral images and regional display from an ROI.
+
+    Using Image, Stretch, and Band inputs, it handles the logic to generate an image suitable for display.
+    It also can display a region of the image, and maps those local coordinates to absolute image coordinates.
+    Being able to convert like this means we can draw ROIs on this item, and know where they are in the full image.
     """
-    Custom ImageItem that supports only displaying a region of the image,
-    with a convenience method to get the absolute image coordinates.
 
-    Currently, it only supports rectangular, axis aligned regions.
-    This is because coordinates are calculated using as simple offset.
-    We would need to use more complex affine transformations to support more complex regions.
-    pyqtgraph has some stuff to support this, but idk if we even need to yet.
-    """
-
-    def __init__(self, image: Image, region: pg.ROI = None, **kwargs):
+    def __init__(
+        self, imageEntity: Image, band: Band = None, stretch: Stretch = None, **kwargs
+    ):
         super().__init__(**kwargs)
-        # tried naming self.image but ImageItem already has an image property and so stuff broke lol
-        self.imageEntity = image
-        self.region = region
-        self.imageRegion = None
-        self.band = Band.createDefault()
-        self.stretch = None
 
-    def setRegion(self, region: pg.ROI, sourceImageItem: "ImageRegionItem"):
-        """Set the region of interest for zooming."""
-        self.imageRegion, coords = region.getArrayRegion(
-            sourceImageItem.image, sourceImageItem, returnMappedCoords=True
-        )
-        self.region = region
+        self._imageEntity = imageEntity
+        self._band = band or imageEntity.metadata.defaultBand
+        self._stretch = stretch or Stretch.createDefault()
 
+        # Region state
+        self._backgroundImageItem = pg.ImageItem()
+        self._backgroundImageItem.setZValue(-10)
+        self._backgroundImageItem.setOpacity(0)
+
+        self._roi = None
+        self._regionalData = None
+        self._coordinateTransform = None
+        self._isShowingRegion = False
+
+        # Update the display
+        self._updateImage()
+
+    def setROI(self, roi: pg.ROI):
+        """Set the region to display from the full image."""
+        self._roi = roi
+        self._isShowingRegion = True
+        self._updateImage()
+
+    def clearROI(self):
+        """Clear the region and show the full image."""
+        self._roi = None
+        self._coordinateTransform = None
+        self._isShowingRegion = False
         self._updateImage()
 
     def setBand(self, band: Band):
-        """Set the band for the image item."""
-        self.band = band
+        """Set the band configuration."""
+        self._band = band
         self._updateImage()
 
     def setStretch(self, stretch: Stretch):
-        """Set the stretch for the image item."""
-        self.stretch = stretch
+        """Set the stretch configuration."""
+        self._stretch = stretch
         self._updateImage()
 
+    def localToImage(self, point: QPointF) -> QPointF:
+        """Convert local coordinates to full image coordinates.
+        Note that this does not protect against points outside the image bounds.
+        """
+        if not self._isShowingRegion:
+            return point
+        converted = self._coordinateTransform.localToGlobal((point.x(), point.y()))
+        return QPointF(pg.Point(converted))
+
+    def imageToLocal(self, point: QPointF) -> QPointF:
+        """Convert full image coordinates to local coordinates.
+        Note that this does not protect against points outside the image bounds.
+        """
+        if not self._isShowingRegion:
+            return point
+        converted = self._coordinateTransform.globalToLocal((point.x(), point.y()))
+        return QPointF(pg.Point(converted))
+
     def _updateImage(self):
-        """Set the image data for the item."""
-        bandData = image_utils.getRasterFromBand(self.imageEntity, self.band)
-        dataSubset = self.region.getArrayRegion(bandData, self)
+        """Update the displayed image data."""
+        self._calculateRegionalData()
+        self.setImage(self._regionalData, levels=self._stretch.toList())
 
-        if self.stretch is None:
-            # use auto-levels if no stretch is set
-            self.setImage(dataSubset)
+    def _calculateRegionalData(self):
+        """Get the current regional data being displayed."""
+        bandSlice = image_utils.getRasterFromBand(self._imageEntity, self._band)
+
+        if self._isShowingRegion:
+            # get the region
+            self._regionalData, self._coordinateTransform = (
+                roi_utils.getMaskedArrayRegionSimple(
+                    self._roi, bandSlice, returnTransform=True
+                )
+            )
         else:
-            self.setImage(dataSubset, levels=self.stretch.toList())
+            # Show full image
+            self._regionalData = bandSlice
+            self._coordinateTransform = None
 
-    def localToAbsolute(self, point: QPointF) -> QPointF:
-        """Convert local zoomed coordinates to absolute image coordinates."""
-        if self.region is None:
-            return point
-        # Calculate absolute coordinates based on the region
-        abs_x = int(self.region.x() + point.x())
-        abs_y = int(self.region.y() + point.y())
-        return QPointF(abs_x, abs_y)
+    @property
+    def imageEntity(self) -> Image:
+        """Get the underlying hyperspectral image entity."""
+        return self._imageEntity
 
-    def absoluteToLocal(self, point: QPointF) -> QPointF:
-        """Convert absolute image coordinates to local zoomed coordinates."""
-        if self.region is None:
-            return point
-        # Calculate local coordinates based on the region
-        local_x = int(point.x() - self.region.x())
-        local_y = int(point.y() - self.region.y())
-        return QPointF(local_x, local_y)
+    @property
+    def roi(self) -> roi_utils.VardaROI:
+        """Get the current region being displayed."""
+        return self._roi
 
-    def getOffset(self) -> QPointF:
-        """Get the offset of the image item."""
-        if self.region is None:
-            return QPointF(0, 0)
-        return self.region.topLeft()
+    @property
+    def isShowingRegion(self) -> bool:
+        """Check if showing a region vs full image."""
+        return self._isShowingRegion
+
+    @property
+    def coordinateTransform(self) -> np.ndarray:
+        """Get the coordinate mapping array (if showing region)."""
+        return self._coordinateTransform

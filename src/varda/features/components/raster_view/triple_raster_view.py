@@ -2,6 +2,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter
 import pyqtgraph as pg
 
+from varda.app.services.roi_utils import VardaROI
 from varda.core.data import ProjectContext
 from varda.core.entities import Image
 from varda.features.components.raster_view.raster_viewport import ImageViewport
@@ -13,6 +14,7 @@ from varda.features.components.raster_view.roi_region_controller import (
 class TripleRasterView(QWidget):
     def __init__(self, imageIndex: int, proj: ProjectContext, parent=None):
         super().__init__(parent)
+        self.imageIndex = imageIndex
         self.image = proj.getImage(imageIndex)
         self._initUI()
         self._initROIControllers()
@@ -37,25 +39,29 @@ class TripleRasterView(QWidget):
 
     def _initROIControllers(self):
         """Initialize ROI controllers for the viewports"""
+
+        # # Create test ROI with no controllers to verify basic visibility
+        # test_roi = VardaROI.rectROI(
+        #     (200, 200),
+        #     (150, 150),
+        #     self.imageIndex,
+        #     (0, 255, 0, 100),  # Bright green
+        # )
+        #
+        # # Add directly to viewport with no controllers
+        # self.viewport1.addItem(test_roi)
+
         # Create ROIs
-        self.roi1 = pg.RectROI(
-            [0, 0],
-            [100, 100],
-            pen=(0, 9),
-            maxBounds=self.viewport1.imageItem.boundingRect(),
-            aspectLocked=True,
+        self.roi1 = VardaROI.rectROI(
+            (50, 50), (20, 20), self.imageIndex, (255, 0, 0, 0), aspectLocked=True
         )
-        self.roi2 = pg.RectROI(
-            [0, 0],
-            [50, 50],
-            pen=(0, 9),
-            maxBounds=self.viewport1.imageItem.boundingRect(),
-            aspectLocked=True,
+        self.roi2 = VardaROI.rectROI(
+            (25, 25), (50, 50), self.imageIndex, (255, 0, 0, 0), aspectLocked=True
         )
 
         self.mainController = ROIRegionController(
             self.viewport1, self.viewport2, self.roi1
         )
         self.zoomController = ROIRegionController(
-            self.viewport2, self.viewport3, self.roi2
+            self.viewport2, self.viewport3, self.roi2, self.mainController
         )

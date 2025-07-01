@@ -70,7 +70,7 @@ class ROI:
     name: str = "New ROI"
     mode: ROIMode = ROIMode.FREEHAND
     sourceImageIndex: int = -1
-    points: np.ndarray = field(default_factory=lambda: np.array([]))
+    points: np.ndarray = field(default_factory=lambda: np.empty((0, 2)))
     geoPoints: Optional[np.ndarray] = None
     color: Tuple[int, int, int, int] = (255, 0, 0, 128)  # RGBA
     lineWidth: float = 1.0
@@ -178,6 +178,14 @@ class ROI:
             logger.error(f"Error converting to geo coordinates: {e}")
             return None
 
+    def getBoundingBox(self):
+        """Calculate the bounding box of the ROI points"""
+        if len(self.points) == 0:
+            return 0, 0, 0, 0
+        min_x, min_y = self.points.min(axis=0)
+        max_x, max_y = self.points.max(axis=0)
+        return min_x, min_y, max_x, max_y
+
     def serialize(self):
         """Convert the ROI to a serializable dictionary"""
         # Convert numpy arrays to lists for serialization
@@ -273,6 +281,10 @@ class ROI:
             meanSpectrum=mean_spectrum,
             customData=custom_data,
         )
+
+    def clone(self):
+        """Create a deep copy of the ROI"""
+        return ROI.deserialize(self.serialize())
 
     def __str__(self):
         return f"ROI '{self.name}' ({self.id}) with {len(self.points)} points"
