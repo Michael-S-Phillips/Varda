@@ -4,7 +4,7 @@ import pyqtgraph as pg
 
 from varda.app.services.roi_utils import VardaROI
 from varda.core.data import ProjectContext
-from varda.core.entities import Image
+from varda.core.entities import Image, Band, Stretch
 from varda.features.components.raster_view.raster_viewport import ImageViewport
 from varda.features.components.raster_view.roi_region_controller import (
     ROIRegionController,
@@ -65,3 +65,15 @@ class TripleRasterView(QWidget):
         self.zoomController = ROIRegionController(
             self.viewport2, self.viewport3, self.roi2, self.mainController
         )
+
+    def setStretch(self, stretch: Stretch):
+        self.viewport1.setStretch(stretch, update=False)
+        self.viewport2.setStretch(stretch, update=False)
+        self.viewport3.setStretch(stretch, update=False)
+        self.viewport1.refresh()  # will cascade to others because of the ROIRegionControllers
+
+    def setBand(self, band: Band):
+        self.viewport1.setBand(band, update=False)
+        self.viewport2.setBand(band, update=False)
+        self.viewport3.setBand(band, update=False)
+        self.viewport1.refresh()  # will cascade to others because of the ROIRegionControllers

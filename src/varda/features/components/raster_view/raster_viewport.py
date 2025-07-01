@@ -110,13 +110,17 @@ class ImageViewport(QWidget, IViewport, metaclass=ViewportMeta):
         """Enable self-updating of the image item."""
         self.selfUpdating = True
 
-    def setBand(self, band):
+    def setBand(self, band, update=True):
         """Set the band for the image item."""
-        self.imageItem.setBand(band)
+        self.imageItem.setBand(band, update)
 
-    def setStretch(self, stretch):
+    def setStretch(self, stretch, update=True):
         """Set the stretch for the image item."""
-        self.imageItem.setStretch(stretch)
+        self.imageItem.setStretch(stretch, update)
+
+    def refresh(self):
+        """Refresh the image display with current settings."""
+        self.imageItem.refresh()
 
     def addItem(self, item):
         """Add a graphics item to the viewport."""

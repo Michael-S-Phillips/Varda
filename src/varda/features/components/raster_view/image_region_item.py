@@ -42,29 +42,35 @@ class VardaImageItem(pg.ImageItem):
         self._isShowingRegion = False
 
         # Update the display
-        self._updateImage()
+        self.refresh()
 
     def setROI(self, roi: pg.ROI):
         """Set the region to display from the full image."""
         self._roi = roi
         self._isShowingRegion = True
-        self._updateImage()
+        self.refresh()
 
     def clearROI(self):
         """Clear the region and show the full image."""
         self._roi = None
         self._coordinateTransform = None
         self._isShowingRegion = False
-        self._updateImage()
+        self.refresh()
 
-    def setBand(self, band: Band):
+    def setBand(self, band: Band, update=True):
         """Set the band configuration."""
         self._band = band
-        self._updateImage()
+        if update:
+            self.refresh()
 
-    def setStretch(self, stretch: Stretch):
+    def setStretch(self, stretch: Stretch, update=True):
         """Set the stretch configuration."""
         self._stretch = stretch
+        if update:
+            self.refresh()
+
+    def refresh(self):
+        """Refresh the image display with current settings."""
         self._updateImage()
 
     def localToImage(self, point: QPointF) -> QPointF:

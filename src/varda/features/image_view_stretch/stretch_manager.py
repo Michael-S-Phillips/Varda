@@ -42,6 +42,7 @@ class StretchManager(QWidget):
     """
 
     sigStretchSelected = pyqtSignal(int)
+    sigStretchSelectedSendStretch = pyqtSignal(object)
 
     def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
         super().__init__(parent)
@@ -223,6 +224,9 @@ class StretchManager(QWidget):
             print("row selected!", row)
             self.histogramView.viewModel.selectStretch(row)
             self.sigStretchSelected.emit(row)
+            self.sigStretchSelectedSendStretch.emit(
+                self.proj.getImage(self.imageIndex).stretch[row]
+            )
 
     @pyqtSlot(int, ProjectContext.ChangeType)
     def _onProjectDataChanged(self, index, changeType):

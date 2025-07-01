@@ -77,9 +77,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         # Initialize raster view
         self.tripleRasterView = TripleRasterView(self.imageIndex, self.project, self)
-        # self.rasterView = varda.features.image_view_raster.getRasterView(
-        #     self.project, self.imageIndex, self
-        # )
 
         # Initialize band selection view
         self.bandView = BandManager(self.project, self.imageIndex, self)
@@ -134,7 +131,10 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
     def _connectSignals(self):
         """Connect signals between workflow components"""
-
+        self.bandView.sigBandChangedSendBand.connect(self.tripleRasterView.setBand)
+        self.stretchView.sigStretchSelectedSendStretch.connect(
+            self.tripleRasterView.setStretch
+        )
         # Connect basic image display signals
         # self.bandView.sigBandChanged.connect(self.rasterView.selectBand)
         # self.stretchView.sigStretchSelected.connect(self.rasterView.selectStretch)

@@ -34,6 +34,8 @@ class BandManager(QWidget):
     """
 
     sigBandChanged = pyqtSignal(int)
+    # I want to try this out but don't want to break anything for now
+    sigBandChangedSendBand = pyqtSignal(object)
 
     def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
         super().__init__(parent)
@@ -227,9 +229,12 @@ class BandManager(QWidget):
         selectedItems = self.table.selectedItems()
         if selectedItems:
             row = selectedItems[0].row()
-            print("row selected!", row)
-            self.sigBandChanged.emit(row)
+            logger.info("Band selected: %d", row)
             self.bandView.viewModel.selectBand(row)
+            self.sigBandChanged.emit(row)
+            self.sigBandChangedSendBand.emit(
+                self.proj.getImage(self.imageIndex).band[row]
+            )
 
     @pyqtSlot(int, ProjectContext.ChangeType)
     def _onProjectDataChanged(self, index, changeType):
