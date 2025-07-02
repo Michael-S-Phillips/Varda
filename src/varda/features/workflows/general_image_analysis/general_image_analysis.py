@@ -23,6 +23,7 @@ from varda.features.components.band_management.band_manager import BandManager
 from varda.features.image_view_roi import getROIView
 from varda.features.components.raster_view.triple_raster_view import TripleRasterView
 from varda.features.components import roi_drawing
+from varda.features.workflows.plot_pixels import PlotPixels
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,8 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         # Initialize ROI view/table
         self.roiView = getROIView(self.project, self.imageIndex, self)
+
+        self.plotPixels = PlotPixels(self.tripleRasterView.viewport3, self)
 
     def _initUI(self):
         """Initialize the user interface for the workflow"""

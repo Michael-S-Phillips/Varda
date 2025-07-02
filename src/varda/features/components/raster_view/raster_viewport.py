@@ -40,6 +40,10 @@ class IViewport(Protocol):
         """Add a graphics item to the viewport"""
         ...
 
+    def removeItem(self, item):
+        """Remove a graphics item from the viewport"""
+        ...
+
     def _attemptUpdate(self):
         """Update the image item with the current band and stretch."""
         ...
@@ -125,6 +129,10 @@ class ImageViewport(QWidget, IViewport, metaclass=ViewportMeta):
     def addItem(self, item):
         """Add a graphics item to the viewport."""
         self._vb.addItem(item)
+
+    def removeItem(self, item):
+        """Remove a graphics item from the viewport."""
+        self._vb.removeItem(item)
 
     @property
     def imageEntity(self) -> Image:

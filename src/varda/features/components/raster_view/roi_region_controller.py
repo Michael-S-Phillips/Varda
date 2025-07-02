@@ -72,8 +72,8 @@ class ROIRegionController(QObject):
         if (
             etype == QEvent.Type.GraphicsSceneMousePress
             and ev.button() == Qt.MouseButton.LeftButton
+            and ev.modifiers() == Qt.KeyboardModifier.NoModifier
         ):
-
             # Get click position in scene coordinates
             targetScenePos = self.targetViewport.viewBox.mapToView(ev.pos())
 
