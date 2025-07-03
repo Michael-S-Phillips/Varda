@@ -1,43 +1,48 @@
-from PyQt6.QtWidgets import QWidget, QToolBar, QVBoxLayout
+from PyQt6.QtWidgets import (
+    QWidget,
+    QToolBar,
+    QVBoxLayout,
+    QLabel,
+    QMenu,
+    QMenuBar,
+    QSizePolicy,
+)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 
 from varda.core.entities import ROIMode
 
 
-class ROIToolbarWidget(QWidget):
-    def __init__(
-        self, status_label, setDrawingMode, showAllROIs, hideAllROIs, parent=None
-    ):
+class ROIToolbarWidget(QToolBar):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.status_label = status_label
-        self.setDrawingMode = setDrawingMode
-        self.showAllROIs = showAllROIs
-        self.hideAllROIs = hideAllROIs
-
-        self.toolbar = QToolBar("ROI Tools", self)
+        # self.status_label = status_label
+        # self.setDrawingMode = setDrawingMode
+        # self.showAllROIs = showAllROIs
+        # self.hideAllROIs = hideAllROIs
+        self.setWindowTitle("ROI Tools")
 
         # Drawing mode actions
-        self.action_freehand = QAction("Freehand", self.toolbar)
+        self.action_freehand = QAction("Freehand", self)
         self.action_freehand.setCheckable(True)
         self.action_freehand.setChecked(True)
         self.action_freehand.triggered.connect(
             lambda: self.setDrawingMode(ROIMode.FREEHAND)
         )
 
-        self.action_rectangle = QAction("Rectangle", self.toolbar)
+        self.action_rectangle = QAction("Rectangle", self)
         self.action_rectangle.setCheckable(True)
         self.action_rectangle.triggered.connect(
             lambda: self.setDrawingMode(ROIMode.RECTANGLE)
         )
 
-        self.action_ellipse = QAction("Ellipse", self.toolbar)
+        self.action_ellipse = QAction("Ellipse", self)
         self.action_ellipse.setCheckable(True)
         self.action_ellipse.triggered.connect(
             lambda: self.setDrawingMode(ROIMode.ELLIPSE)
         )
 
-        self.action_polygon = QAction("Polygon", self.toolbar)
+        self.action_polygon = QAction("Polygon", self)
         self.action_polygon.setCheckable(True)
         self.action_polygon.triggered.connect(
             lambda: self.setDrawingMode(ROIMode.POLYGON)
@@ -52,27 +57,40 @@ class ROIToolbarWidget(QWidget):
         ]
 
         # Add actions to toolbar
-        self.toolbar.addAction(self.action_freehand)
-        self.toolbar.addAction(self.action_rectangle)
-        self.toolbar.addAction(self.action_ellipse)
-        self.toolbar.addAction(self.action_polygon)
-        self.toolbar.addSeparator()
+        testMenubar = QMenuBar(self)
+        testMenubar.setNativeMenuBar(False)
+        testMenubar.setSizePolicy(
+            QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum
+        )
+        testMenu = QMenu(self)
+        testMenu.setTitle("Test Menu")
+        testMenu.addAction(self.action_freehand)
+        testMenu.addAction(self.action_rectangle)
+        testMenu.addAction(self.action_ellipse)
+        testMenubar.addMenu(testMenu)
+        self.addWidget(testMenubar)
+        self.addWidget(QLabel("TESTLABEL", self))
+        self.addAction(self.action_freehand)
+        self.addAction(self.action_rectangle)
+        self.addAction(self.action_ellipse)
+        self.addAction(self.action_polygon)
+        self.addSeparator()
 
         # Show/hide all ROIs
-        self.action_show_all = QAction("Show All ROIs", self.toolbar)
-        self.action_show_all.triggered.connect(self.showAllROIs)
-        self.toolbar.addAction(self.action_show_all)
+        self.action_show_all = QAction("Show All ROIs", self)
+        # self.action_show_all.triggered.connect(self.showAllROIs)
+        self.addAction(self.action_show_all)
 
-        self.action_hide_all = QAction("Hide All ROIs!!", self.toolbar)
-        self.action_hide_all.triggered.connect(self.hideAllROIs)
-        self.toolbar.addAction(self.action_hide_all)
+        self.action_hide_all = QAction("Hide All ROIs!!", self)
+        # self.action_hide_all.triggered.connect(self.hideAllROIs)
+        self.addAction(self.action_hide_all)
 
         # Add status label
-        self.toolbar.addWidget(self.status_label)
+        # self.addWidget(self.status_label)
 
         # Layout
         layout = QVBoxLayout()
-        layout.addWidget(self.toolbar)
+        layout.addWidget(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
@@ -87,4 +105,4 @@ class ROIToolbarWidget(QWidget):
 
         # Update status message
         mode_names = ["Freehand", "Rectangle", "Ellipse", "Polygon"]
-        self.status_label.setText(f"Drawing Mode: {mode_names[mode]}")
+        # self.status_label.setText(f"Drawing Mode: {mode_names[mode]}")

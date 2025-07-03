@@ -19,6 +19,8 @@ class PixelSelectTool(QObject):
         self.targetImageItem = viewport.imageItem
         self.vCrosshair = pg.InfiniteLine(angle=90, movable=False, pen="r")
         self.hCrosshair = pg.InfiniteLine(angle=0, movable=False, pen="r")
+        self.vCrosshair.hide()
+        self.hCrosshair.hide()
         self.isDragging = False
         self.activate()
 
@@ -39,21 +41,37 @@ class PixelSelectTool(QObject):
             and event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
             self.isDragging = True
+            self._showCrosshairs()
             self._updateCrosshair(event)
             return True
 
         if event.type() == QEvent.Type.GraphicsSceneMouseMove and self.isDragging:
-            self._updateCrosshair(event)
+            self._updateCrosshair(event, emitSignal=False)
             return True
 
-        if event.type() == QEvent.Type.MouseButtonRelease:
+        if event.type() == QEvent.Type.GraphicsSceneMouseRelease and self.isDragging:
             if event.button() == Qt.MouseButton.LeftButton:
                 self.isDragging = False
                 self._updateCrosshair(event)
+                self._hideCrosshairs()
                 return True
         return False
 
-    def _updateCrosshair(self, event):
+    def _showCrosshairs(self):
+        """Show the crosshairs at the current mouse position."""
+        if not self.vCrosshair.isVisible():
+            self.vCrosshair.show()
+        if not self.hCrosshair.isVisible():
+            self.hCrosshair.show()
+
+    def _hideCrosshairs(self):
+        """Hide the crosshairs."""
+        if self.vCrosshair.isVisible():
+            self.vCrosshair.hide()
+        if self.hCrosshair.isVisible():
+            self.hCrosshair.hide()
+
+    def _updateCrosshair(self, event, emitSignal=True):
         # Get position. don't need to do any transformation because event filter is on the ImageItem directly.
         pos = event.pos()
         # get the exact pixel coordinate
@@ -63,5 +81,5 @@ class PixelSelectTool(QObject):
         centeredPos = quantizedPos + pg.Point(0.5, 0.5)
         self.hCrosshair.setPos(centeredPos)
         self.vCrosshair.setPos(centeredPos)
-
-        self.sigPixelSelected.emit(quantizedPos)
+        if emitSignal:
+            self.sigPixelSelected.emit(quantizedPos)

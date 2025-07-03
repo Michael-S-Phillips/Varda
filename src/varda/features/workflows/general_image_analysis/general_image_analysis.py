@@ -7,12 +7,14 @@ ROI drawing, band selection, stretch controls, and metadata management.
 
 import logging
 
+from PyQt6 import QtCore
 from PyQt6.QtWidgets import (
     QMainWindow,
     QDockWidget,
     QVBoxLayout,
     QWidget,
     QStatusBar,
+    QToolBar,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -103,6 +105,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self._setupDockWidgets()
 
         self.setStatusBar(QStatusBar(self))
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, roi_drawing.ROIToolbarWidget())
 
     def _setupDockWidgets(self):
         """Setup dock widgets for the various control panels"""
