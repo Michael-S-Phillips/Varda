@@ -5,6 +5,7 @@ from typing import Dict, Optional
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QTabWidget
 
 import varda
 from varda.core.data import ProjectContext
@@ -47,7 +48,6 @@ class MainGUI(QtWidgets.QMainWindow):
         #  Dual image view support
         self.dualImageView: Optional[DualImageView] = None
         self.dualImageDock: Optional[QtWidgets.QDockWidget] = None
-
         self.initUI()
         self.connectSignals()
 
@@ -68,7 +68,8 @@ class MainGUI(QtWidgets.QMainWindow):
         # Raster container
         self.rasterContainer = QtWidgets.QStackedWidget()
         self.setCentralWidget(self.rasterContainer)
-
+        self.centralTabs = QTabWidget()
+        self.setCentralWidget(self.centralTabs)
         # Starting screen label
         self.startingScreen = self.getStartingScreenWidget()
         self.rasterContainer.addWidget(self.startingScreen)
@@ -742,8 +743,13 @@ class MainGUI(QtWidgets.QMainWindow):
         ):
             print(f"New image added at index {index}")
         if not hasattr(self, "testWorkflow"):
-            self.testWorkflow = varda.features.workflows.GeneralImageAnalysisWorkflow()
-            self.testWorkflow.show()
+
+            self.testWorkflow = varda.features.workflows.GeneralImageAnalysisWorkflow(
+                parent=self
+            )
+            self.centralTabs.addTab(self.testWorkflow, "Test Workflow")
+            # self.setCentralWidget(self.centralTabs)
+            # self.testWorkflow.show()
 
     # TODO: Delete?
     def trackPixelPlotWindow(self, window):
