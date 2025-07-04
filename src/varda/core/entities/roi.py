@@ -72,7 +72,7 @@ class ROI:
     sourceImageIndex: int = -1
     points: np.ndarray = field(default_factory=lambda: np.empty((0, 2)))
     geoPoints: Optional[np.ndarray] = None
-    color: QColor = QColor(255, 0, 0, 128)  # RGBA
+    color: QColor = field(default_factory=lambda: QColor(255, 0, 0, 128))  # RGBA
     visible: bool = True
     creationTime: datetime = field(default_factory=datetime.now)
     description: str = ""
@@ -194,7 +194,6 @@ class ROI:
             "points": points_list,
             "geoPoints": geo_points_list,
             "color": colorTuple,
-            "fillOpacity": self.fillOpacity,
             "visible": self.visible,
             "creationTime": self.creationTime.isoformat(),
             "description": self.description,

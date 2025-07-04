@@ -26,7 +26,9 @@ from PyQt6.QtWidgets import (
 from varda.core.data import ProjectContext
 from varda.core.entities import Stretch
 from varda.features.image_view_histogram import getHistogramView
-from varda.features.image_view_stretch.stretch_preset_generator import StretchPresetSelector
+from varda.features.image_view_stretch.stretch_preset_generator import (
+    StretchPresetSelector,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +115,9 @@ class StretchManager(QWidget):
         self.addButton.clicked.connect(self._onAddButtonPressed)
         self.deleteButton.clicked.connect(self._onDeleteButtonPressed)
         self.proj.sigDataChanged.connect(self._onProjectDataChanged)
-        self.stretchPresetSelector.sigStretchPresetApplied.connect(self._onStretchPresetApplied)
+        self.stretchPresetSelector.sigStretchPresetApplied.connect(
+            self._onStretchPresetApplied
+        )
 
     def _populateTable(self):
         self.disableProjectUpdating = True
@@ -162,7 +166,7 @@ class StretchManager(QWidget):
 
     @pyqtSlot(int)
     def _onStretchPresetApplied(self, preset_id):
-
+        pass
 
     @pyqtSlot(QTableWidgetItem)
     def _onItemChanged(self, item):

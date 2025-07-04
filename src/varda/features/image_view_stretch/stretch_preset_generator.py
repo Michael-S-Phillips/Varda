@@ -8,12 +8,12 @@ from PyQt6.QtWidgets import (
     QLabel,
 )
 
-from varda.core.stretch import StretchPresets
+from varda.app.services.stretch_utils import StretchPresets
 
 
 class StretchPresetSelector(QWidget):
 
-    sigStretchPresetApplied = pyqtSignal()
+    sigStretchPresetApplied = pyqtSignal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)

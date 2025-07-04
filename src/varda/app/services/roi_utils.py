@@ -63,7 +63,9 @@ class VardaROI(pg.ROI):
     def _setPenAndBrush(self):
         """Set the pen and brush for the ROI based on the entity color"""
         color = self.roiEntity.color
-        self.currentPen = pg.mkPen(color=color, width=2)
+        self.currentPen = pg.mkPen(
+            color=(color.red(), color.green(), color.blue()), width=2
+        )
         self.currentBrush = pg.mkBrush(self.roiEntity.color)
 
     def setROIData(self, roiEntity: ROI):

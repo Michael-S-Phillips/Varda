@@ -18,7 +18,7 @@ from varda.core.entities import ROIMode
 from varda.features.components.controlpanel import ControlPanel
 
 from varda.features.components.band_management.band_manager import BandManager
-from varda.experiments.general_purpose_image_viewmodel import (
+from varda.__experiments.general_purpose_image_viewmodel import (
     GeneralPurposeImageViewModel,
 )
 from varda.features.image_view_roi import getROIView
@@ -46,9 +46,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
     def __init__(self, imageIndex=0, parent=None):
         super().__init__(parent)
-        self.viewModel = GeneralPurposeImageViewModel(self)
-        self.viewModel.imageIndex = imageIndex
-        self.image = self.viewModel.getImage()
+        # self.viewModel = GeneralPurposeImageViewModel(self)
+        # self.viewModel.imageIndex = imageIndex
+        # self.image = self.viewModel.getImage()
         self.imageIndex = imageIndex
         self.image = varda.app.proj.getImage(imageIndex)
         self.project = varda.app.proj
@@ -80,9 +80,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         """Initialize all workflow components"""
 
         # Initialize raster view
-        self.tripleRasterView = TripleRasterView(
-            self.imageIndex, self.project, self.viewModel, self
-        )
+        self.tripleRasterView = TripleRasterView(self.imageIndex, self.project, self)
 
         # Initialize Control Panel
         # So like basically we're just delegating the task of creating a bunch of docks to the ControlPanel.
