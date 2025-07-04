@@ -1,6 +1,6 @@
 import logging
 
-from varda.core.data import ProjectContext, Registry
+from varda.core.data import ProjectContext, VardaRegistries
 from varda.plugins.plugin_manager import VardaPluginManager
 
 
@@ -15,5 +15,5 @@ class VardaSessionContext:
 
     def __init__(self):
         self.proj = ProjectContext()
-        self.registry = Registry()
+        self.registry = VardaRegistries()
         self.pm = VardaPluginManager()

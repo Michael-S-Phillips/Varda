@@ -167,8 +167,6 @@ class ROIRegionController(QObject):
         self.displayROI.setPos(newRoiPos)
         self.onRegionChanged()
 
-        logger.debug("ROI position manually updated to: %s", newRoiPos)
-
     def _convertDragToSourceCoordinates(self, targetDrag: QPointF) -> QPointF:
         """Convert drag distance from target viewport to source viewport coordinates"""
         target_view_rect = self.targetViewport.viewBox.viewRect()

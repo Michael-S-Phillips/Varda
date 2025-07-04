@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-from typing import Dict, List, Optional, Any
+from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -12,12 +12,10 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QGridLayout,
     QSplitter,
-    QTabWidget,
     QPushButton,
     QLabel,
     QMessageBox,
     QMenu,
-    QFrame,
     QApplication,
     QInputDialog,
 )
@@ -25,7 +23,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QPoint, QDateTime, QSize
 from PyQt6.QtGui import QDrag, QPixmap, QPainter, QAction, QIcon
 
 from varda.core.data import ProjectContext
-from varda.core.ui.controlpanel import DockableTab
+from varda.features.components.controlpanel import DockableTab
 from varda.gui.widgets.spectral_properties_panel import (
     SpectralPropertiesPanel,
     EnhancedImagePlotWidget,

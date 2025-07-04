@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.core.data import ProjectContext
+from varda.core.entities import Band
 from varda.features.components.band_management.image_view_band import getBandView
 
 logger = logging.getLogger(__name__)
@@ -33,9 +34,7 @@ class BandManager(QWidget):
     This includes being able to create, delete, and rename bands.
     """
 
-    sigBandChanged = pyqtSignal(int)
-    # I want to try this out but don't want to break anything for now
-    sigBandChangedSendBand = pyqtSignal(object)
+    sigBandChanged = pyqtSignal(Band)
 
     def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
         super().__init__(parent)
@@ -231,15 +230,13 @@ class BandManager(QWidget):
             row = selectedItems[0].row()
             logger.info("Band selected: %d", row)
             self.bandView.viewModel.selectBand(row)
-            self.sigBandChanged.emit(row)
-            self.sigBandChangedSendBand.emit(
-                self.proj.getImage(self.imageIndex).band[row]
-            )
+            self.sigBandChanged.emit(self.proj.getImage(self.imageIndex).band[row])
 
     @pyqtSlot(int, ProjectContext.ChangeType)
     def _onProjectDataChanged(self, index, changeType):
         if index == self.imageIndex and changeType == ProjectContext.ChangeType.BAND:
             self._populateTable()
+            self._onRowSelected()  # emit the signal for the currently selected band
 
     @pyqtSlot()
     def _onModeChanged(self):

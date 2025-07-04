@@ -1,5 +1,7 @@
 import logging
+from typing import Protocol, override
 
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QWidget
 
 from varda.app.services.load_image.loaders import AbstractImageLoader
@@ -7,7 +9,7 @@ from varda.app.services.load_image.loaders import AbstractImageLoader
 logger = logging.getLogger(__name__)
 
 
-class Registry:
+class VardaRegistries:
     """Registry to store dynamically loaded widgets and image loaders. (e.g. plugins)"""
 
     def __init__(self):
@@ -16,16 +18,24 @@ class Registry:
 
     def registerWidget(self, widget):
         """Register a widget class."""
-        self._widgets.registerWidget(widget)
+        name = widget.__name__
+        self._widgets[name] = widget
+        logger.info(f"Registered widget {name}")
 
     def registerImageLoader(self, loader):
         """Register an image loader class."""
-        # TODO: validate that class is a valid image loader.
-        self._imageLoaders.registerLoader(loader)
+        name = loader.__name__
+        self._imageLoaders[name] = loader
+        logger.info(f"Registered image loader {name}")
 
     def unregisterWidget(self, widget):
         """Unregister a widget class."""
-        self._widgets.unregisterWidget(widget)
+        name = widget.__name__
+        if name in self._widgets:
+            del self._widgets[name]
+            logger.info(f"Unregistered widget {name}")
+        else:
+            logger.warning(f"Widget {name} not found in registry.")
 
     def unregisterImageLoader(self, loader):
         """Unregister an image loader class."""
@@ -46,70 +56,86 @@ class Registry:
         return self._imageLoaders
 
 
-class WidgetRegistry:
+class IRegistry(Protocol):
     """
-    A registry for widgets that can be used in the application.
+    Protocol for a registry of items that emits signals for updates.
+    Implements magic methods for more convenient access.
     """
+
+    sigItemRegistered = pyqtSignal(str, object)
+    sigItemUnregistered = pyqtSignal(str, object)
 
     def __init__(self):
-        self._widgets = {}
+        self.registryItems = {}
+
+    def __contains__(self, key):
+        """Check if an item is registered."""
+        return key in self.registryItems
+
+    def __len__(self):
+        """Get the number of registered items."""
+        return len(self.registryItems)
 
     def __iter__(self):
-        """
-        Iterate over the registered widgets.
-        """
-        return iter(self._widgets.items())
+        """Iterate over the registered items."""
+        yield from self.registryItems.items()
 
-    def registerWidget(self, widget: QWidget):
-        """
-        Register a widget class with a given name.
-        """
-        if not issubclass(widget, QWidget):
-            raise ValueError(f"{widget.__name__} is not a valid widget!")
-        self._widgets[widget.__name__] = widget
-
-        logger.info(f"Registered widget {widget.__name__}")
-
-    def unregisterWidget(self, widget: QWidget):
-        """
-        Unregister a widget class by its name.
-        """
-        if widget.__name__ in self._widgets:
-            del self._widgets[widget.__name__]
-            logger.info(f"Unregistered widget {widget.__name__}")
+    def __getitem__(self, key):
+        """Get an item by its name."""
+        if key in self:
+            return self.registryItems[key]
         else:
-            logger.warning(f"Widget {widget.__name__} not found in registry.")
+            raise KeyError(f"Item '{key}' not found in registry.")
 
-
-class ImageLoaderRegistry:
-    """
-    Registry for image loaders.
-    """
-
-    def __init__(self):
-        self._loaders = {}
-
-    def __iter__(self):
-        """
-        Iterate over the registered widgets.
-        """
-        return iter(self._loaders.items())
-
-    def registerLoader(self, loader):
-        """
-        Register an image loader with a given name.
-        """
-        if not issubclass(loader, AbstractImageLoader):
-            raise ValueError(f"{loader.__name__} is not a valid image loader!")
-        self._loaders[loader.__name__] = loader
-        logger.info(f"Registered image loader {loader.__name__}")
-
-    def unregisterLoader(self, loader):
-        """
-        Unregister an image loader by its name.
-        """
-        if loader.__name__ in self._loaders:
-            del self._loaders[loader.__name__]
-            logger.info(f"Unregistered image loader {loader.__name__}")
+    def __setitem__(self, key, value):
+        """Register an item with a given name."""
+        if self._itemIsValid(value):
+            self.registryItems[key] = value
+            self.sigItemRegistered.emit(key, value)
         else:
-            logger.warning(f"Image loader {loader.__name__} not found in registry.")
+            raise ValueError(
+                f"{value.__name__} is not a valid item for registration in {self.__class__.__name__}!"
+            )
+
+    def __delitem__(self, key):
+        """Unregister an item by its name."""
+        if key in self:
+            item = self.registryItems.pop(key)
+            self.sigItemUnregistered.emit(key, item)
+        else:
+            raise KeyError(f"Item '{key}' not found in registry.")
+
+    def _itemIsValid(self, item):
+        """
+        Check if the item is valid for registration.
+        This method should be overridden by subclasses.
+        """
+        raise NotImplementedError(
+            "Registry Subclasses must implement _itemIsValid method."
+        )
+
+
+class WidgetRegistry(IRegistry):
+    """
+    A registry for widgets that can dynamically appear in the application for users.
+    """
+
+    @override
+    def _itemIsValid(self, item):
+        """
+        Check if the item is a valid widget for registration.
+        """
+        return issubclass(item, QWidget)
+
+
+class ImageLoaderRegistry(IRegistry):
+    """
+    Registry for image loaders that can be used to load images in the application.
+    """
+
+    @override
+    def _itemIsValid(self, item):
+        """
+        Check if the item is a valid image loader for registration.
+        """
+        return issubclass(item, AbstractImageLoader)

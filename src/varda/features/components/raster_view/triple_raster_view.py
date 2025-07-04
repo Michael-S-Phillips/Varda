@@ -1,4 +1,5 @@
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter
 import pyqtgraph as pg
 
@@ -53,10 +54,14 @@ class TripleRasterView(QWidget):
 
         # Create ROIs
         self.roi1 = VardaROI.rectROI(
-            (50, 50), (20, 20), self.imageIndex, (255, 0, 0, 0), aspectLocked=True
+            (50, 50),
+            (100, 100),
+            self.imageIndex,
+            QColor(255, 0, 0, 0),
+            aspectLocked=True,
         )
         self.roi2 = VardaROI.rectROI(
-            (25, 25), (50, 50), self.imageIndex, (255, 0, 0, 0), aspectLocked=True
+            (25, 25), (50, 50), self.imageIndex, QColor(255, 0, 0, 0), aspectLocked=True
         )
 
         self.mainController = ROIRegionController(

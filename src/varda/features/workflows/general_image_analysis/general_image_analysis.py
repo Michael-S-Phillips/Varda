@@ -7,21 +7,20 @@ ROI drawing, band selection, stretch controls, and metadata management.
 
 import logging
 
-from PyQt6 import QtCore
 from PyQt6.QtWidgets import (
     QMainWindow,
-    QDockWidget,
-    QVBoxLayout,
-    QWidget,
     QStatusBar,
-    QToolBar,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
 import varda
 from varda.core.entities import ROIMode
+from varda.features.components.controlpanel import ControlPanel
 
 from varda.features.components.band_management.band_manager import BandManager
+from varda.experiments.general_purpose_image_viewmodel import (
+    GeneralPurposeImageViewModel,
+)
 from varda.features.image_view_roi import getROIView
 from varda.features.components.raster_view.triple_raster_view import TripleRasterView
 from varda.features.components import roi_drawing
@@ -47,7 +46,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
     def __init__(self, imageIndex=0, parent=None):
         super().__init__(parent)
-
+        self.viewModel = GeneralPurposeImageViewModel(self)
+        self.viewModel.imageIndex = imageIndex
+        self.image = self.viewModel.getImage()
         self.imageIndex = imageIndex
         self.image = varda.app.proj.getImage(imageIndex)
         self.project = varda.app.proj
@@ -79,7 +80,14 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         """Initialize all workflow components"""
 
         # Initialize raster view
-        self.tripleRasterView = TripleRasterView(self.imageIndex, self.project, self)
+        self.tripleRasterView = TripleRasterView(
+            self.imageIndex, self.project, self.viewModel, self
+        )
+
+        # Initialize Control Panel
+        # So like basically we're just delegating the task of creating a bunch of docks to the ControlPanel.
+        # Idk if this is unnecessary or actually helpful, since we only need a few docks anyways. but idk lol.
+        self.controlPanel = ControlPanel(self.project, self.imageIndex, self)
 
         # Initialize band selection view
         self.bandView = BandManager(self.project, self.imageIndex, self)
@@ -101,49 +109,26 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # Set the raster view as the central widget
         self.setCentralWidget(self.tripleRasterView)
 
-        # Create dock widgets for controls
-        self._setupDockWidgets()
-
         self.setStatusBar(QStatusBar(self))
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, roi_drawing.ROIToolbarWidget())
 
-    def _setupDockWidgets(self):
-        """Setup dock widgets for the various control panels"""
-
-        # ROI Management Dock (left side)
-        roiDock = QDockWidget("ROI Management", self)
-        roiDock.setWidget(self.roiView)
-        roiDock.setAllowedAreas(
-            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
-        )
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, roiDock)
-
-        # Image Controls Dock (right side - contains band and stretch controls)
-        imageControlsWidget = QWidget()
-        imageControlsLayout = QVBoxLayout(imageControlsWidget)
-
-        # Add band controls
-        imageControlsLayout.addWidget(self.bandView)
-
-        # Add stretch controls
-        imageControlsLayout.addWidget(self.stretchView)
-
-        imageControlsDock = QDockWidget("Image Controls", self)
-        imageControlsDock.setWidget(imageControlsWidget)
-        imageControlsDock.setAllowedAreas(
-            Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea
-        )
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, imageControlsDock)
+    # def _setupDocks(self):
+    #     """Setup all of the dock widgets for the workflow. This is most of the tools"""
+    #     docks = []
+    #     bandDock = QDockWidget("Band Manager", self)
+    #     bandDock.setWidget(self.bandView)
+    #     self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, bandDock)
+    #     docks.append(bandDock)
+    #
+    #     stretchDock = QDockWidget("Stretch Controls", self)
+    #     stretchDock.setWidget(self.stretchView)
+    #     self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, stretchDock)
+    #     docks.append(stretchDock)
 
     def _connectSignals(self):
         """Connect signals between workflow components"""
-        self.bandView.sigBandChangedSendBand.connect(self.tripleRasterView.setBand)
-        self.stretchView.sigStretchSelectedSendStretch.connect(
-            self.tripleRasterView.setStretch
-        )
-        # Connect basic image display signals
-        # self.bandView.sigBandChanged.connect(self.rasterView.selectBand)
-        # self.stretchView.sigStretchSelected.connect(self.rasterView.selectStretch)
+        self.controlPanel.sigBandChanged.connect(self.tripleRasterView.setBand)
+        self.controlPanel.sigStretchChanged.connect(self.tripleRasterView.setStretch)
 
         logger.debug("All workflow signals connected")
 

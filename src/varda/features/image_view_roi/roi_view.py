@@ -733,36 +733,25 @@ class ROIView(QWidget):
 
         roi = rois[roi_index]
 
-        # Get current color
-        current_color = roi.color
-        if isinstance(current_color, tuple):
-            if len(current_color) >= 3:
-                initial_color = QColor(
-                    current_color[0], current_color[1], current_color[2]
-                )
-            else:
-                initial_color = QColor(255, 0, 0)  # Default red
-        else:
-            initial_color = QColor(255, 0, 0)  # Default red
-
         # Show color dialog
+        initialColor = roi.color
         color = QColorDialog.getColor(
-            initial_color, self, f"Select color for ROI #{roi_index}"
+            initialColor, self, f"Select color for ROI #{roi_index}"
         )
 
         if color.isValid():
             # Create RGBA tuple
-            new_color = (
+            newColor = (
                 color.red(),
                 color.green(),
                 color.blue(),
-                128 if len(current_color) < 4 else current_color[3],
+                128 if len(initialColor) < 4 else initialColor[3],
             )
 
-            logger.debug(f"Changing color of ROI {roi_index} to {new_color}")
+            logger.debug(f"Changing color of ROI {roi_index} to {newColor}")
 
             # Update ROI in the data model
-            self.viewModel.update_roi(roi.id, color=new_color)
+            self.viewModel.updateRoi(roi.id, color=newColor)
 
             # Update the table cell
             col_idx = next(
@@ -886,7 +875,7 @@ class ROIView(QWidget):
         # Add rows for each band
         band_table.setRowCount(stats.n_bands)
         for i in range(stats.n_bands):
-            band_stats = stats.get_band_stats(i)
+            band_stats = stats.getBandStats(i)
             band_table.setItem(i, 0, QTableWidgetItem(str(i)))
             band_table.setItem(i, 1, QTableWidgetItem(f"{band_stats['mean']:.4f}"))
             band_table.setItem(i, 2, QTableWidgetItem(f"{band_stats['median']:.4f}"))

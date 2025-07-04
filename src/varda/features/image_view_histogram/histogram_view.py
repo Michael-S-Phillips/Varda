@@ -5,11 +5,9 @@ import logging
 
 # third-party imports
 import pyqtgraph as pg
-from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
-    QHBoxLayout,
     QTabWidget,
     QMessageBox,
     QGroupBox,
@@ -18,15 +16,12 @@ from PyQt6.QtWidgets import (
     QLabel,
 )
 from PyQt6.QtGui import QColor
-from pyqtgraph import HistogramLUTItem
 
 # local imports
-from varda.features.shared.selection_controls import StretchSelector, BandSelector
 from .histogram_viewmodel import HistogramViewModel
-from varda.core.stretch.stretch_manager import StretchPresets
+from varda.app.services.stretch_utils import StretchPresets
 from varda.features.shared.base_view import BaseView
 from varda.core.utilities.signal_utils import guard_signals, SignalBlocker
-from varda.core.data import ProjectContext
 
 logger = logging.getLogger(__name__)
 

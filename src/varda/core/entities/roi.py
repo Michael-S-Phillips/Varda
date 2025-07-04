@@ -3,9 +3,10 @@ import numpy as np
 from datetime import datetime
 import uuid
 from enum import Enum
-from typing import List, Dict, Tuple, Optional, Any
+from typing import Dict, Optional, Any
 import logging
 import rasterio.transform
+from PyQt6.QtGui import QColor
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +53,10 @@ class ROI:
         id: Unique identifier for the ROI
         name: User-friendly name for the ROI
         mode: Drawing mode for the ROI (e.g., freehand, rectangle)
+        sourceImageIndex: Index of the source image this ROI was created from
         points: Points defining the ROI in pixel coordinates [x, y]
         geoPoints: Points in geographic coordinates (if available) [lon, lat]
-        color: RGBA color tuple (0-255 for each component)
-        lineWidth: Width of the ROI outline
-        fillOpacity: Opacity of the ROI fill (0.0 to 1.0)
+        color: The ROI color in RGBA 0-255 format, in a QColor object
         visible: Whether the ROI is currently visible
         creationTime: When the ROI was created
         description: User description of the ROI
@@ -67,14 +67,12 @@ class ROI:
     """
 
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    name: str = "New ROI"
+    name: str = "Unnamed ROI"
     mode: ROIMode = ROIMode.FREEHAND
     sourceImageIndex: int = -1
     points: np.ndarray = field(default_factory=lambda: np.empty((0, 2)))
     geoPoints: Optional[np.ndarray] = None
-    color: Tuple[int, int, int, int] = (255, 0, 0, 128)  # RGBA
-    lineWidth: float = 1.0
-    fillOpacity: float = 0.5
+    color: QColor = QColor(255, 0, 0, 128)  # RGBA
     visible: bool = True
     creationTime: datetime = field(default_factory=datetime.now)
     description: str = ""
@@ -106,31 +104,9 @@ class ROI:
                 self.geoPoints = None
 
         # Ensure color is a valid RGBA tuple
-        if not isinstance(self.color, tuple) or len(self.color) != 4:
+        if not isinstance(self.color, QColor):
             logger.warning(f"Invalid color {self.color}, using default")
-            self.color = (255, 0, 0, 128)
-
-    def get_pixel_points(self):
-        """Get the ROI points in pixel coordinates"""
-        return self.points
-
-    def get_geo_points(self):
-        """Get the ROI points in geographic coordinates"""
-        return self.geoPoints
-
-    def set_geo_points(self, geo_points):
-        """Set the geographic coordinates for this ROI"""
-        if isinstance(geo_points, list):
-            geo_points = np.array(geo_points)
-        self.geoPoints = geo_points
-
-    def update_color(self, color):
-        """Update the ROI color"""
-        self.color = color
-
-    def update_opacity(self, op):
-        # update fill opacity (to hide roi)
-        self.fillOpacity = op
+            self.color = QColor(255, 0, 0, 128)  # Default red with 50% opacity
 
     def update_properties(self, **kwargs):
         """Update multiple ROI properties at once"""
@@ -178,7 +154,7 @@ class ROI:
             logger.error(f"Error converting to geo coordinates: {e}")
             return None
 
-    def getBoundingBox(self):
+    def getBounds(self):
         """Calculate the bounding box of the ROI points"""
         if len(self.points) == 0:
             return 0, 0, 0, 0
@@ -197,90 +173,88 @@ class ROI:
         )
 
         # Convert array_slice and mean_spectrum to lists if they exist
-        array_slice_list = None
-        if self.arraySlice is not None:
-            if isinstance(self.arraySlice, np.ndarray):
-                array_slice_list = self.arraySlice.tolist()
-            else:
-                array_slice_list = self.arraySlice
+        array_slice_list = array_slice_list = (
+            self.arraySlice.tolist() if self.arraySlice is not None else None
+        )
 
-        mean_spectrum_list = None
-        if self.meanSpectrum is not None:
-            if isinstance(self.meanSpectrum, np.ndarray):
-                mean_spectrum_list = self.meanSpectrum.tolist()
-            else:
-                mean_spectrum_list = self.meanSpectrum
+        mean_spectrum_list = (
+            self.meanSpectrum.tolist() if self.meanSpectrum is not None else None
+        )
 
+        # convert color to tuple
+        colorTuple = (
+            self.color.red(),
+            self.color.green(),
+            self.color.blue(),
+            self.color.alpha(),
+        )
         return {
             "id": self.id,
             "name": self.name,
             "points": points_list,
-            "geo_points": geo_points_list,
-            "color": self.color,
-            "line_width": self.lineWidth,
-            "fill_opacity": self.fillOpacity,
+            "geoPoints": geo_points_list,
+            "color": colorTuple,
+            "fillOpacity": self.fillOpacity,
             "visible": self.visible,
-            "creation_time": self.creationTime.isoformat(),
+            "creationTime": self.creationTime.isoformat(),
             "description": self.description,
             "metadata": self.metadata,
-            "array_slice": array_slice_list,
-            "mean_spectrum": mean_spectrum_list,
-            "custom_data": self.customData.serialize(),
+            "arraySlice": array_slice_list,
+            "meanSpectrum": mean_spectrum_list,
+            "customData": self.customData.serialize(),
         }
 
     @classmethod
     def deserialize(cls, data):
         """Create an ROI from a serialized dictionary"""
-        # Convert lists back to numpy arrays
-        points = np.array(data.get("points", []))
+        inputKwargs = {}
 
-        geo_points = data.get("geo_points")
+        if data.get("id"):
+            inputKwargs["id"] = data["id"]
+        if data.get("name"):
+            inputKwargs["name"] = data["name"]
+
+        points = data.get("points")
+        if points is not None:
+            inputKwargs["points"] = np.array(points)
+
+        geo_points = data.get("geoPoints")
         if geo_points is not None:
-            geo_points = np.array(geo_points)
+            inputKwargs["geoPoints"] = np.array(geo_points)
 
-        # Handle DateTime conversion
-        creation_time = data.get("creation_time")
-        if isinstance(creation_time, str):
-            try:
-                creation_time = datetime.fromisoformat(creation_time)
-            except ValueError:
-                creation_time = datetime.now()
-        else:
-            creation_time = datetime.now()
+        creationTime = data.get("creationTime")
+        if creationTime:
+            inputKwargs["creationTime"] = datetime.fromisoformat(creationTime)
 
-        # Handle array_slice and mean_spectrum
-        array_slice = data.get("array_slice")
+        array_slice = data.get("arraySlice")
         if array_slice is not None:
-            array_slice = np.array(array_slice)
+            inputKwargs["arraySlice"] = np.array(array_slice)
 
-        mean_spectrum = data.get("mean_spectrum")
+        mean_spectrum = data.get("meanSpectrum")
         if mean_spectrum is not None:
-            mean_spectrum = np.array(mean_spectrum)
+            inputKwargs["meanSpectrum"] = np.array(mean_spectrum)
 
-        # Handle custom data
-        custom_data = ROICustomData.deserialize(data.get("custom_data", {}))
+        color = data.get("color")
+        if color is not None:
+            inputKwargs["color"] = QColor(*color)
 
-        # Ensure image_indices is a list
-        image_indices = data.get("image_indices", [])
-        if not isinstance(image_indices, list):
-            image_indices = [image_indices] if image_indices is not None else []
+        visible = data.get("visible")
+        if visible is not None:
+            inputKwargs["visible"] = visible
 
-        return cls(
-            id=data.get("id", str(uuid.uuid4())),
-            name=data.get("name", "ROI"),
-            points=points,
-            geoPoints=geo_points,
-            color=data.get("color", (255, 0, 0, 128)),
-            lineWidth=data.get("line_width", 2.0),
-            fillOpacity=data.get("fill_opacity", 0.5),
-            visible=data.get("visible", True),
-            creationTime=creation_time,
-            description=data.get("description", ""),
-            metadata=data.get("metadata", {}),
-            arraySlice=array_slice,
-            meanSpectrum=mean_spectrum,
-            customData=custom_data,
-        )
+        description = data.get("description")
+        if description is not None:
+            inputKwargs["description"] = description
+
+        metadata = data.get("metadata")
+        if metadata is not None:
+            inputKwargs["metadata"] = metadata
+
+        custom_data = data.get("customData")
+        if custom_data is not None:
+            inputKwargs["customData"] = ROICustomData.deserialize(custom_data)
+
+        return cls(**inputKwargs)
 
     def clone(self):
         """Create a deep copy of the ROI"""

@@ -154,7 +154,7 @@ class ROIViewModel(QObject):
 
     def calculate_roi_statistics(self, roi_id):
         """Calculate detailed statistics for an ROI"""
-        from varda.features.roi_statistics import calculate_roi_stats
+        from varda.app.services import roi_utils
 
         roi = self.getRoi(roi_id)
         if not roi:
@@ -167,15 +167,15 @@ class ROIViewModel(QObject):
         wavelengths = image.metadata.wavelengths
 
         # Calculate statistics
-        stats = calculate_roi_stats(roi, image_data, wavelengths)
+        stats = roi_utils.ROIStatistics.getROIStats(roi, image)
 
         # Store statistics in the ROI for future reference
         if hasattr(roi, "statistics"):
-            roi.statistics = stats.get_summary()
+            roi.statistics = stats.getSummary()
         else:
             # For older ROI objects, store in custom_data
             if hasattr(roi, "custom_data") and hasattr(roi.customData, "values"):
-                roi.customData.values["statistics"] = stats.get_summary()
+                roi.customData.values["statistics"] = stats.getSummary()
 
         # Signal that the ROI has been updated
         self.roiUpdated.emit(roi_id)

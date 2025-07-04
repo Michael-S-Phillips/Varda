@@ -1,11 +1,10 @@
-# varda/core/stretch/stretch_manager.py
+# varda/core/stretch/stretch_utils.py
 
 from typing import List, Dict, Tuple, Optional, Any
 import numpy as np
 import logging
 
-from varda.core.entities.stretch import Stretch
-from varda.core.entities.band import Band
+from varda.core.entities import Stretch, Band
 from varda.core.stretch.stretch_algorithms import (
     compute_stretch,
     get_available_stretches,
@@ -31,7 +30,7 @@ class StretchPresets:
     def create_stretch_from_preset(
         preset_id: str,
         image_data: np.ndarray,
-        band_config: "Band" = None,
+        band_config: Band = None,
         name: str = None,
     ) -> Stretch:
         """Create a Stretch object using a preset algorithm.

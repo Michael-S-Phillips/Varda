@@ -5,4 +5,3 @@ from .stretch_algorithms import (
     apply_stretch_transform,
     STRETCH_NAMES,
 )
-from .stretch_manager import StretchPresets

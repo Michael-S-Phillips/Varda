@@ -4,6 +4,7 @@ import numpy as np
 from PyQt6.QtCore import pyqtSignal, QRectF, QPointF, QSizeF
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
+from pygments.styles.dracula import background
 
 from varda.core.entities import Image, Stretch
 from varda.features.components.raster_view.image_region_item import (

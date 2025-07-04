@@ -1,11 +1,11 @@
-# varda/features/image_view_stretch/stretch_manager.py
+# varda/features/image_view_stretch/stretch_utils.py
 # Existing file to be modified
 
 # standard library
 import logging
 
 # third party imports
-from PyQt6.QtCore import pyqtSlot, Qt, QSize, pyqtSignal
+from PyQt6.QtCore import pyqtSlot, Qt, pyqtSignal
 from PyQt6.QtGui import QDoubleValidator
 from PyQt6.QtWidgets import (
     QWidget,
@@ -20,16 +20,13 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QHBoxLayout,
     QToolButton,
-    QGroupBox,
-    QMessageBox,
-    QDialog,
 )
 
 # local imports
 from varda.core.data import ProjectContext
+from varda.core.entities import Stretch
 from varda.features.image_view_histogram import getHistogramView
-from varda.core.stretch.stretch_manager import StretchPresets
-from varda.features.image_view_stretch.custom_stretch_dialog import CustomStretchDialog
+from varda.features.image_view_stretch.stretch_preset_generator import StretchPresetSelector
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +38,7 @@ class StretchManager(QWidget):
     Each stretch has a name, and minimum/maximum values for R, G, and B channels.
     """
 
-    sigStretchSelected = pyqtSignal(int)
-    sigStretchSelectedSendStretch = pyqtSignal(object)
+    sigStretchChanged = pyqtSignal(Stretch)
 
     def __init__(self, proj: ProjectContext, imageIndex: int, parent=None):
         super().__init__(parent)
@@ -99,11 +95,13 @@ class StretchManager(QWidget):
         self.buttonLayout.addWidget(self.deleteButton)
 
         self.histogramView = getHistogramView(self.proj, self.imageIndex, self)
+        self.stretchPresetSelector = StretchPresetSelector(self)
 
         self.layout = QVBoxLayout(self)
         self.layout.addWidget(self.toggleButton)
         self.layout.addLayout(self.buttonLayout)
         self.layout.addWidget(self.table)
+        self.layout.addWidget(self.stretchPresetSelector)
         self.layout.addWidget(self.histogramView)
 
         self.setLayout(self.layout)
@@ -115,6 +113,7 @@ class StretchManager(QWidget):
         self.addButton.clicked.connect(self._onAddButtonPressed)
         self.deleteButton.clicked.connect(self._onDeleteButtonPressed)
         self.proj.sigDataChanged.connect(self._onProjectDataChanged)
+        self.stretchPresetSelector.sigStretchPresetApplied.connect(self._onStretchPresetApplied)
 
     def _populateTable(self):
         self.disableProjectUpdating = True
@@ -160,6 +159,10 @@ class StretchManager(QWidget):
             row = selected_items[0].row()
             self.proj.removeStretch(self.imageIndex, row)
             # the project context will implicitly call _populateTable after updating
+
+    @pyqtSlot(int)
+    def _onStretchPresetApplied(self, preset_id):
+
 
     @pyqtSlot(QTableWidgetItem)
     def _onItemChanged(self, item):
@@ -223,8 +226,11 @@ class StretchManager(QWidget):
             row = selectedItems[0].row()
             print("row selected!", row)
             self.histogramView.viewModel.selectStretch(row)
-            self.sigStretchSelected.emit(row)
-            self.sigStretchSelectedSendStretch.emit(
+            # self.sigStretchSelected.emit(row)
+            # self.sigStretchSelectedSendStretch.emit(
+            #     self.proj.getImage(self.imageIndex).stretch[row]
+            # )
+            self.sigStretchChanged.emit(
                 self.proj.getImage(self.imageIndex).stretch[row]
             )
 
@@ -238,6 +244,9 @@ class StretchManager(QWidget):
             self._handling_change = True
             try:
                 self._populateTable()
+                self._onRowSelected()  # emit signal for the currently selected stretch
+            except Exception as e:
+                raise e
             finally:
                 self._handling_change = False
 
@@ -258,12 +267,6 @@ class StretchManager(QWidget):
                 return f"{floatVal:.{self.decimals}f}"
             except ValueError:
                 return value
-
-        # def sizeHint(self, option, index):
-        #     size = super().sizeHint(option, index)
-        #     if option.state & QStyle.StateFlag.State_Editing:
-        #         size.setWidth(size.width() * 2)  # Expand the width when editing
-        #     return size
 
         def updateEditorGeometry(self, editor, option, index):
             rect = option.rect
