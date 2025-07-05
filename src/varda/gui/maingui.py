@@ -102,6 +102,11 @@ class MainGUI(QtWidgets.QMainWindow):
             lambda: debug.ProjectContextDataTable(self.proj, self)
         )
 
+        # TODO: Make this less hacky lol
+        self.menuBar().sigLoadDebugProject.connect(
+            lambda: self.proj.loadProject(Path("../../debugProj.varda").resolve())
+        )
+
         self.menuBar().sigOpenProcessingMenu.connect(self.openProcessingMenu)
 
         # NEW: Connect dual image signals

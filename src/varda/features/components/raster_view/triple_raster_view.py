@@ -3,7 +3,7 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter
 import pyqtgraph as pg
 
-from varda.app.services.roi_utils import VardaROI
+from varda.app.services.roi_utils import VardaROIItem
 from varda.core.data import ProjectContext
 from varda.core.entities import Image, Band, Stretch
 from varda.features.components.raster_view.raster_viewport import ImageViewport
@@ -53,14 +53,14 @@ class TripleRasterView(QWidget):
         # self.viewport1.addItem(test_roi)
 
         # Create ROIs
-        self.roi1 = VardaROI.rectROI(
+        self.roi1 = VardaROIItem.rectROI(
             (50, 50),
             (100, 100),
             self.imageIndex,
             QColor(255, 0, 0, 0),
             aspectLocked=True,
         )
-        self.roi2 = VardaROI.rectROI(
+        self.roi2 = VardaROIItem.rectROI(
             (25, 25), (50, 50), self.imageIndex, QColor(255, 0, 0, 0), aspectLocked=True
         )
 

@@ -6,7 +6,7 @@ import pyqtgraph as pg
 from PyQt6.QtWidgets import QGraphicsRectItem
 
 from varda.core.entities import ROI
-from varda.app.services.roi_utils import VardaROI
+from varda.app.services.roi_utils import VardaROIItem
 from varda.features.components.raster_view.raster_viewport import (
     IViewport,
 )
@@ -21,7 +21,7 @@ class ROIRegionController(QObject):
         self,
         sourceViewport: IViewport,
         targetViewport: IViewport,
-        roi: VardaROI,
+        roi: VardaROIItem,
         parentRegionController: "ROIRegionController" = None,
         parent=None,
     ):

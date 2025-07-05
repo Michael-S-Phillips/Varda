@@ -1,15 +1,19 @@
 import logging
+from typing import override
 
 from PyQt6.QtCore import QObject, QEvent, Qt, pyqtSignal, QPointF
 import pyqtgraph as pg
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QMouseEvent
+from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
 from varda.features.components.raster_view.raster_viewport import IViewport
+from varda.features.components.tools import Tool
 
 logger = logging.getLogger(__name__)
 
 
-class PixelSelectTool(QObject):
+class PixelSelectTool(Tool):
+    """Click+Ctrl to select a pixel; emits its integer coords upon mouse release."""
 
     sigPixelSelected = pyqtSignal(pg.Point)  # pg.Point is just a better QPointF
 
@@ -25,36 +29,44 @@ class PixelSelectTool(QObject):
         self.activate()
 
     def activate(self):
-        self.targetImageItem.installEventFilter(self)
+        super().activate()
         self.viewport.addItem(self.vCrosshair)
         self.viewport.addItem(self.hCrosshair)
 
     def deactivate(self):
-        self.targetImageItem.removeEventFilter(self)
+        super().deactivate()
         self.viewport.removeItem(self.vCrosshair)
         self.viewport.removeItem(self.hCrosshair)
 
-    def eventFilter(self, obj, event):
+    @override
+    def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
+        """Handle mouse press events to start pixel selection."""
         if (
-            event.type() == QEvent.Type.GraphicsSceneMousePress
-            and event.button() == Qt.MouseButton.LeftButton
+            event.button() == Qt.MouseButton.LeftButton
             and event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
             self.isDragging = True
             self._showCrosshairs()
-            self._updateCrosshair(event)
+            self._updateCrosshair(event.pos())
             return True
+        return False
 
-        if event.type() == QEvent.Type.GraphicsSceneMouseMove and self.isDragging:
-            self._updateCrosshair(event, emitSignal=False)
+    @override
+    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
+        """Handle mouse drag events to update crosshairs and emit pixel selection."""
+        if self.isDragging:
+            self._updateCrosshair(event.pos(), emitSignal=False)
             return True
+        return False
 
-        if event.type() == QEvent.Type.GraphicsSceneMouseRelease and self.isDragging:
-            if event.button() == Qt.MouseButton.LeftButton:
-                self.isDragging = False
-                self._updateCrosshair(event)
-                self._hideCrosshairs()
-                return True
+    @override
+    def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
+        """Handle mouse release events to finalize pixel selection."""
+        if self.isDragging and event.button() == Qt.MouseButton.LeftButton:
+            self.isDragging = False
+            self._updateCrosshair(event.pos())
+            self._hideCrosshairs()
+            return True
         return False
 
     def _showCrosshairs(self):
@@ -71,9 +83,11 @@ class PixelSelectTool(QObject):
         if self.hCrosshair.isVisible():
             self.hCrosshair.hide()
 
-    def _updateCrosshair(self, event, emitSignal=True):
-        # Get position. don't need to do any transformation because event filter is on the ImageItem directly.
-        pos = event.pos()
+    def _updateCrosshair(self, pos, emitSignal=True):
+        """
+        Update the position of the crosshairs based on the mouse position.
+        This assumes that the position is already in image coordinates.
+        """
         # get the exact pixel coordinate
         quantizedPos = pg.Point(int(pos.x()), int(pos.y()))
 

@@ -122,7 +122,7 @@ class VardaImageItem(pg.ImageItem):
         return self._imageEntity
 
     @property
-    def roi(self) -> roi_utils.VardaROI:
+    def roi(self) -> roi_utils.VardaROIItem:
         """Get the current region being displayed."""
         return self._roi
 

@@ -1,17 +1,47 @@
 from typing import Tuple, List
 
-from PyQt6.QtCore import pyqtSignal, QObject, QPointF, QRectF, Qt
+from PyQt6.QtCore import pyqtSignal, QObject, QPointF, QRectF, Qt, QPoint, QSize
 import numpy as np
 import logging
 from dataclasses import dataclass
 
 import pyqtgraph as pg
+from PyQt6.QtWidgets import QLabel, QToolTip
 
 from varda.core.entities import ROI, ROIMode, Image
 from varda.app.services import roi_utils, image_utils
 from varda.features.components.raster_view.raster_viewport import IViewport
 
 logger = logging.getLogger(__name__)
+
+
+def showTooltip(viewport: IViewport, pos: QPointF, text, duration_ms: int = 2000):
+    """
+    Show a tooltip at the specified scene position in the viewport.
+    This is a utility function to demonstrate how to display tooltips.
+    """
+
+    # Create and show a tooltip label
+    QToolTip.showText(
+        pos.toPoint(),
+        text,
+        viewport,
+        msecShowTime=duration_ms,
+    )
+    # label = QLabel(text, viewport)
+    # label.setStyleSheet(
+    #     """
+    #     background: rgba(30, 30, 30, 255);
+    #     border: 1px solid black;
+    #     padding: 3px;
+    #     border-radius: 3px;
+    # """
+    # )
+    # label.setWindowFlags(
+    #     label.windowFlags() | Qt.WindowType.FramelessWindowHint | Qt.WindowType.ToolTip
+    # )
+    # label.move(scene_pos)
+    # label.show()
 
 
 @dataclass
@@ -98,6 +128,10 @@ class BaseROIDrawingTool(QObject):
         """Handle events - to be implemented by subclasses"""
         raise NotImplementedError
 
+    def _isCancelCommand(self, event):
+        """Check if the event is a cancel action (e.g. Escape key)"""
+        return event.type() == event.Type.KeyPress and event.key() == Qt.Key.Key_Escape
+
     def _mapPosition(self, scene_pos):
         """Map scene position to image coordinates"""
         # This might not be necessary if we're installing the event filter on the ImageItem itself
@@ -116,11 +150,9 @@ class FreehandDrawingTool(BaseROIDrawingTool):
             return False
 
         # Handle key presses
-        if event.type() == event.Type.KeyPress:
-            if event.key() == Qt.Key.Key_Escape:
-                self.cancelDrawing()
-                return True
-
+        if self._isCancelCommand(event):
+            self.cancelDrawing()
+            return True
         # Handle mouse events
         elif event.type() == event.Type.GraphicsSceneMousePress:
             if event.button() == Qt.MouseButton.LeftButton:
@@ -174,10 +206,9 @@ class RectangleDrawingTool(BaseROIDrawingTool):
             return False
 
         # Handle key presses
-        if event.type() == event.Type.KeyPress:
-            if event.key() == Qt.Key.Key_Escape:
-                self.cancelDrawing()
-                return True
+        if self._isCancelCommand(event):
+            self.cancelDrawing()
+            return True
 
         # Handle mouse events
         elif event.type() == event.Type.GraphicsSceneMousePress:
@@ -247,10 +278,9 @@ class EllipseDrawingTool(BaseROIDrawingTool):
             return False
 
         # Handle key presses
-        if event.type() == event.Type.KeyPress:
-            if event.key() == Qt.Key.Key_Escape:
-                self.cancelDrawing()
-                return True
+        if self._isCancelCommand(event):
+            self.cancelDrawing()
+            return True
 
         # Handle mouse events
         elif event.type() == event.Type.GraphicsSceneMousePress:
@@ -308,11 +338,12 @@ class PolygonDrawingTool(BaseROIDrawingTool):
             return False
 
         # Handle key presses
+        if self._isCancelCommand(event):
+            self.cancelDrawing()
+            return True
+
         if event.type() == event.Type.KeyPress:
-            if event.key() == Qt.Key.Key_Escape:
-                self.cancelDrawing()
-                return True
-            elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                 if len(self.points) >= 3:
                     self.completeDrawing()
                 return True

@@ -12,7 +12,7 @@ from typing import Optional
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from varda.app.services.roi_utils import VardaROI
+from varda.app.services.roi_utils import VardaROIItem
 from varda.core.entities import ROIMode
 from varda.features.components.raster_view.raster_viewport import IViewport
 from varda.features.components.roi_drawing.roi_drawing_tools import *
@@ -29,7 +29,7 @@ class ROIDrawingControllerNew(QObject):
     class ActiveState:
         viewport: IViewport
         tool: Optional[BaseROIDrawingTool]
-        ROIItem: VardaROI
+        ROIItem: VardaROIItem
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -58,18 +58,11 @@ class ROIDrawingControllerNew(QObject):
         tool.sigDrawingCanceled.connect(self._onDrawingCanceled)
         tool.sigDrawingUpdated.connect(self._onDrawingUpdated)
 
-        ROIItem = VardaROI(tool.roiEntity)
+        ROIItem = VardaROIItem(tool.roiEntity)
         viewport.viewBox.addItem(ROIItem)
 
         self.activeState = self.ActiveState(viewport, tool, ROIItem)
         tool.startDrawing()
-
-    def cancelDrawing(self):
-        """Cancel the current drawing operation"""
-        if self.activeState is not None:
-            self.activeState.tool.cancelDrawing()
-        else:
-            logger.warning("No active drawing to cancel.")
 
     def _reset(self):
         """Reset the active state"""

@@ -1,7 +1,7 @@
 import logging
 from typing import Protocol, override
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtWidgets import QWidget
 
 from varda.app.services.load_image.loaders import AbstractImageLoader
@@ -56,7 +56,7 @@ class VardaRegistries:
         return self._imageLoaders
 
 
-class IRegistry(Protocol):
+class IRegistry(QObject):
     """
     Protocol for a registry of items that emits signals for updates.
     Implements magic methods for more convenient access.
@@ -66,6 +66,7 @@ class IRegistry(Protocol):
     sigItemUnregistered = pyqtSignal(str, object)
 
     def __init__(self):
+        super().__init__()
         self.registryItems = {}
 
     def __contains__(self, key):
@@ -120,6 +121,9 @@ class WidgetRegistry(IRegistry):
     A registry for widgets that can dynamically appear in the application for users.
     """
 
+    def __init__(self):
+        super().__init__()
+
     @override
     def _itemIsValid(self, item):
         """
@@ -132,6 +136,9 @@ class ImageLoaderRegistry(IRegistry):
     """
     Registry for image loaders that can be used to load images in the application.
     """
+
+    def __init__(self):
+        super().__init__()
 
     @override
     def _itemIsValid(self, item):

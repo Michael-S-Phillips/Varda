@@ -367,7 +367,6 @@ class ROIView(QWidget):
         self.selectedRoiIndex = None
         self.blinkState = False
         self.blinkTimer = None
-        self.raster_view = self.window().rasterView
 
         # Define default columns
         self.columns = [

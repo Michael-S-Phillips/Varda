@@ -11,7 +11,7 @@ from varda.core.entities import ROI, ROIMode
 logger = logging.getLogger(__name__)
 
 
-class VardaROI(pg.ROI):
+class VardaROIItem(pg.ROI):
     """
     Frontend ROI class for drawing ROIs. Supports arbitrary polygon shapes.
     Uses pyqtgraph's base ROI class for logic drawing and extracting array regions etc. But compatible with Varda's ROI entity.
@@ -166,7 +166,7 @@ class VardaROI(pg.ROI):
         return absX, absY
 
     @staticmethod
-    def getROI(roiEntity: ROI, **kwargs) -> "VardaROI":
+    def getROI(roiEntity: ROI, **kwargs) -> "VardaROIItem":
         """
         Factory method to create a VardaROI from an existing ROI entity.
 
@@ -175,9 +175,9 @@ class VardaROI(pg.ROI):
             **kwargs: Additional parameters for the VardaROI.
 
         Returns:
-            VardaROI: The created VardaROI instance.
+            VardaROIItem: The created VardaROI instance.
         """
-        return VardaROI(roiEntity, movable=False, **kwargs)
+        return VardaROIItem(roiEntity, movable=False, **kwargs)
 
     @staticmethod
     def rectROI(
@@ -186,7 +186,7 @@ class VardaROI(pg.ROI):
         sourceImageIndex: int,
         color: QColor,
         **kwargs,
-    ) -> "VardaROI":
+    ) -> "VardaROIItem":
         """Factory method to create a rectangular VardaROI."""
         x, y = position
         w, h = size
@@ -197,7 +197,7 @@ class VardaROI(pg.ROI):
             color=color,
             mode=ROIMode.RECTANGLE,
         )
-        roi = VardaROI(entity, **kwargs)
+        roi = VardaROIItem(entity, **kwargs)
         # Add scale handle for resizing rect.
         roi.addScaleHandle([1, 1], [0, 0])
         return roi
