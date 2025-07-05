@@ -740,18 +740,12 @@ class ROIView(QWidget):
         )
 
         if color.isValid():
-            # Create RGBA tuple
-            newColor = (
-                color.red(),
-                color.green(),
-                color.blue(),
-                128 if len(initialColor) < 4 else initialColor[3],
+            logger.debug(
+                f"Changing color of ROI {roi_index} to {(color.red(), color.green(), color.blue(), color.alpha())}"
             )
 
-            logger.debug(f"Changing color of ROI {roi_index} to {newColor}")
-
             # Update ROI in the data model
-            self.viewModel.updateRoi(roi.id, color=newColor)
+            self.viewModel.updateRoi(roi.id, color=color)
 
             # Update the table cell
             col_idx = next(
@@ -803,6 +797,7 @@ class ROIView(QWidget):
             return
 
         # Create and show statistics dialog
+
         self.showStatisticsDialog(roi, stats)
 
     def showStatisticsDialog(self, roi, stats):

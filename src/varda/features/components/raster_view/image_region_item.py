@@ -8,7 +8,6 @@ from PyQt6.QtCore import QPointF, QRectF, QRect, QPoint
 
 from varda.app.services import image_utils
 from varda.app.services import roi_utils
-from varda.app.services.roi_utils import RegionCoordinateTransform
 from varda.core.entities import Image, Band, Stretch
 
 logger = logging.getLogger(__name__)

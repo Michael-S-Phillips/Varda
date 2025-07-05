@@ -2,6 +2,7 @@ import logging
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 
+import varda.app.services.roi_utils.roi_statistics
 from varda.core.data import ProjectContext
 
 logger = logging.getLogger(__name__)
@@ -167,7 +168,9 @@ class ROIViewModel(QObject):
         wavelengths = image.metadata.wavelengths
 
         # Calculate statistics
-        stats = roi_utils.ROIStatistics.getROIStats(roi, image)
+        stats = varda.app.services.roi_utils.roi_statistics.ROIStatistics.getROIStats(
+            roi, image
+        )
 
         # Store statistics in the ROI for future reference
         if hasattr(roi, "statistics"):
