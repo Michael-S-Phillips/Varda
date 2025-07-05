@@ -1,0 +1,396 @@
+"""
+ROI Drawing Tools
+
+Tool implementations for drawing different types of ROIs.
+"""
+
+from typing import List, Tuple
+import numpy as np
+
+from PyQt6.QtCore import pyqtSignal, QPointF, QRectF, Qt
+from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
+
+from varda.core.entities import ROI
+from varda.features.components.generic_protocols import Viewport, ViewportTool
+from varda.app.services import image_utils
+from varda.app.services.roi_utils import VardaROIItem
+
+
+class ROIDrawingTool(ViewportTool):
+    """
+    Base class for all ROI drawing tools.
+
+    This is an abstract class that provides common functionality for ROI drawing tools.
+    Subclasses should define the ROI mode and other specific properties.
+    """
+
+    toolCategory = "ROI Drawing"
+
+    # Signal emitted when ROI drawing is complete
+    sigROIDrawingComplete = pyqtSignal(object)
+
+    def __init__(self, viewport: Viewport, parent=None):
+        super().__init__(viewport, parent)
+        self.isDrawing = False
+        self.points: List[Tuple[float, float]] = []
+        self.imageEntity = viewport.imageEntity
+        self.targetImageItem = viewport.imageItem
+        self.roiEntity = None
+        self.roiItem = None
+
+    def activate(self):
+        """Activate the ROI drawing tool."""
+        super().activate()
+        self.startDrawing()
+
+    def deactivate(self):
+        """Deactivate the ROI drawing tool."""
+        if self.isDrawing:
+            self.cancelDrawing()
+        super().deactivate()
+
+    def stopDrawing(self):
+        """Reset the tool state"""
+        self.isDrawing = False
+        self.points = []
+        self.viewport.removeItem(self.roiItem)
+        self.roiItem = None
+        self.roiEntity = None
+
+    def startDrawing(self):
+        """Start the drawing process"""
+        self.isDrawing = True
+        self.points = []  # Reset points
+
+        # Create a new ROI entity
+        self.roiEntity = ROI(sourceImageIndex=self.imageEntity.index)
+
+        # Create a visual representation of the ROI
+        self.roiItem = VardaROIItem(self.roiEntity)
+        self.viewport.addItem(self.roiItem)
+
+        self.showText(
+            f"Drawing {self.toolName}. Press Esc to cancel.",
+            pos=self.viewport.viewBox.scenePos() + QPointF(20, 20),
+            timeout=3000,
+        )
+
+    def updateDrawing(self):
+        """Update the drawing process"""
+        self.roiEntity.points = np.array(self.points)
+        self.roiItem.setROIData(self.roiEntity)
+
+    def cancelDrawing(self):
+        """Cancel the current drawing operation"""
+        self.stopDrawing()
+
+    def completeDrawing(self):
+        """Complete the drawing and emit result"""
+        if len(self.points) < 3:
+            self.cancelDrawing()
+            return
+
+        # Calculate geo coordinates if transform is available
+        if self.imageEntity.metadata.hasGeospatialData:
+            geoPoints = [
+                image_utils.transformPixelToGeoCoord(self.imageEntity, int(px), int(py))
+                for px, py in self.points
+            ]
+        else:
+            geoPoints = None
+
+        self.roiEntity.points = np.array(self.points)
+        self.roiEntity.geoPoints = np.array(geoPoints) if geoPoints else None
+
+        self.sigROIDrawingComplete.emit(self.roiEntity.clone())
+        self.stopDrawing()
+
+    def keyPressEvent(self, event) -> bool:
+        """Handle key press events"""
+        if not self.isDrawing:
+            return False
+
+        if event.key() == Qt.Key.Key_Escape:
+            self.cancelDrawing()
+            return True
+
+        return False
+
+    def _mapPosition(self, pos: QPointF) -> QPointF:
+        """Map scene position to image coordinates"""
+        return self.targetImageItem.mapFromScene(pos)
+
+
+class FreehandROITool(ROIDrawingTool):
+    """Tool for drawing freehand ROIs."""
+
+    toolName = "Freehand ROI"
+    toolDescription = "Draw a freehand ROI by clicking and dragging"
+
+    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+        if not self.isDrawing:
+            return False
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            pos = self._mapPosition(event.scenePos())
+            self.points.append((pos.x(), pos.y()))
+            self.updateDrawing()
+            return True
+        elif event.button() == Qt.MouseButton.RightButton:
+            self.cancelDrawing()
+            return True
+
+        return False
+
+    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+        if not self.isDrawing:
+            return False
+
+        if self.points and len(self.points) > 0:
+            pos = self._mapPosition(event.scenePos())
+            self.points.append((pos.x(), pos.y()))
+            self.updateDrawing()
+            return True
+
+        return False
+
+    def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+        if not self.isDrawing:
+            return False
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            if len(self.points) >= 3:
+                self.completeDrawing()
+            else:
+                self.cancelDrawing()
+            return True
+
+        return False
+
+
+class RectangleROITool(ROIDrawingTool):
+    """Tool for drawing rectangular ROIs."""
+
+    toolName = "Rectangle ROI"
+    toolDescription = "Draw a rectangular ROI by clicking and dragging"
+
+    def __init__(self, viewport: Viewport, parent=None):
+        super().__init__(viewport, parent)
+        self.startPoint = None
+
+    def startDrawing(self):
+        super().startDrawing()
+        self.startPoint = None
+
+    def _rectToPoints(self, rect: QRectF) -> List[Tuple[float, float]]:
+        """Convert QRectF to point arrays"""
+        x1, y1, x2, y2 = rect.getCoords()
+        return [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
+
+    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+        if not self.isDrawing:
+            return False
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            pos = self._mapPosition(event.scenePos())
+            self.startPoint = pos
+            self.points = self._rectToPoints(QRectF(pos, pos))
+            self.updateDrawing()
+            return True
+        elif event.button() == Qt.MouseButton.RightButton:
+            self.cancelDrawing()
+            return True
+
+        return False
+
+    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+        if not self.isDrawing or self.startPoint is None:
+            return False
+
+        pos = self._mapPosition(event.scenePos())
+        rect = QRectF(self.startPoint, pos).normalized()
+        self.points = self._rectToPoints(rect)
+        self.updateDrawing()
+        return True
+
+    def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+        if not self.isDrawing or self.startPoint is None:
+            return False
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            pos = self._mapPosition(event.scenePos())
+            rect = QRectF(self.startPoint, pos).normalized()
+            if rect.width() > 5 and rect.height() > 5:
+                self.points = self._rectToPoints(rect)
+                self.completeDrawing()
+            else:
+                self.cancelDrawing()
+            return True
+
+        return False
+
+
+class EllipseROITool(ROIDrawingTool):
+    """Tool for drawing elliptical ROIs."""
+
+    toolName = "Ellipse ROI"
+    toolDescription = "Draw an elliptical ROI by clicking and dragging"
+
+    def __init__(self, viewport: Viewport, parent=None):
+        super().__init__(viewport, parent)
+        self.startPoint = None
+
+    def startDrawing(self):
+        super().startDrawing()
+        self.startPoint = None
+
+    def _ellipseToPoints(
+        self, rect: QRectF, num_points=36
+    ) -> List[Tuple[float, float]]:
+        """Convert QRectF to ellipse point arrays"""
+        center_x = rect.center().x()
+        center_y = rect.center().y()
+        radius_x = rect.width() / 2
+        radius_y = rect.height() / 2
+
+        theta = np.linspace(0, 2 * np.pi, num_points)
+        x = center_x + radius_x * np.cos(theta)
+        y = center_y + radius_y * np.sin(theta)
+        return [(x[i], y[i]) for i in range(num_points)]
+
+    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+        if not self.isDrawing:
+            return False
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            pos = self._mapPosition(event.scenePos())
+            self.startPoint = pos
+            self.points = self._ellipseToPoints(QRectF(pos, pos))
+            self.updateDrawing()
+            return True
+        elif event.button() == Qt.MouseButton.RightButton:
+            self.cancelDrawing()
+            return True
+
+        return False
+
+    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+        if not self.isDrawing or self.startPoint is None:
+            return False
+
+        pos = self._mapPosition(event.scenePos())
+        rect = QRectF(self.startPoint, pos).normalized()
+        self.points = self._ellipseToPoints(rect)
+        self.updateDrawing()
+        return True
+
+    def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+        if not self.isDrawing or self.startPoint is None:
+            return False
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            pos = self._mapPosition(event.scenePos())
+            rect = QRectF(self.startPoint, pos).normalized()
+            if rect.width() > 5 and rect.height() > 5:
+                self.points = self._ellipseToPoints(rect)
+                self.completeDrawing()
+            else:
+                self.cancelDrawing()
+            return True
+
+        return False
+
+
+class PolygonROITool(ROIDrawingTool):
+    """Tool for drawing polygon ROIs."""
+
+    toolName = "Polygon ROI"
+    toolDescription = (
+        "Draw a polygon ROI by clicking to add points, double-click to complete"
+    )
+
+    def __init__(self, viewport: Viewport, parent=None):
+        super().__init__(viewport, parent)
+        self.tempPoint = None
+
+    def startDrawing(self):
+        super().startDrawing()
+        self.tempPoint = None
+        self.showTooltip(
+            "Click to add points. Double-click or press"
+            " Enter to complete. Esc to cancel.",
+            timeout=5000,
+        )
+
+    def keyPressEvent(self, event) -> bool:
+        if not self.isDrawing:
+            return False
+
+        if event.key() == Qt.Key.Key_Escape:
+            self.cancelDrawing()
+            return True
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if len(self.points) >= 3:
+                self.completeDrawing()
+            return True
+        if event.key() == Qt.Key.Key_Backspace:
+            if len(self.points) > 0:
+                if self.tempPoint in self.points:
+                    self.points.remove(self.tempPoint)
+                else:
+                    self.points.pop()
+                self.updateDrawing()
+            return True
+
+        return False
+
+    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+        if not self.isDrawing:
+            return False
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            pos = self._mapPosition(event.scenePos())
+            # Remove temp point if it exists
+            if self.tempPoint in self.points:
+                self.points.remove(self.tempPoint)
+
+            self.points.append((pos.x(), pos.y()))
+            self.updateDrawing()
+            return True
+        if event.button() == Qt.MouseButton.RightButton:
+            self.cancelDrawing()
+            return True
+
+        return False
+
+    def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+        if not self.isDrawing:
+            return False
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            if len(self.points) >= 3:
+                # Remove temp point if it exists
+                if self.tempPoint in self.points:
+                    self.points.remove(self.tempPoint)
+                self.completeDrawing()
+            return True
+
+        return False
+
+    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+        if not self.isDrawing:
+            return False
+
+        pos = self._mapPosition(event.scenePos())
+
+        # Remove previous temp point if it exists
+        if self.tempPoint in self.points:
+            self.points.remove(self.tempPoint)
+
+        # Add new temp point for preview
+        self.tempPoint = (pos.x(), pos.y())
+        if len(self.points) > 0:
+            self.points.append(self.tempPoint)
+            self.updateDrawing()
+
+        return True

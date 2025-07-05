@@ -1,80 +1,19 @@
-from typing import Protocol
-
-import numpy as np
-from PyQt6.QtCore import pyqtSignal, QRectF, QPointF, QSizeF
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
-from pygments.styles.dracula import background
 
-from varda.core.entities import Image, Stretch
+from varda.core.entities import Image, Stretch, Band
+from varda.features.components.generic_protocols import Viewport, ViewportTool
 from varda.features.components.raster_view.image_region_item import (
     VardaImageItem,
 )
-from varda.app.services import image_utils
 
 
-class IViewport(Protocol):
-    """
-    Protocol for a viewport, which is a widget that displays image data.
-    The purpose of this is to generalize an interface that can be used by controllers/tools/workflows.
-    """
-
-    sigImageChanged: pyqtSignal
-
-    def enableSelfUpdating(self):
-        """Enable self-updating of the image item."""
-        ...
-
-    def disableSelfUpdating(self):
-        """Disable self-updating of the image item."""
-        ...
-
-    def setBand(self, band):
-        """Set the band for the image item."""
-        ...
-
-    def setStretch(self, stretch):
-        """Set the stretch for the image item."""
-        ...
-
-    def addItem(self, item):
-        """Add a graphics item to the viewport"""
-        ...
-
-    def removeItem(self, item):
-        """Remove a graphics item from the viewport"""
-        ...
-
-    def _attemptUpdate(self):
-        """Update the image item with the current band and stretch."""
-        ...
-
-    @property
-    def imageItem(self) -> VardaImageItem:
-        """Get the ImageRegionItem for this viewport."""
-        ...
-
-    @property
-    def imageEntity(self) -> Image:
-        """Get the Image entity for this viewport."""
-        ...
-
-    @property
-    def viewBox(self) -> pg.ViewBox:
-        """Get the ViewBox for this viewport."""
-        ...
-
-    @property
-    def graphicsScene(self):
-        """Get the GraphicsScene for this viewport."""
-        ...
-
-
-class ViewportMeta(type(QWidget), type(IViewport)):
+class ViewportMeta(type(QWidget), type(Viewport)):
     pass
 
 
-class ImageViewport(QWidget, IViewport, metaclass=ViewportMeta):
+class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
     """
     Generic image viewer: holds a single Viewbox with an ImageRegionItem, and helper methods
     """
@@ -98,12 +37,12 @@ class ImageViewport(QWidget, IViewport, metaclass=ViewportMeta):
         # self.imageItem = ImageRegionItem(image, autoLevels=False)
 
         self._vb.addItem(self.imageItem)
-
+        self._vb.keyPressEvent = lambda event: None
         self._gv = pg.GraphicsView()
         self._gv.setCentralItem(self._vb)
-        layout = QVBoxLayout(self)
-        layout.addWidget(self._gv)
-        self.setLayout(layout)
+        self.layout = QVBoxLayout(self)
+        self.layout.addWidget(self._gv)
+        self.setLayout(self.layout)
 
         self.imageItem.sigImageChanged.connect(self.sigImageChanged)
 
@@ -115,11 +54,11 @@ class ImageViewport(QWidget, IViewport, metaclass=ViewportMeta):
         """Enable self-updating of the image item."""
         self.selfUpdating = True
 
-    def setBand(self, band, update=True):
+    def setBand(self, band: Band, update=True):
         """Set the band for the image item."""
         self.imageItem.setBand(band, update)
 
-    def setStretch(self, stretch, update=True):
+    def setStretch(self, stretch: Stretch, update=True):
         """Set the stretch for the image item."""
         self.imageItem.setStretch(stretch, update)
 
@@ -134,6 +73,18 @@ class ImageViewport(QWidget, IViewport, metaclass=ViewportMeta):
     def removeItem(self, item):
         """Remove a graphics item from the viewport."""
         self._vb.removeItem(item)
+
+    def installTool(self, tool: ViewportTool):
+        """Shortcut to install a tool's event filter on the imageItem."""
+        self._imageItem.installEventFilter(tool)
+
+    def removeTool(self, tool: ViewportTool):
+        """Shortcut to remove a tool's event filter from the imageItem."""
+        self._imageItem.removeEventFilter(tool)
+
+    def addToolBar(self, toolbar):
+        """Add a toolbar to the viewport."""
+        self.layout.addWidget(toolbar)
 
     @property
     def imageEntity(self) -> Image:

@@ -6,20 +6,23 @@ import pyqtgraph as pg
 from PyQt6.QtGui import QPixmap, QMouseEvent
 from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
-from varda.features.components.raster_view.raster_viewport import IViewport
-from varda.features.components.tools import Tool
+from varda.features.components.generic_protocols import Viewport, ViewportTool
 
 logger = logging.getLogger(__name__)
 
 
-class PixelSelectTool(Tool):
+class PixelSelectTool(ViewportTool):
     """Click+Ctrl to select a pixel; emits its integer coords upon mouse release."""
 
     sigPixelSelected = pyqtSignal(pg.Point)  # pg.Point is just a better QPointF
 
-    def __init__(self, viewport: IViewport, parent=None):
-        super().__init__(parent)
-        self.viewport = viewport
+    # Tool metadata
+    toolName = "Pixel Select"
+    toolDescription = "Select individual pixels (Ctrl+Click)"
+    toolCategory = "Selection"
+
+    def __init__(self, viewport: Viewport, parent=None):
+        super().__init__(viewport, parent)
         self.targetImageItem = viewport.imageItem
         self.vCrosshair = pg.InfiniteLine(angle=90, movable=False, pen="r")
         self.hCrosshair = pg.InfiniteLine(angle=0, movable=False, pen="r")

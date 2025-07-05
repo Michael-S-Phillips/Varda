@@ -1,10 +1,12 @@
 from PyQt6.QtCore import QObject
 from PyQt6.QtWidgets import QWidget
 
-from varda.features.components.raster_view import IViewport, PixelSelectTool
+from varda.features.components.viewport_tools import PixelSelectTool
+from varda.features.components.generic_protocols import Viewport
+
 
 class PlotPixels(QObject):
-    def __init__(self, viewport: IViewport, parent=None):
+    def __init__(self, viewport: Viewport, parent=None):
         super().__init__(parent)
         self.viewport = viewport
         self.pixelSelector = PixelSelectTool(self.viewport, self)

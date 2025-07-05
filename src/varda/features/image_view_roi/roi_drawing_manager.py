@@ -102,7 +102,7 @@ class ROIDrawingManager(QObject):
             self.displayROI(roi)
 
     def createToolbar(self):
-        """Create a toolbar with ROI drawing tools"""
+        """Create a toolbar with ROI drawing viewport_tools"""
         self.toolbar = QToolBar("ROI Tools")
 
         # Drawing mode actions

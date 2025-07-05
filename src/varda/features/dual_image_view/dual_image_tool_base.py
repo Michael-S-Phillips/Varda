@@ -1,5 +1,5 @@
 """
-Base classes for dual image view tools.
+Base classes for dual image view viewport_tools.
 
 Provides the foundation for extensible tool architecture in dual image view.
 """
@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 class DualImageToolBase(QObject):
     """
-    Abstract base class for dual image view tools.
+    Abstract base class for dual image view viewport_tools.
 
-    All dual image tools should inherit from this class to ensure
+    All dual image viewport_tools should inherit from this class to ensure
     consistent interface and integration with the tool manager.
     """
 

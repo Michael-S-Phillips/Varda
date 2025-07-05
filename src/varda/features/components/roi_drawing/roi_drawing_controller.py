@@ -14,28 +14,34 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from varda.app.services.roi_utils import VardaROIItem
 from varda.core.entities import ROIMode
-from varda.features.components.raster_view.raster_viewport import IViewport
-from varda.features.components.roi_drawing.roi_drawing_tools import *
+from varda.features.components.generic_protocols import Viewport
+from varda.features.components.viewport_tools import (
+    ROIDrawingTool,
+    FreehandROITool,
+    RectangleROITool,
+    EllipseROITool,
+    PolygonROITool,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class ROIDrawingControllerNew(QObject):
+class ROIDrawingController(QObject):
 
     sigDrawingComplete = pyqtSignal(object)
     sigDrawingCanceled = pyqtSignal(object)
 
     @dataclass
     class ActiveState:
-        viewport: IViewport
-        tool: Optional[BaseROIDrawingTool]
+        viewport: Viewport
+        tool: Optional[ROIDrawingTool]
         ROIItem: VardaROIItem
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.activeState: Optional[ROIDrawingControllerNew.ActiveState] = None
+        self.activeState: Optional[ROIDrawingController.ActiveState] = None
 
-    def startDrawing(self, mode: ROIMode, viewport: IViewport):
+    def startDrawing(self, mode: ROIMode, viewport: Viewport):
         """begin drawing a new ROI on the specified image item"""
         if self.activeState is not None:
             logger.warning(

@@ -6,7 +6,7 @@ import pyqtgraph as pg
 from varda.app.services.roi_utils import VardaROIItem
 from varda.core.data import ProjectContext
 from varda.core.entities import Image, Band, Stretch
-from varda.features.components.raster_view.raster_viewport import ImageViewport
+from varda.features.components.raster_view.viewport import ImageViewport
 from varda.features.components.raster_view.roi_region_controller import (
     ROIRegionController,
 )
@@ -82,3 +82,14 @@ class TripleRasterView(QWidget):
         self.viewport2.setBand(band, update=False)
         self.viewport3.setBand(band, update=False)
         self.viewport1.refresh()  # will cascade to others because of the ROIRegionControllers
+
+    def addToolbarToViewport(self, viewport, toolbar):
+        """Add a toolbar to a specific viewport."""
+        if viewport is self.viewport1:
+            self.viewport1.addToolBar(toolbar)
+        elif viewport is self.viewport2:
+            self.viewport2.addToolBar(toolbar)
+        elif viewport is self.viewport3:
+            self.viewport3.addToolBar(toolbar)
+        else:
+            raise ValueError("Invalid viewport specified.")

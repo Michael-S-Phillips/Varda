@@ -10,12 +10,12 @@ from PyQt6.QtWidgets import QLabel, QToolTip
 
 from varda.core.entities import ROI, ROIMode, Image
 from varda.app.services import roi_utils, image_utils
-from varda.features.components.raster_view.raster_viewport import IViewport
+from varda.features.components.generic_protocols import Viewport
 
 logger = logging.getLogger(__name__)
 
 
-def showTooltip(viewport: IViewport, pos: QPointF, text, duration_ms: int = 2000):
+def showTooltip(viewport: Viewport, pos: QPointF, text, duration_ms: int = 2000):
     """
     Show a tooltip at the specified scene position in the viewport.
     This is a utility function to demonstrate how to display tooltips.
@@ -56,7 +56,7 @@ class ROIDrawingResult:
 
 class BaseROIDrawingTool(QObject):
     """
-    Base class for ROI drawing tools.
+    Base class for ROI drawing viewport_tools.
 
     Each tool is an event filter that can be installed on viewports to capture
     drawing interactions. Tools only record points and emit signals - they don't
@@ -69,7 +69,7 @@ class BaseROIDrawingTool(QObject):
     sigDrawingComplete = pyqtSignal(object)  # Emits when the drawing is complete
     sigDrawingCanceled = pyqtSignal(object)  # Emits when drawing is canceled
 
-    def __init__(self, viewport: IViewport, parent=None):
+    def __init__(self, viewport: Viewport, parent=None):
         super().__init__(parent)
         self.isDrawing = False
         self.points: List[Tuple[float, float]] = []
@@ -185,7 +185,7 @@ class FreehandDrawingTool(BaseROIDrawingTool):
 class RectangleDrawingTool(BaseROIDrawingTool):
     """Tool for rectangle ROI drawing"""
 
-    def __init__(self, viewport: IViewport):
+    def __init__(self, viewport: Viewport):
         self.startPoint = None
         super().__init__(viewport)
 
@@ -250,7 +250,7 @@ class RectangleDrawingTool(BaseROIDrawingTool):
 class EllipseDrawingTool(BaseROIDrawingTool):
     """Tool for ellipse ROI drawing"""
 
-    def __init__(self, viewport: IViewport):
+    def __init__(self, viewport: Viewport):
         self.startPoint = None
         super().__init__(viewport)
 
@@ -322,7 +322,7 @@ class EllipseDrawingTool(BaseROIDrawingTool):
 class PolygonDrawingTool(BaseROIDrawingTool):
     """Tool for polygon ROI drawing (click-by-click)"""
 
-    def __init__(self, viewport: IViewport):
+    def __init__(self, viewport: Viewport):
         self.tempPoint = None
         super().__init__(viewport)
 

@@ -111,7 +111,7 @@ class DualImageView(QWidget):
         self.control_panel = self._create_control_panel()
         main_layout.addWidget(self.control_panel)
 
-        # Main content splitter (horizontal: images | tools)
+        # Main content splitter (horizontal: images | viewport_tools)
         self.tool_panel_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.tool_panel_splitter.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
@@ -144,7 +144,7 @@ class DualImageView(QWidget):
         tool_panel.setMinimumWidth(280)
         self.tool_panel_splitter.addWidget(tool_panel)
 
-        # Set proportional split: 75% images, 25% tools
+        # Set proportional split: 75% images, 25% viewport_tools
         self.tool_panel_splitter.setSizes([750, 250])
 
         main_layout.addWidget(self.tool_panel_splitter)
@@ -153,7 +153,7 @@ class DualImageView(QWidget):
         self._update_control_states()
 
     def _setup_tools(self):
-        """Register available tools with the tool manager"""
+        """Register available viewport_tools with the tool manager"""
         # Register spectral plot tool
         self.tool_manager.register_tool(SpectralPlotTool, "spectral_plot")
 
@@ -168,7 +168,7 @@ class DualImageView(QWidget):
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(5, 5, 5, 5)
 
-        # STORE LAYOUT REFERENCE for adding future tools
+        # STORE LAYOUT REFERENCE for adding future viewport_tools
         self._tool_controls_layout = layout
 
         # Tool switcher buttons
@@ -183,8 +183,8 @@ class DualImageView(QWidget):
         # Store for future reference
         self.tool_buttons["spectral_plot"] = self.spectral_tool_button
 
-        # Placeholder for future tools - store reference to this too
-        self.future_tools_label = QLabel("More tools coming...")
+        # Placeholder for future viewport_tools - store reference to this too
+        self.future_tools_label = QLabel("More viewport_tools coming...")
         self.future_tools_label.setStyleSheet(
             "color: gray; font-style: italic; font-size: 10px;"
         )
@@ -1023,7 +1023,7 @@ class DualImageView(QWidget):
         if not tool_handled:
             # If no tool handled it, continue with normal click handling
             logger.debug(
-                f"Click at ({x}, {y}) on {view_type} image not handled by tools"
+                f"Click at ({x}, {y}) on {view_type} image not handled by viewport_tools"
             )
 
     # Methods to handle tool activation/deactivation
@@ -1054,7 +1054,7 @@ class DualImageView(QWidget):
             button.setToolTip(tooltip)
             button.clicked.connect(lambda: self._switch_to_tool(tool_name))
 
-            # Insert before the "More tools coming..." label
+            # Insert before the "More viewport_tools coming..." label
             # Find the position of the label
             label_index = -1
             for i in range(self._tool_controls_layout.count()):

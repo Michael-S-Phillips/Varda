@@ -134,7 +134,7 @@ class MainGUI(QtWidgets.QMainWindow):
         )
 
         # Raster View
-        rasterView = self.showRasterView(index)
+        # rasterView = self.showRasterView(index)
 
         # Control Panel
         # if self.currControlPanel:

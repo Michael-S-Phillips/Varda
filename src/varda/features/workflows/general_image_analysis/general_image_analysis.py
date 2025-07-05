@@ -14,17 +14,15 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 
 import varda
-from varda.core.entities import ROIMode
 from varda.features.components.controlpanel import ControlPanel
-
 from varda.features.components.band_management.band_manager import BandManager
-from varda.__experiments.general_purpose_image_viewmodel import (
-    GeneralPurposeImageViewModel,
-)
+from varda.features.image_view_stretch import StretchManager
 from varda.features.image_view_roi import getROIView
-from varda.features.components.raster_view.triple_raster_view import TripleRasterView
-from varda.features.components import roi_drawing
+from varda.features.components.raster_view import TripleRasterView
 from varda.features.workflows.plot_pixels import PlotPixels
+from varda.features.components.viewport_tools.tool_manager import (
+    ToolManager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -70,11 +68,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.setStatusMessage(
             f"General Image Analysis Workflow initialized for image {imageIndex}"
         )
-        self.drawingController = roi_drawing.ROIDrawingControllerNew()
-
-        self.drawingController.startDrawing(
-            ROIMode.FREEHAND, self.tripleRasterView.viewport1
-        )
 
     def _initComponents(self):
         """Initialize all workflow components"""
@@ -82,18 +75,27 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # Initialize raster view
         self.tripleRasterView = TripleRasterView(self.imageIndex, self.project, self)
 
+        # Initialize tool management for each viewport
+        self.toolManager1 = ToolManager(self.tripleRasterView.viewport1, self)
+        self.toolManager2 = ToolManager(self.tripleRasterView.viewport2, self)
+        self.toolManager3 = ToolManager(self.tripleRasterView.viewport3, self)
+
+        # Create toolbar managers for each viewport
+        self.tripleRasterView.viewport1.addToolBar(self.toolManager1.getToolbar())
+        self.tripleRasterView.viewport2.addToolBar(self.toolManager2.getToolbar())
+        self.tripleRasterView.viewport3.addToolBar(self.toolManager3.getToolbar())
+
         # Initialize Control Panel
-        # So like basically we're just delegating the task of creating a bunch of docks to the ControlPanel.
-        # Idk if this is unnecessary or actually helpful, since we only need a few docks anyways. but idk lol.
+        # So like basically, we're just delegating the task of creating a bunch of docks to the ControlPanel.
+        # IDK if this is actually helpful, since we only need a few docks anyway.
+        # But the control panel already had a bunch of the logic so yeah.
         self.controlPanel = ControlPanel(self.project, self.imageIndex, self)
 
         # Initialize band selection view
         self.bandView = BandManager(self.project, self.imageIndex, self)
 
         # Initialize stretch controls
-        self.stretchView = varda.features.image_view_stretch.StretchManager(
-            self.project, self.imageIndex, self
-        )
+        self.stretchView = StretchManager(self.project, self.imageIndex, self)
 
         # Initialize ROI view/table
         self.roiView = getROIView(self.project, self.imageIndex, self)
@@ -108,10 +110,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.setCentralWidget(self.tripleRasterView)
 
         self.setStatusBar(QStatusBar(self))
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, roi_drawing.ROIToolbarWidget())
 
     # def _setupDocks(self):
-    #     """Setup all of the dock widgets for the workflow. This is most of the tools"""
+    #     """Setup all of the dock widgets for the workflow. This is most of the viewport_tools"""
     #     docks = []
     #     bandDock = QDockWidget("Band Manager", self)
     #     bandDock.setWidget(self.bandView)
@@ -127,8 +128,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         """Connect signals between workflow components"""
         self.controlPanel.sigBandChanged.connect(self.tripleRasterView.setBand)
         self.controlPanel.sigStretchChanged.connect(self.tripleRasterView.setStretch)
-
-        logger.debug("All workflow signals connected")
 
     def setStatusMessage(self, message):
         """Set a status message in the status bar"""
