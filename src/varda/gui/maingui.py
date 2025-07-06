@@ -12,7 +12,7 @@ from varda.core.data import ProjectContext
 
 # from varda.core.ui import ControlPanel
 from varda.features.image_view_raster.raster_view import RasterView
-from varda.features.workflows import GeneralImageAnalysisWorkflow
+from varda.features.workspaces import GeneralImageAnalysisWorkflow
 from varda.gui.widgets import StatusBar, MainMenuBar
 from varda.features.image_process.process_controls.processingmenu import ProcessingMenu
 from varda.features.image_process.process_controls.processdialog import ProcessDialog
@@ -605,7 +605,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
         # if not hasattr(self, "testWorkflow"):
         #
-        #     self.testWorkflow = varda.features.workflows.GeneralImageAnalysisWorkflow(
+        #     self.testWorkflow = varda.features.workspaces.GeneralImageAnalysisWorkflow(
         #         parent=self
         #     )
         #     self.centralTabs.addTab(self.testWorkflow, "Test Workflow")

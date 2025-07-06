@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class Viewport(Protocol):
     """
     Protocol for a viewport, which is a widget that displays image data.
-    The purpose of this is to generalize an interface that can be used by controllers/viewport_tools/workflows.
+    The purpose of this is to generalize an interface that can be used by controllers/viewport_tools/workspaces.
     """
 
     sigImageChanged: pyqtSignal

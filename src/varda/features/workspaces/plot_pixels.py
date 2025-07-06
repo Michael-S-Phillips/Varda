@@ -1,21 +1,34 @@
-from typing import Tuple
-
-from PyQt6.QtCore import Qt, QPointF
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox
-import pyqtgraph as pg
-import numpy as np
-
 import logging
 
+from PyQt6.QtCore import QObject
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox
+import pyqtgraph as pg
+
+import varda
 from varda.core.data import ProjectContext
-from varda.core.utilities.wavelength_processor import WavelengthProcessor
 from varda.core.utilities.bounds_validator import BoundsValidator
 from varda.core.utilities.invalid_data_handler import (
     InvalidDataHandler,
     InvalidValueStrategy,
 )
+from varda.core.utilities.wavelength_processor import WavelengthProcessor
+from varda.features.components.viewport_tools import PixelSelectTool
+from varda.features.components.generic_protocols import Viewport
 
 logger = logging.getLogger(__name__)
+
+
+class PlotPixels(QObject):
+    def __init__(self, viewport: Viewport, parent=None):
+        super().__init__(parent)
+        self.viewport = viewport
+        self.pixelSelector = PixelSelectTool(self.viewport, self)
+        self.pixelSelector.sigPixelSelected.connect(self._onPixelSelected)
+
+    def _onPixelSelected(self, point):
+        pixelPlot = PixelPlot()
+        pixelPlot.plot(varda.app.proj.getImage(self.viewport.imageEntity.index), point)
+        pass
 
 
 class PixelPlot(QWidget):
@@ -38,16 +51,13 @@ class PixelPlot(QWidget):
         layout.addWidget(self.plotWidget)
         self.setLayout(layout)
 
-    def plot(self, image, coords: QPointF | Tuple[int, int]):
+    def plot(self, image, coords):
         """Update the plot with new spectral data and comprehensive data validation."""
         self.plotWidget.clear()
         raster_data = image.raster
 
         # Validate coordinates before accessing pixel data
-        if isinstance(coords, QPointF):
-            x, y = int(coords.x()), int(coords.y())  # do we need to convert to int?
-        else:
-            x, y = coords
+        x, y = coords
         is_valid, (safe_x, safe_y) = BoundsValidator.validate_pixel_coordinates(
             x, y, raster_data.shape, allow_clipping=True
         )

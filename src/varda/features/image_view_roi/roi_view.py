@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QBrush, QAction
 
 from varda.core.entities import ROI
@@ -48,7 +48,6 @@ class ROITableWidget(QTableWidget):
 
     roiSelectionChanged = pyqtSignal(int)  # Emits ROI index when selection changes
     roiDoubleClicked = pyqtSignal(int)  # Emits ROI index when double-clicked
-    roiVisibilityChanged = pyqtSignal(str, int)  # emits when we hide/show roi
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -66,9 +65,9 @@ class ROITableWidget(QTableWidget):
 
         # Set up right-click menu
         self.contextMenu = QMenu(self)
-        self.setup_context_menu()
+        self.setupContextMenu()
 
-    def setup_context_menu(self):
+    def setupContextMenu(self):
         """Set up the right-click context menu"""
         self.actionShowHide = QAction("Toggle Visibility", self)
         self.actionPlot = QAction("Plot Spectrum", self)
@@ -113,35 +112,35 @@ class ROITableWidget(QTableWidget):
         selected = self.selectedItems()
         if selected:
             row = selected[0].row()
-            self.parent().toggle_roi_visibility(row)
+            self.parent().toggleRoiVisibility(row)
 
     def onPlotSpectrum(self):
         """Plot the spectrum of the selected ROI"""
         selected = self.selectedItems()
         if selected:
             row = selected[0].row()
-            self.parent().plot_roi_spectrum(row)
+            self.parent().plotRoiSpectrum(row)
 
     def onRemoveROI(self):
         """Remove the selected ROI"""
         selected = self.selectedItems()
         if selected:
             row = selected[0].row()
-            self.parent().remove_roi(row)
+            self.parent().removeRoi(row)
 
     def onRenameROI(self):
         """Rename the selected ROI"""
         selected = self.selectedItems()
         if selected:
             row = selected[0].row()
-            self.parent().rename_roi(row)
+            self.parent().renameRoi(row)
 
     def onChangeColor(self):
         """Change the color of the selected ROI"""
         selected = self.selectedItems()
         if selected:
             row = selected[0].row()
-            self.parent().change_roi_color(row)
+            self.parent().changeRoiColor(row)
 
 
 class ROIPropertyEditor(QWidget):
@@ -152,70 +151,70 @@ class ROIPropertyEditor(QWidget):
     def __init__(self, roiManager, parent=None):
         super().__init__(parent)
         self.roiManager = roiManager
-        self.current_roi_index = None
+        self.currentRoiIndex = None
 
         layout = QVBoxLayout()
 
         # Name
-        name_layout = QHBoxLayout()
-        name_layout.addWidget(QLabel("Name:"))
-        self.name_edit = QLineEdit()
-        self.name_edit.textChanged.connect(
+        nameLayout = QHBoxLayout()
+        nameLayout.addWidget(QLabel("Name:"))
+        self.nameEdit = QLineEdit()
+        self.nameEdit.textChanged.connect(
             lambda text: self.onPropertyChanged("name", text)
         )
-        name_layout.addWidget(self.name_edit)
-        layout.addLayout(name_layout)
+        nameLayout.addWidget(self.nameEdit)
+        layout.addLayout(nameLayout)
 
         # Color
-        color_layout = QHBoxLayout()
-        color_layout.addWidget(QLabel("Color:"))
-        self.color_button = QPushButton()
-        self.color_button.setFixedSize(24, 24)
-        self.color_button.clicked.connect(self.onChangeColor)
-        color_layout.addWidget(self.color_button)
-        layout.addLayout(color_layout)
+        colorLayout = QHBoxLayout()
+        colorLayout.addWidget(QLabel("Color:"))
+        self.colorButton = QPushButton()
+        self.colorButton.setFixedSize(24, 24)
+        self.colorButton.clicked.connect(self.onChangeColor)
+        colorLayout.addWidget(self.colorButton)
+        layout.addLayout(colorLayout)
 
         # Opacity (simulated with alpha value)
-        opacity_layout = QHBoxLayout()
-        opacity_layout.addWidget(QLabel("Opacity:"))
-        self.opacity_slider = QSlider(Qt.Orientation.Horizontal)
-        self.opacity_slider.setRange(0, 100)
-        self.opacity_slider.setValue(50)
-        self.opacity_slider.valueChanged.connect(
+        opacityLayout = QHBoxLayout()
+        opacityLayout.addWidget(QLabel("Opacity:"))
+        self.opacitySlider = QSlider(Qt.Orientation.Horizontal)
+        self.opacitySlider.setRange(0, 100)
+        self.opacitySlider.setValue(50)
+        self.opacitySlider.valueChanged.connect(
             lambda value: self.onPropertyChanged("opacity", value / 100.0)
         )
-        opacity_layout.addWidget(self.opacity_slider)
-        layout.addLayout(opacity_layout)
+        opacityLayout.addWidget(self.opacitySlider)
+        layout.addLayout(opacityLayout)
 
         # Visibility (simulated)
-        visibility_layout = QHBoxLayout()
-        self.visible_checkbox = QCheckBox("Visible")
-        self.visible_checkbox.setChecked(True)
-        self.visible_checkbox.toggled.connect(
+        visibilityLayout = QHBoxLayout()
+        self.visibleCheckbox = QCheckBox("Visible")
+        self.visibleCheckbox.setChecked(True)
+        self.visibleCheckbox.toggled.connect(
             lambda checked: self.onPropertyChanged("visible", checked)
         )
-        visibility_layout.addWidget(self.visible_checkbox)
-        layout.addLayout(visibility_layout)
+        visibilityLayout.addWidget(self.visibleCheckbox)
+        layout.addLayout(visibilityLayout)
 
         # Information
-        info_group = QGroupBox("Information")
-        info_layout = QFormLayout()
-        self.points_label = QLabel("0")
-        info_layout.addRow("Points:", self.points_label)
-        self.image_index_label = QLabel("0")
-        info_layout.addRow("Image Index:", self.image_index_label)
-        info_group.setLayout(info_layout)
-        layout.addWidget(info_group)
+        infoGroup = QGroupBox("Information")
+        infoLayout = QFormLayout()
+        self.pointsLabel = QLabel("0")
+        infoLayout.addRow("Points:", self.pointsLabel)
+        self.imageIndexLabel = QLabel("0")
+        infoLayout.addRow("Image Index:", self.imageIndexLabel)
+        infoGroup.setLayout(infoLayout)
+        layout.addWidget(infoGroup)
 
         # Statistics
-        stats_group = QGroupBox("Statistics")
-        stats_layout = QFormLayout()
-        self.mean_label = QLabel("N/A")
-        stats_layout.addRow("Mean Value:", self.mean_label)
-        self.std_label = QLabel("N/A")
-        stats_layout.addRow("Std Deviation:", self.std_label)
-        stats_group.setLayout(stats_layout)
-        layout.addWidget(stats_group)
+        statsGroup = QGroupBox("Statistics")
+        statsLayout = QFormLayout()
+        self.meanLabel = QLabel("N/A")
+        statsLayout.addRow("Mean Value:", self.meanLabel)
+        self.stdLabel = QLabel("N/A")
+        statsLayout.addRow("Std Deviation:", self.stdLabel)
+        statsGroup.setLayout(statsLayout)
+        layout.addWidget(statsGroup)
 
         # Add stretch at the bottom
         layout.addStretch()
@@ -223,48 +222,48 @@ class ROIPropertyEditor(QWidget):
         self.setLayout(layout)
         self.setEnabled(False)  # Disable until an ROI is selected
 
-    def set_roi(self, roi: ROI, index: int):
+    def setRoi(self, roi: ROI, index: int):
         """Set the ROI to edit"""
         if roi is None:
-            self.current_roi_index = None
+            self.currentRoiIndex = None
             self.setEnabled(False)
             return
 
-        self.current_roi_index = index
+        self.currentRoiIndex = index
         self.setEnabled(True)
 
         # Block signals during updates
         self.blockSignals(True)
 
-        self.name_edit.setText(f"ROI {index}")
-        self.update_color_button(roi.color)
-        self.opacity_slider.setValue(50)  # Default 50% opacity
-        self.visible_checkbox.setChecked(True)  # Default visible
+        self.nameEdit.setText(f"ROI {index}")
+        self.updateColorButton(roi.color)
+        self.opacitySlider.setValue(50)  # Default 50% opacity
+        self.visibleCheckbox.setChecked(True)  # Default visible
 
         # Update information
         if roi.points is not None:
-            self.points_label.setText(
+            self.pointsLabel.setText(
                 str(len(roi.points[0]))
             )  # Points is a list of two lists [x_values, y_values]
         else:
-            self.points_label.setText("0")
+            self.pointsLabel.setText("0")
 
-        self.image_index_label.setText(str(self.roiManager.getImagesForROI(roi.id)[0]))
+        self.imageIndexLabel.setText(str(self.roiManager.getImagesForROI(roi.id)[0]))
 
         # Update statistics if available
         if roi.meanSpectrum is not None:
-            mean_value = float(roi.meanSpectrum.mean())
-            self.mean_label.setText(f"{mean_value:.4f}")
+            meanValue = float(roi.meanSpectrum.mean())
+            self.meanLabel.setText(f"{meanValue:.4f}")
 
             # Std is not available in the current ROI class, so we'll set a placeholder
-            self.std_label.setText("N/A")
+            self.stdLabel.setText("N/A")
         else:
-            self.mean_label.setText("N/A")
-            self.std_label.setText("N/A")
+            self.meanLabel.setText("N/A")
+            self.stdLabel.setText("N/A")
 
         self.blockSignals(False)
 
-    def update_color_button(self, color):
+    def updateColorButton(self, color):
         """Update the color button with the given color"""
         if isinstance(color, str):
             qcolor = QColor(color)
@@ -277,26 +276,26 @@ class ROIPropertyEditor(QWidget):
                 qcolor = QColor(r, g, b, a)
 
         style = f"background-color: {qcolor.name()}"
-        self.color_button.setStyleSheet(style)
+        self.colorButton.setStyleSheet(style)
 
     def onChangeColor(self):
         """Open a color dialog to change the ROI color"""
-        if self.current_roi_index is None:
+        if self.currentRoiIndex is None:
             return
 
-        initial_color = self.color_button.palette().button().color()
+        initialColor = self.colorButton.palette().button().color()
         color = QColorDialog.getColor(
-            initial=initial_color, parent=self, title="Select ROI Color"
+            initial=initialColor, parent=self, title="Select ROI Color"
         )
 
         if color.isValid():
-            self.update_color_button(color.name())
+            self.updateColorButton(color.name())
             self.onPropertyChanged("color", color.name())
 
-    def onPropertyChanged(self, property_name: str, value: Any):
+    def onPropertyChanged(self, propertyName: str, value: Any):
         """Emit a signal when a property is changed"""
-        if self.current_roi_index is not None and not self.signalsBlocked():
-            self.propertyChanged.emit(self.current_roi_index, property_name, value)
+        if self.currentRoiIndex is not None and not self.signalsBlocked():
+            self.propertyChanged.emit(self.currentRoiIndex, propertyName, value)
 
 
 class ROIColumnManager(QDialog):
@@ -365,8 +364,6 @@ class ROIView(QWidget):
         self.viewModel = viewModel
         self.viewModel.setView(self)  # Set reference to this view in the viewModel
         self.selectedRoiIndex = None
-        self.blinkState = False
-        self.blinkTimer = None
 
         # Define default columns
         self.columns = [
@@ -383,87 +380,95 @@ class ROIView(QWidget):
         self.connectSignals()
         self.updateROITable()
 
+    def getDisplayController(self):
+        """Get the ROI display controller for external viewport registration"""
+        return self.viewModel.getDisplayController()
+
     def initUI(self):
         """Initialize the UI"""
-        main_layout = QVBoxLayout()
+        mainLayout = QVBoxLayout()
 
         # Header with buttons
-        header_layout = QHBoxLayout()
+        headerLayout = QHBoxLayout()
 
-        self.draw_roi_button = QPushButton("Draw ROI", self)
-        self.draw_roi_button.setToolTip("Start drawing a new ROI")
-        header_layout.addWidget(self.draw_roi_button)
+        self.showAllButton = QPushButton("Show All", self)
+        self.showAllButton.setToolTip("Show all ROIs")
+        headerLayout.addWidget(self.showAllButton)
 
-        self.show_all_button = QPushButton("Show All", self)
-        self.show_all_button.setToolTip("Show all ROIs")
-        header_layout.addWidget(self.show_all_button)
+        self.hideAllButton = QPushButton("Hide All", self)
+        self.hideAllButton.setToolTip("Hide all ROIs")
+        headerLayout.addWidget(self.hideAllButton)
 
-        self.hide_all_button = QPushButton("Hide All", self)
-        self.hide_all_button.setToolTip("Hide all ROIs")
-        header_layout.addWidget(self.hide_all_button)
+        self.blinkButton = QPushButton("Blink", self)
+        self.blinkButton.setCheckable(True)
+        self.blinkButton.setToolTip("Toggle blinking of ROIs")
+        headerLayout.addWidget(self.blinkButton)
 
-        self.blink_button = QPushButton("Blink", self)
-        self.blink_button.setCheckable(True)
-        self.blink_button.setToolTip("Toggle blinking of ROIs")
-        header_layout.addWidget(self.blink_button)
-
-        header_layout.addStretch()
+        headerLayout.addStretch()
 
         # Column management
-        self.manage_columns_button = QPushButton("Manage Columns", self)
-        self.manage_columns_button.setToolTip("Manage which columns are displayed")
-        header_layout.addWidget(self.manage_columns_button)
+        self.manageColumnsButton = QPushButton("Manage Columns", self)
+        self.manageColumnsButton.setToolTip("Manage which columns are displayed")
+        headerLayout.addWidget(self.manageColumnsButton)
 
-        main_layout.addLayout(header_layout)
+        mainLayout.addLayout(headerLayout)
+
+        # Status label for feedback
+        self.statusLabel = QLabel("Ready")
+        mainLayout.addWidget(self.statusLabel)
 
         # Splitter for table and properties
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # ROI Table
-        self.roi_table = ROITableWidget(self)
+        self.roiTable = ROITableWidget(self)
         self.setupROITable()
-        splitter.addWidget(self.roi_table)
+        splitter.addWidget(self.roiTable)
 
         # Property editor
-        self.property_editor = ROIPropertyEditor(self.viewModel.proj.roiManager)
-        splitter.addWidget(self.property_editor)
+        self.propertyEditor = ROIPropertyEditor(self.viewModel.proj.roiManager)
+        splitter.addWidget(self.propertyEditor)
 
         # Set initial sizes
         splitter.setSizes([int(self.width() * 0.7), int(self.width() * 0.3)])
 
-        main_layout.addWidget(splitter, 1)  # Give the splitter stretch
+        mainLayout.addWidget(splitter, 1)  # Give the splitter stretch
 
-        self.setLayout(main_layout)
+        self.setLayout(mainLayout)
 
     def setupROITable(self):
         """Set up the ROI table with columns"""
-        visible_columns = [col for col in self.columns if col.visible]
-        self.roi_table.setColumnCount(len(visible_columns))
-        header_labels = [col.name for col in visible_columns]
-        self.roi_table.setHorizontalHeaderLabels(header_labels)
+        visibleColumns = [col for col in self.columns if col.visible]
+        self.roiTable.setColumnCount(len(visibleColumns))
+        headerLabels = [col.name for col in visibleColumns]
+        self.roiTable.setHorizontalHeaderLabels(headerLabels)
 
         # Set column widths
-        for i, col in enumerate(visible_columns):
-            self.roi_table.setColumnWidth(i, col.width)
+        for i, col in enumerate(visibleColumns):
+            self.roiTable.setColumnWidth(i, col.width)
 
         # Set table properties
-        self.roi_table.horizontalHeader().setSectionResizeMode(
+        self.roiTable.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Interactive
         )
-        self.roi_table.horizontalHeader().setStretchLastSection(True)
+        self.roiTable.horizontalHeader().setStretchLastSection(True)
 
     def connectSignals(self):
         """Connect UI signals"""
-        self.draw_roi_button.clicked.connect(self.startDrawingROI)
-        self.show_all_button.clicked.connect(self.showAllROIs)
-        self.hide_all_button.clicked.connect(self.hideAllROIs)
-        self.blink_button.clicked.connect(self.toggleBlinkROIs)
-        self.manage_columns_button.clicked.connect(self.showManageColumnsDialog)
+        self.showAllButton.clicked.connect(self.showAllROIs)
+        self.hideAllButton.clicked.connect(self.hideAllROIs)
+        self.blinkButton.clicked.connect(self.toggleBlinkROIs)
+        self.manageColumnsButton.clicked.connect(self.showManageColumnsDialog)
 
-        self.roi_table.roiSelectionChanged.connect(self.onRoiSelectionChanged)
-        self.roi_table.roiDoubleClicked.connect(self.onRoiDoubleClicked)
+        self.roiTable.roiSelectionChanged.connect(self.onRoiSelectionChanged)
+        self.roiTable.roiDoubleClicked.connect(self.onRoiDoubleClicked)
 
-        self.property_editor.propertyChanged.connect(self.onRoiPropertyChanged)
+        self.propertyEditor.propertyChanged.connect(self.onRoiPropertyChanged)
+
+        # Connect ViewModel signals
+        self.viewModel.roiAdded.connect(self.onRoiAdded)
+        self.viewModel.roiRemoved.connect(self.onRoiRemoved)
+        self.viewModel.roiUpdated.connect(self.onRoiUpdated)
 
     def updateROITable(self, rois=None):
         """Update the ROI table with current data"""
@@ -471,53 +476,55 @@ class ROIView(QWidget):
             rois = self.viewModel.getROIs(imageIndex=self.viewModel.imageIndex)
 
         # Clear the table
-        self.roi_table.setRowCount(0)
+        self.roiTable.setRowCount(0)
 
         # Add the rows
         for i, roi in enumerate(rois):
 
-            self.roi_table.insertRow(i)
+            self.roiTable.insertRow(i)
 
-            visible_columns = [col for col in self.columns if col.visible]
-            for j, col in enumerate(visible_columns):
+            visibleColumns = [col for col in self.columns if col.visible]
+            for j, col in enumerate(visibleColumns):
                 item = self.createTableItem(roi, col.name, i)
                 if item:
                     if not col.editable:
                         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    self.roi_table.setItem(i, j, item)
+                    self.roiTable.setItem(i, j, item)
 
         # If a ROI was selected, try to reselect it
         if self.selectedRoiIndex is not None and self.selectedRoiIndex < len(rois):
-            self.roi_table.selectRow(self.selectedRoiIndex)
+            self.roiTable.selectRow(self.selectedRoiIndex)
 
-    def createTableItem(self, roi, column_name, roi_index):
+    def createTableItem(self, roi, columnName, roiIndex):
         """Create a table item for the given ROI and column"""
         item = QTableWidgetItem()
 
-        # Set the value based on column type
-        if column_name == "Index":
-            item.setText(str(roi_index))
-        elif column_name == "Color":
+        # Set the value based on column type - reading directly from ROI entity
+        if columnName == "Index":
+            item.setText(str(roiIndex))
+        elif columnName == "Color":
             item.setText("")
-            item.setBackground(QBrush(QColor(roi.color[0], roi.color[1], roi.color[2])))
-        elif column_name == "Points":
+            # Use the ROI's actual color property
+            color = roi.color
+            item.setBackground(QBrush(QColor(color.red(), color.green(), color.blue())))
+        elif columnName == "Points":
             if roi.points is not None:
-                item.setText(str(len(roi.points[0])))
+                item.setText(str(len(roi.points)))
             else:
                 item.setText("0")
-        elif column_name == "Geospatial Points":
-            if roi.geo_points is not None:
-                item.setText(str(roi.geo_points))
+        elif columnName == "Geospatial Points":
+            if roi.geoPoints is not None:
+                item.setText(str(len(roi.geoPoints)))
             else:
-                item.setText("Not availible")
-        elif column_name == "Image Index":
-            item.setText(str(self.viewModel.imageIndex))
-        elif column_name == "Mean Spectrum":
-            if roi.mean_spectrum is not None:
+                item.setText("Not available")
+        elif columnName == "Image Index":
+            item.setText(str(roi.sourceImageIndex))
+        elif columnName == "Mean Spectrum":
+            if roi.meanSpectrum is not None:
                 item.setText("Available")
             else:
                 item.setText("Not calculated")
-        elif column_name == "Actions":
+        elif columnName == "Actions":
             # For actions column, we would typically create a widget with buttons
             # But QTableWidgetItem doesn't support widgets directly
             # For now, just add text indicating actions are available
@@ -525,48 +532,24 @@ class ROIView(QWidget):
 
         return item
 
-    def startDrawingROI(self):
-        """Start drawing a new ROI"""
-        self.viewModel.startDrawingROI()
-
     def showAllROIs(self):
-        """Show all ROIs (currently a placeholder)"""
-        self.raster_view.draw_all_polygons()
-        self.status_label.setText("All ROIs visible")
-        # change the opacity of each ROI object such that it becomes invisible
-        # In a complete implementation, this would update ROI visibility
+        """Show all ROIs"""
+        self.viewModel.showAllROIs()
+        self.statusLabel.setText("All ROIs visible")
 
     def hideAllROIs(self):
-        """Hide all ROIs (currently a placeholder)"""
-        self.raster_view.remove_polygons_from_display()
-        self.status_label.setText("All ROIs hidden")
-        # change the opacity of each ROI object such that it becomes visible
-        # In a complete implementation, this would update ROI visibility
+        """Hide all ROIs"""
+        self.viewModel.hideAllROIs()
+        self.statusLabel.setText("All ROIs hidden")
 
     def toggleBlinkROIs(self, checked):
         """Toggle ROI blinking"""
         if checked:
-            # Start blinking timer
-            if self.blinkTimer is None:
-                self.blinkTimer = QTimer(self)
-                self.blinkTimer.timeout.connect(self.blinkROIs)
-            self.blinkTimer.start(500)  # Blink every 500ms
+            self.viewModel.startBlinking()
+            self.statusLabel.setText("ROI blinking enabled")
         else:
-            # Stop blinking
-            if self.blinkTimer is not None:
-                self.blinkTimer.stop()
-            # Show all ROIs again
-            self.showAllROIs()
-
-    def blinkROIs(self):
-        """Blink ROIs by toggling visibility"""
-        self.blinkState = not self.blinkState
-        logger.debug(f"Blinking ROIs: {'visible' if self.blinkState else 'hidden'}")
-        # In a complete implementation, this would toggle ROI visibility in the view
-        if self.blinkState:
-            self.raster_view.remove_polygons_from_display()
-        else:
-            self.raster_view.draw_all_polygons()
+            self.viewModel.stopBlinking()
+            self.statusLabel.setText("ROI blinking disabled")
 
     def showManageColumnsDialog(self):
         """Show the manage columns dialog"""
@@ -576,201 +559,121 @@ class ROIView(QWidget):
             self.setupROITable()
             self.updateROITable()
 
-    def onRoiSelectionChanged(self, roi_index):
+    def onRoiSelectionChanged(self, roiIndex):
         """Handle ROI selection change"""
-        if roi_index >= 0 and roi_index < len(
+        if roiIndex >= 0 and roiIndex < len(
             self.viewModel.getROIs(self.viewModel.imageIndex)
         ):
-            self.selectedRoiIndex = roi_index
+            self.selectedRoiIndex = roiIndex
             rois = self.viewModel.getROIs(self.viewModel.imageIndex)
-            if roi_index < len(rois):
-                roi = rois[roi_index]
-                self.property_editor.set_roi(roi, roi_index)
-                self.roiSelectionChanged.emit(roi_index)
+            if roiIndex < len(rois):
+                roi = rois[roiIndex]
+                self.propertyEditor.setRoi(roi, roiIndex)
+                self.roiSelectionChanged.emit(roiIndex)
 
-                # Also highlight the ROI in the raster view
-                if hasattr(self.viewModel, "rasterView") and self.viewModel.rasterView:
-                    if hasattr(self.viewModel.rasterView, "roi_drawing_manager"):
-                        # Use new ROI system
-                        self.viewModel.rasterView.roi_drawing_manager.highlightROI(
-                            roi.id
-                        )
-                    else:
-                        # Fallback to old system
-                        self.viewModel.rasterView.highlightROI(roi_index)
+                # Highlight the ROI through the ViewModel
+                self.viewModel.highlightRoi(roi.id)
 
-    def onRoiDoubleClicked(self, roi_index):
+    def onRoiDoubleClicked(self, roiIndex):
         """Handle ROI double-click"""
-        self.plot_roi_spectrum(roi_index)
+        self.plotRoiSpectrum(roiIndex)
 
-    def onRoiPropertyChanged(self, roi_index, property_name, value):
+    def onRoiPropertyChanged(self, roiIndex, propertyName, value):
         """Handle property change from property editor"""
-        # In a complete implementation, this would update the ROI in the viewModel
-        logger.debug(
-            f"ROI property changed: ROI {roi_index}, {property_name} = {value}"
-        )
+        rois = self.viewModel.getROIs(self.viewModel.imageIndex)
+        if roiIndex < len(rois):
+            roi = rois[roiIndex]
 
-        if property_name == "color":
-            # Update color in the table
-            rois = self.viewModel.getROIs(self.viewModel.imageIndex)
-            if roi_index < len(rois):
-                col_idx = next(
-                    (
-                        i
-                        for i, col in enumerate(self.columns)
-                        if col.name == "Color" and col.visible
-                    ),
-                    -1,
-                )
-                if col_idx >= 0:
-                    item = self.roi_table.item(roi_index, col_idx)
-                    if item:
-                        item.setBackground(QBrush(QColor(value)))
+            # Update through ViewModel
+            if propertyName == "color":
+                color = QColor(value) if isinstance(value, str) else value
+                self.viewModel.updateRoi(roi.id, color=color)
+            elif propertyName == "visible":
+                self.viewModel.updateRoiVisibility(roi.id, value)
+            elif propertyName == "opacity":
+                self.viewModel.updateRoi(roi.id, opacity=value)
 
-    def toggle_roi_visibility(self, roi_index):
-        """Toggle visibility of an ROI (placeholder implementation)"""
-        logger.debug(f"Toggle visibility for ROI {roi_index}")
-        # In a complete implementation, this would update ROI visibility
+    def toggleRoiVisibility(self, roiIndex):
+        """Toggle visibility of an ROI"""
+        rois = self.viewModel.getROIs(self.viewModel.imageIndex)
+        if roiIndex < len(rois):
+            roi = rois[roiIndex]
+            currentVisibility = self.viewModel.getDisplayController().getRoiVisibility(
+                roi.id
+            )
+            self.viewModel.updateRoiVisibility(roi.id, not currentVisibility)
 
-    def plot_roi_spectrum(self, roi_index):
+    def plotRoiSpectrum(self, roiIndex):
         """Plot the spectrum of an ROI"""
         rois = self.viewModel.getROIs(self.viewModel.imageIndex)
-        if roi_index < len(rois):
-            roi = rois[roi_index]
+        if roiIndex < len(rois):
+            roi = rois[roiIndex]
+            self.viewModel.plotRoiSpectrum(roi.id)
 
-            # Check if spectrum is available
-            if not hasattr(roi, "mean_spectrum") or roi.mean_spectrum is None:
-                QMessageBox.warning(
-                    self,
-                    "No Spectrum",
-                    "This ROI doesn't have spectrum data available.",
-                )
-                return
-
-            # Get wavelength data from the image
-            image = self.viewModel.proj.getImage(self.viewModel.imageIndex)
-            wavelengths = image.metadata.wavelengths
-
-            # Create or get the pixel plot window
-            if not hasattr(self, "pixelPlotWindow") or self.pixelPlotWindow is None:
-                from varda.gui.widgets.image_plot_widget import ImagePlotWidget
-
-                self.pixelPlotWindow = ImagePlotWidget()
-
-                # Track the window so it gets cleaned up properly
-                if hasattr(self.viewModel.proj, "main_window"):
-                    self.viewModel.proj.main_window.trackPixelPlotWindow(
-                        self.pixelPlotWindow
-                    )
-
-            # Update the plot with ROI data
-            coords_label = (
-                f"ROI {roi.name}" if hasattr(roi, "name") else f"ROI {roi_index}"
-            )
-            self.pixelPlotWindow.updatePlot(
-                wavelengths, roi.mean_spectrum, coords_label
-            )
-            self.pixelPlotWindow.show()
-            self.pixelPlotWindow.raise_()  # Bring to front
-
-    def remove_roi(self, roi_index):
+    def removeRoi(self, roiIndex):
         """Remove an ROI"""
         confirm = QMessageBox.question(
             self,
             "Remove ROI",
-            f"Are you sure you want to remove ROI #{roi_index}?",
+            f"Are you sure you want to remove ROI #{roiIndex}?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
         if confirm == QMessageBox.StandardButton.Yes:
-            self.viewModel.removeRoi(self.viewModel.imageIndex, roi_index)
-            self.updateROITable()
-            if self.selectedRoiIndex == roi_index:
-                self.selectedRoiIndex = None
-                self.property_editor.set_roi(None, None)
+            self.viewModel.removeRoi(self.viewModel.imageIndex, roiIndex)
 
-    def rename_roi(self, roi_index):
-        """Rename an ROI (placeholder implementation)"""
-        new_name, ok = QInputDialog.getText(
+    def renameRoi(self, roiIndex):
+        """Rename an ROI"""
+        newName, ok = QInputDialog.getText(
             self,
             "Rename ROI",
-            f"Enter new name for ROI #{roi_index}:",
+            f"Enter new name for ROI #{roiIndex}:",
             QLineEdit.EchoMode.Normal,
-            f"ROI {roi_index}",
+            f"ROI {roiIndex}",
         )
 
-        if ok and new_name:
-            logger.debug(f"Renaming ROI {roi_index} to '{new_name}'")
-            # In a complete implementation, this would update the ROI name
+        if ok and newName:
+            rois = self.viewModel.getROIs(self.viewModel.imageIndex)
+            if roiIndex < len(rois):
+                roi = rois[roiIndex]
+                self.viewModel.updateRoi(roi.id, name=newName)
 
-    def refresh_raster_view(self):
-        """Refresh the ROI display in the RasterView"""
-        # Find and update the RasterView if available
-        if hasattr(self.viewModel, "rasterView") and self.viewModel.rasterView:
-            raster_view = self.viewModel.rasterView
-
-            # Force redraw of all ROIs
-            if hasattr(raster_view, "remove_polygons_from_display"):
-                raster_view.remove_polygons_from_display()
-            if hasattr(raster_view, "draw_all_polygons"):
-                raster_view.draw_all_polygons()
-        else:
-            # Try to find the RasterView through the main window
-            main_window = self.window()  # Get parent window
-            if hasattr(main_window, "rasterViews"):
-                raster_view = main_window.rasterViews.get(self.viewModel.imageIndex)
-                if raster_view:
-                    self.viewModel.setRasterView(raster_view)
-                    raster_view.remove_polygons_from_display()
-                    raster_view.draw_all_polygons()
-
-    def change_roi_color(self, roi_index):
+    def changeRoiColor(self, roiIndex):
         """Change the color of an ROI"""
         rois = self.viewModel.getROIs(self.viewModel.imageIndex)
-        if roi_index >= len(rois):
+        if roiIndex >= len(rois):
             return
 
-        roi = rois[roi_index]
+        roi = rois[roiIndex]
 
         # Show color dialog
-        initialColor = roi.color
+        initialColor = (
+            QColor(*roi.color[:3]) if hasattr(roi, "color") else QColor(255, 0, 0)
+        )
         color = QColorDialog.getColor(
-            initialColor, self, f"Select color for ROI #{roi_index}"
+            initialColor, self, f"Select color for ROI #{roiIndex}"
         )
 
         if color.isValid():
-            logger.debug(
-                f"Changing color of ROI {roi_index} to {(color.red(), color.green(), color.blue(), color.alpha())}"
-            )
-
-            # Update ROI in the data model
             self.viewModel.updateRoi(roi.id, color=color)
 
-            # Update the table cell
-            col_idx = next(
-                (
-                    i
-                    for i, col in enumerate([c for c in self.columns if c.visible])
-                    if col.name == "Color"
-                ),
-                -1,
-            )
-            if col_idx >= 0:
-                item = self.roi_table.item(roi_index, col_idx)
-                if item:
-                    item.setBackground(QBrush(color))
+    def onRoiAdded(self, roiId):
+        """Handle ROI added signal from ViewModel"""
+        self.updateROITable()
+        self.statusLabel.setText(f"ROI {roiId} added")
 
-            # Refresh the visual representation in the RasterView
-            self.refresh_raster_view()
+    def onRoiRemoved(self, roiId):
+        """Handle ROI removed signal from ViewModel"""
+        self.updateROITable()
+        if self.selectedRoiIndex is not None:
+            self.selectedRoiIndex = None
+            self.propertyEditor.setRoi(None, None)
+        self.statusLabel.setText(f"ROI {roiId} removed")
 
-    def addStatisticsButton(self):
-        """Add a button to view ROI statistics"""
-        self.view_stats_button = QPushButton("View Statistics", self)
-        self.view_stats_button.setToolTip(
-            "View detailed statistics for the selected ROI"
-        )
-        self.view_stats_button.clicked.connect(self.viewRoiStatistics)
-        self.header_layout.addWidget(self.view_stats_button)
+    def onRoiUpdated(self, roiId):
+        """Handle ROI updated signal from ViewModel"""
+        self.updateROITable()
+        self.statusLabel.setText(f"ROI {roiId} updated")
 
     def viewRoiStatistics(self):
         """View statistics for the selected ROI"""
@@ -779,24 +682,22 @@ class ROIView(QWidget):
             return
 
         # Get all ROIs for the current image
-        rois = self.viewModel.getAllRois()
-        if not rois:
+        rois = self.viewModel.getROIs(self.viewModel.imageIndex)
+        if not rois or self.selectedRoiIndex >= len(rois):
             return
 
         # Get the selected ROI
-        roi_id = list(rois.keys())[self.selectedRoiIndex]
-        roi = rois[roi_id]
+        roi = rois[self.selectedRoiIndex]
 
-        # Calculate statistics if not already calculated
-        stats = self.viewModel.calculate_roi_statistics(roi_id)
+        # Calculate statistics through ViewModel
+        stats = self.viewModel.calculateRoiStatistics(roi.id)
         if not stats:
             QMessageBox.warning(
                 self, "Statistics Error", "Could not calculate statistics for this ROI."
             )
             return
 
-        # Create and show statistics dialog
-
+        # Show statistics dialog
         self.showStatisticsDialog(roi, stats)
 
     def showStatisticsDialog(self, roi, stats):
@@ -810,50 +711,52 @@ class ROIView(QWidget):
         )
 
         dialog = QDialog(self)
-        dialog.setWindowTitle(f"Statistics for ROI: {roi.name}")
+        dialog.setWindowTitle(
+            f"Statistics for ROI: {getattr(roi, 'name', f'ROI {self.selectedRoiIndex}')}"
+        )
         dialog.resize(800, 600)
 
         layout = QVBoxLayout(dialog)
-        tab_widget = QTabWidget()
+        tabWidget = QTabWidget()
 
         # Summary tab
-        summary_widget = QWidget()
-        summary_layout = QVBoxLayout(summary_widget)
-        summary_table = QTableWidget()
-        summary_table.setColumnCount(2)
-        summary_table.setHorizontalHeaderLabels(["Property", "Value"])
+        summaryWidget = QWidget()
+        summaryLayout = QVBoxLayout(summaryWidget)
+        summaryTable = QTableWidget()
+        summaryTable.setColumnCount(2)
+        summaryTable.setHorizontalHeaderLabels(["Property", "Value"])
 
         # Add basic properties
         properties = [
-            ("Number of pixels", stats.n_pixels),
-            ("Number of bands", stats.n_bands),
-            ("Area (pixels)", stats.n_pixels),
+            ("Number of pixels", stats.nPixels),
+            ("Number of bands", stats.nBands),
+            ("Area (pixels)", stats.nPixels),
             ("Mean values", "See Band Statistics Tab"),
             (
                 "Created",
                 (
-                    roi.creation_time.strftime("%Y-%m-%d %H:%M:%S")
-                    if hasattr(roi, "creation_time")
+                    roi.creationTime.strftime("%Y-%m-%d %H:%M:%S")
+                    if hasattr(roi, "creationTime")
                     else "Unknown"
                 ),
             ),
         ]
 
-        summary_table.setRowCount(len(properties))
+        summaryTable.setRowCount(len(properties))
         for i, (prop, value) in enumerate(properties):
-            summary_table.setItem(i, 0, QTableWidgetItem(prop))
-            summary_table.setItem(i, 1, QTableWidgetItem(str(value)))
+            summaryTable.setItem(i, 0, QTableWidgetItem(prop))
+            summaryTable.setItem(i, 1, QTableWidgetItem(str(value)))
 
-        summary_layout.addWidget(summary_table)
-        tab_widget.addTab(summary_widget, "Summary")
+        summaryLayout.addWidget(summaryTable)
+        tabWidget.addTab(summaryWidget, "Summary")
 
         # Band statistics tab
-        band_widget = QWidget()
-        band_layout = QVBoxLayout(band_widget)
-        band_table = QTableWidget()
+        bandWidget = QWidget()
+        bandLayout = QVBoxLayout(bandWidget)
+        bandTable = QTableWidget()
 
         # Set up columns for band statistics
-        stats_columns = [
+        statsColumns = [
             "Band",
             "Mean",
             "Median",
@@ -863,59 +766,57 @@ class ROIView(QWidget):
             "25%",
             "75%",
         ]
-        band_table.setColumnCount(len(stats_columns))
-        band_table.setHorizontalHeaderLabels(stats_columns)
+        bandTable.setColumnCount(len(statsColumns))
+        bandTable.setHorizontalHeaderLabels(statsColumns)
 
         # Add rows for each band
-        band_table.setRowCount(stats.n_bands)
-        for i in range(stats.n_bands):
-            band_stats = stats.getBandStats(i)
-            band_table.setItem(i, 0, QTableWidgetItem(str(i)))
-            band_table.setItem(i, 1, QTableWidgetItem(f"{band_stats['mean']:.4f}"))
-            band_table.setItem(i, 2, QTableWidgetItem(f"{band_stats['median']:.4f}"))
-            band_table.setItem(i, 3, QTableWidgetItem(f"{band_stats['std_dev']:.4f}"))
-            band_table.setItem(i, 4, QTableWidgetItem(f"{band_stats['min']:.4f}"))
-            band_table.setItem(i, 5, QTableWidgetItem(f"{band_stats['max']:.4f}"))
-            band_table.setItem(
-                i, 6, QTableWidgetItem(f"{band_stats['percentile_25']:.4f}")
+        bandTable.setRowCount(stats.nBands)
+        for i in range(stats.nBands):
+            bandStats = stats.getBandStats(i)
+            bandTable.setItem(i, 0, QTableWidgetItem(str(i)))
+            bandTable.setItem(i, 1, QTableWidgetItem(f"{bandStats['mean']:.4f}"))
+            bandTable.setItem(i, 2, QTableWidgetItem(f"{bandStats['median']:.4f}"))
+            bandTable.setItem(i, 3, QTableWidgetItem(f"{bandStats['stdDev']:.4f}"))
+            bandTable.setItem(i, 4, QTableWidgetItem(f"{bandStats['min']:.4f}"))
+            bandTable.setItem(i, 5, QTableWidgetItem(f"{bandStats['max']:.4f}"))
+            bandTable.setItem(
+                i, 6, QTableWidgetItem(f"{bandStats['percentile25']:.4f}")
             )
-            band_table.setItem(
-                i, 7, QTableWidgetItem(f"{band_stats['percentile_75']:.4f}")
+            bandTable.setItem(
+                i, 7, QTableWidgetItem(f"{bandStats['percentile75']:.4f}")
             )
 
-        band_layout.addWidget(band_table)
-        tab_widget.addTab(band_widget, "Band Statistics")
+        bandLayout.addWidget(bandTable)
+        tabWidget.addTab(bandWidget, "Band Statistics")
 
         # Add histogram tab if matplotlib is available
         try:
             import matplotlib.pyplot as plt
             from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 
-            hist_widget = QWidget()
-            hist_layout = QVBoxLayout(hist_widget)
+            histWidget = QWidget()
+            histLayout = QVBoxLayout(histWidget)
 
             # Create figure and canvas
             fig, ax = plt.subplots(figsize=(8, 6))
             canvas = FigureCanvasQTAgg(fig)
 
             # Plot histogram for the first band
-            bin_centers, hist_values = stats.histogram(0)
+            binCenters, histValues = stats.histogram(0)
             ax.bar(
-                bin_centers,
-                hist_values,
-                width=(
-                    (bin_centers[1] - bin_centers[0]) if len(bin_centers) > 1 else 0.1
-                ),
+                binCenters,
+                histValues,
+                width=((binCenters[1] - binCenters[0]) if len(binCenters) > 1 else 0.1),
             )
             ax.set_title(f"Histogram for Band 0")
             ax.set_xlabel("Value")
             ax.set_ylabel("Frequency")
 
-            hist_layout.addWidget(canvas)
-            tab_widget.addTab(hist_widget, "Histogram")
+            histLayout.addWidget(canvas)
+            tabWidget.addTab(histWidget, "Histogram")
         except ImportError:
             pass  # Skip histogram tab if matplotlib is not available
 
-        layout.addWidget(tab_widget)
+        layout.addWidget(tabWidget)
         dialog.setLayout(layout)
         dialog.exec()

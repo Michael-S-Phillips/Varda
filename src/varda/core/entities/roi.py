@@ -108,7 +108,7 @@ class ROI:
             logger.warning(f"Invalid color {self.color}, using default")
             self.color = QColor(255, 0, 0, 128)  # Default red with 50% opacity
 
-    def update_properties(self, **kwargs):
+    def updateProperties(self, **kwargs):
         """Update multiple ROI properties at once"""
         for key, value in kwargs.items():
             if hasattr(self, key):
@@ -116,43 +116,13 @@ class ROI:
             else:
                 logger.warning(f"Unknown ROI property: {key}")
 
-    def get_custom_value(self, column_name, default=None):
+    def getCustomValue(self, column_name, default=None):
         """Get a custom data value by column name"""
         return self.customData.values.get(column_name, default)
 
-    def set_custom_value(self, column_name, value):
+    def setCustomValue(self, column_name, value):
         """Set a custom data value"""
         self.customData.values[column_name] = value
-
-    def pixel_to_geo(self, transform):
-        """
-        Convert ROI pixel coordinates to geographic coordinates.
-
-        Args:
-            transform: A rasterio/affine transformation object
-
-        Returns:
-            Updated geo_points array
-        """
-        if self.points is None or transform is None:
-            return None
-
-        try:
-
-            # Convert points using the geotransform
-            geo_x, geo_y = [], []
-            for i in range(len(self.points[0])):
-                x, y = self.points[0][i], self.points[1][i]
-                # Apply the transform
-                geo_coord = rasterio.transform.xy(transform, y, x)
-                geo_x.append(geo_coord[0])
-                geo_y.append(geo_coord[1])
-
-            self.geoPoints = np.array([geo_x, geo_y])
-            return self.geoPoints
-        except Exception as e:
-            logger.error(f"Error converting to geo coordinates: {e}")
-            return None
 
     def getBounds(self):
         """Calculate the bounding box of the ROI points"""

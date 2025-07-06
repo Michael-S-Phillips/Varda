@@ -109,7 +109,7 @@ class ROIDrawingTool(ViewportTool):
         roiClone = self.roiEntity.clone()
         self.sigROIDrawingComplete.emit(roiClone)
         # TODO: Possibly change this if we decide on a different way to store ROIs
-        varda.app.proj.addROI(roiClone)
+        varda.app.proj.roiManager.addROI(roiClone)
         self.stopDrawing()
 
     def keyPressEvent(self, event) -> bool:
@@ -132,7 +132,9 @@ class FreehandROITool(ROIDrawingTool):
     """Tool for drawing freehand ROIs."""
 
     toolName = "Freehand ROI"
-    toolDescription = "Draw a freehand ROI by clicking and dragging"
+    toolDescription = (
+        "Draw a freehand ROI by clicking and dragging. Release to complete."
+    )
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
         if not self.isDrawing:
@@ -179,7 +181,9 @@ class RectangleROITool(ROIDrawingTool):
     """Tool for drawing rectangular ROIs."""
 
     toolName = "Rectangle ROI"
-    toolDescription = "Draw a rectangular ROI by clicking and dragging"
+    toolDescription = (
+        "Draw a rectangular ROI by clicking and dragging. Release to complete."
+    )
 
     def __init__(self, viewport: Viewport, parent=None):
         super().__init__(viewport, parent)
@@ -241,7 +245,9 @@ class EllipseROITool(ROIDrawingTool):
     """Tool for drawing elliptical ROIs."""
 
     toolName = "Ellipse ROI"
-    toolDescription = "Draw an elliptical ROI by clicking and dragging"
+    toolDescription = (
+        "Draw an elliptical ROI by clicking and dragging. Release to complete."
+    )
 
     def __init__(self, viewport: Viewport, parent=None):
         super().__init__(viewport, parent)

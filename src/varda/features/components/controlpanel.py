@@ -108,28 +108,16 @@ class MetadataTab(DockableTab):
 class ROITab(DockableTab):
     """Tab for ROI management functionality."""
 
-    def __init__(self, proj: ProjectContext, imageIndex: int, rasterView, parent=None):
+    def __init__(self, proj, imageIndex: int, parent=None):
         super().__init__("ROI", parent)
-        self.project_context = proj
+        self.proj = proj
         self.imageIndex = imageIndex
-        self.rasterView = rasterView
-        self._init_ui()
+        self._initUI()
 
-    def _init_ui(self):
+    def _initUI(self):
         layout = QVBoxLayout(self)
 
-        self.ROITable = getROIView(self.project_context, self.imageIndex, self)
-        self.ROITable.viewModel.setRasterView(self.rasterView)
-
-        # Connect signals for ROI selection
-        self.ROITable.roiSelectionChanged.connect(
-            lambda roi_index: (
-                self.rasterView.highlightROI(roi_index)
-                if hasattr(self.rasterView, "highlightROI")
-                else None
-            )
-        )
-
+        self.ROITable = getROIView(self.proj, self.imageIndex, self)
         layout.addWidget(self.ROITable)
 
 
@@ -262,9 +250,7 @@ class ControlPanel(QWidget):
         self.tabs["stretch"] = StretchTab(self.proj, self.imageIndex, self)
 
         # commented out until i update them
-        # self.tabs["roi"] = ROITab(
-        #     self.project_context, self.imageIndex, self.rasterView, self
-        # )
+        self.tabs["roi"] = ROITab(self.proj, self.imageIndex, self)
         # self.tabs["plot"] = PlotManagerTab(self.proj, self.imageIndex, self)
 
         # Add create dockable tabs

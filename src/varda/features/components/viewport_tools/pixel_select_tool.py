@@ -1,11 +1,12 @@
 import logging
 from typing import override
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QPointF
 import pyqtgraph as pg
 from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
 from varda.features.components.generic_protocols import Viewport, ViewportTool
+from varda.features.pixel_plot.pixel_plot import PixelPlot
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 class PixelSelectTool(ViewportTool):
     """Click+Ctrl to select a pixel; emits its integer coords upon mouse release."""
 
-    sigPixelSelected = pyqtSignal(pg.Point)  # pg.Point is just a better QPointF
+    sigPixelSelected = pyqtSignal(QPointF)
 
     # Tool metadata
     toolName = "Pixel Select"
@@ -28,6 +29,8 @@ class PixelSelectTool(ViewportTool):
         self.vCrosshair.hide()
         self.hCrosshair.hide()
         self.isDragging = False
+
+        self.sigPixelSelected.connect(self.plotPixel)  # probably temp
         self.activate()
 
     def activate(self):
@@ -48,7 +51,7 @@ class PixelSelectTool(ViewportTool):
             and event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
             self.isDragging = True
-            self._updateCrosshair(event.pos())
+            self._updateCrosshair(event.pos(), emitSignal=False)
             self._showCrosshairs()
             return True
         return False
@@ -100,4 +103,10 @@ class PixelSelectTool(ViewportTool):
         self.hCrosshair.setPos(centeredPos)
         self.vCrosshair.setPos(centeredPos)
         if emitSignal:
-            self.sigPixelSelected.emit(quantizedPos)
+            # get absolute image pos
+            imagePos = pg.Point(self.viewport.imageItem.localToImage(pos))
+            self.sigPixelSelected.emit(imagePos)
+
+    def plotPixel(self, pixelCoords):
+        self.pixelPlot = PixelPlot()
+        self.pixelPlot.plot(self.viewport.imageEntity, pixelCoords)

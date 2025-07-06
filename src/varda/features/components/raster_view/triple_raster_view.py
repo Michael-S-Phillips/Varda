@@ -7,8 +7,8 @@ from varda.app.services.roi_utils import VardaROIItem
 from varda.core.data import ProjectContext
 from varda.core.entities import Image, Band, Stretch
 from varda.features.components.raster_view.viewport import ImageViewport
-from varda.features.components.raster_view.roi_region_controller import (
-    ROIRegionController,
+from varda.features.components.raster_view.region_controller import (
+    RegionController,
 )
 
 
@@ -64,10 +64,10 @@ class TripleRasterView(QWidget):
             (25, 25), (50, 50), self.imageIndex, QColor(255, 0, 0, 0), aspectLocked=True
         )
 
-        self.mainController = ROIRegionController(
+        self.mainController = RegionController(
             self.viewport1, self.viewport2, self.roi1
         )
-        self.zoomController = ROIRegionController(
+        self.zoomController = RegionController(
             self.viewport2, self.viewport3, self.roi2, self.mainController
         )
 

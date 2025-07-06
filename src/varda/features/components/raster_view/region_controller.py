@@ -12,7 +12,7 @@ from varda.features.components.generic_protocols import Viewport
 logger = logging.getLogger(__name__)
 
 
-class ROIRegionController(QObject):
+class RegionController(QObject):
     dragSpeed: float = 0.5  # Speed multiplier for drag events
 
     def __init__(
@@ -20,7 +20,7 @@ class ROIRegionController(QObject):
         sourceViewport: Viewport,
         targetViewport: Viewport,
         roi: VardaROIItem,
-        parentRegionController: "ROIRegionController" = None,
+        parentRegionController: "RegionController" = None,
         parent=None,
     ):
         super().__init__(parent)

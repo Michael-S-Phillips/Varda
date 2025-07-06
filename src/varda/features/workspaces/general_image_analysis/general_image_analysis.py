@@ -10,6 +10,7 @@ import logging
 from PyQt6.QtWidgets import (
     QMainWindow,
     QStatusBar,
+    QDockWidget,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -19,7 +20,6 @@ from varda.features.components.band_management.band_manager import BandManager
 from varda.features.image_view_stretch import StretchManager
 from varda.features.image_view_roi import getROIView
 from varda.features.components.raster_view import TripleRasterView
-from varda.features.workflows.plot_pixels import PlotPixels
 from varda.features.components.viewport_tools.tool_manager import (
     ToolManager,
 )
@@ -86,9 +86,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.tripleRasterView.viewport3.addToolBar(self.toolManager3.getToolbar())
 
         # Initialize Control Panel
-        # So like basically, we're just delegating the task of creating a bunch of docks to the ControlPanel.
+        # So basically, we're delegating the task of creating the docks to the ControlPanel.
         # IDK if this is actually helpful, since we only need a few docks anyway.
-        # But the control panel already had a bunch of the logic so yeah.
+        # But the control panel already had a lot of the logic so yeah.
         self.controlPanel = ControlPanel(self.project, self.imageIndex, self)
 
         # # Initialize band selection view
@@ -111,18 +111,18 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         self.setStatusBar(QStatusBar(self))
 
-    # def _setupDocks(self):
-    #     """Setup all of the dock widgets for the workflow. This is most of the viewport_tools"""
-    #     docks = []
-    #     bandDock = QDockWidget("Band Manager", self)
-    #     bandDock.setWidget(self.bandView)
-    #     self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, bandDock)
-    #     docks.append(bandDock)
-    #
-    #     stretchDock = QDockWidget("Stretch Controls", self)
-    #     stretchDock.setWidget(self.stretchView)
-    #     self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, stretchDock)
-    #     docks.append(stretchDock)
+    def _setupDocks(self):
+        """Setup all of the dock widgets for the workflow. This is most of the viewport_tools"""
+        docks = []
+        bandDock = QDockWidget("Band Manager", self)
+        bandDock.setWidget(self.bandView)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, bandDock)
+        docks.append(bandDock)
+
+        stretchDock = QDockWidget("Stretch Controls", self)
+        stretchDock.setWidget(self.stretchView)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, stretchDock)
+        docks.append(stretchDock)
 
     def _connectSignals(self):
         """Connect signals between workflow components"""
