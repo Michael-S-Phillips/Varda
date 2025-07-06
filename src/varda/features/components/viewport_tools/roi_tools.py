@@ -94,20 +94,27 @@ class ROIDrawingTool(ViewportTool):
             self.cancelDrawing()
             return
 
+        # convert points to image space and store in the ROI entity
+        self.roiEntity.points = np.array(
+            self.viewport.imageItem.localToImage(self.points)
+        )
+
         # Calculate geo coordinates if transform is available
         if self.imageEntity.metadata.hasGeospatialData:
-            geoPoints = [
-                image_utils.transformPixelToGeoCoord(self.imageEntity, int(px), int(py))
-                for px, py in self.points
-            ]
+            self.roiEntity.geoPoints = np.array(
+                [
+                    image_utils.transformPixelToGeoCoord(
+                        self.imageEntity, int(px), int(py)
+                    )
+                    for px, py in self.roiEntity.points
+                ]
+            )
         else:
-            geoPoints = None
-
-        self.roiEntity.points = np.array(self.points)
-        self.roiEntity.geoPoints = np.array(geoPoints) if geoPoints else None
+            self.roiEntity.geoPoints = None
 
         roiClone = self.roiEntity.clone()
         self.sigROIDrawingComplete.emit(roiClone)
+
         # TODO: Possibly change this if we decide on a different way to store ROIs
         varda.app.proj.roiManager.addROI(roiClone)
         self.stopDrawing()

@@ -40,6 +40,9 @@ class ROIViewModel(QObject):
         self._displayController.roiHighlighted.connect(self.roiUpdated)
         self._displayController.roiSelected.connect(self.roiUpdated)
 
+        self.proj.roiManager.sigROIUpdated.connect(self.roiUpdated)
+        self.proj.roiManager.sigROIAdded.connect(self.roiAdded)
+        self.proj.roiManager.sigROIRemoved.connect(self.roiRemoved)
         logger.debug(f"ROI ViewModel initialized for image {imageIndex}")
 
     def getDisplayController(self) -> ROIDisplayController:

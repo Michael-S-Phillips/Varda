@@ -30,7 +30,7 @@ class PixelSelectTool(ViewportTool):
         self.hCrosshair.hide()
         self.isDragging = False
 
-        self.sigPixelSelected.connect(self.plotPixel)  # probably temp
+        self.sigPixelSelected.connect(self.plotPixel)  # TODO: This is probably temp
         self.activate()
 
     def activate(self):
@@ -108,5 +108,6 @@ class PixelSelectTool(ViewportTool):
             self.sigPixelSelected.emit(imagePos)
 
     def plotPixel(self, pixelCoords):
+        # TODO: This is prob temp. Should somehow integrate with the more complex plotting system Michael was working on.
         self.pixelPlot = PixelPlot()
         self.pixelPlot.plot(self.viewport.imageEntity, pixelCoords)

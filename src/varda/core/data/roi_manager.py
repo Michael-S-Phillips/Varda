@@ -3,7 +3,7 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional, Any, Set
 import uuid
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, QObject
 
 from varda.core.entities.roi import ROI, ROICustomData
 
@@ -56,12 +56,15 @@ class ROITableColumn:
         return column
 
 
-class ROIManager:
+class ROIManager(QObject):
     """Manages regions of interest (ROIs) across all images"""
 
-    sigROIChanged = pyqtSignal()
+    sigROIUpdated = pyqtSignal(str)
+    sigROIAdded = pyqtSignal(str)
+    sigROIRemoved = pyqtSignal(str)
 
     def __init__(self):
+        super().__init__()
         self.rois: Dict[str, ROI] = {}  # Dictionary of ROI ID to ROI object
         self.imageROIMap: Dict[int, List[str]] = (
             {}
@@ -114,7 +117,7 @@ class ROIManager:
                 self.associateROIWithImage(roi.id, idx)
 
         logger.info(f"Added ROI {roi.id} to manager")
-        self.sigROIChanged.emit()
+        self.sigROIAdded.emit(roi.id)
         return roi.id
 
     def removeROI(self, roiID: str) -> bool:
@@ -140,7 +143,7 @@ class ROIManager:
         del self.rois[roiID]
 
         logger.info(f"Removed ROI {roiID} from manager")
-        self.sigROIChanged.emit()
+        self.sigROIRemoved.emit(roiID)
         return True
 
     def updateROI(self, roiID: str, **properties) -> bool:
@@ -162,7 +165,7 @@ class ROIManager:
         roi.updateProperties(**properties)
 
         logger.info(f"Updated ROI {roiID} properties: {list(properties.keys())}")
-        self.sigROIChanged.emit()
+        self.sigROIUpdated.emit(roi.id)
         return True
 
     def getROI(self, roiID: str) -> Optional[ROI]:
@@ -238,7 +241,7 @@ class ROIManager:
             self.imageROIMap[imageIndex].append(roiID)
 
         logger.info(f"Associated ROI {roiID} with image {imageIndex}")
-        self.sigROIChanged.emit()
+        self.sigROIUpdated.emit(roiID)
         return True
 
     def dissociateROIFromImage(self, roiID: str, imageIndex: int) -> bool:
@@ -265,7 +268,7 @@ class ROIManager:
             self.imageROIMap[imageIndex].remove(roiID)
 
         logger.info(f"Dissociated ROI {roiID} from image {imageIndex}")
-        self.sigROIChanged.emit()
+        self.sigROIUpdated.emit(roiID)
         return True
 
     def addColumn(

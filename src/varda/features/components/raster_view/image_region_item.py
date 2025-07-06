@@ -1,5 +1,5 @@
 # third-party imports
-from typing import override, Optional
+from typing import override, Optional, Tuple, List
 import logging
 
 import numpy as np
@@ -72,21 +72,53 @@ class VardaImageItem(pg.ImageItem):
         """Refresh the image display with current settings."""
         self._updateImage()
 
-    def localToImage(self, point: QPointF) -> QPointF:
+    def localToImage(self, point) -> QPointF:
         """Convert local coordinates to full image coordinates.
         Note that this does not protect against points outside the image bounds.
         """
         if not self._isShowingRegion:
             return point
-        converted = self._coordinateTransform.localToGlobal((point.x(), point.y()))
-        return QPointF(pg.Point(converted))
+        pointsList = []
+        if isinstance(point, QPointF):
+            pointsList.append((point.x(), point.y()))
+        elif isinstance(point, tuple) and len(point) == 2:
+            pointsList.append(point)
+        elif isinstance(point, list) and all(
+            isinstance(p, tuple) and len(p) == 2 for p in point
+        ):
+            pointsList.extend(point)
+        else:
+            raise ValueError(
+                "Invalid point format. Expected QPointF, tuple, or list of tuples."
+            )
+        converted = self._coordinateTransform.localToGlobal(pointsList)
 
-    def imageToLocal(self, point: QPointF) -> QPointF:
+        # return same type as input
+        if isinstance(point, QPointF):
+            return QPointF(pg.Point(converted[0]))
+        return converted
+
+    def imageToLocal(self, point) -> QPointF:
         """Convert full image coordinates to local coordinates.
         Note that this does not protect against points outside the image bounds.
         """
         if not self._isShowingRegion:
             return point
+
+        pointsList = []
+        if isinstance(point, QPointF):
+            pointsList.append((point.x(), point.y()))
+        elif isinstance(point, tuple) and len(point) == 2:
+            pointsList.append(point)
+        elif isinstance(point, list) and all(
+            isinstance(p, tuple) and len(p) == 2 for p in point
+        ):
+            pointsList.extend(point)
+        else:
+            raise ValueError(
+                "Invalid point format. Expected QPointF, tuple, or list of tuples."
+            )
+
         converted = self._coordinateTransform.globalToLocal((point.x(), point.y()))
         return QPointF(pg.Point(converted))
 
