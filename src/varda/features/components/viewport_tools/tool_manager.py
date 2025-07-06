@@ -1,6 +1,6 @@
 from typing import Optional, Type
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal, QEvent
 from PyQt6.QtWidgets import QToolBar
 from PyQt6.QtGui import QActionGroup
 
@@ -17,12 +17,11 @@ class ToolManager(QObject):
 
     sigToolActivated = pyqtSignal(object)  # Emits the activated tool
     sigToolDeactivated = pyqtSignal(object)  # Emits the deactivated tool
-    sigROIDrawingComplete = pyqtSignal(object)  # Forwarded from ROI drawing tool
-    sigROIDrawingCanceled = pyqtSignal(object)  # Forwarded from ROI drawing tool
 
     def __init__(self, viewport: Viewport, parent=None):
         super().__init__(parent)
         self.viewport = viewport
+        self.viewport.installEventFilter(self)
         self.activeTool: Optional[ViewportTool] = None
         self.toolRegistry = ToolRegistry()
         self.toolBar = self._createToolbar()
@@ -32,31 +31,30 @@ class ToolManager(QObject):
         return self.toolBar
 
     def activateTool(self, toolClass: Type[ViewportTool]):
-        """
-        Activate a tool on the viewport.
+        """Set the active tool and install only mouse event filters."""
+        if self.activeTool:
+            self.deactivateCurrentTool()
 
-        Args:
-            toolClass: The tool class to activate
-        """
-        # Deactivate current tool if any
-        self.deactivateCurrentTool()
-
-        # Create and activate the tool
-        self.activeTool = toolClass(self.viewport)
-
-        # Activate the tool
+        self.activeTool = toolClass(self.viewport, parent=self)
         self.activeTool.activate()
-
-        # Emit signal
-        self.sigToolActivated.emit(self.activeTool)
 
     def deactivateCurrentTool(self):
         """Deactivate the currently active tool."""
-        if self.activeTool is not None:
-            # Deactivate the tool
-            self.activeTool.deactivate()
-            self.sigToolDeactivated.emit(self.activeTool)
-            self.activeTool = None
+        if self.activeTool is None:
+            return
+        # Deactivate the tool
+        self.activeTool.deactivate()
+        self.sigToolDeactivated.emit(self.activeTool)
+        self.activeTool = None
+
+    def eventFilter(self, obj, event):
+        """
+        This is specifically for forwarding KeyPress events to the active tool.
+        Otherwise, the KeyPress events get consumed before reaching the imageItem.
+        """
+        if event.type() == QEvent.Type.KeyPress and self.activeTool is not None:
+            return self.activeTool.eventFilter(obj, event)
+        return False
 
     def _createToolbar(self) -> QToolBar:
         """Create a toolbar with actions for all available tools."""

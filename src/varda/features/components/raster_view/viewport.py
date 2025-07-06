@@ -1,4 +1,6 @@
-from PyQt6.QtCore import pyqtSignal
+import logging
+
+from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 
@@ -7,6 +9,8 @@ from varda.features.components.generic_protocols import Viewport, ViewportTool
 from varda.features.components.raster_view.image_region_item import (
     VardaImageItem,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ViewportMeta(type(QWidget), type(Viewport)):
@@ -26,10 +30,9 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         self._imageEntity = imageEntity
 
         self._imageItem = VardaImageItem(imageEntity)
-
         self._vb = pg.ViewBox(lockAspect=True, invertY=True)
         self._vb.setMouseEnabled(x=False, y=False)
-
+        # self._vb.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         # self._imageItem = pg.ImageItem(
         #     image_utils.getRasterFromBand(self.imageEntity, self.band),
         #     levels=self.stretch.toList(),

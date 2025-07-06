@@ -1,9 +1,8 @@
 import logging
 from typing import override
 
-from PyQt6.QtCore import QObject, QEvent, Qt, pyqtSignal, QPointF
+from PyQt6.QtCore import Qt, pyqtSignal
 import pyqtgraph as pg
-from PyQt6.QtGui import QPixmap, QMouseEvent
 from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
 from varda.features.components.generic_protocols import Viewport, ViewportTool
@@ -49,8 +48,8 @@ class PixelSelectTool(ViewportTool):
             and event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
             self.isDragging = True
-            self._showCrosshairs()
             self._updateCrosshair(event.pos())
+            self._showCrosshairs()
             return True
         return False
 
@@ -58,7 +57,7 @@ class PixelSelectTool(ViewportTool):
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
         """Handle mouse drag events to update crosshairs and emit pixel selection."""
         if self.isDragging:
-            self._updateCrosshair(event.pos(), emitSignal=False)
+            self._updateCrosshair(event.scenePos(), emitSignal=False)
             return True
         return False
 
@@ -67,7 +66,7 @@ class PixelSelectTool(ViewportTool):
         """Handle mouse release events to finalize pixel selection."""
         if self.isDragging and event.button() == Qt.MouseButton.LeftButton:
             self.isDragging = False
-            self._updateCrosshair(event.pos())
+            self._updateCrosshair(event.scenePos())
             self._hideCrosshairs()
             return True
         return False
@@ -86,11 +85,13 @@ class PixelSelectTool(ViewportTool):
         if self.hCrosshair.isVisible():
             self.hCrosshair.hide()
 
-    def _updateCrosshair(self, pos, emitSignal=True):
+    def _updateCrosshair(self, scenePos, emitSignal=True):
         """
         Update the position of the crosshairs based on the mouse position.
         This assumes that the position is already in image coordinates.
         """
+        # Convert scene position to local coordinates in the image item
+        pos = self.viewport.imageItem.mapFromScene(scenePos)
         # get the exact pixel coordinate
         quantizedPos = pg.Point(int(pos.x()), int(pos.y()))
 

@@ -1,4 +1,4 @@
-# base_tool.py
+import logging
 from typing import Protocol
 
 import pyqtgraph as pg
@@ -8,6 +8,8 @@ from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
 from varda.core.entities import Image
 from varda.features.components.raster_view import VardaImageItem
+
+logger = logging.getLogger(__name__)
 
 
 class Viewport(Protocol):
@@ -156,6 +158,8 @@ class ViewportTool(QObject):
     def keyPressEvent(self, event: QKeyEvent) -> bool:
         return False
 
+    # TODO: This probably should be its own separate service or something.
+    #  It also could be improved. eg. there is no easy way to center text in the viewbox.
     def showText(
         self,
         text,
@@ -226,10 +230,11 @@ class ViewportTool(QObject):
         """Hide the currently displayed text."""
         if self._textItem is not None and self._textVisible:
             try:
-                if hasattr(self.viewport, "scene") and self.viewport.scene:
-                    self.viewport.scene.removeItem(self._textItem)
+                self.viewport.removeItem(self._textItem)
             except:
-                pass  # Item might already be removed
+                logger.warning(
+                    "Failed to remove text item from viewport. It may have already been removed."
+                )
             self._textItem = None
             self._textVisible = False
 

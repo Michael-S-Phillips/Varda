@@ -46,6 +46,7 @@ class VardaROIItem(pg.ROI):
 
     def refresh(self):
         """Refresh the ROI item to update its appearance"""
+        self.prepareGeometryChange()
         self._setPenAndBrush()
         self.calculatePolygon()
         self.update()

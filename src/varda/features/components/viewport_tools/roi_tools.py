@@ -4,16 +4,19 @@ ROI Drawing Tools
 Tool implementations for drawing different types of ROIs.
 """
 
+import logging
 from typing import List, Tuple
-import numpy as np
 
+import numpy as np
 from PyQt6.QtCore import pyqtSignal, QPointF, QRectF, Qt
 from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
+import varda
 from varda.core.entities import ROI
 from varda.features.components.generic_protocols import Viewport, ViewportTool
-from varda.app.services import image_utils
-from varda.app.services.roi_utils import VardaROIItem
+from varda.app.services import image_utils, roi_utils
+
+logger = logging.getLogger(__name__)
 
 
 class ROIDrawingTool(ViewportTool):
@@ -66,12 +69,13 @@ class ROIDrawingTool(ViewportTool):
         self.roiEntity = ROI(sourceImageIndex=self.imageEntity.index)
 
         # Create a visual representation of the ROI
-        self.roiItem = VardaROIItem(self.roiEntity)
+        self.roiItem = roi_utils.VardaROIItem(self.roiEntity)
         self.viewport.addItem(self.roiItem)
 
         self.showText(
-            f"Drawing {self.toolName}. Press Esc to cancel.",
-            pos=self.viewport.viewBox.scenePos() + QPointF(20, 20),
+            f"{self.toolDescription}. Esc to cancel.",
+            pos=self.viewport.viewBox.scenePos(),
+            anchor=(0, 0),
             timeout=3000,
         )
 
@@ -102,7 +106,10 @@ class ROIDrawingTool(ViewportTool):
         self.roiEntity.points = np.array(self.points)
         self.roiEntity.geoPoints = np.array(geoPoints) if geoPoints else None
 
-        self.sigROIDrawingComplete.emit(self.roiEntity.clone())
+        roiClone = self.roiEntity.clone()
+        self.sigROIDrawingComplete.emit(roiClone)
+        # TODO: Possibly change this if we decide on a different way to store ROIs
+        varda.app.proj.addROI(roiClone)
         self.stopDrawing()
 
     def keyPressEvent(self, event) -> bool:
@@ -306,7 +313,7 @@ class PolygonROITool(ROIDrawingTool):
 
     toolName = "Polygon ROI"
     toolDescription = (
-        "Draw a polygon ROI by clicking to add points, double-click to complete"
+        "Draw a Polygon ROI by clicking to add points. Press Enter to complete."
     )
 
     def __init__(self, viewport: Viewport, parent=None):
@@ -316,13 +323,16 @@ class PolygonROITool(ROIDrawingTool):
     def startDrawing(self):
         super().startDrawing()
         self.tempPoint = None
-        self.showTooltip(
-            "Click to add points. Double-click or press"
-            " Enter to complete. Esc to cancel.",
-            timeout=5000,
-        )
+
+    def completeDrawing(self):
+        """override to remove the temporary point if it exists"""
+        if self.tempPoint is not None:
+            self.points.remove(self.tempPoint)
+            self.tempPoint = None
+        super().completeDrawing()
 
     def keyPressEvent(self, event) -> bool:
+
         if not self.isDrawing:
             return False
 
@@ -330,15 +340,20 @@ class PolygonROITool(ROIDrawingTool):
             self.cancelDrawing()
             return True
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if self.tempPoint is not None:
+                # If there's a temp point, remove it before completing
+                self.points.remove(self.tempPoint)
+                self.tempPoint = None
             if len(self.points) >= 3:
                 self.completeDrawing()
             return True
         if event.key() == Qt.Key.Key_Backspace:
             if len(self.points) > 0:
-                if self.tempPoint in self.points:
+                if self.tempPoint is not None:
                     self.points.remove(self.tempPoint)
-                else:
-                    self.points.pop()
+                    self.tempPoint = None
+                # remove the last point
+                self.points.pop()
                 self.updateDrawing()
             return True
 
@@ -349,14 +364,15 @@ class PolygonROITool(ROIDrawingTool):
             return False
 
         if event.button() == Qt.MouseButton.LeftButton:
-            pos = self._mapPosition(event.scenePos())
-            # Remove temp point if it exists
-            if self.tempPoint in self.points:
-                self.points.remove(self.tempPoint)
-
-            self.points.append((pos.x(), pos.y()))
+            if self.tempPoint is not None:
+                # the point is already in the list. By setting tempPoint to None we "lock in" that point
+                self.tempPoint = None
+            else:
+                pos = self._mapPosition(event.scenePos())
+                self.points.append((pos.x(), pos.y()))
             self.updateDrawing()
             return True
+
         if event.button() == Qt.MouseButton.RightButton:
             self.cancelDrawing()
             return True
@@ -369,9 +385,9 @@ class PolygonROITool(ROIDrawingTool):
 
         if event.button() == Qt.MouseButton.LeftButton:
             if len(self.points) >= 3:
-                # Remove temp point if it exists
-                if self.tempPoint in self.points:
+                if self.tempPoint is not None:
                     self.points.remove(self.tempPoint)
+                    self.tempPoint = None
                 self.completeDrawing()
             return True
 

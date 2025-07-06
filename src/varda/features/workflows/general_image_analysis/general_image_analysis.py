@@ -80,7 +80,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.toolManager2 = ToolManager(self.tripleRasterView.viewport2, self)
         self.toolManager3 = ToolManager(self.tripleRasterView.viewport3, self)
 
-        # Create toolbar managers for each viewport
+        # Create toolbars for each viewport
         self.tripleRasterView.viewport1.addToolBar(self.toolManager1.getToolbar())
         self.tripleRasterView.viewport2.addToolBar(self.toolManager2.getToolbar())
         self.tripleRasterView.viewport3.addToolBar(self.toolManager3.getToolbar())
@@ -91,16 +91,16 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # But the control panel already had a bunch of the logic so yeah.
         self.controlPanel = ControlPanel(self.project, self.imageIndex, self)
 
-        # Initialize band selection view
-        self.bandView = BandManager(self.project, self.imageIndex, self)
-
-        # Initialize stretch controls
-        self.stretchView = StretchManager(self.project, self.imageIndex, self)
-
-        # Initialize ROI view/table
-        self.roiView = getROIView(self.project, self.imageIndex, self)
-
-        self.plotPixels = PlotPixels(self.tripleRasterView.viewport3, self)
+        # # Initialize band selection view
+        # self.bandView = BandManager(self.project, self.imageIndex, self)
+        #
+        # # Initialize stretch controls
+        # self.stretchView = StretchManager(self.project, self.imageIndex, self)
+        #
+        # # Initialize ROI view/table
+        # self.roiView = getROIView(self.project, self.imageIndex, self)
+        #
+        # self.plotPixels = PlotPixels(self.tripleRasterView.viewport3, self)
 
     def _initUI(self):
         """Initialize the user interface for the workflow"""

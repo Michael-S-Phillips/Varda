@@ -674,7 +674,7 @@ class ProjectContext(QObject):
     # --------------------------------------------------------
 
     # New ROI Manager API methods
-    def add_roi(self, roi, image_indices=None):
+    def addROI(self, roi, image_indices=None):
         """
         Add an ROI to the project.
 
