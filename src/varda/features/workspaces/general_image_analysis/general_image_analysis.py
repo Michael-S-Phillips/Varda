@@ -11,12 +11,19 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QStatusBar,
     QDockWidget,
+    QTabWidget,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.uic.Compiler.qtproxies import QtWidgets
+from qasync import QtGui
 
 import varda
 from varda.features.components.controlpanel import ControlPanel
 from varda.features.components.band_management.band_manager import BandManager
+from varda.features.components.raster_view.roi_display_controller import (
+    ROIDisplayController,
+)
+from varda.features.components.rois.roi_manager_widget import ROIManagerWidget
 from varda.features.image_view_stretch import StretchManager
 from varda.features.image_view_roi import getROIView
 from varda.features.components.raster_view import TripleRasterView
@@ -54,13 +61,14 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # Initialize core components
         self.rasterView = None
         self.roiAdapter = None
-        self.roiView = None
-        self.bandView = None
-        self.stretchView = None
+        self.roiManager = None
+        self.bandManager = None
+        self.stretchManager = None
 
         # Initialize UI and connections
         self._initComponents()
         self._initUI()
+        self._setupDocks()
         self._connectSignals()
 
         self.showMaximized()
@@ -89,17 +97,30 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # So basically, we're delegating the task of creating the docks to the ControlPanel.
         # IDK if this is actually helpful, since we only need a few docks anyway.
         # But the control panel already had a lot of the logic so yeah.
-        self.controlPanel = ControlPanel(self.project, self.imageIndex, self)
+        # self.controlPanel = ControlPanel(self.project, self.imageIndex, self)
+        #
+        # displayController: ROIDisplayController = self.controlPanel.tabs[
+        #     "roi"
+        # ].ROITable.getDisplayController()
+        #
+        # displayController.registerViewport(
+        #     "viewport 1", self.tripleRasterView.viewport1
+        # )
+        # displayController.registerViewport(
+        #     "viewport 2", self.tripleRasterView.viewport2
+        # )
+        # displayController.registerViewport(
+        #     "viewport 3", self.tripleRasterView.viewport3
+        # )
+        # Initialize band selection view
+        self.bandManager = BandManager(self.project, self.imageIndex, self)
 
-        # # Initialize band selection view
-        # self.bandView = BandManager(self.project, self.imageIndex, self)
-        #
-        # # Initialize stretch controls
-        # self.stretchView = StretchManager(self.project, self.imageIndex, self)
-        #
-        # # Initialize ROI view/table
-        # self.roiView = getROIView(self.project, self.imageIndex, self)
-        #
+        # Initialize stretch controls
+        self.stretchManager = StretchManager(self.project, self.imageIndex, self)
+
+        # Initialize ROI view/table
+        self.roiManager = ROIManagerWidget(self.project, self.imageIndex, self)
+
         # self.plotPixels = PlotPixels(self.tripleRasterView.viewport3, self)
 
     def _initUI(self):
@@ -115,19 +136,31 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         """Setup all of the dock widgets for the workflow. This is most of the viewport_tools"""
         docks = []
         bandDock = QDockWidget("Band Manager", self)
-        bandDock.setWidget(self.bandView)
+        bandDock.setWidget(self.bandManager)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, bandDock)
         docks.append(bandDock)
 
         stretchDock = QDockWidget("Stretch Controls", self)
-        stretchDock.setWidget(self.stretchView)
+        stretchDock.setWidget(self.stretchManager)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, stretchDock)
         docks.append(stretchDock)
 
+        roiDock = QDockWidget("ROI Manager", self)
+        roiDock.setWidget(self.roiManager)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, roiDock)
+        docks.append(roiDock)
+
+        # stack docks
+        self.tabifyDockWidget(bandDock, stretchDock)
+        self.tabifyDockWidget(stretchDock, roiDock)
+        self.setTabPosition(
+            Qt.DockWidgetArea.AllDockWidgetAreas, QTabWidget.TabPosition.North
+        )
+
     def _connectSignals(self):
         """Connect signals between workflow components"""
-        self.controlPanel.sigBandChanged.connect(self.tripleRasterView.setBand)
-        self.controlPanel.sigStretchChanged.connect(self.tripleRasterView.setStretch)
+        self.bandManager.sigBandChanged.connect(self.tripleRasterView.setBand)
+        self.stretchManager.sigStretchChanged.connect(self.tripleRasterView.setStretch)
 
     def setStatusMessage(self, message):
         """Set a status message in the status bar"""

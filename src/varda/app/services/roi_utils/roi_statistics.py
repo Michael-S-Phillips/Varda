@@ -10,6 +10,7 @@ from varda.core.entities import ROI, Image
 logger = logging.getLogger(__name__)
 
 
+# TODO: THis seems to be a bit broken maybe. Calculating statistics resulted in an error.
 class ROIStatistics:
     """Class to calculate and store statistics based on an ROI and an image."""
 

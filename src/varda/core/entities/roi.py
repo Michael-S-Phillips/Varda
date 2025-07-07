@@ -60,7 +60,6 @@ class ROI:
         visible: Whether the ROI is currently visible
         creationTime: When the ROI was created
         description: User description of the ROI
-        metadata: Additional metadata about the ROI
         arraySlice: Extracted image data within the ROI (optional)
         meanSpectrum: Mean spectral values within the ROI (optional)
         customData: Custom user-defined data associated with the ROI
@@ -72,11 +71,10 @@ class ROI:
     sourceImageIndex: int = -1
     points: np.ndarray = field(default_factory=lambda: np.empty((0, 2)))
     geoPoints: Optional[np.ndarray] = None
-    color: QColor = field(default_factory=lambda: QColor(255, 0, 0, 128))  # RGBA
+    color: QColor = field(default_factory=lambda: QColor(255, 0, 0, 128))
     visible: bool = True
     creationTime: datetime = field(default_factory=datetime.now)
-    description: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    description: str = "No description"
     arraySlice: Optional[np.ndarray] = None
     meanSpectrum: Optional[np.ndarray] = None
     customData: ROICustomData = field(default_factory=ROICustomData)
@@ -161,13 +159,14 @@ class ROI:
         return {
             "id": self.id,
             "name": self.name,
+            "mode": self.mode.name,
+            "sourceImageIndex": self.sourceImageIndex,
             "points": points_list,
             "geoPoints": geo_points_list,
             "color": colorTuple,
             "visible": self.visible,
             "creationTime": self.creationTime.isoformat(),
             "description": self.description,
-            "metadata": self.metadata,
             "arraySlice": array_slice_list,
             "meanSpectrum": mean_spectrum_list,
             "customData": self.customData.serialize(),
@@ -182,6 +181,10 @@ class ROI:
             inputKwargs["id"] = data["id"]
         if data.get("name"):
             inputKwargs["name"] = data["name"]
+        if data.get("mode"):
+            inputKwargs["mode"] = ROIMode[data["mode"]]
+        if data.get("sourceImageIndex") is not None:
+            inputKwargs["sourceImageIndex"] = data["sourceImageIndex"]
 
         points = data.get("points")
         if points is not None:
@@ -214,10 +217,6 @@ class ROI:
         description = data.get("description")
         if description is not None:
             inputKwargs["description"] = description
-
-        metadata = data.get("metadata")
-        if metadata is not None:
-            inputKwargs["metadata"] = metadata
 
         custom_data = data.get("customData")
         if custom_data is not None:

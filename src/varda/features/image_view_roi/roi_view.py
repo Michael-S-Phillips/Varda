@@ -263,19 +263,9 @@ class ROIPropertyEditor(QWidget):
 
         self.blockSignals(False)
 
-    def updateColorButton(self, color):
+    def updateColorButton(self, color: QColor):
         """Update the color button with the given color"""
-        if isinstance(color, str):
-            qcolor = QColor(color)
-        else:  # Assume tuple/list of RGB or RGBA
-            if len(color) == 3:
-                r, g, b = color
-                qcolor = QColor(r, g, b)
-            else:
-                r, g, b, a = color
-                qcolor = QColor(r, g, b, a)
-
-        style = f"background-color: {qcolor.name()}"
+        style = f"background-color: {color.name()}"
         self.colorButton.setStyleSheet(style)
 
     def onChangeColor(self):
@@ -289,8 +279,8 @@ class ROIPropertyEditor(QWidget):
         )
 
         if color.isValid():
-            self.updateColorButton(color.name())
-            self.onPropertyChanged("color", color.name())
+            self.updateColorButton(color)
+            self.onPropertyChanged("color", color)
 
     def onPropertyChanged(self, propertyName: str, value: Any):
         """Emit a signal when a property is changed"""
@@ -561,9 +551,7 @@ class ROIView(QWidget):
 
     def onRoiSelectionChanged(self, roiIndex):
         """Handle ROI selection change"""
-        if roiIndex >= 0 and roiIndex < len(
-            self.viewModel.getROIs(self.viewModel.imageIndex)
-        ):
+        if 0 <= roiIndex < len(self.viewModel.getROIs(self.viewModel.imageIndex)):
             self.selectedRoiIndex = roiIndex
             rois = self.viewModel.getROIs(self.viewModel.imageIndex)
             if roiIndex < len(rois):
@@ -659,6 +647,7 @@ class ROIView(QWidget):
 
     def onRoiAdded(self, roiId):
         """Handle ROI added signal from ViewModel"""
+        logger.debug(f"ROI ADDED {roiId}")
         self.updateROITable()
         self.statusLabel.setText(f"ROI {roiId} added")
 

@@ -66,6 +66,8 @@ class ROIViewModel(QObject):
     def getROIs(self, imageIndex=None):
         """Get all ROIs for the specified image (default is current image)"""
         idx = imageIndex if imageIndex is not None else self.imageIndex
+        rois = self.proj.roiManager.getROIsForImage(idx)
+        logger.debug(f"Got ROIs for image {idx}, IDs: {[roi.id for roi in rois]}")
         return self.proj.roiManager.getROIsForImage(idx)
 
     def getRoi(self, roiId):
