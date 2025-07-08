@@ -1,3 +1,5 @@
+import logging
+
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget,
@@ -6,9 +8,12 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QPushButton,
     QLabel,
+    QMessageBox,
 )
 
 from varda.app.services.stretch_utils import StretchPresets
+
+logger = logging.getLogger(__name__)
 
 
 class StretchPresetSelector(QWidget):
@@ -75,7 +80,7 @@ class StretchPresetSelector(QWidget):
             self.viewModel.selectStretch(len(image.stretch) - 1)
 
         except Exception as e:
-            logger.error(f"Error applying preset stretch: {e}")
+            logger.error(f"Error applying preset stretch: {e}", exc_info=True)
             # Show an error message
             QMessageBox.warning(
                 self,

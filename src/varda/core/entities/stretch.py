@@ -6,12 +6,12 @@ class Stretch:
     """Immutable data container representing a Stretch configuration for an image."""
 
     name: str
-    minR: int
-    maxR: int
-    minG: int
-    maxG: int
-    minB: int
-    maxB: int
+    minR: float
+    maxR: float
+    minG: float
+    maxG: float
+    minB: float
+    maxB: float
 
     def toList(self):
         """get object data as a list in the format:
