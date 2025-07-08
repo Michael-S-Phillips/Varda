@@ -20,6 +20,7 @@ from qasync import QtGui
 import varda
 from varda.features.components.controlpanel import ControlPanel
 from varda.features.components.band_management.band_manager import BandManager
+from varda.features.components.metadata_management.MetadataEditor import MetadataEditor
 from varda.features.components.raster_view.roi_display_controller import (
     ROIDisplayController,
 )
@@ -106,6 +107,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # Initialize stretch controls
         self.stretchManager = StretchManager(self.project, self.imageIndex, self)
 
+        # Initialize metadata editor
+        self.metadataEditor = MetadataEditor(self.project, self.imageIndex, self)
+
         # Initialize ROI view/table
         self.roiManager = ROIManagerWidget(self.project, self.imageIndex, self)
         displayController: ROIDisplayController = self.roiManager.getDisplayController()
@@ -144,6 +148,11 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, stretchDock)
         docks.append(stretchDock)
 
+        metadataDock = QDockWidget("Metadata", self)
+        metadataDock.setWidget(self.metadataEditor)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, metadataDock)
+        docks.append(metadataDock)
+
         roiDock = QDockWidget("ROI Manager", self)
         roiDock.setWidget(self.roiManager)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, roiDock)
@@ -158,6 +167,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # stack docks
         self.tabifyDockWidget(bandDock, stretchDock)
         self.tabifyDockWidget(stretchDock, roiDock)
+        self.tabifyDockWidget(roiDock, metadataDock)
         self.setTabPosition(
             Qt.DockWidgetArea.AllDockWidgetAreas, QTabWidget.TabPosition.North
         )
