@@ -3,7 +3,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 from PyQt6.QtGui import QColor
 
-import varda.app.services.roi_utils.roi_statistics
+from varda.app.services.roi_utils import ROIStatistics
 from varda.core.data import ProjectContext
 from varda.features.components.raster_view.roi_display_controller import (
     ROIDisplayController,
@@ -233,9 +233,7 @@ class ROIViewModel(QObject):
         image = self.proj.getImage(self.imageIndex)
 
         # Calculate statistics
-        stats = varda.app.services.roi_utils.roi_statistics.ROIStatistics.getROIStats(
-            roi, image
-        )
+        stats = ROIStatistics.getROIStats(roi, image)
 
         # Store statistics in the ROI for future reference
         roi.setCustomValue("statistics", stats.getSummary())

@@ -99,19 +99,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # But the control panel already had a lot of the logic so yeah.
         # self.controlPanel = ControlPanel(self.project, self.imageIndex, self)
         #
-        # displayController: ROIDisplayController = self.controlPanel.tabs[
-        #     "roi"
-        # ].ROITable.getDisplayController()
-        #
-        # displayController.registerViewport(
-        #     "viewport 1", self.tripleRasterView.viewport1
-        # )
-        # displayController.registerViewport(
-        #     "viewport 2", self.tripleRasterView.viewport2
-        # )
-        # displayController.registerViewport(
-        #     "viewport 3", self.tripleRasterView.viewport3
-        # )
+
         # Initialize band selection view
         self.bandManager = BandManager(self.project, self.imageIndex, self)
 
@@ -120,7 +108,18 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         # Initialize ROI view/table
         self.roiManager = ROIManagerWidget(self.project, self.imageIndex, self)
+        displayController: ROIDisplayController = self.roiManager.getDisplayController()
 
+        displayController.registerViewport(
+            "viewport 1", self.tripleRasterView.viewport1
+        )
+        displayController.registerViewport(
+            "viewport 2", self.tripleRasterView.viewport2
+        )
+        displayController.registerViewport(
+            "viewport 3", self.tripleRasterView.viewport3
+        )
+        self.oldRoiView = getROIView(self.project, self.imageIndex, self)
         # self.plotPixels = PlotPixels(self.tripleRasterView.viewport3, self)
 
     def _initUI(self):
@@ -149,6 +148,12 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         roiDock.setWidget(self.roiManager)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, roiDock)
         docks.append(roiDock)
+
+        # Add the old ROI view as a dock widget
+        oldRoiDock = QDockWidget("Old ROI View", self)
+        oldRoiDock.setWidget(self.oldRoiView)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, oldRoiDock)
+        docks.append(oldRoiDock)
 
         # stack docks
         self.tabifyDockWidget(bandDock, stretchDock)

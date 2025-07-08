@@ -1,4 +1,5 @@
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QVariant
+from PyQt6.QtGui import QColor
 
 
 class ROITableModel(QAbstractTableModel):
@@ -17,7 +18,7 @@ class ROITableModel(QAbstractTableModel):
         roiManager.sigROIRemoved.connect(self._onDataChanged)
 
     def rowCount(self, parent=QModelIndex()):
-        return len(self._rois())
+        return len(self.rois())
 
     def columnCount(self, parent=QModelIndex()):
         return len(self.HEADERS)
@@ -26,7 +27,7 @@ class ROITableModel(QAbstractTableModel):
         if not index.isValid():
             return QVariant()
 
-        roi = self._rois()[index.row()]
+        roi = self.rois()[index.row()]
         col = index.column()
 
         # Display data
@@ -73,7 +74,7 @@ class ROITableModel(QAbstractTableModel):
     def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
         if not index.isValid():
             return False
-        roi = self._rois()[index.row()]
+        roi = self.rois()[index.row()]
         col = index.column()
 
         if col == 1:  # name
@@ -88,7 +89,7 @@ class ROITableModel(QAbstractTableModel):
         self.dataChanged.emit(index, index, [role])
         return True
 
-    def _rois(self):
+    def rois(self):
         return self.roiManager.getROIsForImage(self.imageIndex)
 
     def _onDataChanged(self, *args):

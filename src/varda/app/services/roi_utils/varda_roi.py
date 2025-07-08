@@ -1,11 +1,12 @@
 import logging
-from typing import Tuple
+from typing import Tuple, Optional
 
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QPolygonF, QPainterPath, QColor
 
+from varda.app.services.roi_utils import RegionCoordinateTransform
 from varda.core.entities import ROI, ROIMode
 
 logger = logging.getLogger(__name__)
@@ -38,10 +39,12 @@ class VardaROIItem(pg.ROI):
             pos = [0, 0]
             size = [1, 1]
         self.roiEntity = roiEntity
-        self._setPenAndBrush()
+        self.coordTransform: Optional[RegionCoordinateTransform] = None
         self.poly: QPolygonF = QPolygonF()
+        self.isHighlighted = False
+        super().__init__(pos=pos, size=size, **kwargs)
 
-        super().__init__(pos=pos, size=size, pen=self.currentPen, **kwargs)
+        self._setPenAndBrush()
         self.calculatePolygon()
 
     def refresh(self):
@@ -53,31 +56,49 @@ class VardaROIItem(pg.ROI):
 
     def _setPenAndBrush(self):
         """Set the pen and brush for the ROI based on the entity color"""
-        color = self.roiEntity.color
+        if self.isHighlighted:
+            color = QColor(255, 255, 0, self.roiEntity.color.alpha())
+        else:
+            color = self.roiEntity.color
+
         self.currentPen = pg.mkPen(
             color=(color.red(), color.green(), color.blue()), width=2
         )
-        self.currentBrush = pg.mkBrush(self.roiEntity.color)
+        self.currentBrush = pg.mkBrush(color)
 
     def setROIData(self, roiEntity: ROI):
         """Set the ROI data from an existing ROI entity"""
         self.roiEntity = roiEntity
         self.refresh()
 
+    def setCoordinateTransform(self, transform: RegionCoordinateTransform):
+        self.coordTransform = transform
+        self.refresh()
+
+    def setHighlighted(self, highlighted: bool):
+        """Highlight the ROI by changing its pen and brush"""
+        self.isHighlighted = highlighted
+        self.refresh()
+
     def calculatePolygon(self):
         """Calculate the polygon from the ROI points"""
         # Create a QPolygonF from the ROI points
-        polygon = QPolygonF()
+        self.poly = QPolygonF()
 
         points = self.roiEntity.points
-        if len(points) > 0:
-            for point in points:
-                # convert points from absolute to normalized [0-1] coordinates
-                normalizedPoint = self._absToNormalizedPoint(point)
-                polygon.append(normalizedPoint)
-            if len(polygon) >= 3:
-                polygon.append(polygon[0])  # Close the polygon
-        self.poly = polygon
+        if len(points) == 0:
+            return
+
+        if self.coordTransform is not None:
+            # transform points according to the coordinate transform
+            points = self.coordTransform.globalToLocal(points)
+
+        for point in points:
+            # convert points from absolute to normalized [0-1] coordinates
+            normalizedPoint = self._absToNormalizedPoint(point)
+            self.poly.append(normalizedPoint)
+        if len(self.poly) >= 3:
+            self.poly.append(self.poly[0])  # Close the polygon
 
     def shape(self):
         """This defines the shape of the ROI. Is used when getting array regions."""
@@ -178,7 +199,7 @@ class VardaROIItem(pg.ROI):
         Returns:
             VardaROIItem: The created VardaROI instance.
         """
-        return VardaROIItem(roiEntity, movable=False, **kwargs)
+        return VardaROIItem(roiEntity, **kwargs)
 
     @staticmethod
     def rectROI(

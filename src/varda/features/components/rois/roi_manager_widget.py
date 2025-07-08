@@ -4,6 +4,9 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter, QPushButton
 
 import varda.app
 from varda.app.services.roi_utils import ROIStatistics
+from varda.features.components.raster_view.roi_display_controller import (
+    ROIDisplayController,
+)
 from varda.features.components.rois.roi_property_editor import ROIPropertyEditor
 from varda.features.components.rois.roi_statistics_dialog import ROIStatisticsDialog
 from varda.features.components.rois.roi_table_model import ROITableModel
@@ -21,7 +24,14 @@ class ROIManagerWidget(QWidget):
         self.table = ROITableView(self.model)
         self.propEditor = ROIPropertyEditor(self.roiManager)
 
-        # Buttons
+        self.displayController = ROIDisplayController(self.roiManager)
+
+        # controls
+        self.showAllBtn = QPushButton("Show All")
+        self.hideAllBtn = QPushButton("Hide All")
+        self.blinkBtn = QPushButton("Blink")
+        self.blinkBtn.setCheckable(True)
+
         self.statsButton = QPushButton("View Statistics")
         self.statsButton.clicked.connect(self._showStats)
 
@@ -31,8 +41,25 @@ class ROIManagerWidget(QWidget):
         splitter.addWidget(self.propEditor)
 
         layout = QVBoxLayout(self)
+        layout.addWidget(self.showAllBtn)
+        layout.addWidget(self.hideAllBtn)
+        layout.addWidget(self.blinkBtn)
         layout.addWidget(self.statsButton)
         layout.addWidget(splitter)
+
+        # -- wire signals to displayController --
+        # whenever ROI data changes, re-draw
+        self.roiManager.sigROIAdded.connect(self._refreshDisplay)
+        self.roiManager.sigROIUpdated.connect(self._refreshDisplay)
+        self.roiManager.sigROIRemoved.connect(self._refreshDisplay)
+
+        # show, hide, blink
+        self.showAllBtn.clicked.connect(lambda: self._setAllVisibility(True))
+        self.hideAllBtn.clicked.connect(lambda: self._setAllVisibility(False))
+        self.blinkBtn.toggled.connect(self._toggleBlink)
+
+        # highlight on selection
+        self.table.selectionModel().selectionChanged.connect(self._onSelectionChanged)
 
         # Wire selection → editor
         selModel = self.table.selectionModel()
@@ -41,10 +68,36 @@ class ROIManagerWidget(QWidget):
         # Wire double-click → plot or whatever
         self.table.roiDoubleClicked.connect(self._onDoubleClicked)
 
-    def _onSelectionChanged(self, selected, deselected):
-        idx = selected.indexes()[0]
-        roi = self.model._rois()[idx.row()]
+    def getDisplayController(self) -> ROIDisplayController:
+        """Get the ROI display controller for external registration of viewports."""
+        return self.displayController
+
+    def _refreshDisplay(self, *args):
+        """Fetch current ROIs for this image and hand them off to your controller."""
+        rois = self.roiManager.getROIsForImage(self.model.imageIndex)
+        self.displayController.displayRoisForImage(rois)
+
+    def _onSelectionChanged(self, selected, _):
+        """When user picks one row, highlight that ROI in the viewport."""
+        if not selected.indexes():
+            return
+        row = selected.indexes()[0].row()
+        roi = self.model.rois()[row]
+        self.displayController.highlightRoi(roi.id)
+        # also let property editor know
         self.propEditor.setRoi(roi)
+
+    def _setAllVisibility(self, visible: bool):
+        """Show or hide every ROI via your manager → controller."""
+        for roi in self.roiManager.getROIsForImage(self.model.imageIndex):
+            self.roiManager.updateROI(roi.id, visible=visible)
+        self._refreshDisplay()
+
+    def _toggleBlink(self, blinkOn: bool):
+        if blinkOn:
+            self.displayController.startBlinking()
+        else:
+            self.displayController.stopBlinking()
 
     def _onDoubleClicked(self, roiId):
         # delegate to your existing ViewModel.pl​otRoiSpectrum(roiId)
@@ -54,7 +107,7 @@ class ROIManagerWidget(QWidget):
         idxs = self.table.selectionModel().selectedRows()
         if not idxs:
             return
-        roi = self.model._rois()[idxs[0].row()]
+        roi = self.model.rois()[idxs[0].row()]
         image = varda.app.proj.getImage(self.model.imageIndex)
         stats = ROIStatistics(roi, image)
         dlg = ROIStatisticsDialog(stats, self)

@@ -83,7 +83,7 @@ class VardaImageItem(pg.ImageItem):
             pointsList.append((point.x(), point.y()))
         elif isinstance(point, tuple) and len(point) == 2:
             pointsList.append(point)
-        elif isinstance(point, list) and all(
+        elif isinstance(point, list | np.ndarray) and all(
             isinstance(p, tuple) and len(p) == 2 for p in point
         ):
             pointsList.extend(point)
@@ -110,7 +110,7 @@ class VardaImageItem(pg.ImageItem):
             pointsList.append((point.x(), point.y()))
         elif isinstance(point, tuple) and len(point) == 2:
             pointsList.append(point)
-        elif isinstance(point, list) and all(
+        elif isinstance(point, list | np.ndarray) and all(
             isinstance(p, tuple) and len(p) == 2 for p in point
         ):
             pointsList.extend(point)
@@ -119,7 +119,7 @@ class VardaImageItem(pg.ImageItem):
                 "Invalid point format. Expected QPointF, tuple, or list of tuples."
             )
 
-        converted = self._coordinateTransform.globalToLocal((point.x(), point.y()))
+        converted = self._coordinateTransform.globalToLocal(pointsList)
         return QPointF(pg.Point(converted))
 
     def _updateImage(self):
