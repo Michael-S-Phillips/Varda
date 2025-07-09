@@ -7,6 +7,8 @@ from varda.core.data import ProjectContext
 # local imports
 import logging
 
+from varda.core.entities import Stretch
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,7 +18,7 @@ class HistogramViewModel(QObject):
     """
 
     sigBandChanged = pyqtSignal()
-    sigStretchChanged = pyqtSignal(float, float, float, float, float, float)
+    sigStretchChanged = pyqtSignal(Stretch)
 
     def __init__(self, proj: ProjectContext, imageIndex, parent=None):
         super().__init__(parent)
@@ -27,8 +29,7 @@ class HistogramViewModel(QObject):
 
         self.blockSignals = False
 
-        self._handling_change = False
-
+        self._isUpdatingStretch = False
         self._connectSignals()
 
     def _connectSignals(self):
@@ -68,6 +69,7 @@ class HistogramViewModel(QObject):
         self, minR=None, maxR=None, minG=None, maxG=None, minB=None, maxB=None
     ):
         """tells the project to update the stretch configuration with new values."""
+        self._isUpdatingStretch = True
         self.proj.updateStretch(
             self.index,
             self.stretchIndex,
@@ -87,33 +89,24 @@ class HistogramViewModel(QObject):
         if changeModifier is not ProjectContext.ChangeModifier.UPDATE:
             return
 
-        # Guard against recursion
-        if self._handling_change:
-            return
+        if changeType is ProjectContext.ChangeType.BAND:
+            self.sigBandChanged.emit()
+        elif changeType is ProjectContext.ChangeType.STRETCH:
 
-        self._handling_change = True
-        try:
-            if changeType is ProjectContext.ChangeType.BAND:
-                self.sigBandChanged.emit()
-            elif changeType is ProjectContext.ChangeType.STRETCH:
-                try:
-                    stretch = self.getSelectedStretch()
-                    minR, maxR, minG, maxG, minB, maxB = [
-                        float(value)
-                        for subList in stretch.toList()
-                        for value in subList
-                    ]
-                    logger.debug(
-                        "Stretch changed: (%.6f, %.6f, %.6f, %.6f, %.6f, %.6f)",
-                        minR,
-                        maxR,
-                        minG,
-                        maxG,
-                        minB,
-                        maxB,
-                    )
-                    self.sigStretchChanged.emit(minR, maxR, minG, maxG, minB, maxB)
-                except Exception as e:
-                    logger.error(f"Error handling stretch change: {e}")
-        finally:
-            self._handling_change = False
+            # don't do anything if we were the one that caused the change.
+            if self._isUpdatingStretch:
+                logger.debug("Currently Updating Stretch. Ignoring Project update")
+                self._isUpdatingStretch = False
+                return
+
+            stretch = self.getSelectedStretch()
+            logger.debug(
+                "Stretch changed: (%.6f, %.6f, %.6f, %.6f, %.6f, %.6f)",
+                stretch.minR,
+                stretch.maxR,
+                stretch.minG,
+                stretch.maxG,
+                stretch.minB,
+                stretch.maxB,
+            )
+            self.sigStretchChanged.emit(stretch)

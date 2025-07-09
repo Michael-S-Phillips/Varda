@@ -20,12 +20,14 @@ from qasync import QtGui
 import varda
 from varda.features.components.controlpanel import ControlPanel
 from varda.features.components.band_management.band_manager import BandManager
-from varda.features.components.metadata_management.MetadataEditor import MetadataEditor
+from varda.features.components.metadata_management.metadata_editor import MetadataEditor
 from varda.features.components.raster_view.roi_display_controller import (
     ROIDisplayController,
 )
 from varda.features.components.rois.roi_manager_widget import ROIManagerWidget
-from varda.features.image_view_stretch import StretchManager
+from varda.features.components.stretch_management_and_histogram.stretch_manager import (
+    StretchManager,
+)
 from varda.features.image_view_roi import getROIView
 from varda.features.components.raster_view import TripleRasterView
 from varda.features.components.viewport_tools.tool_manager import (

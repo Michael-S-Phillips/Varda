@@ -20,7 +20,7 @@ def guard_signals(force_critical=False):
             if getattr(self, "_handling_change", False) and not force_critical:
                 logger.debug(f"Prevented recursive call to {method.__name__}")
                 return None
-
+            logger.debug(f"Call is not recursive! proceeding with {method.__name__}")
             # Set the flag before handling
             prev_state = getattr(self, "_handling_change", False)
             setattr(self, "_handling_change", True)

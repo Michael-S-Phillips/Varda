@@ -17,8 +17,10 @@ from varda.core.data import ProjectContext
 from varda.core.entities import Band, Stretch
 from varda.features.image_view_roi import getROIView
 from varda.features.components.band_management.band_manager import BandManager
-from varda.features.image_view_stretch import StretchManager
-from varda.features.image_view_metadata import openMetadataEditor
+from varda.features.components.stretch_management_and_histogram.stretch_manager import (
+    StretchManager,
+)
+from varda.features.components.metadata_management.metadata_editor import MetadataEditor
 from varda.gui.widgets.detachable_tab_widget import DetachableTabWidget
 from varda.gui.widgets.image_plot_widget import ImagePlotWidget
 
@@ -94,15 +96,11 @@ class MetadataTab(DockableTab):
 
     def _initUI(self):
         layout = QVBoxLayout(self)
-
-        self.editMetadataButton = QPushButton("Edit Metadata")
-        self.editMetadataButton.setToolTip("View and edit image metadata properties")
-        self.editMetadataButton.clicked.connect(
-            lambda: openMetadataEditor(self.project_context, self.imageIndex, self)
+        self.metadataEditor = MetadataEditor(
+            self.project_context, self.imageIndex, self
         )
 
-        layout.addWidget(self.editMetadataButton)
-        layout.addStretch()
+        layout.addWidget(self.metadataEditor)
 
 
 class ROITab(DockableTab):

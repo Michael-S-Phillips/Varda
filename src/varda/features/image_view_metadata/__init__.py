@@ -1,1 +1,0 @@
-from .image_view_metadata import openMetadataEditor

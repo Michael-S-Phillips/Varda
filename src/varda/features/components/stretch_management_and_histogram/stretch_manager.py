@@ -25,8 +25,10 @@ from PyQt6.QtWidgets import (
 # local imports
 from varda.core.data import ProjectContext
 from varda.core.entities import Stretch
-from varda.features.image_view_histogram import getHistogramView
-from varda.features.image_view_stretch.stretch_preset_generator import (
+from varda.features.components.stretch_management_and_histogram.histogram_view import (
+    getHistogramView,
+)
+from varda.features.components.stretch_management_and_histogram.stretch_preset_generator import (
     StretchPresetSelector,
 )
 
@@ -227,16 +229,10 @@ class StretchManager(QWidget):
     def _onRowSelected(self):
         selectedItems = self.table.selectedItems()
         if selectedItems:
+            # update histogram's selected stretch
             row = selectedItems[0].row()
-            print("row selected!", row)
             self.histogramView.viewModel.selectStretch(row)
-            # self.sigStretchSelected.emit(row)
-            # self.sigStretchSelectedSendStretch.emit(
-            #     self.proj.getImage(self.imageIndex).stretch[row]
-            # )
-            self.sigStretchChanged.emit(
-                self.proj.getImage(self.imageIndex).stretch[row]
-            )
+            self._emitStretchChangedSignal()
 
     @pyqtSlot(int, ProjectContext.ChangeType)
     def _onProjectDataChanged(self, index, changeType):
@@ -248,11 +244,20 @@ class StretchManager(QWidget):
             self._handling_change = True
             try:
                 self._populateTable()
-                self._onRowSelected()  # emit signal for the currently selected stretch
+                # emit signal
+                self._emitStretchChangedSignal()
             except Exception as e:
                 raise e
             finally:
                 self._handling_change = False
+
+    def _emitStretchChangedSignal(self):
+        selectedItems = self.table.selectedItems()
+        if selectedItems:
+            row = selectedItems[0].row()
+            self.sigStretchChanged.emit(
+                self.proj.getImage(self.imageIndex).stretch[row]
+            )
 
     class FloatDelegate(QStyledItemDelegate):
         def __init__(self, parent=None):
