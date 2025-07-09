@@ -443,7 +443,10 @@ class ProjectContext(QObject):
 
         # Ensure band configuration exists
         if not band:
-            band = [Band.createDefault()]
+            if metadata.defaultBand:
+                band = [metadata.defaultBand]
+            else:
+                band = [Band.createDefault()]
 
         # Create the image
         image = Image(
