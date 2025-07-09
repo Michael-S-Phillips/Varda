@@ -27,8 +27,11 @@ class VardaImageItem(pg.ImageItem):
         super().__init__(**kwargs)
 
         self._imageEntity = imageEntity
-        self._band = band or imageEntity.metadata.defaultBand
-        logger.debug(f"Image entity default bands: {imageEntity.metadata.defaultBand}")
+        if band:
+            self._band = band
+        else:
+            self._band = imageEntity.metadata.defaultBand
+            logger.debug("Using default band: %s", self._band)
         self._stretch = stretch or Stretch.createDefault()
 
         # Region state

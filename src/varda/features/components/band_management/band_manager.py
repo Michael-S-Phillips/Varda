@@ -115,7 +115,6 @@ class BandManager(QWidget):
 
     def _populateTable(self):
         self.disableProjectUpdating = True
-        self.table.clearContents()
         bands = self.proj.getImage(self.imageIndex).band
         self.table.setRowCount(len(bands))
         self.table.setMinimumHeight(
@@ -230,19 +229,26 @@ class BandManager(QWidget):
             row = selectedItems[0].row()
             logger.info("Band selected: %d", row)
             self.bandView.viewModel.selectBand(row)
-            self.sigBandChanged.emit(self.proj.getImage(self.imageIndex).band[row])
+            self._emitBandChangedSignal()
 
     @pyqtSlot(int, ProjectContext.ChangeType)
     def _onProjectDataChanged(self, index, changeType):
         if index == self.imageIndex and changeType == ProjectContext.ChangeType.BAND:
             self._populateTable()
-            self._onRowSelected()  # emit the signal for the currently selected band
+            # emit signal
+            self._emitBandChangedSignal()
 
     @pyqtSlot()
     def _onModeChanged(self):
         self.useWavelengthValues = self.modeToggle.isChecked()
         self._setTableDelegates()
         self._populateTable()
+
+    def _emitBandChangedSignal(self):
+        selectedItems = self.table.selectedItems()
+        if selectedItems:
+            row = selectedItems[0].row()
+            self.sigBandChanged.emit(self.proj.getImage(self.imageIndex).band[row])
 
     class IntegerDelegate(QStyledItemDelegate):
         def createEditor(self, parent, option, index):

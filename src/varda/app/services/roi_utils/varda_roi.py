@@ -4,7 +4,8 @@ from typing import Tuple, Optional
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import QPointF
-from PyQt6.QtGui import QPolygonF, QPainterPath, QColor
+from PyQt6.QtGui import QPolygonF, QPainterPath, QColor, QCloseEvent
+from PyQt6.QtWidgets import QGraphicsItem
 
 from varda.app.services.roi_utils import RegionCoordinateTransform
 from varda.core.entities import ROI, ROIMode
@@ -42,6 +43,9 @@ class VardaROIItem(pg.ROI):
         self.coordTransform: Optional[RegionCoordinateTransform] = None
         self.poly: QPolygonF = QPolygonF()
         self.isHighlighted = False
+
+        self.textItem = None
+
         super().__init__(pos=pos, size=size, **kwargs)
 
         self._setPenAndBrush()
@@ -52,7 +56,26 @@ class VardaROIItem(pg.ROI):
         self.prepareGeometryChange()
         self._setPenAndBrush()
         self.calculatePolygon()
+        # removed text for now because there are a lot of issues that would need fixing.
+        # self._updateText()
         self.update()
+
+    def _updateText(self):
+        scene = self.scene()
+        if scene is None:
+            return
+
+        if self.textItem is None:
+            self.textItem = pg.TextItem(
+                text=self.roiEntity.name or "ROI",
+                color=(255, 255, 255),
+                anchor=(0.5, 0.5),
+                border=pg.mkPen(color=(0, 0, 0), width=1),
+                fill=pg.mkBrush(color=(0, 0, 0, 100)),
+            )
+            scene.addItem(self.textItem)
+        self._updateTextPosition()
+        self._updateTextContent()
 
     def _setPenAndBrush(self):
         """Set the pen and brush for the ROI based on the entity color"""
@@ -65,6 +88,19 @@ class VardaROIItem(pg.ROI):
             color=(color.red(), color.green(), color.blue()), width=2
         )
         self.currentBrush = pg.mkBrush(color)
+
+    def _updateTextPosition(self):
+        """Position the text item at the center of the ROI"""
+
+        boundingRect = self.boundingRect()
+        pos = boundingRect.center()
+        offsetX, offsetY = boundingRect.width() / 2, boundingRect.height() / 2
+        # Position text at the center of the ROI
+        self.textItem.setPos(pos.x() + offsetX, pos.y() + offsetY)
+
+    def _updateTextContent(self):
+        """Update the text content to show the ROI name"""
+        self.textItem.setText(self.roiEntity.name or "ROI")
 
     def setROIData(self, roiEntity: ROI):
         """Set the ROI data from an existing ROI entity"""
@@ -186,6 +222,28 @@ class VardaROIItem(pg.ROI):
         absX = pos.x() + point.x() * size.x()
         absY = pos.y() + point.y() * size.y()
         return absX, absY
+
+    def __del__(self):
+        """Cleanup when ROI is being deleted"""
+        self._cleanupTextItem()
+
+    def closeEvent(self, event: QCloseEvent):
+        """Handle cleanup when ROI is closed"""
+        self._cleanupTextItem()
+        super().closeEvent(event)
+
+    def itemChange(self, change, value):
+        """Handle item changes including removal from scene"""
+        if change == self.GraphicsItemChange.ItemSceneChange and value is None:
+            # ROI is being removed from scene
+            self._cleanupTextItem()
+        return super().itemChange(change, value)
+
+    def _cleanupTextItem(self):
+        """Helper method to clean up the text item"""
+        if self.textItem and self.scene():
+            self.scene().removeItem(self.textItem)
+            self.textItem = None
 
     @staticmethod
     def getROI(roiEntity: ROI, **kwargs) -> "VardaROIItem":

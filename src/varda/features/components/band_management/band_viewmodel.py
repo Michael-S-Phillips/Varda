@@ -30,16 +30,11 @@ class BandViewModel(QObject):
             self.imageIndex
         ).metadata.wavelengths_type
 
-        if isinstance(
-            self.proj.getImage(self.imageIndex).metadata.wavelengths_type, (int, float)
-        ):
+        if self.wavelengthType in (int, float):
+            logger.debug("using wavelength values for band selection")
             lower = self.getWavelengthAt(0)
             upper = self.getWavelengthAt(-1)
 
-            if isinstance(lower, Metadata.Wavelength):
-                lower = lower.value
-            if isinstance(upper, Metadata.Wavelength):
-                upper = upper.value
             if lower > upper:
                 lower, upper = upper, lower
             self.bounds = (lower, upper)
@@ -47,6 +42,9 @@ class BandViewModel(QObject):
             self.useWavelengthIndeces = False
 
         else:
+            logger.debug(
+                f"using wavelength indeces for band selection! Wavelength type is {self.wavelengthType}"
+            )
             self.bounds = (0, self.getBandCount() - 1)
             self.useWavelengthIndeces = True
 
@@ -79,7 +77,7 @@ class BandViewModel(QObject):
     def getIndexOfWavelength(self, wavelength: float | str) -> int:
         """returns the index of the given wavelength."""
         # if the wavelengths are not strings, then get the index
-        if isinstance(self.getMetadata().wavelengths_type, (int, float)):
+        if self.getMetadata().wavelengths_type in (int, float):
             return np.abs(
                 self.proj.getImage(self.imageIndex).metadata.wavelengths - wavelength
             ).argmin()

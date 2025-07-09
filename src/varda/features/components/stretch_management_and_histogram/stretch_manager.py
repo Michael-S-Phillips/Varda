@@ -238,6 +238,7 @@ class StretchManager(QWidget):
     def _onProjectDataChanged(self, index, changeType):
         # Guard against recursion
         if self._handling_change:
+            logger.debug("Prevented recursive call in _onProjectDataChanged")
             return
 
         if index == self.imageIndex and changeType is ProjectContext.ChangeType.STRETCH:
