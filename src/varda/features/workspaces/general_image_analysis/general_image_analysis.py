@@ -33,6 +33,7 @@ from varda.features.components.raster_view import TripleRasterView
 from varda.features.components.viewport_tools.tool_manager import (
     ToolManager,
 )
+from varda.gui.widgets.varda_dock_widget import VardaDockWidget
 
 logger = logging.getLogger(__name__)
 
@@ -140,29 +141,25 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     def _setupDocks(self):
         """Setup all of the dock widgets for the workflow. This is most of the viewport_tools"""
         docks = []
-        bandDock = QDockWidget("Band Manager", self)
-        bandDock.setWidget(self.bandManager)
+        bandDock = VardaDockWidget("Band Manager", self.bandManager, self)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, bandDock)
         docks.append(bandDock)
 
-        stretchDock = QDockWidget("Stretch Controls", self)
-        stretchDock.setWidget(self.stretchManager)
+        stretchDock = VardaDockWidget("Stretch Controls", self.stretchManager, self)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, stretchDock)
         docks.append(stretchDock)
 
-        metadataDock = QDockWidget("Metadata", self)
-        metadataDock.setWidget(self.metadataEditor)
+        metadataDock = VardaDockWidget("Metadata", self.metadataEditor, self)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, metadataDock)
         docks.append(metadataDock)
 
-        roiDock = QDockWidget("ROI Manager", self)
-        roiDock.setWidget(self.roiManager)
+        roiDock = VardaDockWidget("ROI Manager", self.roiManager, self)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, roiDock)
         docks.append(roiDock)
 
         # Add the old ROI view as a dock widget
-        oldRoiDock = QDockWidget("Old ROI View", self)
-        oldRoiDock.setWidget(self.oldRoiView)
+
+        oldRoiDock = VardaDockWidget("Old ROI View", self.oldRoiView, self)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, oldRoiDock)
         docks.append(oldRoiDock)
 
