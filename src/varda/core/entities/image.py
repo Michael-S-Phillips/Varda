@@ -19,10 +19,9 @@ from .roi import ROI
 from .plot import Plot
 
 
-# TODO: changed this? Bad?
-@dataclass(frozen=False)
+@dataclass
 class Image:
-    """Immutable data container representing an Image object in Varda
+    """data container representing an Image object in Varda
 
     Attributes:
         raster (np.ndarray): a 3d array storing the raster (pixel) data of an image.
@@ -40,6 +39,10 @@ class Image:
     plots: List[Plot] = field(default_factory=list)
     ROIview: QWidget = None
     index: int = -1
+
+    def __post_init__(self):
+        # We do not want to allow modification of the raster data directly I think.
+        self.raster.setflags(write=False)
 
     def height(self):
         return self.raster.shape[0]

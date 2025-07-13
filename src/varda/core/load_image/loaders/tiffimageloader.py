@@ -10,7 +10,7 @@ import numpy as np
 import rasterio
 
 # local imports
-from varda.app.services.load_image.loaders.abstractimageloader import (
+from varda.core.load_image.loaders.abstractimageloader import (
     AbstractImageLoader,
 )
 from varda.core.entities import Metadata

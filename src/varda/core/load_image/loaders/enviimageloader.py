@@ -10,7 +10,7 @@ import numpy as np
 import rasterio as rio
 
 # local imports
-from varda.app.services.load_image.loaders import AbstractImageLoader
+from varda.core.load_image.loaders import AbstractImageLoader
 from varda.core.entities import Metadata, Band
 from varda.core.utilities import debug
 

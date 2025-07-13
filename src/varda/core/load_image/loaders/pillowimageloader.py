@@ -9,7 +9,7 @@ from PIL import Image as PILImage
 from PIL.ExifTags import TAGS
 
 # local imports
-from varda.app.services.load_image.loaders.abstractimageloader import (
+from varda.core.load_image.loaders.abstractimageloader import (
     AbstractImageLoader,
 )
 from varda.core.entities.metadata import Metadata

@@ -5,7 +5,7 @@ from typing import override
 import numpy as np
 
 # local imports
-from varda.features.image_process.processes.imageprocess import ImageProcess
+from varda.core.image_process.processes.imageprocess import ImageProcess
 
 
 class DecorrelationStretch(ImageProcess):
@@ -42,7 +42,6 @@ class DecorrelationStretch(ImageProcess):
     def __init__(self):
         super().__init__()
 
-    @override
     def execute(self, image, scaling_factor=2.5, preserve_brightness=True):
         """Execute decorrelation stretch on the input image.
 

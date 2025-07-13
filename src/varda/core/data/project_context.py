@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, List, Dict
+from typing import Any, List
 from enum import Enum
 import tempfile
 
@@ -18,8 +18,8 @@ from PyQt6.QtWidgets import (
 import numpy as np
 
 # local imports
-from varda.core.entities import Image, Metadata, Band, Stretch, ROI, Plot
-from varda.app.services.load_image import ImageLoadingService
+from varda.core.entities import Image, Metadata, Band, Stretch, Plot
+from varda.core.load_image import ImageLoadingService
 from varda.core.utilities.signal_utils import guard_signals
 from varda.gui.widgets import FileInputDialog
 

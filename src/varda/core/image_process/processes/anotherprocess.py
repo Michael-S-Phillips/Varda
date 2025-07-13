@@ -4,7 +4,7 @@ from typing import override
 # third party imports
 
 # local imports
-from varda.features.image_process.processes.imageprocess import ImageProcess
+from varda.core.image_process.processes.imageprocess import ImageProcess
 
 
 class AnotherProcess(ImageProcess):
@@ -32,6 +32,5 @@ class AnotherProcess(ImageProcess):
     def __init__(self):
         super().__init__()
 
-    @override
     def execute(self, image):
         return image

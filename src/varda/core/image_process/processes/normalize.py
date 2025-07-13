@@ -5,7 +5,7 @@ from typing import override
 import numpy as np
 
 # local imports
-from varda.features.image_process.processes.imageprocess import ImageProcess
+from varda.core.image_process.processes.imageprocess import ImageProcess
 
 
 class Normalize(ImageProcess):
@@ -29,7 +29,6 @@ class Normalize(ImageProcess):
 
         super().__init__()
 
-    @override
     def execute(self, image, threshold=0.0):
         min_val = np.min(image) + threshold
         max_val = np.max(image) - threshold

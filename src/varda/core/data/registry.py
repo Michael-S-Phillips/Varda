@@ -1,10 +1,11 @@
 import logging
-from typing import Protocol, override
+from typing import override
 
 from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtWidgets import QWidget
 
-from varda.app.services.load_image.loaders import AbstractImageLoader
+from varda.core.load_image.loaders import AbstractImageLoader
+from varda.core.image_process.processes.imageprocess import ImageProcess
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ class VardaRegistries:
     def __init__(self):
         self._widgets = WidgetRegistry()
         self._imageLoaders = ImageLoaderRegistry()
+        self._imageProcesses = ImageProcessRegistry()
 
     def registerWidget(self, widget):
         """Register a widget class."""
@@ -28,6 +30,12 @@ class VardaRegistries:
         self._imageLoaders[name] = loader
         logger.info(f"Registered image loader {name}")
 
+    def registerImageProcess(self, process):
+        """Register an image processing function or class."""
+        name = process.__name__
+        self._imageProcesses[name] = process
+        logger.info(f"Registered image process {name}")
+
     def unregisterWidget(self, widget):
         """Unregister a widget class."""
         name = widget.__name__
@@ -39,7 +47,21 @@ class VardaRegistries:
 
     def unregisterImageLoader(self, loader):
         """Unregister an image loader class."""
-        self._imageLoaders.unregisterLoader(loader)
+        name = loader.__name__
+        if name in self._imageLoaders:
+            del self._imageLoaders[name]
+            logger.info(f"Unregistered image loader {name}")
+        else:
+            logger.warning(f"Image loader {name} not found in registry.")
+
+    def unregisterImageProcess(self, process):
+        """Unregister an image processing function or class."""
+        name = process.__name__
+        if name in self._imageProcesses:
+            del self._imageProcesses[name]
+            logger.info(f"Unregistered image process {name}")
+        else:
+            logger.warning(f"Image process {name} not found in registry.")
 
     @property
     def widgets(self):
@@ -55,8 +77,15 @@ class VardaRegistries:
         """
         return self._imageLoaders
 
+    @property
+    def imageProcesses(self):
+        """
+        Get the registered image processing functions or classes.
+        """
+        return self._imageProcesses
 
-class IRegistry(QObject):
+
+class Registry(QObject):
     """
     Protocol for a registry of items that emits signals for updates.
     Implements magic methods for more convenient access.
@@ -116,7 +145,7 @@ class IRegistry(QObject):
         )
 
 
-class WidgetRegistry(IRegistry):
+class WidgetRegistry(Registry):
     """
     A registry for widgets that can dynamically appear in the application for users.
     """
@@ -132,7 +161,7 @@ class WidgetRegistry(IRegistry):
         return issubclass(item, QWidget)
 
 
-class ImageLoaderRegistry(IRegistry):
+class ImageLoaderRegistry(Registry):
     """
     Registry for image loaders that can be used to load images in the application.
     """
@@ -146,3 +175,21 @@ class ImageLoaderRegistry(IRegistry):
         Check if the item is a valid image loader for registration.
         """
         return issubclass(item, AbstractImageLoader)
+
+
+class ImageProcessRegistry(Registry):
+    """
+    Registry for image processing functions or classes.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    @override
+    def _itemIsValid(self, item):
+        """
+        Check if the item is a valid image processing function or class for registration.
+        Here we assume image processors are callable (functions or classes with __call__).
+        """
+        # TODO: Probably want more robust validation. I just don't want to do that right now lol
+        return isinstance(item, ImageProcess)

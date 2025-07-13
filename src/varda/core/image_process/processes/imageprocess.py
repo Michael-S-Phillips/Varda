@@ -1,41 +1,17 @@
-from abc import ABC, abstractmethod
+from typing import Protocol, runtime_checkable, Dict, Any
 
 
-class ImageProcess(ABC):
+@runtime_checkable
+class ImageProcess(Protocol):
     """Base class for processes"""
 
-    subclasses = []
+    name: str
+    parameters: Dict[str, Any]
 
     # Class attribute to define what data the process needs
     input_data_type = "full_raster"  # Options: "full_raster", "current_rgb", "custom"
 
-    def __init_subclass__(cls, **kwargs):
-        """
-        runs whenever a subclass is declared. adds it to the list of available subclasses
-        """
-        super().__init_subclass__(**kwargs)
-        ImageProcess.subclasses.append(cls)
-        print("ImageProcess subclass added")
-        print(ImageProcess.subclasses)
-
-    @property
-    @abstractmethod
-    def name(self):
-        pass
-
-    @property
-    @abstractmethod
-    def path(self):
-        pass
-
-    @property
-    @abstractmethod
-    def parameters(self):
-        pass
-
-    @abstractmethod
-    def execute(self, image):
-        pass
+    def execute(self, image): ...
 
     @classmethod
     def get_input_data(cls, image_obj):

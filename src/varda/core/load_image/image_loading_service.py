@@ -25,7 +25,7 @@ import affine
 from varda.core.entities import GeoReferencer
 
 # local imports
-from varda.app.services.load_image.loaders import (
+from varda.core.load_image.loaders import (
     LOADER_REGISTRY,
     AbstractImageLoader,
     PillowImageLoader,

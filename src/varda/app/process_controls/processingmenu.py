@@ -5,7 +5,8 @@ import logging
 from PyQt6.QtWidgets import QMenu
 
 # local imports
-from varda.features.image_process.processes.imageprocess import ImageProcess
+import varda
+from varda.core.image_process.processes.imageprocess import ImageProcess
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +20,9 @@ class ProcessingMenu(QMenu):
 
     def refreshProcessingMenu(self):
         self.clear()
-        for process in ImageProcess.subclasses:
-            print("process being added to menu:", process)
+        for name, process in varda.app.registry.imageProcesses:
+            logger.debug("process being added to menu: %s", name)
             # Create action with the class name as text
-            action = self.addAction(process.__name__)
+            action = self.addAction(name)
             # Store the process class in the action data
             action.setData(process)

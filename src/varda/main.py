@@ -3,9 +3,9 @@
 
 def main():
     """Main entry point for the Varda application."""
-    import varda
+    from varda.app.bootstrap import initVarda
 
-    varda.app.initVarda()
+    initVarda()
 
 
 if __name__ == "__main__":

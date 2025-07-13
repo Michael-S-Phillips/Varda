@@ -7,7 +7,7 @@ import h5py
 import numpy as np
 
 # local imports
-from varda.app.services.load_image.loaders.abstractimageloader import (
+from varda.core.load_image.loaders.abstractimageloader import (
     AbstractImageLoader,
 )
 from varda.core.entities.metadata import Metadata
