@@ -1,12 +1,11 @@
-import logging
 from typing import List, Tuple, Any
 
 import numpy as np
 import pyqtgraph as pg
 
 import varda
-from varda.app.services import image_utils
-from varda.app.services.roi_utils import RegionCoordinateTransform
+from varda.core import image_utils
+from varda.core.roi_utils import RegionCoordinateTransform
 from varda.core.entities import ROIMode, ROI, Image
 
 

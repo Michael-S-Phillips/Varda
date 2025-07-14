@@ -20,7 +20,7 @@ from PyQt6.QtGui import QColor
 
 # local imports
 from .histogram_viewmodel import HistogramViewModel
-from varda.app.services.stretch_utils import StretchPresets
+from varda.core.stretch_utils import StretchPresets
 from varda.features.shared.base_view import BaseView
 
 logger = logging.getLogger(__name__)

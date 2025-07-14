@@ -8,4 +8,3 @@ from .roi_functions import (
     getMaskedArrayRegionAffine,
     _evaluateFormula,
 )
-from .varda_roi import VardaROIItem

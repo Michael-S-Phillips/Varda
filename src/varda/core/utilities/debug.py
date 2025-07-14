@@ -1,4 +1,5 @@
 import time
+
 import json
 from PyQt6.QtWidgets import (
     QWidget,

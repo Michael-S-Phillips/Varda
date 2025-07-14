@@ -1,14 +1,13 @@
 # standard library
-from typing import override
 
 # third party imports
 import numpy as np
 
 # local imports
-from varda.core.image_process.processes.imageprocess import ImageProcess
+from varda.core.image_process.imageprocess import ImageProcess
 
 
-class Normalize(ImageProcess):
+class Normalize:
     """Test Process"""
 
     name = "Normalize"

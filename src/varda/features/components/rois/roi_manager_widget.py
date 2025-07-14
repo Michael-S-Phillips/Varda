@@ -3,7 +3,7 @@ import logging
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter, QPushButton
 
 import varda.app
-from varda.app.services.roi_utils import ROIStatistics
+from varda.core.roi_utils import ROIStatistics
 from varda.features.components.raster_view.roi_display_controller import (
     ROIDisplayController,
 )

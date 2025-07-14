@@ -5,7 +5,7 @@ from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtWidgets import QWidget
 
 from varda.core.load_image.loaders import AbstractImageLoader
-from varda.core.image_process.processes.imageprocess import ImageProcess
+from varda.core.image_process.imageprocess import ImageProcess
 
 logger = logging.getLogger(__name__)
 

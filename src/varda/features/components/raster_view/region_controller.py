@@ -2,11 +2,9 @@ import logging
 
 import numpy as np
 from PyQt6.QtCore import QObject, QEvent, Qt, QPointF
-import pyqtgraph as pg
 from PyQt6.QtWidgets import QGraphicsRectItem
 
-from varda.core.entities import ROI
-from varda.app.services.roi_utils import VardaROIItem
+from varda.features.components.rois.varda_roi import VardaROIItem
 from varda.features.components.generic_protocols import Viewport
 
 logger = logging.getLogger(__name__)

@@ -1,8 +1,8 @@
 import logging
 from typing import Dict, List, Optional, Any
-from PyQt6.QtCore import QObject, pyqtSignal, QTimer, QRect, QRectF
+from PyQt6.QtCore import QObject, pyqtSignal, QTimer, QRectF
 
-from varda.app.services.roi_utils.varda_roi import VardaROIItem
+from varda.features.components.rois.varda_roi import VardaROIItem
 from varda.core.entities import ROI
 
 logger = logging.getLogger(__name__)

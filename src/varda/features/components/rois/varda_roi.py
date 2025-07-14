@@ -5,9 +5,8 @@ import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QPolygonF, QPainterPath, QColor, QCloseEvent
-from PyQt6.QtWidgets import QGraphicsItem
 
-from varda.app.services.roi_utils import RegionCoordinateTransform
+from varda.core.roi_utils import RegionCoordinateTransform
 from varda.core.entities import ROI, ROIMode
 
 logger = logging.getLogger(__name__)

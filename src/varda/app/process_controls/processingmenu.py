@@ -6,7 +6,6 @@ from PyQt6.QtWidgets import QMenu
 
 # local imports
 import varda
-from varda.core.image_process.processes.imageprocess import ImageProcess
 
 logger = logging.getLogger(__name__)
 

@@ -1,13 +1,12 @@
 # third-party imports
-from typing import override, Optional, Tuple, List
 import logging
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtCore import QPointF, QRectF, QRect, QPoint
+from PyQt6.QtCore import QPointF
 
-from varda.app.services import image_utils
-from varda.app.services import roi_utils
+from varda.features.components.rois.varda_roi import VardaROIItem
+from varda.core import roi_utils, image_utils
 from varda.core.entities import Image, Band, Stretch
 
 logger = logging.getLogger(__name__)
@@ -158,7 +157,7 @@ class VardaImageItem(pg.ImageItem):
         return self._imageEntity
 
     @property
-    def roi(self) -> roi_utils.VardaROIItem:
+    def roi(self) -> VardaROIItem:
         """Get the current region being displayed."""
         return self._roi
 

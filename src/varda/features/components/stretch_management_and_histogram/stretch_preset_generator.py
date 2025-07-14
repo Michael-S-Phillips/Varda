@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
-from varda.app.services.stretch_utils import StretchPresets
+from varda.core.stretch_utils import StretchPresets
 
 logger = logging.getLogger(__name__)
 

@@ -1,11 +1,10 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter
-import pyqtgraph as pg
 
-from varda.app.services.roi_utils import VardaROIItem
+from varda.features.components.rois.varda_roi import VardaROIItem
 from varda.core.data import ProjectContext
-from varda.core.entities import Image, Band, Stretch
+from varda.core.entities import Band, Stretch
 from varda.features.components.raster_view.viewport import ImageViewport
 from varda.features.components.raster_view.region_controller import (
     RegionController,

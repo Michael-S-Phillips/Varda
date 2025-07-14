@@ -419,7 +419,7 @@ class ProjectContext(QObject):
                 # This helps prevent recursion issues during initialization
                 if self._generate_stretch_presets:
                     # Import here to avoid circular import
-                    from varda.app.services.stretch_utils import StretchPresets
+                    from varda.core.stretch_utils import StretchPresets
 
                     # Get the default band configuration to use for stretch calculations
                     default_band = band[0] if band else Band.createDefault()

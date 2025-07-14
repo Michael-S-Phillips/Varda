@@ -1,13 +1,11 @@
 # standard library
-from typing import override
 
 # third party imports
 
 # local imports
-from varda.core.image_process.processes.imageprocess import ImageProcess
 
 
-class AnotherProcess(ImageProcess):
+class AnotherProcess:
     """Test Process"""
 
     name = "Another Process"

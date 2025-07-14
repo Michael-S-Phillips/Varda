@@ -27,8 +27,8 @@ class StretchPresets:
     def create_stretch_from_preset(
         preset_id: str,
         image_data: np.ndarray,
-        band_config: Band = None,
-        name: str = None,
+        band_config: Band,
+        name: Optional[str] = None,
     ) -> Stretch:
         """Create a Stretch object using a preset algorithm.
 
@@ -41,23 +41,15 @@ class StretchPresets:
         Returns:
             A new Stretch object with values computed by the algorithm
         """
-        # Extract only the RGB bands if band_config is provided
-        if band_config is not None:
-            try:
-                # Extract the specific RGB bands for stretch calculation
-                rgb_data = image_data[
-                    :, :, [band_config.r, band_config.g, band_config.b]
-                ]
-            except IndexError as e:
-                logger.error(
-                    f"Error extracting RGB bands {[band_config.r, band_config.g, band_config.b]}: {e}"
-                )
-                # Fall back to first 3 bands if extraction fails
-                rgb_data = (
-                    image_data[:, :, :3] if image_data.shape[2] >= 3 else image_data
-                )
-        else:
-            # Fall back to first 3 bands if no band config provided
+        # Extract the RGB bands
+        try:
+            # Extract the specific RGB bands for stretch calculation
+            rgb_data = image_data[:, :, [band_config.r, band_config.g, band_config.b]]
+        except IndexError as e:
+            logger.error(
+                f"Error extracting RGB bands {[band_config.r, band_config.g, band_config.b]}: {e}"
+            )
+            # Fall back to first 3 bands if extraction fails
             rgb_data = image_data[:, :, :3] if image_data.shape[2] >= 3 else image_data
 
         # Compute the stretch values on the RGB data
@@ -85,7 +77,7 @@ class StretchPresets:
 
     @staticmethod
     def apply_preset_to_image(
-        preset_id: str, image_data: np.ndarray, band_config: "Band" = None
+        preset_id: str, image_data: np.ndarray, band_config: Band
     ) -> Tuple[np.ndarray, Stretch]:
         """Apply a preset algorithm to an image and return both the transformed image and the stretch.
 
@@ -101,23 +93,17 @@ class StretchPresets:
             Tuple of (transformed_image, stretch)
         """
         try:
-            # Extract only the RGB bands if band_config is provided
-            if band_config is not None:
-                try:
-                    # Extract the specific RGB bands for stretch calculation
-                    rgb_data = image_data[
-                        :, :, [band_config.r, band_config.g, band_config.b]
-                    ]
-                except IndexError as e:
-                    logger.error(
-                        f"Error extracting RGB bands {[band_config.r, band_config.g, band_config.b]}: {e}"
-                    )
-                    # Fall back to first 3 bands if extraction fails
-                    rgb_data = (
-                        image_data[:, :, :3] if image_data.shape[2] >= 3 else image_data
-                    )
-            else:
-                # Fall back to first 3 bands if no band config provided
+            # Extract the RGB bands
+            try:
+                # Extract the specific RGB bands for stretch calculation
+                rgb_data = image_data[
+                    :, :, [band_config.r, band_config.g, band_config.b]
+                ]
+            except IndexError as e:
+                logger.error(
+                    f"Error extracting RGB bands {[band_config.r, band_config.g, band_config.b]}: {e}"
+                )
+                # Fall back to first 3 bands if extraction fails
                 rgb_data = (
                     image_data[:, :, :3] if image_data.shape[2] >= 3 else image_data
                 )
@@ -162,7 +148,7 @@ class StretchPresets:
 
     @staticmethod
     def create_all_preset_stretches(
-        image_data: np.ndarray, band_config: "Band" = None
+        image_data: np.ndarray, band_config: Band
     ) -> List[Stretch]:
         """Create a list of Stretch objects for all available presets.
 
