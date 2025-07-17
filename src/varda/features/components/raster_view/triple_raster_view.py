@@ -3,7 +3,7 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter
 
 from varda.features.components.rois.varda_roi import VardaROIItem
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 from varda.core.entities import Band, Stretch
 from varda.features.components.raster_view.viewport import ImageViewport
 from varda.features.components.raster_view.region_controller import (

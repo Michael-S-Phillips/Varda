@@ -28,7 +28,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QObject
 from PyQt6.QtGui import QIntValidator, QDoubleValidator
 
 from varda.core.entities import Metadata, Band
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 
 logger = logging.getLogger(__name__)
 

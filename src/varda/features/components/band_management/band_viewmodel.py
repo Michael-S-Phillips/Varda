@@ -6,7 +6,7 @@ import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer, pyqtSlot
 
 # local imports
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 from varda.core.entities import Metadata
 
 logger = logging.getLogger(__name__)

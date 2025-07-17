@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 import numpy as np
 
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 from varda.core.entities import Band, Stretch
 from varda.features.image_view_roi import getROIView
 from varda.features.components.band_management.band_manager import BandManager

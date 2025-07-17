@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Set
 import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 from varda.core.entities.roi import ROI
 
 logger = logging.getLogger(__name__)

@@ -2,7 +2,7 @@
 
 # third party imports
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 
 # local imports
 import logging

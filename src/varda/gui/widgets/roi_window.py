@@ -79,7 +79,7 @@ class ROIWindow(QDialog):
             self.workspace.loadROIState(curr_row)
 
     def getMeanPlot(self):
-        # creating mean plot in workspace
+        # creating mean plot in _test_project_module_thing
         button = self.sender()
         if button:
             for row in range(self.table.rowCount()):

@@ -146,9 +146,13 @@ class VardaImageItem(pg.ImageItem):
             )  # Fill NaNs to avoid display issues
         else:
             # Show full image
-            self._regionalData = bandSlice.filled(
-                np.nan
-            )  # Fill NaNs to avoid display issues
+            if isinstance(bandSlice, np.ma.MaskedArray):
+                self._regionalData = bandSlice.filled(np.nan)
+            else:
+                self._regionalData = bandSlice
+            # self._regionalData = bandSlice.filled(
+            #     np.nan
+            # )  # Fill NaNs to avoid display issues
             self._coordinateTransform = None
 
     @property

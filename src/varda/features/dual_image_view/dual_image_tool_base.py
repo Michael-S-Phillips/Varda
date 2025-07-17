@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any, Tuple
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 
 logger = logging.getLogger(__name__)
 

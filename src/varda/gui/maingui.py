@@ -6,7 +6,7 @@ from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt, pyqtSlot
 
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 
 # from varda.core.ui import ControlPanel
 from varda.features.image_view_raster.raster_view import RasterView
@@ -21,7 +21,7 @@ from varda.features import (
     image_view_roi,
     all_images_view_list,
 )
-import varda.core.utilities.debug as debug
+import varda.utilities.debug as debug
 from varda.gui.widgets.detachable_tab_widget import DetachableTabWidget
 
 logger = logging.getLogger(__name__)

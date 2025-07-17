@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
 import varda
 from varda.core.entities import ROI
-from varda.features.components.generic_protocols import Viewport, ViewportTool
+from varda.features.components.protocols import Viewport, ViewportTool
 from varda.core import roi_utils, image_utils
 
 logger = logging.getLogger(__name__)

@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .dual_image_types import DualImageConfig, DualImageMode, LinkType
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 
 logger = logging.getLogger(__name__)
 

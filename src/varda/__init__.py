@@ -1,2 +1,3 @@
 from . import app
-from . import logger
+from . import log
+from varda.infra import plugins

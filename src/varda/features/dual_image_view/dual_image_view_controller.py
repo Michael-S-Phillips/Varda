@@ -15,7 +15,7 @@ from .dual_image_link_manager import DualImageLinkManager
 from .roi_sync_manager import ROISyncManager
 from .overlay_manager import OverlayManager
 from .blink_manager import BlinkManager
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 
 logger = logging.getLogger(__name__)
 

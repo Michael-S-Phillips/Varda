@@ -1,4 +1,4 @@
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 
 from .imageview_list import ImageListWidget
 

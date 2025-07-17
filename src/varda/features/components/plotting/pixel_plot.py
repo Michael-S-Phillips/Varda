@@ -1,16 +1,14 @@
 from typing import Tuple
 
-from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtCore import QPointF
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox
 import pyqtgraph as pg
-import numpy as np
 
 import logging
 
-from varda.core.data import ProjectContext
-from varda.core.utilities.wavelength_processor import WavelengthProcessor
-from varda.core.utilities.bounds_validator import BoundsValidator
-from varda.core.utilities.invalid_data_handler import (
+from varda.utilities.wavelength_processor import WavelengthProcessor
+from varda.utilities.bounds_validator import BoundsValidator
+from varda.utilities.invalid_data_handler import (
     InvalidDataHandler,
     InvalidValueStrategy,
 )

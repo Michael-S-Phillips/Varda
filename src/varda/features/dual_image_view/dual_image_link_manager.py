@@ -11,7 +11,7 @@ import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from .dual_image_types import DualImageConfig, ImagePair, LinkType, DualImageMode
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 
 logger = logging.getLogger(__name__)
 

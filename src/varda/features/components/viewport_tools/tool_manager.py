@@ -4,7 +4,7 @@ from PyQt6.QtCore import QObject, pyqtSignal, QEvent
 from PyQt6.QtWidgets import QToolBar
 from PyQt6.QtGui import QActionGroup
 
-from varda.features.components.generic_protocols import Viewport, ViewportTool
+from varda.features.components.protocols import Viewport, ViewportTool
 from varda.features.components.viewport_tools.tool_registry import ToolRegistry
 
 

@@ -5,7 +5,7 @@ from PyQt6.QtCore import QObject, QEvent, Qt, QPointF
 from PyQt6.QtWidgets import QGraphicsRectItem
 
 from varda.features.components.rois.varda_roi import VardaROIItem
-from varda.features.components.generic_protocols import Viewport
+from varda.features.components.protocols import Viewport
 
 logger = logging.getLogger(__name__)
 

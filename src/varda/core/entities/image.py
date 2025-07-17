@@ -42,13 +42,38 @@ class Image:
 
     def __post_init__(self):
         # We do not want to allow modification of the raster data directly I think.
-        self.raster.setflags(write=False)
+        if self.raster is not None:
+            self.raster.setflags(write=False)
 
+    @property
     def height(self):
         return self.raster.shape[0]
 
+    @property
     def width(self):
         return self.raster.shape[1]
+
+    def getRasterFromBand(self, band: Band):
+        """Get a subset of the raster data for RGB display.
+
+        Creates a 3-band subset of the raster data based on the RGB channels
+        defined in the selected band configuration.
+
+        Returns:
+            np.ndarray: Array  with shape (height, width, 3) for RGB display
+        """
+
+        # Get the RGB bands from the raster data
+        rgbData = self.raster[:, :, [band.r, band.g, band.b]]
+
+        # Handle any out-of-range values
+        # if np.isnan(rgbData).any():
+        #     logger.warning(
+        #         f"NaN values found in raster data for bands {[band.r, band.g, band.b]}"
+        #     )
+        #     rgbData = np.nan_to_num(rgbData)
+
+        return rgbData
 
     def __eq__(self, other):
         return self.index == other.index

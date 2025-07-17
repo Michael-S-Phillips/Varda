@@ -1,13 +1,10 @@
-from PyQt6 import QtWidgets, QtCore, QtGui
+from PyQt6 import QtWidgets, QtCore
 from PyQt6.QtWidgets import QDialog, QMessageBox
-
-import varda.core.utilities as utils
-from varda.core.data import ProjectContext
 
 
 class ProcessDialog(QDialog):
     """Dialog box that can dynamically generate parameter controls for an image
-    process and create new images in the workspace.
+    process and create new images in the _test_project_module_thing.
     """
 
     sigProcessFinished = QtCore.pyqtSignal()
@@ -104,6 +101,7 @@ class ProcessDialog(QDialog):
             process_instance = process()
 
             # Get the appropriate input data for this process type
+            # TODO: This is broken now lol
             input_data = process.get_input_data(self.image)
             print(f"Input data shape for {process.name}: {input_data.shape}")
 

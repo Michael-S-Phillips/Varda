@@ -31,7 +31,7 @@ from .dual_image_view_controller import DualImageViewController
 from .dual_image_tool_manager import DualImageToolManager
 from .spectral_plot_tool import SpectralPlotTool
 from varda.features.image_view_raster.raster_view import RasterView
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 
 logger = logging.getLogger(__name__)
 
@@ -789,7 +789,7 @@ class DualImageView(QWidget):
     ):
         """Handle 3-parameter project data changes for monitored images"""
         # Only process UPDATE changes (not ADD/REMOVE)
-        from varda.core.data import ProjectContext
+        from varda.app.project import ProjectContext
 
         if change_modifier != ProjectContext.ChangeModifier.UPDATE:
             return
@@ -806,7 +806,7 @@ class DualImageView(QWidget):
             return
 
         try:
-            from varda.core.data import ProjectContext
+            from varda.app.project import ProjectContext
 
             logger.debug(
                 f"=== DUAL VIEW: Project data changed for image {changed_index}, type: {change_type} ==="

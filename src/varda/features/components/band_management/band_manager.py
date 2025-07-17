@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QCheckBox,
 )
 
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 from varda.core.entities import Band
 from varda.features.components.band_management.image_view_band import getBandView
 

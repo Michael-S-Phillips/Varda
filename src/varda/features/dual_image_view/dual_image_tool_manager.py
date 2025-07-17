@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Type, Any
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QSplitter
 
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 from .dual_image_tool_base import DualImageToolBase
 
 logger = logging.getLogger(__name__)

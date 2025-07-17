@@ -5,15 +5,14 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMessageBox
 import pyqtgraph as pg
 
 import varda
-from varda.core.data import ProjectContext
-from varda.core.utilities.bounds_validator import BoundsValidator
-from varda.core.utilities.invalid_data_handler import (
+from varda.utilities import BoundsValidator
+from varda.utilities import (
     InvalidDataHandler,
     InvalidValueStrategy,
 )
-from varda.core.utilities.wavelength_processor import WavelengthProcessor
+from varda.utilities import WavelengthProcessor
 from varda.features.components.viewport_tools import PixelSelectTool
-from varda.features.components.generic_protocols import Viewport
+from varda.features.components.protocols import Viewport
 
 logger = logging.getLogger(__name__)
 
