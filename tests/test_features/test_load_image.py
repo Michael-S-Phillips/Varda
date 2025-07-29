@@ -1,6 +1,6 @@
 from pathlib import Path
 import varda.features as image_loader
-from varda.core.data import ProjectContext
+from varda.app.project import ProjectContext
 from varda.core.entities import Image, Metadata
 import numpy as np
 import os

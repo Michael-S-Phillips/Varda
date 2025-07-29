@@ -1,2 +1,2 @@
-from varda import logger
+from varda import log
 import logging
