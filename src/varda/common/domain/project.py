@@ -3,6 +3,7 @@ Domain entity for a Varda project.
 
 This module defines the Project class, which represents a Varda project.
 """
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -15,7 +16,7 @@ from varda.common.domain.roi import ROI
 class Project:
     """
     Data representation of a Varda project.
-    
+
     A project contains a collection of images and ROIs, as well as metadata
     about the project itself.
     """
@@ -77,10 +78,10 @@ class Project:
         from varda.common.domain.metadata import Metadata
         from varda.common.domain.band import Band
         from varda.common.domain.stretch import Stretch
-        
+
         project = cls()
         project.path = Path(data["path"]) if data.get("path") else None
-        
+
         # Deserialize images
         project.images = []
         for i, img_data in enumerate(data.get("images", [])):
@@ -98,8 +99,8 @@ class Project:
                 index=i,
             )
             project.images.append(image)
-        
+
         # Deserialize ROIs
         project.rois = [ROI.deserialize(r) for r in data.get("rois", [])]
-        
+
         return project

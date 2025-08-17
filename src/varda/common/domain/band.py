@@ -4,6 +4,7 @@ Domain entity for spectral band configuration in Varda.
 This module defines the Band class, which represents a configuration for
 visualizing spectral bands in a hyperspectral image.
 """
+
 from dataclasses import dataclass
 from typing import Dict, Any
 
@@ -12,7 +13,7 @@ from typing import Dict, Any
 class Band:
     """
     Data representation of a spectral band configuration.
-    
+
     A band configuration specifies which spectral bands to use for
     the red, green, and blue channels when visualizing a hyperspectral image.
     """

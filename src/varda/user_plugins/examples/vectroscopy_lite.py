@@ -22,6 +22,7 @@ import tempfile
 import shutil
 import geopandas as gpd
 
+
 class Vectroscopy:
     def __init__(self, config):
         self.config = config
@@ -30,42 +31,50 @@ class Vectroscopy:
     def from_array(cls, array, thresholds=None, crs=None, transform=None, name=None):
         """
         Create an instance of Vectroscopy from an array.
-        
+
         Args:
             array: Raster data to process.
             thresholds: Threshold values for the raster data.
             crs: Coordinate Reference System of the raster data.
             transform: Affine transformation for the raster data.
             name: Name for the parameter.
-        
+
         Returns:
             Vectroscopy: An instance of the Vectroscopy class.
         """
-        config = Config(process="default")  # could be where you have multiple processing profiles.
+        config = Config(
+            process="default"
+        )  # could be where you have multiple processing profiles.
         # config.config_array(param=rast, mask=mask, crs=crs, transform=transform)
         if transform is None:
             transform = Affine.translation(0, 0)
-        config.add_parameter(array=array, thresholds=thresholds, crs=crs, transform=transform, name=name)
+        config.add_parameter(
+            array=array, thresholds=thresholds, crs=crs, transform=transform, name=name
+        )
         return cls(config)
-    
+
     def add_param(self, array, thresholds=None, crs=None, transform=None, name=None):
         """
         Add another parameter to the existing configuration.
-        
+
         Args:
             array: Raster data to add
             crs: Coordinate Reference System
             transform: Affine transformation
             name: Name for the parameter
             thresholds: Threshold values for this parameter
-            
+
         Returns:
             self: Returns self to enable method chaining
         """
-        self.config.add_parameter(array=array, crs=crs, transform=transform, name=name, thresholds=thresholds)
+        self.config.add_parameter(
+            array=array, crs=crs, transform=transform, name=name, thresholds=thresholds
+        )
         return self
-    
-    def add_mask(self, array=None, crs=None, transform=None, name=None, thresholds=None):
+
+    def add_mask(
+        self, array=None, crs=None, transform=None, name=None, thresholds=None
+    ):
         """
         Add a mask to the existing configuration.
 
@@ -75,14 +84,24 @@ class Vectroscopy:
             transform: Affine transformation
             name: Name for the parameter
             thresholds: Threshold values for this parameter
-            
+
         Returns:
             self: Returns self to enable method chaining
         """
-        self.config.add_mask(array=array, crs=crs, transform=transform, name=name, thresholds=thresholds)
+        self.config.add_mask(
+            array=array, crs=crs, transform=transform, name=name, thresholds=thresholds
+        )
         return self
 
-    def config_output(self, stats=None, show_base=None, base_stats=None, driver=None, output_path=None, output_filename=None):
+    def config_output(
+        self,
+        stats=None,
+        show_base=None,
+        base_stats=None,
+        driver=None,
+        output_path=None,
+        output_filename=None,
+    ):
         """
         Configure the output settings for the Vectroscopy instance.
 
@@ -104,50 +123,60 @@ class Vectroscopy:
         return self
 
     @classmethod
-    def from_files(cls, rast=None, mask=None, stats=None, output=None, path=None, config_yaml: str = None):
+    def from_files(
+        cls,
+        rast=None,
+        mask=None,
+        stats=None,
+        output=None,
+        path=None,
+        config_yaml: str = None,
+    ):
         """
         Create an instance of Vectroscopy from a file.
-        
+
         Args:
             rast: Single raster data or a list of raster data.
             mask: A mask to apply to the raster data.
             crs: Coordinate Reference System of the raster data.
             transform: Affine transformation for the raster data.
             config_yaml (str): Path to the configuration YAML file.
-        
+
         Returns:
             Vectroscopy: An instance of the Vectroscopy class.
         """
         config = Config(processing="default")
         config.config_files(rast=rast, mask=mask)
         return cls(config)
-    
+
     def vectorize(self):
         """
-        Vectorizes data. 
+        Vectorizes data.
 
         Raster data must be the same shape and have the same CRS and transform.
-        
+
         Args:
             rasts: single raster data or a list of raster data.
             mask: A mask to apply to the raster data.
             raster_list: A list of processed raster data.
             zonal_stats: The zonal statistics for the raster data.
-        
+
         Returns:
             List: A list of vectorized geometries.
         """
         return ProcessingPipeline(self.config).process_file()
 
+
 class Config:
-
-
     """
     Configuration handler for the mineral mapping application.
     Loads and provides access to settings from a YAML file.
     """
+
     def __init__(self, yaml_file=None, process=None):
-        default_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "config.yaml"))
+        default_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "config.yaml")
+        )
         self.yaml = True
         if yaml_file is None:
             self.yaml = False
@@ -159,7 +188,7 @@ class Config:
         self.base_stats = None
         self.driver = None
         self.output_path = None
-        self.process = process or "default" 
+        self.process = process or "default"
         self.params = []
         self.load_config()
         self.output_filename = self.create_output_filename()
@@ -188,23 +217,27 @@ class Config:
         # gdal.SetConfigOption("GDAL_CACHEMAX", str(cache_max_bytes))  # affects external tools too
 
         if verbose:
-            print(f"[GDAL] Cache max set to {cache_max_bytes} MB ({ram_pct * 100:.0f}% of total RAM)")
+            print(
+                f"[GDAL] Cache max set to {cache_max_bytes} MB ({ram_pct * 100:.0f}% of total RAM)"
+            )
 
         return cache_max_bytes
 
     def get_parameters_list(self):
         """
         Initialize the parameters based on the process configuration.
-        
+
         Returns:
             List: A list of Parameter objects initialized with the raster data.
         """
         return self.params
 
-    def add_parameter(self, array, thresholds=None, crs=None, transform=None, name=None):
+    def add_parameter(
+        self, array, thresholds=None, crs=None, transform=None, name=None
+    ):
         """
         Add a new parameter to the configuration.
-        
+
         Args:
             array: The raster data as a numpy array.
             crs: Coordinate Reference System of the raster data.
@@ -214,16 +247,16 @@ class Config:
         """
         if name is None:
             raise ValueError("Parameter name must be provided.")
-        
+
         param = Parameter(
-            self.name_check(name), 
-            array=array, 
-            crs=crs, 
-            transform=transform, 
-            thresholds=thresholds
+            self.name_check(name),
+            array=array,
+            crs=crs,
+            transform=transform,
+            thresholds=thresholds,
         )
         self.params.append(param)
-    
+
     def add_mask(self, array=None, crs=None, transform=None, name=None, threshold=None):
         """
         Add a new mask to the configuration.
@@ -238,14 +271,14 @@ class Config:
         if name is None:
             raise ValueError("Mask name must be provided.")
         if isinstance(threshold, (list, tuple)):
-                raise ValueError("Threshold must be a single number, not a list or tuple.")
+            raise ValueError("Threshold must be a single number, not a list or tuple.")
 
         mask = Parameter(
             self.name_check(name),
             array=array,
             crs=crs,
             transform=transform,
-            thresholds=threshold
+            thresholds=threshold,
         )
         mask.mask = True
         self.params.append(mask)
@@ -253,7 +286,7 @@ class Config:
     def config_array(self, param, crs, transform, mask=None):
         """
         Initialize the configuration with an array and its metadata.
-        
+
         Args:
             array: The raster data as a numpy array.
             crs: Coordinate Reference System of the raster data.
@@ -263,11 +296,11 @@ class Config:
             if isinstance(value, tuple) and len(value) == 2:
                 # If the value is a list, assume it's a list of arrays
                 param = Parameter(
-                    self.name_check(key), 
-                    array=value[0], 
-                    crs=crs, 
-                    transform=transform, 
-                    thresholds=value[1] if len(value) > 1 else None
+                    self.name_check(key),
+                    array=value[0],
+                    crs=crs,
+                    transform=transform,
+                    thresholds=value[1] if len(value) > 1 else None,
                 )
                 self.params.append(param)
             else:
@@ -277,17 +310,17 @@ class Config:
                 if isinstance(value, list):
                     # If the value is a list, assume it's a list of arrays
                     mask_param = Parameter(
-                        self.name_check(key), 
-                        array=value[0], 
-                        crs=crs, 
-                        transform=transform, 
-                        thresholds=value[1] if len(value) > 1 else None
+                        self.name_check(key),
+                        array=value[0],
+                        crs=crs,
+                        transform=transform,
+                        thresholds=value[1] if len(value) > 1 else None,
                     )
                     mask_param.mask = True
                     self.params.append(mask_param)
                 else:
                     raise ValueError("Provide thresholds for mask")
-                
+
     def name_check(self, name):
         """
         Check if the name is valid for a parameter or mask.
@@ -301,7 +334,7 @@ class Config:
     def config_files(self, rast, mask=None):
         """
         Initialize the configuration with file paths for parameters and masks.
-        
+
         Args:
             param: Dictionary of parameter names and their file paths.
             mask: Dictionary of mask names and their file paths.
@@ -317,24 +350,28 @@ class Config:
     def config_yaml(self):
         """
         Initialize the configuration from a YAML file.
-        
+
         Args:
             yaml_file (str): Path to the YAML configuration file.
             process (str): Name of the process to set as current.
         """
-        
-        param_file_dicts = self.get_nested('processes', self.process, 'thresholds', 'parameters', default={})
-        mask_file_dicts = self.get_nested('processes', self.process, 'thresholds', 'masks', default={})
-        
+
+        param_file_dicts = self.get_nested(
+            "processes", self.process, "thresholds", "parameters", default={}
+        )
+        mask_file_dicts = self.get_nested(
+            "processes", self.process, "thresholds", "masks", default={}
+        )
+
         self.init_parameters(param_file_dicts, mask_file_dicts)
 
     def init_parameters(self, param_file_dicts, mask_file_dicts):
         """
         Initialize the parameters based on the process configuration.
-        
+
         Args:
             process: The process configuration dictionary.
-        
+
         Returns:
             List: A list of Parameter objects initialized with the raster data.
         """
@@ -343,15 +380,23 @@ class Config:
 
         param_list = []
         for param_name, parameters in param_file_dicts.items():
-            param = Parameter(name=param_name, raster_path=parameters[0], thresholds=parameters[1] if len(parameters) > 1 else None)
+            param = Parameter(
+                name=param_name,
+                raster_path=parameters[0],
+                thresholds=parameters[1] if len(parameters) > 1 else None,
+            )
             param_list.append(param)
-        
+
         if mask_file_dicts is not None:
             for mask_name, parameters in mask_file_dicts.items():
-                mask_param = Parameter(mask_name, raster_path=parameters[0], thresholds=parameters[1] if len(parameters) > 1 else None)
+                mask_param = Parameter(
+                    mask_name,
+                    raster_path=parameters[0],
+                    thresholds=parameters[1] if len(parameters) > 1 else None,
+                )
                 mask_param.mask = True
                 param_list.append(mask_param)
-        
+
         self.params = param_list
 
     def get_file_paths(self, names):
@@ -366,7 +411,7 @@ class Config:
             if file_path:
                 files_dict[param] = file_path
             else:
-                print(f"File for parameter {param} not found in {self.get_dir_path()}")        
+                print(f"File for parameter {param} not found in {self.get_dir_path()}")
 
         return files_dict
 
@@ -381,11 +426,10 @@ class Config:
                 return os.path.join(self.get_dir_path(), f)
         return None
 
-
     def load_config(self):
         """Load the configuration from the YAML file."""
         if self._config is None:
-            with open(self.yaml_file, 'r') as file:
+            with open(self.yaml_file, "r") as file:
                 self._config = yaml.safe_load(file)
         # Set top-level keys as attributes for convenience
         if self.process:
@@ -415,41 +459,47 @@ class Config:
 
     def get_processes(self):
         """Return the processes dictionary from the config."""
-        return self._config.get('processes', {})
-    
+        return self._config.get("processes", {})
+
     def get_current_process(self):
         """Get the current process configuration."""
         if self.curr_process is None:
             raise ValueError("Current process is not set.")
         processes = self.get_processes()
         if self.curr_process not in processes:
-            raise ValueError(f"Process '{self.curr_process}' not found in configuration.")
+            raise ValueError(
+                f"Process '{self.curr_process}' not found in configuration."
+            )
         return processes[self.curr_process]
 
     def get_median_config(self):
         """Get the median configuration from the config."""
         if self.curr_process is None:
             raise ValueError("Current process is not set.")
-        
-        return self.get_nested('processes', self.curr_process, 'thresholds', 'median', default={})
+
+        return self.get_nested(
+            "processes", self.curr_process, "thresholds", "median", default={}
+        )
 
     def get_masks(self):
         """Get mask names for the current process."""
         if self.curr_process is None:
             raise ValueError("Current process is not set.")
-        return self.get_nested('processes', self.curr_process, 'thresholds', 'masks', default={})
+        return self.get_nested(
+            "processes", self.curr_process, "thresholds", "masks", default={}
+        )
 
     def get_pipeline(self):
         """Get the pipeline steps for the current process."""
         if self.curr_process is None:
             raise ValueError("Current process is not set.")
-        return self.get_nested('processes', self.curr_process, 'pipeline', default=[])
-    
+        return self.get_nested("processes", self.curr_process, "pipeline", default=[])
+
     def get_dir_path(self):
         """Get the directory path for the current process."""
         process = self.get_current_process()
-        return process.get("path", "") 
-    
+        return process.get("path", "")
+
     def get_param_names(self):
         """
         Get the parameter names from the current process configuration.
@@ -462,11 +512,14 @@ class Config:
         Get the mask names from the current process configuration.
         """
         process = self.get_current_process()
-        if "masks" not in process["thresholds"] or process["thresholds"]["masks"] is None:
+        if (
+            "masks" not in process["thresholds"]
+            or process["thresholds"]["masks"] is None
+        ):
             print("No masks found in the process configuration.")
             return []
         return list(process["thresholds"]["masks"].keys())
-    
+
     def get_task_param(self, task, param_name):
         """
         Get a specific parameter for a task in the current process pipeline.
@@ -475,31 +528,27 @@ class Config:
             return task.get(param_name)
         else:
             return None
-        
+
     def get_output_path(self):
         """Get the output path for the current process."""
         process = self.get_current_process()
         if self.output_path:
             return self.output_path
-        return process['vectorization'].get('output_dict', '')
-    
+        return process["vectorization"].get("output_dict", "")
+
     def get_driver(self):
         """Get the driver for the current process."""
         if self.driver:
             return self.driver
         process = self.get_current_process()
-        return process['vectorization'].get('driver', 'pandas')
-    
+        return process["vectorization"].get("driver", "pandas")
+
     def create_output_filename(self):
         """Get the output filename for the current process."""
         driver = self.get_driver()
-        if driver == 'pandas':
+        if driver == "pandas":
             return None
-        extension_map = {
-            'GeoJSON': 'geojson',
-            'ESRI Shapefile': 'shp',
-            'GPKG': 'gpkg'
-        }
+        extension_map = {"GeoJSON": "geojson", "ESRI Shapefile": "shp", "GPKG": "gpkg"}
         file_extension = extension_map.get(driver)
         if not file_extension:
             raise ValueError(f"Unknown driver: {driver}")
@@ -508,7 +557,7 @@ class Config:
         # Simple sanitization: replace spaces with underscores
         safe_name = name.replace(" ", "_")
         return f"{safe_name}_final.{file_extension}"
-    
+
     def get_output_filename(self):
         """Get the output filename for the current process."""
         if self.output_filename:
@@ -518,13 +567,13 @@ class Config:
     def get_cs(self, crs):
         """Get the coordinate reference system for the current process."""
         from pyproj import CRS
-        
+
         process = self.get_current_process()
-        cs = process['vectorization'].get('cs', None)
-        
+        cs = process["vectorization"].get("cs", None)
+
         # Create pyproj CRS object from the input CRS
         crs_obj = CRS.from_string(crs) if isinstance(crs, str) else CRS(crs)
-        
+
         if cs is None or cs == "GCS":
             # Extract the geographic CRS (equivalent to CloneGeogCS)
             if crs_obj.is_projected:
@@ -546,35 +595,35 @@ class Config:
     def get_colormap(self):
         """Get the color map for the current process."""
         process = self.get_current_process()
-        return process['vectorization'].get('colormap', None)
+        return process["vectorization"].get("colormap", None)
 
     def get_stats(self):
         """Get the statistics configuration for the current process."""
         process = self.get_current_process()
-        return process['vectorization'].get('stats', [])
-    
+        return process["vectorization"].get("stats", [])
+
     def get_base_check(self):
         """Check if the current process is set to run in base mode."""
         process = self.get_current_process()
-        base_config = process['vectorization'].get('base', None)
+        base_config = process["vectorization"].get("base", None)
         if isinstance(base_config, dict):
-            return base_config.get('show', False)
+            return base_config.get("show", False)
 
     def get_base_stats(self):
         """Get the base statistics for the current process."""
         process = self.get_current_process()
         if self.get_base_check():
-            base_config = process['vectorization'].get('base', None)
+            base_config = process["vectorization"].get("base", None)
             if isinstance(base_config, dict):
-                return base_config.get('stats', [])
+                return base_config.get("stats", [])
         return []
-    
+
     def get_simplification_level(self):
         """Get the simplification level for vectorization."""
         process = self.get_current_process()
-        simplify = process['vectorization'].get('simplify', 0)
+        simplify = process["vectorization"].get("simplify", 0)
         return simplify
-    
+
     # Setters
     def set_current_process(self, process_name):
         """Set the current process name."""
@@ -583,8 +632,17 @@ class Config:
         else:
             raise ValueError(f"Process '{process_name}' not found in configuration.")
 
+
 class Parameter:
-    def __init__(self, name: str, raster_path=None, array=None, crs=None, transform=None, thresholds=None):
+    def __init__(
+        self,
+        name: str,
+        raster_path=None,
+        array=None,
+        crs=None,
+        transform=None,
+        thresholds=None,
+    ):
         self.name = name
         self.raster_path = raster_path
         self.mask = False
@@ -615,24 +673,30 @@ class Parameter:
 
         elif array is not None:
             if crs is None or transform is None:
-                raise ValueError("Both crs and transform must be provided when using an array.")
-            if hasattr(transform, 'to_gdal'):
+                raise ValueError(
+                    "Both crs and transform must be provided when using an array."
+                )
+            if hasattr(transform, "to_gdal"):
                 transform = transform.to_gdal()
-            if hasattr(crs, 'to_wkt'):
+            if hasattr(crs, "to_wkt"):
                 crs = crs.to_wkt()
-            self.crs = crs # if crs is not None else cfg.Config().get('default_crs')
-            self.transform = transform # if transform is not None else cfg.Config().get('default_transform')
-            
+            self.crs = crs  # if crs is not None else cfg.Config().get('default_crs')
+            self.transform = transform  # if transform is not None else cfg.Config().get('default_transform')
+
             # path = FileHandler().create_temp_file(prefix=self.name, suffix='tif')
             # self.raster_path = save_raster_gdal(array, crs, transform, path)
             return array
 
         else:
-            raise ValueError("Either raster_path or array with crs and transfrom must be provided.")
+            raise ValueError(
+                "Either raster_path or array with crs and transfrom must be provided."
+            )
 
     def median_filter(self, size=3, iterations=1):
         """Apply a median filter to the raster data."""
-        return dask_nanmedian_filter(self.raster, window_size=size, iterations=iterations)
+        return dask_nanmedian_filter(
+            self.raster, window_size=size, iterations=iterations
+        )
 
     def threshold(self, raster=None, thresholds=None):
         """Apply thresholds to the raster data and return a list."""
@@ -641,7 +705,7 @@ class Parameter:
         if thresholds is None:
             thresholds = self.thresholds
         return full_threshold(raster, thresholds)
-    
+
     def coverage_mask(self):
         """Calculate the coverage mask for the parameter (True where raster is not NaN)."""
         return ~np.isnan(self.raster)
@@ -653,17 +717,17 @@ class Parameter:
     def get_crs(self):
         """Return the coordinate reference system of the raster dataset."""
         return self.crs
-    
+
     def get_thresholds(self):
         """Return the thresholds for the parameter."""
         return self.thresholds
-    
+
     def get_raster(self):
         """Return the raster data."""
         if self.raster is None:
             raise ValueError("Raster data is not initialized.")
         return self.raster
-    
+
     def set_thresholds(self, thresholds):
         """Set the thresholds for the parameter."""
         if isinstance(thresholds, list):
@@ -674,17 +738,19 @@ class Parameter:
     def config_thresholds(self, thresholds):
         """Configure the thresholds for the parameter."""
         return get_raster_thresholds(self.raster, thresholds)
-    
+
     def release(self):
         """Release the raster dataset."""
         self.raster = None
         self.dataset = None
         self.mask = None
 
+
 class FileHandler:
     """
     A singleton class to handle file operations for mineral mapping.
     """
+
     _instance = None
 
     def __new__(cls, *args, **kwargs):
@@ -712,7 +778,7 @@ class FileHandler:
         """
         file_path = os.path.join(self.temp_dir, f"{prefix}_temp.{suffix}")
         return file_path
-    
+
     def get_directory(self):
         """
         Get the path to the temporary directory.
@@ -731,21 +797,23 @@ class FileHandler:
         self.temp_dir = None
         self._initialized = False
 
+
 class ProcessingPipeline:
     """
     A class to handle the complete processing pipeline dictated by a YAML file.
-    
+
     Attributes:
     -----------
         yaml_file (str): The path to the YAML file containing the processing configuration.
     """
+
     def __init__(self, config):
         self.config = config
         self.crs = None
         self.transform = None
         self.mask = None
         self.indication = False
-    
+
     def process_file(self):
         """
         Process the parameter or indicator based on the name.
@@ -754,27 +822,27 @@ class ProcessingPipeline:
         try:
             FileHandler()
             process = self.config.get_current_process()
-            for _ in tqdm(range(1), desc=f"Processing: {process["name"]}"):     
+            for _ in tqdm(range(1), desc=f"Processing: {process["name"]}"):
                 param_list = self.config.get_parameters_list()
                 processed_rasters = self.process_parameters(param_list)
                 return self.vectorize(processed_rasters, param_list)
         finally:
-            FileHandler().cleanup() 
+            FileHandler().cleanup()
             print("files cleaned up.")
 
     def vectorize(self, raster_list, param_list):
         """
         Vectorize the raster data based on the zonal statistics.
-        
+
         Args:
             process: The process configuration dictionary.
             raster_list: A list of processed raster data.
             zonal_stats: The zonal statistics for the raster data.
-        
+
         Returns:
             List: A list of vectorized geometries.
         """
-        simplification_level = self.config.get_simplification_level() 
+        simplification_level = self.config.get_simplification_level()
 
         driver = self.config.get_driver()
         thresholds = self.assign_thresholds(raster_list, param_list)
@@ -782,7 +850,9 @@ class ProcessingPipeline:
 
         # # Old vectorization
         # start_old = time.time()
-        gdf = list_vectorize(raster_list, thresholds, self.crs, self.transform, simplification_level)
+        gdf = list_vectorize(
+            raster_list, thresholds, self.crs, self.transform, simplification_level
+        )
         # gdf = list_zonal_stats(polygons, param_list, self.crs, self.transform, stats_list)
         # end_old = time.time()
         # print(f"Old vectorization took {end_old - start_old:.2f} seconds")
@@ -803,11 +873,11 @@ class ProcessingPipeline:
         # }
         # gdf.set_crs(self.crs, inplace=True)
         # cs = self.config.get_cs(self.crs)
-        # projected_gdf = gdf.to_crs(cs) 
+        # projected_gdf = gdf.to_crs(cs)
 
         if driver == "pandas":
             return gdf
-        
+
         output_dict = self.config.get_output_path()
         filename = self.config.get_output_filename()
         save_shapefile(projected_gdf, output_dict, filename, driver=driver)
@@ -829,17 +899,19 @@ class ProcessingPipeline:
         show_rasters = False
         # if show_rasters:
         #     show_raster(raster_list[0], title="threshold- Processed Raster lowest")
-            # utils.save_raster(raster_list[0], r"\\lasp-store\home\taja6898\Documents\Mars_Data\T1250_demo_parameters", "MC13_thresholded_0.tif", param_list[0].dataset.profile)
-        # boolean filters 
+        # utils.save_raster(raster_list[0], r"\\lasp-store\home\taja6898\Documents\Mars_Data\T1250_demo_parameters", "MC13_thresholded_0.tif", param_list[0].dataset.profile)
+        # boolean filters
         for task in self.config.get_pipeline() if self.config.get_pipeline() else []:
             task_name = task.get("task", "")
             if "majority" in task_name:
                 iterations = self.config.get_task_param(task, "iterations")
-                size = self.config.get_task_param(task, "size")    
+                size = self.config.get_task_param(task, "size")
 
                 iterations = 1 if iterations is None else iterations
                 size = 3 if size is None else size
-                raster_list = list_majority_filter(raster_list, iterations=iterations, size=size)
+                raster_list = list_majority_filter(
+                    raster_list, iterations=iterations, size=size
+                )
                 # if show_rasters:
                 #     show_raster(raster_list[0], title=f"{task_name} - Processed Raster lowest")
 
@@ -849,7 +921,9 @@ class ProcessingPipeline:
 
                 iterations = 1 if iterations is None else iterations
                 size = 3 if size is None else size
-                raster_list = list_boundary_clean(raster_list, iterations=iterations, radius=size)
+                raster_list = list_boundary_clean(
+                    raster_list, iterations=iterations, radius=size
+                )
                 # if show_rasters:
                 #     show_raster(raster_list[0], title=f"{task_name} - Processed Raster lowest")
 
@@ -868,7 +942,7 @@ class ProcessingPipeline:
                     threshold=threshold,
                     crs=self.crs,
                     transform=self.transform,
-                    connectedness=connectedness
+                    connectedness=connectedness,
                 )
                 # if show_rasters:
                 #     show_raster(raster_list[0], title=f"{task_name} - Processed Raster lowest")
@@ -878,7 +952,9 @@ class ProcessingPipeline:
 
                 iterations = 1 if iterations is None else iterations
                 size = 3 if size is None else size
-                raster_list = list_binary_opening(raster_list, iterations=iterations, size=size)
+                raster_list = list_binary_opening(
+                    raster_list, iterations=iterations, size=size
+                )
                 # if show_rasters:
                 #     show_raster(raster_list[0], title=f"{task_name} - Processed Raster lowest")
 
@@ -895,11 +971,11 @@ class ProcessingPipeline:
     def threshold(self, param_list):
         """
         Applies median filter, thresholds, and then masks the data.
-        
+
         Args:
             process: The process configuration dictionary.
             param_list: A list of Parameter objects initialized with the raster data.
-        
+
         Returns:
             List: A list of processed raster data at the number of desired intervals.
         """
@@ -908,7 +984,7 @@ class ProcessingPipeline:
         for param in param_list:
             if not isinstance(param, Parameter):
                 raise TypeError(f"Expected Parameter object, got {type(param)}")
-            
+
             # Apply median filter
             median_iterations = self.config.get_median_config().get("iterations", 0)
             median_size = self.config.get_median_config().get("size", 3)
@@ -916,47 +992,58 @@ class ProcessingPipeline:
             # preprocessing = param.median_filter(iterations=median_iterations, size=median_size)
             # utils.show_raster(preprocessing, title="median_filter")
 
-            preproccessing = param.median_filter(iterations=median_iterations, size=median_size)
+            preproccessing = param.median_filter(
+                iterations=median_iterations, size=median_size
+            )
             # utils.show_raster(test_median, title="new_median_filter")
             # utils.save_raster(median_filter, r"\\lasp-store\home\taja6898\Documents\Code\mineral-mapping\outputs", f"T1250_median_filter_D2300.tif", param.dataset.profile)
 
             if param.mask:
-                masks_thresholded_list.append(param.threshold(preproccessing, param.get_thresholds()))
+                masks_thresholded_list.append(
+                    param.threshold(preproccessing, param.get_thresholds())
+                )
             else:
-                param_thresholded_list.append(param.threshold(preproccessing, param.get_thresholds()))
+                param_thresholded_list.append(
+                    param.threshold(preproccessing, param.get_thresholds())
+                )
 
         # Combine the thresholded rasters
         if len(masks_thresholded_list) > 0 or len(param_thresholded_list) > 1:
             self.indication = True
             param_levels = list(zip(*param_thresholded_list))
 
-            combined_mask = np.logical_not(np.logical_or.reduce(masks_thresholded_list)).astype(np.uint32)
-            
-            if combined_mask.ndim == 3 and combined_mask.shape[0] == 1: # Check if alwasy true
+            combined_mask = np.logical_not(
+                np.logical_or.reduce(masks_thresholded_list)
+            ).astype(np.uint32)
+
+            if (
+                combined_mask.ndim == 3 and combined_mask.shape[0] == 1
+            ):  # Check if alwasy true
                 combined_mask = np.squeeze(combined_mask, axis=0)
             # show_raster(combined_mask, title="mask")
             raster_list = [
-                np.prod(level_rasters, axis=0)
-                for level_rasters in param_levels
+                np.prod(level_rasters, axis=0) for level_rasters in param_levels
             ]
             # show_raster(raster_list[0], title="threshold - Processed Raster lowest")
             for i in range(len(raster_list)):
-                if raster_list[i].ndim == 3 and raster_list[i].shape[0] == 1: # Check if alwasy false
+                if (
+                    raster_list[i].ndim == 3 and raster_list[i].shape[0] == 1
+                ):  # Check if alwasy false
                     raster_list[i] = np.squeeze(raster_list[i], axis=0)
                 raster_list[i] = raster_list[i] * combined_mask
             # show_raster(raster_list[0], title="threshold - Processed Raster lowest")
             return raster_list
-        
+
         return param_thresholded_list[0]
-    
+
     def assign_thresholds(self, raster_list, param_list):
         """
         Assign thresholds to the raster data based on the parameters.
-        
+
         Args:
             raster_list: A list of processed raster data.
             param_list: A list of Parameter objects initialized with the raster data.
-        
+
         Returns:
             List: A list of thresholds for each parameter.
         """
@@ -965,11 +1052,11 @@ class ProcessingPipeline:
             thresholds = [i + 1 for i in range(size)]
         else:
             thresholds = param_list[0].get_thresholds()
-        
+
         base_check = self.config.get_base_check()
         if base_check:
             thresholds.insert(0, 0)
-        
+
         return thresholds
 
     def assign_color(self, gdf, colormap="viridis"):
@@ -990,11 +1077,11 @@ class ProcessingPipeline:
 
         # gdf['hex_color'] = gdf['Threshold'].map(color_map)
         return gdf
-    
+
     def assign_spatial_info(self, dataset):
         """
         Assigns the spatial information from the dataset to the class attributes.
-        
+
         Args:
             dataset: The raster dataset to extract spatial information from.
         """
@@ -1002,7 +1089,10 @@ class ProcessingPipeline:
         self.transform = dataset.transform
         print(f"Assigned CRS: {self.crs}, Transform: {self.transform}")
 
+
 """Median Filter"""
+
+
 def dask_nanmedian_filter(arr, window_size=3, iterations=1):
     dask_arr = da.from_array(arr, chunks=(1024, 1024))  # Adjust chunk size as needed
 
@@ -1012,31 +1102,38 @@ def dask_nanmedian_filter(arr, window_size=3, iterations=1):
             window_size=window_size,
             depth=window_size // 2,
             boundary=np.nan,
-            dtype=arr.dtype
+            dtype=arr.dtype,
         )
 
     return dask_arr.compute()
 
+
 def nanmedian_2d(x, window_size):
     """Apply 2D nanmedian filter to a NumPy array with given window size."""
     pad = window_size // 2
-    padded = np.pad(x, pad, mode='constant', constant_values=np.nan)
+    padded = np.pad(x, pad, mode="constant", constant_values=np.nan)
 
     # Create sliding windows
-    windows = np.lib.stride_tricks.sliding_window_view(padded, (window_size, window_size))
+    windows = np.lib.stride_tricks.sliding_window_view(
+        padded, (window_size, window_size)
+    )
     windows = windows.reshape(windows.shape[0], windows.shape[1], -1)
 
     return bn.nanmedian(windows, axis=2)
 
+
 """Thresholds"""
+
+
 def full_threshold(raster, thresholds):
     """Apply multiple thresholds to a raster and return a list of binary arrays."""
     results = []
     for t in tqdm(thresholds, desc="Applying thresholds"):
         result = threshold(raster, t)
         results.append(result)
-        
+
     return results
+
 
 def threshold(raster, threshold):
     raster = np.asarray(raster)
@@ -1044,12 +1141,15 @@ def threshold(raster, threshold):
 
 
 """Majority Filter"""
+
+
 def list_majority_filter(raster_list, iterations=1, size=3):
     return [
         majority_filter_fast(raster, size=size, iterations=iterations)
-        #for raster in raster_list
+        # for raster in raster_list
         for raster in tqdm(raster_list, desc="Applying majority filter")
     ]
+
 
 def majority_filter_fast(binary_array, size=3, iterations=1):
     kernel = np.ones((size, size), dtype=np.uint8)
@@ -1057,43 +1157,47 @@ def majority_filter_fast(binary_array, size=3, iterations=1):
     threshold = (size * size) // 2
 
     for _ in range(iterations):
-        count = convolve(array, kernel, mode='mirror')
+        count = convolve(array, kernel, mode="mirror")
         array = (count > threshold).astype(np.uint8)
 
     return array
 
+
 def dask_majority_filter(arr, size=3, iterations=1):
     def majority_func(block):
         return majority_filter_fast(block, size=size, iterations=iterations)
-    
+
     dask_arr = da.from_array(arr, chunks=(1024, 1024))
     depth = size // 2
 
     return dask_arr.map_overlap(majority_func, depth=depth, boundary=0).compute()
 
+
 """Boundary Clean Filter"""
+
+
 def list_boundary_clean(raster_list, iterations=1, radius=1):
     return [
         boundary_clean(raster, iterations=iterations, radius=radius)
-        #for raster in raster_list
+        # for raster in raster_list
         for raster in tqdm(raster_list, desc="Boundary cleaning")
     ]
+
 
 def boundary_clean(raster_array, iterations=2, radius=3):
     """
     Smooth binary raster boundaries similar to ArcGIS Boundary Clean tool.
-    
+
     Parameters:
     - raster_array (np.ndarray): Binary array (1 = feature, 0 = background)
     - iterations (int): How many expand-shrink cycles to perform
     - radius (int): Structuring element size (larger = more aggressive smoothing)
-    
+
     Returns:
     - np.ndarray: Smoothed binary raster
     """
     result = np.copy(raster_array).astype(np.uint8)
     selem = footprint_rectangle((radius, radius))
-    
 
     for _ in range(iterations):
         expanded = dilation(result, selem)
@@ -1101,8 +1205,13 @@ def boundary_clean(raster_array, iterations=2, radius=3):
 
     return result
 
+
 """Sieve Filter"""
-def list_sieve_filter(array, crs, transform, iterations=1, threshold=9, connectedness=4):
+
+
+def list_sieve_filter(
+    array, crs, transform, iterations=1, threshold=9, connectedness=4
+):
     array = np.asarray(array)
     bands, height, width = array.shape
     filtered_array = np.empty_like(array, dtype="uint8")
@@ -1133,14 +1242,17 @@ def list_sieve_filter(array, crs, transform, iterations=1, threshold=9, connecte
 
     return filtered_array
 
+
 """Binary Opening"""
+
+
 def list_binary_opening(raster_list, iterations, size):
     """
     Apply binary opening to a list of rasters.
-    
+
     Args:
         raster_list (list of np.ndarray): List of binary rasters.
-        
+
     Returns:
         list: List of rasters after applying binary opening.
     """
@@ -1149,36 +1261,39 @@ def list_binary_opening(raster_list, iterations, size):
         for raster in tqdm(raster_list, desc="Applying binary opening")
     ]
 
+
 def _binary_opening(raster, iterations, size):
     """
     Apply binary opening to a single raster.
-    
+
     Args:
         raster (np.ndarray): Input binary raster.
         structure (np.ndarray): Structuring element for the opening operation.
-        
+
     Returns:
         np.ndarray: Raster after applying binary opening.
     """
     if not isinstance(raster, np.ndarray):
         raise ValueError("Input raster must be a NumPy array.")
-    
-    structure=footprint_rectangle((size, size))
-    
+
+    structure = footprint_rectangle((size, size))
+
     return binary_opening(raster, structure=structure, iterations=iterations)
 
-#===========================================#
+
+# ===========================================#
 # Other
-#===========================================#
+# ===========================================#
+
 
 def label_clusters(binary_raster, connectivity=1):
     """
     Labels connected regions of 1s in a binary raster.
-    
+
     Parameters:
     - binary_raster (np.ndarray): 2D array of 0s and 1s.
     - connectivity (int): 1 for 4-connected, 2 for 8-connected (diagonals included).
-    
+
     Returns:
     - labeled (np.ndarray): Same shape as input, with unique labels for each cluster.
     """
@@ -1186,28 +1301,32 @@ def label_clusters(binary_raster, connectivity=1):
     labeled = ndimage.label(binary_raster, structure=structure)[0]
     return labeled
 
-def get_raster_thresholds(raster, thresholds=['75p', '85p', '95p']):
+
+def get_raster_thresholds(raster, thresholds=["75p", "85p", "95p"]):
     """
     Calculate thresholds for a raster based on specified percentiles.
-    
+
     Args:
         raster (numpy.ndarray): Input raster data.
         percentile_list (list): List of percentiles to calculate thresholds for.
-        
+
     Returns:
         dict: Dictionary with percentile values as keys and corresponding threshold values as values.
     """
     temp_thresholds = []
     for t in thresholds:
-        if isinstance(t, str) and t.endswith('p'):
+        if isinstance(t, str) and t.endswith("p"):
             p = float(t[:-1])
-            temp_thresholds.append(np.nanpercentile(raster, p).round(4) )
+            temp_thresholds.append(np.nanpercentile(raster, p).round(4))
         elif isinstance(t, (int, float)):
             temp_thresholds.append(t)
         else:
-            raise ValueError(f"Invalid threshold format: {t}. Must be a number or a string ending with 'p'.")
-    
+            raise ValueError(
+                f"Invalid threshold format: {t}. Must be a number or a string ending with 'p'."
+            )
+
     return temp_thresholds
+
 
 # def show_raster(raster, cmap='gray', title=None):
 #     import matplotlib.pyplot as plt
@@ -1220,50 +1339,54 @@ def get_raster_thresholds(raster, thresholds=['75p', '85p', '95p']):
 #     plt.axis('off')
 #     plt.show()
 
+
 def open_raster(raster_path):
-    return rio.open(raster_path) 
+    return rio.open(raster_path)
+
 
 def open_raster_band(raster, band_number):
     return raster.read(band_number, masked=True).filled(np.nan)
+
 
 def save_raster(raster, output_path, file_name, profile):
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     full_path = os.path.join(output_path, file_name)
     raster = np.asarray(raster)
-    with rio.open(full_path, 'w', **profile) as dst:
+    with rio.open(full_path, "w", **profile) as dst:
         # If raster is 2D, add a band axis
         if raster.ndim == 2:
             dst.write(raster, 1)
         else:
             dst.write(raster)
 
+
 def save_raster_gdal(array, crs, transform, output_path):
     """
     Save a raster array to a file using GDAL.
-    
+
     Args:
         array (np.ndarray): The raster data to save.
         crs (str): The coordinate reference system in WKT format.
         transform (tuple): The affine transformation parameters.
         output_path (str): The path where the raster will be saved.
-        
+
     Returns:
         str: The path to the saved raster file.
     """
     # driver = gdal.GetDriverByName('GTiff')
     # height, width = array.shape
     # dataset = driver.Create(output_path, width, height, 1, gdal.GDT_Float32)
-    
+
     # if dataset is None:
     #     raise IOError(f"Could not create raster file at {output_path}")
-    
+
     # dataset.SetGeoTransform(transform) # add error handling
     # dataset.SetProjection(crs)
-    
+
     # dataset.GetRasterBand(1).WriteArray(array)
     # dataset.FlushCache()
-    
+
     # return output_path
 
 
@@ -1272,16 +1395,33 @@ def save_raster_gdal(array, crs, transform, output_path):
 ########################
 
 
-def list_raster_to_shape_gdal(raster_list, thresholds, crs, transform, param_list, stats_list, simplification_level=0):
+def list_raster_to_shape_gdal(
+    raster_list,
+    thresholds,
+    crs,
+    transform,
+    param_list,
+    stats_list,
+    simplification_level=0,
+):
     file_paths = []
-    for raster, threshold in tqdm(zip(raster_list, thresholds), desc="Converting rasters to shapes"):
-        vector_file = FileHandler().create_temp_file(prefix=f"{threshold}_shapes", suffix='shp')
-        raster_to_shape_gdal(raster.astype(np.uint8), transform, crs, vector_file, threshold=threshold)
+    for raster, threshold in tqdm(
+        zip(raster_list, thresholds), desc="Converting rasters to shapes"
+    ):
+        vector_file = FileHandler().create_temp_file(
+            prefix=f"{threshold}_shapes", suffix="shp"
+        )
+        raster_to_shape_gdal(
+            raster.astype(np.uint8), transform, crs, vector_file, threshold=threshold
+        )
         file_paths.append(vector_file)
 
-    gdf = list_file_zonal_stats(file_paths, param_list, crs, transform, stats_list, simplification_level)
+    gdf = list_file_zonal_stats(
+        file_paths, param_list, crs, transform, stats_list, simplification_level
+    )
 
     return gdf
+
 
 def raster_to_shape_gdal(binary_array, transform, crs_wkt, vector_file, threshold=0):
     """
@@ -1324,13 +1464,16 @@ def raster_to_shape_gdal(binary_array, transform, crs_wkt, vector_file, threshol
     #     feature.SetField('Threshold', float(threshold))
     #     layer.SetFeature(feature)
 
-    # layer = None 
-    # shp_ds.Destroy() 
+    # layer = None
+    # shp_ds.Destroy()
     # shp_ds = None
     # mem_raster = None
     # mask_band = None
 
-def list_file_zonal_stats(path_list, param_list, crs, transform, stats_list, simplification_level=0):
+
+def list_file_zonal_stats(
+    path_list, param_list, crs, transform, stats_list, simplification_level=0
+):
     """
     Compute zonal statistics for a list of raster files and a list of parameters.
 
@@ -1350,18 +1493,31 @@ def list_file_zonal_stats(path_list, param_list, crs, transform, stats_list, sim
     pixel_area = x_res * y_res
     for param in param_list:
         stats_config = config_stats(stats_list, param.name)
-        temp = file_zonal_stats(path_list, param, crs, transform, stats_config, pixel_area, simplification_level)
+        temp = file_zonal_stats(
+            path_list,
+            param,
+            crs,
+            transform,
+            stats_config,
+            pixel_area,
+            simplification_level,
+        )
         if results.empty:
             results = temp
         else:
-            results = results.join(temp.set_index(results.index), rsuffix=f"_{param.name}")
+            results = results.join(
+                temp.set_index(results.index), rsuffix=f"_{param.name}"
+            )
             if f"geometry_{param.name}" in results.columns:
                 results = results.drop(columns=[f"geometry_{param.name}"])
                 results = results.drop(columns=[f"Threshold_{param.name}"])
 
     return results
 
-def file_zonal_stats(path_list, param, crs, transform, stats_config, pixel_area, simplification_level):
+
+def file_zonal_stats(
+    path_list, param, crs, transform, stats_config, pixel_area, simplification_level
+):
     """
     Compute zonal statistics for a list of raster files and a list of parameters.
 
@@ -1391,7 +1547,7 @@ def file_zonal_stats(path_list, param, crs, transform, stats_config, pixel_area,
     #     # if len(stats_config) != 0:
     #     #     # with ogr.Open(path) as vect:
     #     #     # pre_gdf = gpd.read_file(path)
-    #     #     # pre_gdf = pre_gdf.dissolve(by='Threshold', as_index=False)  
+    #     #     # pre_gdf = pre_gdf.dissolve(by='Threshold', as_index=False)
 
     #     #     temp = exact_extract(
     #     #         rast,
@@ -1411,7 +1567,7 @@ def file_zonal_stats(path_list, param, crs, transform, stats_config, pixel_area,
     #     #         gdf[f"{param_name}_SQK"] = gdf[f"{param_name}_SQK"] * pixel_area * 0.000001  # Convert to square kilometers
 
     #     #     float_cols = gdf.select_dtypes(include=['float']).columns
-    #     #     gdf[float_cols] = gdf[float_cols].round(4) 
+    #     #     gdf[float_cols] = gdf[float_cols].round(4)
     #     # else:
     #     #     temp = gpd.read_file(path)
     #     #     gdf = pd.concat([gdf, temp], ignore_index=True)
@@ -1419,7 +1575,7 @@ def file_zonal_stats(path_list, param, crs, transform, stats_config, pixel_area,
     #         if len(stats_config) != 0:
     #             with ogr.Open(path) as vect:
     #             # pre_gdf = gpd.read_file(path)
-    #             # pre_gdf = pre_gdf.dissolve(by='Threshold', as_index=False)  
+    #             # pre_gdf = pre_gdf.dissolve(by='Threshold', as_index=False)
     #                 temp = exact_extract(
     #                     rast,
     #                     vect,
@@ -1438,12 +1594,13 @@ def file_zonal_stats(path_list, param, crs, transform, stats_config, pixel_area,
     #                 gdf[f"{param_name}_SQK"] = gdf[f"{param_name}_SQK"] * pixel_area * 0.000001  # Convert to square kilometers
 
     #             float_cols = gdf.select_dtypes(include=['float']).columns
-    #             gdf[float_cols] = gdf[float_cols].round(4) 
+    #             gdf[float_cols] = gdf[float_cols].round(4)
     #         else:
     #             temp = gpd.read_file(path)
     #             gdf = pd.concat([gdf, temp], ignore_index=True)
 
     return gdf
+
 
 def list_vectorize(raster_list, thresholds, crs, transform, simplify_tol):
     """
@@ -1461,11 +1618,16 @@ def list_vectorize(raster_list, thresholds, crs, transform, simplify_tol):
     """
     results = [
         # vectorize(raster, threshold, transform, crs, simplify_tol=simplify_tol)
-        dask_vectorize(raster, transform, crs, threshold=threshold, simplify_tol=simplify_tol)
-        for raster, threshold in tqdm(zip(raster_list, thresholds), desc="Vectorizing", total=len(raster_list))
+        dask_vectorize(
+            raster, transform, crs, threshold=threshold, simplify_tol=simplify_tol
+        )
+        for raster, threshold in tqdm(
+            zip(raster_list, thresholds), desc="Vectorizing", total=len(raster_list)
+        )
     ]
     results = combine_polygons(results)
     return results
+
 
 def vectorize_chunk(chunk, transform, value=1, simplify_tol=0, threshold=None):
     """
@@ -1486,7 +1648,16 @@ def vectorize_chunk(chunk, transform, value=1, simplify_tol=0, threshold=None):
             result.append(feature)
     return result
 
-def dask_vectorize(array, transform, crs, chunk_size=(512, 512), value=1, simplify_tol=0, threshold=None):
+
+def dask_vectorize(
+    array,
+    transform,
+    crs,
+    chunk_size=(512, 512),
+    value=1,
+    simplify_tol=0,
+    threshold=None,
+):
     """
     Vectorize a large raster using Dask with blockwise vectorization. (256, 256) (512, 512)
 
@@ -1505,14 +1676,22 @@ def dask_vectorize(array, transform, crs, chunk_size=(512, 512), value=1, simpli
         array = da.from_array(array, chunks=chunk_size)
 
     results = []
-    affine_transform = Affine(transform[1], transform[2], transform[0],
-                               transform[4], transform[5], transform[3])
+    affine_transform = Affine(
+        transform[1],
+        transform[2],
+        transform[0],
+        transform[4],
+        transform[5],
+        transform[3],
+    )
     for i in range(0, array.shape[0], chunk_size[0]):
         for j in range(0, array.shape[1], chunk_size[1]):
-            block = array[i:i+chunk_size[0], j:j+chunk_size[1]].compute()
+            block = array[i : i + chunk_size[0], j : j + chunk_size[1]].compute()
             if np.any(block == value):
                 block_transform = affine_transform * Affine.translation(j, i)
-                geoms = vectorize_chunk(block, block_transform, value, simplify_tol, threshold)
+                geoms = vectorize_chunk(
+                    block, block_transform, value, simplify_tol, threshold
+                )
                 results.extend(geoms)
     if results:
         return gpd.GeoDataFrame(results)
@@ -1521,14 +1700,14 @@ def dask_vectorize(array, transform, crs, chunk_size=(512, 512), value=1, simpli
         return gpd.GeoDataFrame()
 
 
-
-def save_shapefile(gdf, output_path, file_name, driver='ESRI Shapefile'):
+def save_shapefile(gdf, output_path, file_name, driver="ESRI Shapefile"):
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     file_path = os.path.join(output_path, file_name)
     if os.path.exists(file_path):
         os.remove(file_path)
     gdf.to_file(file_path, driver=driver)
+
 
 def simplify_raster_geometry(gdf, tolerance):
     """
@@ -1542,12 +1721,13 @@ def simplify_raster_geometry(gdf, tolerance):
     - GeoDataFrame: Simplified polygons
     """
     gdf = gdf.copy()
-    gdf['geometry'] = gdf['geometry'].simplify(tolerance, preserve_topology=True)
+    gdf["geometry"] = gdf["geometry"].simplify(tolerance, preserve_topology=True)
     return gdf
 
-#=====================================================#
+
+# =====================================================#
 # Attribute Table Operations
-#=====================================================#
+# =====================================================#
 
 
 def combine_polygons(gdf):
@@ -1564,22 +1744,23 @@ def combine_polygons(gdf):
     # merged = pd.concat(gdf_list[1:], ignore_index=True)
     if isinstance(gdf, list):
         gdf = pd.concat(gdf, ignore_index=True)
-    dissolved = gdf.dissolve(by='Threshold', as_index=False)
+    dissolved = gdf.dissolve(by="Threshold", as_index=False)
     separated = dissolved.explode(index_parts=True)
     # separated = pd.concat([gdf_list[0], separated], ignore_index=True) # Add the first GeoDataFrame (mask) back to the merged result
     cleaned = separated.reset_index(drop=True)
     return cleaned
 
+
 def list_zonal_stats(polygons, param_list, crs, transform, stats_list):
     """
     Calculate zonal statistics for a list of polygons and parameters.
-    
+
     Parameters:
     - polygons (list): List of polygon geometries.
     - param_list (list): List of parameters for each polygon.
     - crs: Coordinate reference system.
     - transform: Affine transform for the raster.
-    
+
     Returns:
     - list: Zonal statistics for each polygon.
     """
@@ -1592,22 +1773,47 @@ def list_zonal_stats(polygons, param_list, crs, transform, stats_list):
     # gdf = polygons[0:2]
     results = gpd.GeoDataFrame()
     for param in param_list:
-        stats_config = config_stats(stats_list, param.name)  # Get the configured stats for the parameter
-        
+        stats_config = config_stats(
+            stats_list, param.name
+        )  # Get the configured stats for the parameter
+
         # raster_path = get_tiled_raster_path(param)
-        temp = zonal_stats(gdf, param.raster, param.dataset, pixel_area, crs, transform, param.name, stats_config, param)
+        temp = zonal_stats(
+            gdf,
+            param.raster,
+            param.dataset,
+            pixel_area,
+            crs,
+            transform,
+            param.name,
+            stats_config,
+            param,
+        )
         # temp = tiled_zonal_stats(gdf, raster_path, stats_config, tile_size=2048, overlap=100, temp_dir=None, cleanup=True, strategy="raster-sequential")
         if results.empty:
             results = temp
         else:
-            results = results.join(temp.set_index(results.index), rsuffix=f"_{param.name}")
+            results = results.join(
+                temp.set_index(results.index), rsuffix=f"_{param.name}"
+            )
             if f"geometry_{param.name}" in results.columns:
                 results = results.drop(columns=[f"geometry_{param.name}"])
                 # results = results.drop(columns=[f"value_{param.name}"])
     return results
 
-def zonal_stats(gdf, data_raster, dataset, pixel_area, crs, transform, param_name, stats_config, param):
-    """ Calculate zonal statistics for a raster and vector layers."""
+
+def zonal_stats(
+    gdf,
+    data_raster,
+    dataset,
+    pixel_area,
+    crs,
+    transform,
+    param_name,
+    stats_config,
+    param,
+):
+    """Calculate zonal statistics for a raster and vector layers."""
     if len(stats_config) != 0:
         empty_gdf = gpd.GeoDataFrame()
         # if dataset is not None:
@@ -1615,7 +1821,7 @@ def zonal_stats(gdf, data_raster, dataset, pixel_area, crs, transform, param_nam
         # else:
         #     base_raster = array_to_gdal(data_raster, transform, crs)
         base_raster = array_to_gdal(data_raster, transform, crs)
-        raster_path = None # get_tiled_raster_path(param)
+        raster_path = None  # get_tiled_raster_path(param)
         param.release()  # Release the raster dataset to avoid memory issues
         # temp = rioxarray_zonal_stats(gdf, raster_path, stat="median")
         temp = exact_extract(
@@ -1625,32 +1831,35 @@ def zonal_stats(gdf, data_raster, dataset, pixel_area, crs, transform, param_nam
             include_geom=True,
             include_cols="Threshold",
             # strategy="raster-sequential",
-            output='pandas',
+            output="pandas",
             progress=True,
-            max_cells_in_memory=1000000000 # Adjust as needed for large datasets
+            max_cells_in_memory=1000000000,  # Adjust as needed for large datasets
         )
         # temp_dir = os.path.dirname(raster_path)
         # shutil.rmtree(temp_dir)
         gdf = pd.concat([empty_gdf, temp], ignore_index=True)
 
-        gdf[f"{param_name}_SQK"] = gdf[f"{param_name}_SQK"] * pixel_area * 0.000001  # Convert to square kilometers
-    
-        float_cols = gdf.select_dtypes(include=['float']).columns
-        gdf[float_cols] = gdf[float_cols].round(4) 
+        gdf[f"{param_name}_SQK"] = (
+            gdf[f"{param_name}_SQK"] * pixel_area * 0.000001
+        )  # Convert to square kilometers
+
+        float_cols = gdf.select_dtypes(include=["float"]).columns
+        gdf[float_cols] = gdf[float_cols].round(4)
     return gdf
+
 
 def config_stats(stats_list, param_name):
     """configure statistics for a list of stats."""
     stat_config = []
     stats_map = {
-            'mean': f"{param_name}_MEN=mean",
-            'median': f"{param_name}_MDN=median",
-            'area': f"{param_name}_SQK=count",
-            'count': f"{param_name}_CNT=count",
-            'min': f"{param_name}_MIN=min",
-            'max': f"{param_name}_MAX=max",
-            'std': f"{param_name}_STD=stdev",
-        }
+        "mean": f"{param_name}_MEN=mean",
+        "median": f"{param_name}_MDN=median",
+        "area": f"{param_name}_SQK=count",
+        "count": f"{param_name}_CNT=count",
+        "min": f"{param_name}_MIN=min",
+        "max": f"{param_name}_MAX=max",
+        "std": f"{param_name}_STD=stdev",
+    }
     # stats_map = {
     #         'mean': "MEN=mean",
     #         'median': "MDN=median",
@@ -1661,34 +1870,40 @@ def config_stats(stats_list, param_name):
     #         'std': "STD=stdev",
     #     }
     for stat in stats_list:
-        if isinstance(stat, str) and stat.endswith('p'):
+        if isinstance(stat, str) and stat.endswith("p"):
             if len(stat) < 2 or not stat[:-1].isdigit():
-                raise ValueError(f"Invalid percentile format: {stat}. Must be a number followed by 'p'.")
+                raise ValueError(
+                    f"Invalid percentile format: {stat}. Must be a number followed by 'p'."
+                )
             p = float(stat[:-1])
             stat_config.append(f"Q=quantile(q={p/100})")
         elif stat in stats_map:
             stat_config.append(stats_map[stat])
         else:
-            raise ValueError(f"Statistic '{stat}' is not supported. Supported statistics are: {list(stats_map.keys())}")
+            raise ValueError(
+                f"Statistic '{stat}' is not supported. Supported statistics are: {list(stats_map.keys())}"
+            )
     return stat_config
+
 
 def array_to_rasterio(array, transform, crs):
     height, width = array.shape
     memfile = MemoryFile()
     with memfile.open(
-        driver='GTiff',
+        driver="GTiff",
         height=height,
         width=width,
         count=1,
         dtype=array.dtype,
         transform=transform,
-        crs=crs
+        crs=crs,
     ) as dataset:
         dataset.write(array, 1)
     return memfile.open()
 
+
 def array_to_gdal(array, transform, crs):
-    """ Convert a NumPy array to an in-memory GDAL raster dataset. """
+    """Convert a NumPy array to an in-memory GDAL raster dataset."""
     # height, width = array.shape
     # mem_driver = gdal.GetDriverByName('MEM')
     # dataset = mem_driver.Create('', width, height, 1, gdal.GDT_Float32)
@@ -1704,6 +1919,7 @@ def array_to_gdal(array, transform, crs):
     # return dataset
     return
 
+
 def list_raster_stats(param_list, raster_list, stats, thresholds):
     for param in param_list:
         base_raster = param.get_raster()
@@ -1712,10 +1928,11 @@ def list_raster_stats(param_list, raster_list, stats, thresholds):
             labeled_raster = label_clusters(raster)
             results = scipy_zonal_stats(base_raster, labeled_raster, stats)
 
+
 def scipy_zonal_stats(base_raster, labeled_raster, stats):
     """
     Calculate zonal statistics using SciPy for a GeoDataFrame and a raster file.
-    
+
     Parameters:
     - gdf (GeoDataFrame): GeoDataFrame with polygon geometries.
     - raster_path (str): Path to the raster file.
@@ -1728,25 +1945,40 @@ def scipy_zonal_stats(base_raster, labeled_raster, stats):
     # Initialize a dictionary to hold the results
     results = {label: {} for label in unique_labels}
     for stat in tqdm(stats, desc="Calculating statistics"):
-        if stat == 'mean':
-            values = ndimage.mean(base_raster, labels=labeled_raster, index=unique_labels)
-        elif stat == 'count':
+        if stat == "mean":
+            values = ndimage.mean(
+                base_raster, labels=labeled_raster, index=unique_labels
+            )
+        elif stat == "count":
             values = region_count(labels=labeled_raster, index=unique_labels)
-        elif stat == 'min':
-            values = ndimage.labeled_comprehension(base_raster, labeled_raster, unique_labels, np.nanmin, float, np.nan)
-        elif stat == 'max':
-            values = ndimage.labeled_comprehension(base_raster, labeled_raster, unique_labels, np.nanmax, float, np.nan)
-        elif stat == 'std':
-            values = ndimage.standard_deviation(base_raster, labels=labeled_raster, index=unique_labels)
-        elif stat == 'median':
-            values = ndimage.labeled_comprehension(base_raster, labeled_raster, unique_labels, bn.nanmedian, float, np.nan)
+        elif stat == "min":
+            values = ndimage.labeled_comprehension(
+                base_raster, labeled_raster, unique_labels, np.nanmin, float, np.nan
+            )
+        elif stat == "max":
+            values = ndimage.labeled_comprehension(
+                base_raster, labeled_raster, unique_labels, np.nanmax, float, np.nan
+            )
+        elif stat == "std":
+            values = ndimage.standard_deviation(
+                base_raster, labels=labeled_raster, index=unique_labels
+            )
+        elif stat == "median":
+            values = ndimage.labeled_comprehension(
+                base_raster, labeled_raster, unique_labels, bn.nanmedian, float, np.nan
+            )
             # values = ndimage.labeled_comprehension(
             #     base_raster, labeled_raster, unique_labels, lambda x: np.nanpercentile(x, 50), float, 0
             # )
-        elif stat.endswith('p') and stat[:-1].isdigit():
+        elif stat.endswith("p") and stat[:-1].isdigit():
             q = float(stat[:-1])
             values = ndimage.labeled_comprehension(
-                base_raster, labeled_raster, unique_labels, lambda x: np.nanpercentile(x, q), float, 0
+                base_raster,
+                labeled_raster,
+                unique_labels,
+                lambda x: np.nanpercentile(x, q),
+                float,
+                0,
             )
         else:
             print(f"Statistic '{stat}' is not supported. Skipping.")
@@ -1755,6 +1987,7 @@ def scipy_zonal_stats(base_raster, labeled_raster, stats):
             results[label][stat] = value
 
     return results
+
 
 def region_count(labels, index):
     counts = np.bincount(labels.ravel())

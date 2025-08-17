@@ -3,6 +3,7 @@ Domain entity for an image in Varda.
 
 This module defines the Image class, which represents a hyperspectral image.
 """
+
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 
@@ -18,7 +19,7 @@ from varda.common.domain.plot import Plot
 class Image:
     """
     Data representation of a hyperspectral image.
-    
+
     An image consists of raster data (the actual pixel values), metadata,
     and various configurations for visualization (bands, stretches, plots).
     """
@@ -33,7 +34,7 @@ class Image:
     def serialize(self) -> Dict[str, Any]:
         """
         Serialize the image data into a JSON-compatible dictionary.
-        
+
         Note that the raster data is not serialized, as it's typically
         loaded separately from the image file.
 
@@ -63,7 +64,7 @@ class Image:
         stretches = [Stretch.deserialize(s) for s in data.get("stretch", [])]
         bands = [Band.deserialize(b) for b in data.get("band", [])]
         plots = [Plot.deserialize(p) for p in data.get("plots", [])]
-        
+
         return cls(
             raster=None,  # Raster data is loaded separately
             metadata=metadata,
