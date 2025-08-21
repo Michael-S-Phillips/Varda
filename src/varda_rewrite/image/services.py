@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
 
 import varda.app
 from varda.core.entities import GeoReferencer
-from varda_rewrite.utilities.dialog_utils import DialogUtils
+from varda_rewrite.common_ui.dialog_utils import DialogUtils
 
 # TODO: Update these imports when loaders are moved
 
@@ -200,28 +200,28 @@ class ImageLoadingService:
             f"The file you're trying to load is very large ({file_size_mb:.1f} MB).\n"
             "Loading large files may take a long time and use significant memory."
         )
-        
+
         options = [
             "Load a downsampled preview (faster, less memory)",
             "Load the full file (slow, high memory usage)",
-            "Load metadata only (fastest)"
+            "Load metadata only (fastest)",
         ]
-        
+
         result = DialogUtils.showOptionsDialog(
             title="Large File Detected",
             message=message,
             options=options,
             default_option=0,
-            parent=QApplication.activeWindow()
+            parent=QApplication.activeWindow(),
         )
-        
+
         if result == options[0]:
             return "preview"
         elif result == options[1]:
             return "full"
         elif result == options[2]:
             return "metadata"
-            
+
         return "cancel"
 
     def _createNewLoadProcess(
@@ -330,13 +330,13 @@ class ImageLoadingService:
         file_name = os.path.basename(filePath)
         file_size_mb = self._getFileSize(filePath)
         estimated_seconds = timeout_ms / 1000
-        
+
         label_text = (
             f"Loading large file ({file_size_mb:.1f} MB)...\n"
             f"{file_name}\n\n"
             f"This may take up to {estimated_seconds:.0f} seconds for large files."
         )
-        
+
         return DialogUtils.showIndeterminateProgressDialog(
             title="Loading Large File",
             label_text=label_text,
@@ -345,7 +345,7 @@ class ImageLoadingService:
             modal=True,
             auto_close=True,
             auto_reset=True,
-            min_duration_ms=1000
+            min_duration_ms=1000,
         )
 
     def _showErrorMessage(self, message):
