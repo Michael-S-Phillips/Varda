@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Stretch:
-    """Immutable data container representing a Stretch configuration for an image."""
+    """data container representing a Stretch configuration for an image."""
 
     name: str
     minR: float
@@ -20,20 +20,18 @@ class Stretch:
         return [[self.minR, self.maxR], [self.minG, self.maxG], [self.minB, self.maxB]]
 
     def serialize(self):
-        # flatten list
-        vals = [item for sublist in self.toList() for item in sublist]
-        return [self.name, *vals]
+        return [self.name, *self.toList()]
 
     @classmethod
     def deserialize(cls, data):
         return cls(
             name=data[0],
-            minR=data[1],
-            maxR=data[2],
-            minG=data[3],
-            maxG=data[4],
-            minB=data[5],
-            maxB=data[6],
+            minR=data[1][0],
+            maxR=data[1][1],
+            minG=data[2][0],
+            maxG=data[2][1],
+            minB=data[3][0],
+            maxB=data[3][1],
         )
 
     @classmethod

@@ -1,9 +1,3 @@
-"""Dialog utilities for varda_rewrite.
-
-This module provides utility functions and classes for creating and managing dialog boxes.
-It simplifies the process of creating file dialogs, message boxes, progress dialogs, and option dialogs.
-"""
-
 from typing import Optional, List, Tuple, Callable, Dict, Any, Union
 from pathlib import Path
 import os
@@ -24,7 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 
-# TODO: This doesnt need to be contained within a class
+# TODO: This doesnt necessarily need to be contained within a class?
 class DialogUtils:
     """Utility class for creating and managing dialog boxes.
 

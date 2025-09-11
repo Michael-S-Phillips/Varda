@@ -6,6 +6,8 @@ A core entity representing an image in varda.
 # standard library
 from dataclasses import dataclass, field
 from typing import List
+import uuid
+import logging
 
 # third party imports
 import numpy as np
@@ -17,6 +19,8 @@ from .stretch import Stretch
 from .metadata import Metadata
 from .roi import ROI
 from .plot import Plot
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -39,11 +43,6 @@ class Image:
     plots: List[Plot] = field(default_factory=list)
     ROIview: QWidget = None
     index: int = -1
-
-    def __post_init__(self):
-        # We do not want to allow modification of the raster data directly I think.
-        if self.raster is not None:
-            self.raster.setflags(write=False)
 
     @property
     def height(self):

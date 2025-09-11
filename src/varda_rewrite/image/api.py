@@ -1,6 +1,18 @@
 from typing import Protocol
 from dataclasses import dataclass
 
+from affine import Affine
+from pyproj import CRS
+
+from .domain import ImageStore
+
+
+class GeoInfo(Protocol):
+    crs: CRS
+    transform: Affine
+
+    def transformPixelToGeoCoord(self, px: int, py: int) -> tuple[float, float]: ...
+
 
 class Wavelength(Protocol):
     name: str
@@ -9,11 +21,9 @@ class Wavelength(Protocol):
     owningImageId: str
 
 
-class RasterData(Protocol):
-    def __array__(self): ...
-
-
-@dataclass
 class Image(Protocol):
-    id: str
-    raster: RasterData
+    name: str
+    raster: NDArray[Shape["*, *, *"], np.float64]  # type: ignore
+    wavelengths: list[Wavelength]
+    geo: GeoInfo | None
+    uid: str
