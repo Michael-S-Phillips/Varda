@@ -19,6 +19,11 @@ class Stretch:
         """
         return [[self.minR, self.maxR], [self.minG, self.maxG], [self.minB, self.maxB]]
 
+    def clone(self):
+        return Stretch(
+            self.name, self.minR, self.maxR, self.minG, self.maxG, self.minB, self.maxB
+        )
+
     def serialize(self):
         return [self.name, *self.toList()]
 
