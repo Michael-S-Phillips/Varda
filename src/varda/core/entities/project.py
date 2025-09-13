@@ -1,11 +1,8 @@
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Dict, List, Tuple
+from typing import Dict, List, Tuple
 import uuid
 
-import numpy as np
-
-from varda.app.project.roi_manager import ROIManager
+from varda.project.roi_manager import ROIManager
 from varda.common.domain import ROI
 from varda.core.entities import Image, Metadata, Stretch, Band
 

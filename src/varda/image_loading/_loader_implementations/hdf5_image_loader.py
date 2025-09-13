@@ -13,16 +13,16 @@ import numpy as np
 # local imports
 from varda.core.entities.metadata import Metadata
 from varda.core.entities import Band
+from varda.image_loading import registerImageLoader
+from varda.image_loading import ImageLoaderProtocol
 from varda.utilities import debug
 
 logger = logging.getLogger(__name__)
 
 
-class HDF5ImageLoader:
+@registerImageLoader("HDF5 Image", (".h5", ".hdf5"))
+class HDF5ImageLoader(ImageLoaderProtocol):
     """Implementation of ImageLoader for HDF5 Images"""
-
-    formatName = "HDF5 Image"
-    imageType = (".h5", ".hdf5")
 
     @staticmethod
     def loadRasterData(filePath, loading_mode="full") -> np.ndarray:

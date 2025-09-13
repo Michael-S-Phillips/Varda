@@ -1,8 +1,7 @@
 import logging
 
 from PyQt6 import QtWidgets
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QWidget, QPushButton, QLabel, QVBoxLayout
+from PyQt6.QtWidgets import QWidget, QPushButton, QVBoxLayout
 
 import varda
 from . import vectroscopy_lite

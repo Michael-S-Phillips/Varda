@@ -6,14 +6,12 @@ from PyQt6.QtWidgets import (
     QDockWidget,
     QLabel,
     QWidget,
-    QPushButton,
     QTabWidget,
     QMainWindow,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-import numpy as np
 
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 from varda.core.entities import Band, Stretch
 from varda.features.image_view_roi import getROIView
 from varda.features.components.band_management.band_manager import BandManager
@@ -21,8 +19,6 @@ from varda.features.components.stretch_management_and_histogram.stretch_manager 
     StretchManager,
 )
 from varda.features.components.metadata_management.metadata_editor import MetadataEditor
-from varda.gui.widgets.detachable_tab_widget import DetachableTabWidget
-from varda.gui.widgets.image_plot_widget import ImagePlotWidget
 
 # from varda.gui.widgets.plot_manager_tab import PlotManagerTab
 

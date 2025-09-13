@@ -5,7 +5,6 @@ A dialog for editing image metadata after loading.
 import logging
 import numpy as np
 from PyQt6.QtWidgets import (
-    QDialog,
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
@@ -20,15 +19,13 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QSpinBox,
     QCheckBox,
-    QScrollArea,
-    QSizePolicy,
     QMessageBox,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QObject
-from PyQt6.QtGui import QIntValidator, QDoubleValidator
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QDoubleValidator
 
 from varda.core.entities import Metadata, Band
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 
 logger = logging.getLogger(__name__)
 

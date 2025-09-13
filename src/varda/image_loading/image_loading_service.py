@@ -1,12 +1,14 @@
 # standard library
 import os
-import numpy as np
 from pathlib import Path
+from dataclasses import dataclass
 import logging
 from enum import Enum
 import traceback
+from typing import Type
 
 # third party imports
+import numpy as np
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable, QTimer
 from PyQt6.QtWidgets import (
     QFileDialog,
@@ -24,10 +26,35 @@ from PyQt6.QtWidgets import (
 
 import varda.app
 from varda.core.entities import GeoReferencer
+from .protocols import ImageLoaderProtocol
 
 # TODO: Update these imports when loaders are moved
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RegisteredLoader:
+    formatName: str
+    fileExtensions: tuple[str]
+    loaderClass: Type[ImageLoaderProtocol]
+
+
+_loader_registry: list[RegisteredLoader] = []
+
+
+def registerImageLoader(formatName: str, fileExtensions: str | list | tuple):
+    """Decorator to register an ImageLoader for specific file extensions."""
+
+    def decorator(cls):
+        if not issubclass(cls, ImageLoaderProtocol):
+            raise TypeError("Class must implement the ImageLoader Protocol")
+
+        fileExtensionList = tuple(fileExtensions)
+        _loader_registry.append(RegisteredLoader(formatName, fileExtensionList, cls))
+        return cls
+
+    return decorator
 
 
 class ImageLoadingService:
@@ -181,8 +208,8 @@ class ImageLoadingService:
     def getImageTypeFilter():
         """Returns a list of file filters for the image file dialog."""
         filters = "Image File ("
-        for _, loader in varda.app.registry.imageLoaders:
-            for extension in loader.imageType:
+        for loader in _loader_registry:
+            for extension in loader.fileExtensions:
                 filters += f"*{extension} "
         filters = filters.strip() + ")"
         return filters
@@ -463,10 +490,9 @@ class ImageLoadingService:
         file_extension = image_path.suffix.lower()
 
         # First check the registries for a direct extension match
-        for name, loader in varda.app.registry.imageLoaders:
-
-            if file_extension in loader.imageType:
-                return loader()
+        for loader in _loader_registry:
+            if file_extension in loader.fileExtensions:
+                return loader.loaderClass()
         logger.warning(f"Could not find match in loader registry for {file_extension}")
 
         # NOTE: under normal circumstances, the below code will never run
@@ -512,13 +538,13 @@ class ImageLoadingService:
             logger.warning("PIL not available for fallback detection")
 
         # Last resort: try each loader's static method to see if it works
-        for loader_class in varda.app.registry.imageLoaders:
+        for loader in _loader_registry:
             try:
                 # Just try to read a tiny bit to see if it works
-                test_mode = getattr(loader_class, "supports_preview", False)
+                test_mode = getattr(loader.loaderClass, "supports_preview", False)
                 if test_mode:
-                    loader_class.loadRasterData(filePath, loadingMode="preview")
-                    return loader_class()
+                    loader.loaderClass.loadRasterData(filePath, loadingMode="preview")
+                    return loader.loaderClass()
             except Exception:
                 continue
 

@@ -8,8 +8,7 @@ from typing import override
 from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtWidgets import QWidget
 
-from varda.app.protocols import ImageProcess, ImageLoader
-from varda.infra.image_loading import *
+from varda.app.protocols import ImageProcess
 
 logger = logging.getLogger(__name__)
 
@@ -98,35 +97,35 @@ class WidgetRegistry(BaseRegistry):
         return issubclass(item, QWidget)
 
 
-class ImageLoaderRegistry(BaseRegistry):
-    """
-    Registry for image loaders that can be used to load images in the application.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.registerBuiltInLoaders()
-
-    def registerBuiltInLoaders(self):
-        """Register all built-in image loaders."""
-        self[ENVIImageLoader.__name__] = ENVIImageLoader
-        self[HDF5ImageLoader.__name__] = HDF5ImageLoader
-        self[TIFFImageLoader.__name__] = TIFFImageLoader
-        self[PillowImageLoader.__name__] = PillowImageLoader
-
-    @override
-    def _itemIsValid(self, item):
-        """
-        Check if the item is a valid image loader for registration.
-        """
-        return isinstance(item, ImageLoader)
-
-    def getFileExtensions(self):
-        """Get a list of all supported file extensions from registered loaders."""
-        extensions = []
-        for loader in self.registryItems.values():
-            extensions.extend(loader.imageType)
-        return list(set(extensions))
+# class ImageLoaderRegistry(BaseRegistry):
+#     """
+#     Registry for image loaders that can be used to load images in the application.
+#     """
+#
+#     def __init__(self):
+#         super().__init__()
+#         self.registerBuiltInLoaders()
+#
+#     def registerBuiltInLoaders(self):
+#         """Register all built-in image loaders."""
+#         self[ENVIImageLoader.__name__] = ENVIImageLoader
+#         self[HDF5ImageLoader.__name__] = HDF5ImageLoader
+#         self[TIFFImageLoader.__name__] = TIFFImageLoader
+#         self[PillowImageLoader.__name__] = PillowImageLoader
+#
+#     @override
+#     def _itemIsValid(self, item):
+#         """
+#         Check if the item is a valid image loader for registration.
+#         """
+#         return isinstance(item, ImageLoader)
+#
+#     def getFileExtensions(self):
+#         """Get a list of all supported file extensions from registered loaders."""
+#         extensions = []
+#         for loader in self.registryItems.values():
+#             extensions.extend(loader.imageType)
+#         return list(set(extensions))
 
 
 class ImageProcessRegistry(BaseRegistry):
@@ -167,7 +166,7 @@ class VardaRegistries:
 
     def __init__(self):
         self._widgets = WidgetRegistry()
-        self._imageLoaders = ImageLoaderRegistry()
+        # self._imageLoaders = ImageLoaderRegistry()
         self._imageProcesses = ImageProcessRegistry()
 
     def registerWidget(self, widget):

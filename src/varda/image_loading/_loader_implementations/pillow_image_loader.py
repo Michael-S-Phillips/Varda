@@ -11,18 +11,16 @@ from PIL import Image as PILImage
 from PIL.ExifTags import TAGS
 
 # local imports
-from varda.app.protocols import ImageLoader
 from varda.core.entities.metadata import Metadata
 from varda.core.entities import Band
+from varda.image_loading import registerImageLoader, ImageLoaderProtocol
 
 logger = logging.getLogger(__name__)
 
 
-class PillowImageLoader:
+@registerImageLoader("Common Image", (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tga"))
+class PillowImageLoader(ImageLoaderProtocol):
     """Implementation of ImageLoader for common image formats using Pillow"""
-
-    formatName = "Pillow Image"
-    imageType = (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tga")
 
     @staticmethod
     def loadRasterData(filePath, loading_mode="full") -> np.ndarray:

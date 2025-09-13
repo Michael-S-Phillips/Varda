@@ -4,7 +4,6 @@
 from .registries import (
     BaseRegistry,
     WidgetRegistry,
-    ImageLoaderRegistry,
     ImageProcessRegistry,
     VardaRegistries,
 )
@@ -12,7 +11,6 @@ from .registries import (
 __all__ = [
     "BaseRegistry",
     "WidgetRegistry",
-    "ImageLoaderRegistry",
     "ImageProcessRegistry",
     "VardaRegistries",
 ]

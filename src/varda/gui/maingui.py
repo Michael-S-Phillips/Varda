@@ -6,7 +6,7 @@ from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt, pyqtSlot
 
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 
 # from varda.core.ui import ControlPanel
 from varda.features.image_view_raster.raster_view import RasterView

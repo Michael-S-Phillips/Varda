@@ -7,11 +7,10 @@ between paired images in dual view mode.
 
 import logging
 from typing import Dict, List, Optional, Tuple, Any
-import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from .dual_image_types import DualImageConfig, ImagePair, LinkType, DualImageMode
-from varda.app.project import ProjectContext
+from .dual_image_types import DualImageConfig, ImagePair, LinkType
+from varda.project import ProjectContext
 
 logger = logging.getLogger(__name__)
 

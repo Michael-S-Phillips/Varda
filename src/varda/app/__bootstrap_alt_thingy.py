@@ -117,7 +117,7 @@ def initializeServices() -> None:
     varda.app.registry = registry
 
     # Initialize the plugin manager
-    from varda.infra.plugins.plugin_manager import VardaPluginManager
+    from varda.plugins.plugin_manager import VardaPluginManager
 
     pm = VardaPluginManager()
     varda.app.pm = pm

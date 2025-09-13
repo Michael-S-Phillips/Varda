@@ -5,11 +5,10 @@ Handles synchronization of ROIs between linked images in dual view mode.
 """
 
 import logging
-from typing import Dict, List, Optional, Set
-import numpy as np
+from typing import Dict, Optional, Set
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 from varda.core.entities.roi import ROI
 
 logger = logging.getLogger(__name__)

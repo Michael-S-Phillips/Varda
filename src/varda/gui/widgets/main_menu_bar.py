@@ -11,14 +11,14 @@ from PyQt6.QtWidgets import (
     QMenuBar,
     QMenu,
     QWidget,
-    QVBoxLayout,
     QPushButton,
     QFormLayout,
 )
 
 # local imports
 import varda
-from varda.user_plugins.examples import vectroscopy_lite
+
+# from varda.plugins.user_plugins.examples import vectroscopy_lite
 
 logger = logging.getLogger(__name__)
 
@@ -203,22 +203,22 @@ class VectroscopyWidget(QWidget):
             layout.addRow(imageLabel, self.image_combobox)
 
         self.button = QPushButton("start")
-        self.button.clicked.connect(self.startVectroscopy)
+        # self.button.clicked.connect(self.startVectroscopy)
         layout.addRow(self.button)
         self.setLayout(layout)
 
-    def startVectroscopy(self):
-        array = self.image.raster.filled(np.nan)[:, :, 0]
-        threshold = ["95p"]
-        crs = self.image.metadata.crs
-        transform = self.image.metadata.transform
-        name = self.image.metadata.name
-
-        result = vectroscopy_lite.Vectroscopy.from_array(
-            array, threshold, crs, transform, name
-        )
-
-        print(result)
-
-    def updateSelectedImage(self):
-        self.image = self.proj.getImage(self.image_combobox.currentIndex())
+    # def startVectroscopy(self):
+    #     array = self.image.raster.filled(np.nan)[:, :, 0]
+    #     threshold = ["95p"]
+    #     crs = self.image.metadata.crs
+    #     transform = self.image.metadata.transform
+    #     name = self.image.metadata.name
+    #
+    #     result = vectroscopy_lite.Vectroscopy.from_array(
+    #         array, threshold, crs, transform, name
+    #     )
+    #
+    #     print(result)
+    #
+    # def updateSelectedImage(self):
+    #     self.image = self.proj.getImage(self.image_combobox.currentIndex())

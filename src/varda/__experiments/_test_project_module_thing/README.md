@@ -111,7 +111,7 @@ The Workspace feature is a direct replacement for the old `ProjectContext` class
 1. Replace imports:
    ```python
    # Before
-   from varda.app.project.project_context import ProjectContext
+   from varda.project.project_context import ProjectContext
    
    # After
    from varda._test_project_module_thing.api import WorkspaceService

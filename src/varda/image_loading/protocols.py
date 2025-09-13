@@ -2,25 +2,18 @@
 Protocol for image loaders that can load images from files.
 """
 
-from typing import Dict, Type, Protocol, Tuple, runtime_checkable
+from typing import Protocol, Tuple, runtime_checkable
 
 import numpy as np
 
 from varda.core.entities.metadata import Metadata
 
 
-# Registry of loaders
-LOADER_REGISTRY: Dict[str, Type["ImageLoader"]] = {}
-
-
 @runtime_checkable
-class ImageLoader(Protocol):
+class ImageLoaderProtocol(Protocol):
     """
     Protocol for image loaders that can load images from files. All image loaders must implement this Protocol.
     """
-
-    formatName: str  # full name for the image format (e.g. "GeoTIFF")
-    imageType: Tuple[str, ...]  # The supported file extensions (e.g. (".tif", ".tiff"))
 
     @staticmethod
     def loadRasterData(filePath, loadingMode="full") -> np.ndarray:

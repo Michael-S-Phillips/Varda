@@ -13,6 +13,7 @@ import rasterio as rio
 
 # local imports
 from varda.core.entities import Metadata, Band
+from varda.image_loading import registerImageLoader, ImageLoaderProtocol
 from varda.utilities import debug
 
 logging.getLogger("rasterio").setLevel(logging.CRITICAL)
@@ -20,11 +21,9 @@ logging.getLogger("rasterio").setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
-class ENVIImageLoader:
+@registerImageLoader("ENVI Image", (".hdr", ".img"))
+class ENVIImageLoader(ImageLoaderProtocol):
     """Implementation of ImageLoader for ENVI Images"""
-
-    formatName = "ENVI Image"
-    imageType = (".hdr", ".img")
 
     @staticmethod
     def loadRasterData(filePath, loading_mode="full") -> np.ndarray:

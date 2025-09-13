@@ -10,7 +10,7 @@ import pyqtgraph as pg
 
 
 # local imports
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 
 
 class ImageListWidget(QListWidget):
@@ -40,7 +40,7 @@ class ImageListWidget(QListWidget):
     def _on_data_changed(self, index, change_type):
         """Handle project data changes to refresh thumbnails when stretch/band changes"""
         try:
-            from varda.app.project import ProjectContext
+            from varda.project import ProjectContext
 
             if change_type in [
                 ProjectContext.ChangeType.STRETCH,

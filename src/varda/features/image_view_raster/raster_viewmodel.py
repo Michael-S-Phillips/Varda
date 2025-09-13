@@ -6,7 +6,7 @@ import numpy as np
 import logging
 
 # local imports
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 from varda.utilities.signal_utils import guard_signals
 
 logger = logging.getLogger(__name__)

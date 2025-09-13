@@ -13,14 +13,14 @@ from PyQt6.QtWidgets import (
 )
 import numpy as np
 
-from varda.app.project.project_io import ProjectIO
-from varda.app.project.project_loader import ProjectLoader
+from varda.project.project_io import ProjectIO
+from varda.project.project_loader import ProjectLoader
 
 # local imports
 from varda.core.entities import Project, Image, Metadata, Band, Stretch, Plot
 
 # TODO: Update these imports when components are moved
-from varda.app.image import ImageLoadingService
+from varda.image_loading import ImageLoadingService
 from varda.utilities.signal_utils import guard_signals
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class ProjectContext(QObject):
 
         # Initialize the ROI Manager
         # TODO: Update this import when ROIManager is moved
-        from varda.app.project.roi_manager import ROIManager
+        from varda.project.roi_manager import ROIManager
 
         self.roiManager = ROIManager()
 
@@ -173,7 +173,7 @@ class ProjectContext(QObject):
             else:
                 # If no ROI Manager in the data, create a new one
                 # TODO: Update this import when ROIManager is moved
-                from varda.app.project.roi_manager import ROIManager
+                from varda.project.roi_manager import ROIManager
 
                 self.roiManager = ROIManager(self)
 

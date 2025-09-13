@@ -20,15 +20,15 @@ class VardaPluginManager:
 
     def __init__(self):
         self.pm = PluginManager("varda")
-        self.pm.add_hookspecs(varda.infra.plugins._hooks)
-        self.pm.register(varda.infra.plugins._hooks)
+        self.pm.add_hookspecs(varda.plugins._hooks)
+        self.pm.register(varda.plugins._hooks)
         # load plugins from entrypoints
         self.pm.load_setuptools_entrypoints("varda.plugins")
 
         # load plugins from local "user_plugins" package
         # plugins can either be standalone .py files, or an installed package
         currPath = Path(varda.__file__).resolve().parent
-        pluginFolder = currPath / "user_plugins"
+        pluginFolder = currPath / "plugins" / "user_plugins"
         self._registerPluginsInFolder(pluginFolder)
 
     def _registerPluginsInFolder(self, pluginFolder):
@@ -45,7 +45,7 @@ class VardaPluginManager:
             else:
                 continue
             # TODO: If we want the plugin folder to be customizable we'll need to fix this line somehow.
-            mod = importlib.import_module(f"varda.user_plugins.{moduleName}")
+            mod = importlib.import_module(f"varda.plugins.user_plugins.{moduleName}")
             self.pm.register(mod)
 
     @property

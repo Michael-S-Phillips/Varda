@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
 )
 
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 
 
 class BandSelector(QComboBox):

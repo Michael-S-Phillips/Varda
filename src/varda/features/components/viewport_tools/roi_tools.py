@@ -15,6 +15,7 @@ import varda
 from varda.core.entities import ROI
 from varda.features.components.protocols import Viewport, ViewportTool
 from varda.core import roi_utils, image_utils
+from varda.features.components.rois.varda_roi import VardaROIItem
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ class ROIDrawingTool(ViewportTool):
         self.roiEntity = ROI(sourceImageIndex=self.imageEntity.index)
 
         # Create a visual representation of the ROI
-        self.roiItem = roi_utils.VardaROIItem(self.roiEntity)
+        self.roiItem = VardaROIItem(self.roiEntity)
         self.viewport.addItem(self.roiItem)
 
         self.showText(

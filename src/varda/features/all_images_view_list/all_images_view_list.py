@@ -1,4 +1,4 @@
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 
 from .imageview_list import ImageListWidget
 

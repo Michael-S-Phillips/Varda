@@ -10,15 +10,11 @@ import logging
 from PyQt6.QtWidgets import (
     QMainWindow,
     QStatusBar,
-    QDockWidget,
     QTabWidget,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.uic.Compiler.qtproxies import QtWidgets
-from qasync import QtGui
 
 import varda
-from varda.features.components.controlpanel import ControlPanel
 from varda.features.components.band_management.band_manager import BandManager
 from varda.features.components.metadata_management.metadata_editor import MetadataEditor
 from varda.features.components.raster_view.roi_display_controller import (
@@ -127,7 +123,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             "viewport 3", self.tripleRasterView.viewport3
         )
         self.oldRoiView = getROIView(self.project, self.imageIndex, self)
-        # self.plotPixels = PlotPixels(self.tripleRasterView.viewport3, self)
 
     def _initUI(self):
         """Initialize the user interface for the workflow"""

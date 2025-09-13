@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QRadioButton,
 )
 
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 from varda.gui.widgets.image_plot_widget import ImagePlotWidget
 from .dual_image_tool_base import DualImageToolBase, DualImageToolPanel
 

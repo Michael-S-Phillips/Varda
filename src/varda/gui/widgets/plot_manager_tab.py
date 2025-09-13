@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QPoint, QDateTime, QSize
 from PyQt6.QtGui import QDrag, QPixmap, QPainter, QAction, QIcon
 
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 from varda.features.components.controlpanel import DockableTab
 from varda.gui.widgets.spectral_properties_panel import (
     SpectralPropertiesPanel,

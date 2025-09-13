@@ -1,8 +1,7 @@
 import logging
 
-import numpy as np
 from PyQt6.QtCore import pyqtSlot, Qt, pyqtSignal
-from PyQt6.QtGui import QIntValidator, QStandardItemModel
+from PyQt6.QtGui import QIntValidator
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -15,13 +14,12 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QHeaderView,
     QHBoxLayout,
-    QLayout,
     QToolButton,
     QComboBox,
     QCheckBox,
 )
 
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 from varda.core.entities import Band
 from varda.features.components.band_management.image_view_band import getBandView
 

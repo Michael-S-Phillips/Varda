@@ -6,7 +6,7 @@ and synchronization capabilities.
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtWidgets import (
     QWidget,
@@ -21,17 +21,15 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QSpinBox,
     QFrame,
-    QToolBar,
     QSizePolicy,
 )
-from PyQt6.QtGui import QAction, QIcon
 
 from .dual_image_types import DualImageMode, LinkType, DualImageConfig
 from .dual_image_view_controller import DualImageViewController
 from .dual_image_tool_manager import DualImageToolManager
 from .spectral_plot_tool import SpectralPlotTool
 from varda.features.image_view_raster.raster_view import RasterView
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 
 logger = logging.getLogger(__name__)
 
@@ -789,7 +787,7 @@ class DualImageView(QWidget):
     ):
         """Handle 3-parameter project data changes for monitored images"""
         # Only process UPDATE changes (not ADD/REMOVE)
-        from varda.app.project import ProjectContext
+        from varda.project import ProjectContext
 
         if change_modifier != ProjectContext.ChangeModifier.UPDATE:
             return
@@ -806,7 +804,7 @@ class DualImageView(QWidget):
             return
 
         try:
-            from varda.app.project import ProjectContext
+            from varda.project import ProjectContext
 
             logger.debug(
                 f"=== DUAL VIEW: Project data changed for image {changed_index}, type: {change_type} ==="

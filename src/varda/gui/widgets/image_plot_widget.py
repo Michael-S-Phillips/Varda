@@ -5,7 +5,7 @@ import pyqtgraph as pg
 import logging
 from typing import Dict, List, Optional, Tuple, Any
 
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 from varda.utilities.wavelength_processor import WavelengthProcessor
 from varda.utilities.bounds_validator import BoundsValidator
 from varda.utilities.data_converter import DataConverter

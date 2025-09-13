@@ -11,18 +11,16 @@ import numpy as np
 import rasterio
 
 # local imports
-from varda.app.protocols import ImageLoader
 from varda.core.entities import Metadata
 from varda.core.entities import Band
+from varda.image_loading import registerImageLoader, ImageLoaderProtocol
 
 logger = logging.getLogger(__name__)
 
 
-class TIFFImageLoader:
+@registerImageLoader("TIFF/GEOTIFF Image", (".tif", ".tiff", ".geotiff", ".gtiff"))
+class TIFFImageLoader(ImageLoaderProtocol):
     """Implementation of ImageLoader for TIFF/GeoTIFF Images"""
-
-    formatName = "TIFF/GEOTIFF Image"
-    imageType = (".tif", ".tiff", ".geotiff", ".gtiff")
 
     @staticmethod
     def loadRasterData(filePath, loading_mode="full") -> np.ndarray:

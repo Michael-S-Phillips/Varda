@@ -5,12 +5,12 @@ Provides the foundation for extensible tool architecture in dual image view.
 """
 
 import logging
-from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, Tuple
+from abc import abstractmethod
+from typing import Optional, Dict, Any
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 
-from varda.app.project import ProjectContext
+from varda.project import ProjectContext
 
 logger = logging.getLogger(__name__)
 
