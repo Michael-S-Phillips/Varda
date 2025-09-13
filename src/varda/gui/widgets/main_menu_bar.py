@@ -145,6 +145,22 @@ class MainMenuBar(QMenuBar):
         widget = widgetClass(self.parent())
         widget.show()
 
+    def registerAction(self, path: str, action):
+        """Register an action to be added to the main menu."""
+        pathElements = path.split("/")
+        menu = self
+        for item in pathElements[:-1]:
+            notFound = True
+            for child in menu.actions():
+                if child.text() == item:
+                    menu = child.menu()
+                    notFound = False
+                    break
+            if notFound:
+                menu = menu.addMenu(item)
+
+        menu.addAction(action)
+
 
 class VectroscopyWidget(QWidget):
     """A simple widget for demonstrating a custom user plugin in Varda."""
