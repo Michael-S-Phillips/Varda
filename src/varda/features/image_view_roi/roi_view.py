@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QBrush, QAction
 
-from varda.core.entities import ROI
+from varda.common.entities import ROI
 from .roi_viewmodel import ROIViewModel
 
 

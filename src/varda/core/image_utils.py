@@ -2,10 +2,9 @@ import logging
 
 import numpy as np
 import rasterio
-from affine import Affine
 from pyproj import Transformer, CRS
 
-from varda.core.entities import Image, Stretch, Band
+from varda.common.entities import Image, Band
 
 logger = logging.getLogger(__name__)
 

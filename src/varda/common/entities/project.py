@@ -4,7 +4,7 @@ import uuid
 
 from varda.project.roi_manager import ROIManager
 from varda.common.domain import ROI
-from varda.core.entities import Image, Metadata, Stretch, Band
+from varda.common.entities import Image, Metadata, Stretch, Band
 
 
 class ImageTable:

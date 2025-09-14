@@ -11,8 +11,8 @@ import h5py
 import numpy as np
 
 # local imports
-from varda.core.entities.metadata import Metadata
-from varda.core.entities import Band
+from varda.common.entities import Metadata
+from varda.common.entities import Band
 from varda.image_loading import registerImageLoader
 from varda.image_loading import ImageLoaderProtocol
 from varda.utilities import debug

@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 
 from varda.project import ProjectContext
-from varda.core.entities import Band, Stretch
+from varda.common.entities import Band, Stretch
 from varda.features.image_view_roi import getROIView
 from varda.features.components.band_management.band_manager import BandManager
 from varda.features.components.stretch_management_and_histogram.stretch_manager import (

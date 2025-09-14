@@ -14,7 +14,7 @@ from typing import Protocol
 
 import numpy as np
 
-from varda.core.entities import Project
+from varda.common.entities import Project
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ import pyqtgraph as pg
 import varda
 from varda.core import image_utils
 from varda.core.roi_utils import RegionCoordinateTransform
-from varda.core.entities import ROIMode, ROI, Image
+from varda.common.entities import ROIMode, ROI, Image
 
 
 def createROI(

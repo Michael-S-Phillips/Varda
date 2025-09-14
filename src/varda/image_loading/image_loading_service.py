@@ -24,8 +24,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
 )
 
-import varda.app
-from varda.core.entities import GeoReferencer
+from varda.common.entities import GeoReferencer
 from .protocols import ImageLoaderProtocol
 
 # TODO: Update these imports when loaders are moved

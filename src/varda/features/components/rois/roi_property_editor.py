@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtWidgets import QColorDialog
 
-from varda.core.entities import ROI
+from varda.common.entities import ROI
 
 
 class ROIPropertyEditor(QWidget):

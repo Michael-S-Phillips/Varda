@@ -7,7 +7,7 @@ from PyQt6.QtCore import QPointF
 
 from varda.features.components.rois.varda_roi import VardaROIItem
 from varda.core import roi_utils, image_utils
-from varda.core.entities import Image, Band, Stretch
+from varda.common.entities import Image, Band, Stretch
 
 logger = logging.getLogger(__name__)
 

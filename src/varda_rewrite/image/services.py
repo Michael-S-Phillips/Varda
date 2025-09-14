@@ -7,23 +7,13 @@ from enum import Enum
 import traceback
 
 # third party imports
-from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable, QTimer
+from PyQt6.QtCore import pyqtSignal, QObject, QThreadPool, QRunnable, QTimer
 from PyQt6.QtWidgets import (
-    QFileDialog,
-    QMessageBox,
-    QProgressDialog,
     QApplication,
-    QDialog,
-    QVBoxLayout,
-    QLabel,
-    QPushButton,
-    QRadioButton,
-    QButtonGroup,
-    QHBoxLayout,
 )
 
 import varda.app
-from varda.core.entities import GeoReferencer
+from varda.common.entities import GeoReferencer
 from varda_rewrite.common_ui.dialog_utils import DialogUtils
 
 # TODO: Update these imports when loaders are moved

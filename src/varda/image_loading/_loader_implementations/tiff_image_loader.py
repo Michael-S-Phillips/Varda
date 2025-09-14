@@ -11,8 +11,8 @@ import numpy as np
 import rasterio
 
 # local imports
-from varda.core.entities import Metadata
-from varda.core.entities import Band
+from varda.common.entities import Metadata
+from varda.common.entities import Band
 from varda.image_loading import registerImageLoader, ImageLoaderProtocol
 
 logger = logging.getLogger(__name__)

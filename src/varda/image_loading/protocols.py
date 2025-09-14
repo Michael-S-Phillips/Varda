@@ -2,11 +2,11 @@
 Protocol for image loaders that can load images from files.
 """
 
-from typing import Protocol, Tuple, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 import numpy as np
 
-from varda.core.entities.metadata import Metadata
+from varda.common.entities import Metadata
 
 
 @runtime_checkable

@@ -1,21 +1,16 @@
 import logging
 import numpy as np
 import rasterio
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any
 
 from PyQt6 import QtCore, QtWidgets
-from PyQt6.QtCore import QEvent, pyqtSignal, QPointF, QRectF, Qt
-from PyQt6.QtGui import QPainter, QColor, QPolygonF
+from PyQt6.QtCore import pyqtSignal, QPointF, Qt
+from PyQt6.QtGui import QColor, QPolygonF
 from PyQt6.QtWidgets import QWidget
 import pyqtgraph as pg
 
-from scipy.spatial import ConvexHull
-from skimage.draw import polygon
-
-from varda.features.shared.selection_controls import StretchSelector, BandSelector
 from varda.features.image_view_roi.roi_drawing_manager import ROIDrawingManager
 from varda.gui.widgets.roi_selector import ROISelector
-from varda.core.entities.roi import ROI
 from .raster_viewmodel import RasterViewModel
 
 logger = logging.getLogger(__name__)

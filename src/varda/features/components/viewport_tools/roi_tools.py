@@ -12,9 +12,9 @@ from PyQt6.QtCore import pyqtSignal, QPointF, QRectF, Qt
 from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
 import varda
-from varda.core.entities import ROI
+from varda.common.entities import ROI
 from varda.features.components.protocols import Viewport, ViewportTool
-from varda.core import roi_utils, image_utils
+from varda.core import image_utils
 from varda.features.components.rois.varda_roi import VardaROIItem
 
 logger = logging.getLogger(__name__)

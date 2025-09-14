@@ -1,10 +1,10 @@
 import logging
 
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 
-from varda.core.entities import Image, Stretch, Band
+from varda.common.entities import Image, Stretch, Band
 from varda.features.components.protocols import Viewport, ViewportTool
 from varda.features.components.raster_view.image_region_item import (
     VardaImageItem,

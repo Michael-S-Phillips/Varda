@@ -7,7 +7,7 @@ from varda.project import ProjectContext
 # local imports
 import logging
 
-from varda.core.entities import Stretch
+from varda.common.entities import Stretch
 
 logger = logging.getLogger(__name__)
 

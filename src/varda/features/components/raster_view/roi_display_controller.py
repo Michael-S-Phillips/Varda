@@ -3,7 +3,7 @@ from typing import Dict, List, Optional, Any
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer, QRectF
 
 from varda.features.components.rois.varda_roi import VardaROIItem
-from varda.core.entities import ROI
+from varda.common.entities import ROI
 
 logger = logging.getLogger(__name__)
 

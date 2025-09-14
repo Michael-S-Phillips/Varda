@@ -7,7 +7,7 @@ from typing import Protocol
 import pyqtgraph as pg
 from PyQt6.QtCore import pyqtSignal
 
-from varda.core.entities import Image
+from varda.common.entities import Image
 from varda.features.components.raster_view import VardaImageItem
 
 

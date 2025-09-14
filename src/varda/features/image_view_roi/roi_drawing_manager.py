@@ -5,15 +5,14 @@ Manages ROI drawing operations, integrates with RasterView, and handles coordina
 """
 
 import logging
-from typing import List, Dict, Optional, Tuple
 import numpy as np
 
-from PyQt6.QtCore import Qt, QObject, pyqtSignal, QPointF, QTimer
-from PyQt6.QtWidgets import QMenu, QToolBar, QLabel
+from PyQt6.QtCore import Qt, QObject, pyqtSignal
+from PyQt6.QtWidgets import QToolBar, QLabel
 from PyQt6.QtGui import QAction
 
 from varda.gui.widgets.roi_selector import ROISelector, ROIMode
-from varda.core.entities.roi import ROI
+from varda.common.entities.roi import ROI
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ import logging
 
 from skimage import exposure
 
-from varda.core.entities import Stretch, Band
+from varda.common.entities import Stretch, Band
 
 logger = logging.getLogger(__name__)
 

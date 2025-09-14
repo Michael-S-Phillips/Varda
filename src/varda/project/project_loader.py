@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 from varda.project.project_io import ProjectIO
 from varda.image_loading import ImageLoadingService
-from varda.core.entities import Project
+from varda.common.entities import Project
 from varda.gui.widgets import FileInputDialog
 
 logger = logging.getLogger(__name__)

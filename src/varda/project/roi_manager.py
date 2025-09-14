@@ -1,11 +1,10 @@
 import logging
-import numpy as np
-from typing import Dict, List, Tuple, Optional, Any, Set
+from typing import Dict, List, Optional
 import uuid
 
 from PyQt6.QtCore import pyqtSignal, QObject
 
-from varda.core.entities.roi import ROI, ROICustomData
+from varda.common.entities.roi import ROI
 
 logger = logging.getLogger(__name__)
 
