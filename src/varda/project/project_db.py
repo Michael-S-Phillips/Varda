@@ -26,13 +26,8 @@ class ProjectDB:
             """
             CREATE TABLE stretches (
                 id INTEGER PRIMARY KEY,
-                name TEXT,
-                minR REAL,
-                maxR REAL,
-                minG REAL,
-                maxG REAL,
-                minB REAL,
-                maxB REAL
+                type TEXT,
+                params TEXT,
             )"""
         )
         self.cursor.execute(

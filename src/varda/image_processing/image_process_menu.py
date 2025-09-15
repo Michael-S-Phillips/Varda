@@ -1,9 +1,9 @@
 from PyQt6.QtWidgets import QMenu
 from PyQt6.QtGui import QAction
-from PyQt6.QtCore import pyqtSignal, QObject
+from PyQt6.QtCore import QObject
 
 import varda
-from varda.app.process_controls.processdialog import ProcessDialog
+from varda.image_processing.process_controls.processdialog import ProcessDialog
 
 
 class ImageProcessMenuSystem(QObject):

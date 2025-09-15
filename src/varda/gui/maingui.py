@@ -8,12 +8,11 @@ from PyQt6.QtCore import Qt, pyqtSlot
 
 from varda.project import ProjectContext
 
-# from varda.core.ui import ControlPanel
 from varda.features.image_view_raster.raster_view import RasterView
 from varda.features.workspaces import GeneralImageAnalysisWorkflow
 from varda.gui.widgets import StatusBar, MainMenuBar
-from varda.app.process_controls.processingmenu import ProcessingMenu
-from varda.app.process_controls.processdialog import ProcessDialog
+from varda.image_processing.process_controls.processingmenu import ProcessingMenu
+from varda.image_processing.process_controls.processdialog import ProcessDialog
 from varda.features.dual_image_view.dual_image_view import DualImageView
 from varda.features.dual_image_view.dual_image_types import DualImageMode
 from varda.features import (

@@ -43,9 +43,9 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         self._vb.keyPressEvent = lambda event: None
         self._gv = pg.GraphicsView()
         self._gv.setCentralItem(self._vb)
-        self.layout = QVBoxLayout(self)
-        self.layout.addWidget(self._gv)
-        self.setLayout(self.layout)
+        layout = QVBoxLayout(self)
+        layout.addWidget(self._gv)
+        self.setLayout(layout)
 
         self.imageItem.sigImageChanged.connect(self.sigImageChanged)
 
@@ -87,7 +87,7 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
 
     def addToolBar(self, toolbar):
         """Add a toolbar to the viewport."""
-        self.layout.addWidget(toolbar)
+        self.layout().addWidget(toolbar)
 
     @property
     def imageEntity(self) -> Image:

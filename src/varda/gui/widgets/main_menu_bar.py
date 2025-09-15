@@ -1,8 +1,6 @@
 # standard library
 import logging
 
-import numpy as np
-
 # third party imports
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtCore import Qt
@@ -113,7 +111,7 @@ class MainMenuBar(QMenuBar):
 
     def _initProcessMenu(self):
         # Import the image process menu system
-        from varda.gui.widgets.image_process_menu import MainMenuBarExtension
+        from varda.image_processing.image_process_menu import MainMenuBarExtension
 
         # Use the extension to add the process menu
         processMenu = MainMenuBarExtension.addProcessMenuToMainMenuBar(self)

@@ -25,10 +25,10 @@ from PyQt6.QtWidgets import (
 # local imports
 from varda.project import ProjectContext
 from varda.common.entities import Stretch
-from varda.features.components.stretch_management_and_histogram.histogram_view import (
+from varda.image_rendering.stretch_management_and_histogram.histogram_view import (
     getHistogramView,
 )
-from varda.features.components.stretch_management_and_histogram.stretch_preset_generator import (
+from varda.image_rendering.stretch_management_and_histogram.stretch_preset_generator import (
     StretchPresetSelector,
 )
 

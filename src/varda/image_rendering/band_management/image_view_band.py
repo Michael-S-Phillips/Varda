@@ -6,8 +6,8 @@ Usage example:
     band_view = getBandView(proj, index, parent)
 """
 
-from varda.features.components.band_management.band_viewmodel import BandViewModel
-from varda.features.components.band_management.band_view import BandView
+from varda.image_rendering.band_management.band_viewmodel import BandViewModel
+from varda.image_rendering.band_management.band_view import BandView
 
 
 def getBandView(proj, index, parent):

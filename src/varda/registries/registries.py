@@ -8,7 +8,7 @@ from typing import override
 from PyQt6.QtCore import pyqtSignal, QObject
 from PyQt6.QtWidgets import QWidget
 
-from varda.app.protocols import ImageProcess
+from varda.image_processing.image_processing_protocol import ImageProcess
 
 logger = logging.getLogger(__name__)
 
@@ -95,37 +95,6 @@ class WidgetRegistry(BaseRegistry):
         Check if the item is a valid widget for registration.
         """
         return issubclass(item, QWidget)
-
-
-# class ImageLoaderRegistry(BaseRegistry):
-#     """
-#     Registry for image loaders that can be used to load images in the application.
-#     """
-#
-#     def __init__(self):
-#         super().__init__()
-#         self.registerBuiltInLoaders()
-#
-#     def registerBuiltInLoaders(self):
-#         """Register all built-in image loaders."""
-#         self[ENVIImageLoader.__name__] = ENVIImageLoader
-#         self[HDF5ImageLoader.__name__] = HDF5ImageLoader
-#         self[TIFFImageLoader.__name__] = TIFFImageLoader
-#         self[PillowImageLoader.__name__] = PillowImageLoader
-#
-#     @override
-#     def _itemIsValid(self, item):
-#         """
-#         Check if the item is a valid image loader for registration.
-#         """
-#         return isinstance(item, ImageLoader)
-#
-#     def getFileExtensions(self):
-#         """Get a list of all supported file extensions from registered loaders."""
-#         extensions = []
-#         for loader in self.registryItems.values():
-#             extensions.extend(loader.imageType)
-#         return list(set(extensions))
 
 
 class ImageProcessRegistry(BaseRegistry):

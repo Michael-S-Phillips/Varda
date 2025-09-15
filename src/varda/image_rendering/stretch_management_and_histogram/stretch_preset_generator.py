@@ -12,6 +12,9 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.core.stretch_utils import StretchPresets
+from varda.image_rendering.stretch_management_and_histogram.stretch_algorithms import (
+    stretchAlgorithmRegistry,
+)
 
 logger = logging.getLogger(__name__)
 

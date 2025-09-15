@@ -14,8 +14,8 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from varda.project import ProjectContext
 from varda.common.entities import Band, Stretch
 from varda.features.image_view_roi import getROIView
-from varda.features.components.band_management.band_manager import BandManager
-from varda.features.components.stretch_management_and_histogram.stretch_manager import (
+from varda.image_rendering.band_management.band_manager import BandManager
+from varda.image_rendering.stretch_management_and_histogram import (
     StretchManager,
 )
 from varda.features.components.metadata_management.metadata_editor import MetadataEditor

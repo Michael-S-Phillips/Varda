@@ -3,8 +3,7 @@ import logging
 from varda.project.project_context import ProjectContext
 from varda.project.project_io import ProjectJsonIO
 from varda.plugins.plugin_manager import VardaPluginManager
-from varda.infra.registry import VardaRegistries
-
+from varda.registries.registries import VardaRegistries
 
 logger = logging.getLogger(__name__)
 
@@ -23,5 +22,5 @@ class VardaSessionContext:
         self.proj = ProjectContext(io=self.projectIO)
 
         # Initialize other components
-        self.registry = VardaRegistries()
         self.pm = VardaPluginManager()
+        self.registry = VardaRegistries()
