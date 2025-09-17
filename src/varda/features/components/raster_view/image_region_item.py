@@ -4,6 +4,7 @@ import logging
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import QPointF
+from PyQt6.QtGui import QTransform
 
 from varda.features.components.rois.varda_roi import VardaROIItem
 from varda.core import roi_utils, image_utils
@@ -42,7 +43,9 @@ class VardaImageItem(pg.ImageItem):
         self._regionalData = None
         self._coordinateTransform = None
         self._isShowingRegion = False
-
+        # Base/world transform from image affine and the current composed QTransform
+        self._baseQTransform = self._buildImageQTransformFromAffine()
+        self._qtransform = QTransform(self._baseQTransform)
         # Update the display
         self.refresh()
 
@@ -57,6 +60,7 @@ class VardaImageItem(pg.ImageItem):
         self._roi = None
         self._coordinateTransform = None
         self._isShowingRegion = False
+        self._qtransform = QTransform(self._baseQTransform)
         self.refresh()
 
     def setBand(self, band: Band, update=True):
@@ -75,7 +79,7 @@ class VardaImageItem(pg.ImageItem):
         """Refresh the image display with current settings."""
         self._updateImage()
 
-    def localToImage(self, point) -> QPointF:
+    def localToImage(self, point):
         """Convert local coordinates to full image coordinates.
         Note that this does not protect against points outside the image bounds.
         """
@@ -128,7 +132,51 @@ class VardaImageItem(pg.ImageItem):
     def _updateImage(self):
         """Update the displayed image data."""
         self._calculateRegionalData()
+        # self._updateQTransform()
         self.setImage(self._regionalData, levels=self._stretch.toList())
+
+    def _buildImageQTransformFromAffine(self) -> QTransform:
+        """Build a QTransform from the image's affine (pixel -> world)."""
+        affine = self._imageEntity.metadata.transform
+
+        # Map: X = a*x + b*y + c; Y = d*x + e*y + f
+        return QTransform(
+            affine.a,
+            affine.d,
+            affine.b,
+            affine.e,
+            affine.c,
+            affine.f,
+        )
+
+    def _buildRegionQTransform(self) -> QTransform:
+        """
+        Build a QTransform that maps local ROI coords (x=col, y=row) -> global image pixel coords.
+        Requires self._coordinateTransform to be present.
+        """
+
+        # RegionCoordinateTransform stores origin (row,col) and basis vectors vx, vy in (row,col)
+        origin = np.asarray(self._coordinateTransform.origin)
+        vx = np.asarray(self._coordinateTransform.vx)
+        vy = np.asarray(self._coordinateTransform.vy)
+
+        # x_global = vy[1]*x_local + vx[1]*y_local + origin[1]
+        # y_global = vy[0]*x_local + vx[0]*y_local + origin[0]
+        return QTransform(
+            vy[1], vy[0], 0.0, vx[1], vx[0], 0.0, origin[1], origin[0], 1.0
+        )
+
+    def _updateQTransform(self):
+        """Update composed QTransform to account for current regional state."""
+        self._baseQTransform = self._buildImageQTransformFromAffine()
+        if self._isShowingRegion and self._coordinateTransform is not None:
+            regionT = self._buildRegionQTransform()
+            # Compose: worldT ∘ regionT
+            self._qtransform = self._baseQTransform * regionT
+        else:
+            self._qtransform = QTransform(self._baseQTransform)
+        # Apply to the item
+        self.setTransform(self._qtransform)
 
     def _calculateRegionalData(self):
         """Get the current regional data being displayed."""
