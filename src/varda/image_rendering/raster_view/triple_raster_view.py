@@ -53,14 +53,19 @@ class TripleRasterView(QWidget):
 
         # Create ROIs
         self.roi1 = VardaROIItem.rectROI(
-            (50, 50),
+            self.viewport1.imageItem.localToImage((50, 50)),
             (100, 100),
             self.imageIndex,
             QColor(255, 0, 0, 0),
             aspectLocked=True,
         )
+        startPoint = self.viewport2.imageItem.localToImage((25, 25))
         self.roi2 = VardaROIItem.rectROI(
-            (25, 25), (50, 50), self.imageIndex, QColor(255, 0, 0, 0), aspectLocked=True
+            self.viewport2.imageItem.localToImage((25, 25)),
+            (50, 50),
+            self.imageIndex,
+            QColor(255, 0, 0, 0),
+            aspectLocked=True,
         )
 
         self.mainController = RegionController(
