@@ -9,6 +9,7 @@ import logging
 # third party imports
 import h5py
 import numpy as np
+import rasterio as rio
 
 # local imports
 from varda.common.entities import Metadata
@@ -36,6 +37,16 @@ class HDF5ImageLoader(ImageLoaderProtocol):
             np.ndarray: The raster data
         """
         timeStarted = time.time()
+        # try:
+        #     with rio.open(filePath) as src:
+        #         try:
+        #             data = src.read()
+        #         except Exception as e:
+        #             logger.error(
+        #                 f"Error reading raster data using rasterio from {filePath}: {e}"
+        #             )
+        # except Exception as e:
+        #     logger.error(f"Error opening raster file using rasterio for reading: {e}")
 
         try:
             with h5py.File(filePath, "r") as hdf:

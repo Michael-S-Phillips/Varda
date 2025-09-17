@@ -1,6 +1,3 @@
-import numpy as np
-
-
 class ImageLayer:
     def __init__(self):
         self.image = None
@@ -8,7 +5,7 @@ class ImageLayer:
         self.band = None
         self.stretch = None
 
-    def render(self):
+    def renderTexture(self):
         """
         Render the image with the current band and stretch settings.
         Returns: numpy ndarray with shape (height, width, 3) representing an RGB image.
@@ -18,9 +15,13 @@ class ImageLayer:
             raise ValueError("Image, band, and stretch must be set before rendering.")
 
         # Extract the raster data for the specified band
-        rgb_image = self.band.apply(self.image.raster)
+        rgb_data = self.band.apply(self.image)
+
+        # TODO: handle nans/nodata values
 
         # Apply the stretch to the raster data
-        rgb_image = self.stretch.apply(rgb_image)
+        rgb_data = self.stretch.apply(rgb_data)
 
-        return rgb_image
+        # TODO: handle color mapping
+
+        return rgb_data

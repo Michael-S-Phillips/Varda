@@ -4,12 +4,25 @@ import logging
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import QPointF
+from PyQt6.QtGui import QTransform
+from affine import Affine
 
 from varda.features.components.rois.varda_roi import VardaROIItem
 from varda.core import roi_utils, image_utils
 from varda.common.entities import Image, Band, Stretch
 
 logger = logging.getLogger(__name__)
+
+
+def affine_to_qtransform(affine: Affine) -> QTransform:
+    return QTransform(
+        affine.a,
+        affine.d,  # m11, m21
+        affine.b,
+        affine.e,  # m12, m22
+        affine.c,
+        affine.f,  # dx, dy
+    )
 
 
 class VardaImageItem(pg.ImageItem):
@@ -124,6 +137,10 @@ class VardaImageItem(pg.ImageItem):
 
         converted = self._coordinateTransform.globalToLocal(pointsList)
         return QPointF(pg.Point(converted))
+
+    def getTransform(self):
+        """Get the affine transform for the current region."""
+        return affine_to_qtransform(self.imageEntity.metadata.transform)
 
     def _updateImage(self):
         """Update the displayed image data."""

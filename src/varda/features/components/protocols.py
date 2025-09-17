@@ -7,7 +7,7 @@ from PyQt6.QtGui import QKeyEvent, QIcon, QAction, QCursor
 from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
 from varda.common.entities import Image
-from varda.features.components.raster_view import VardaImageItem
+from varda.image_rendering.raster_view import VardaImageItem
 
 logger = logging.getLogger(__name__)
 

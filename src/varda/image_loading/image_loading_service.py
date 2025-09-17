@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
 )
 
-from varda.common.entities import GeoReferencer
+from varda.common.entities.geo_referencer import GeoReferencer
 from .protocols import ImageLoaderProtocol
 
 # TODO: Update these imports when loaders are moved
@@ -440,10 +440,13 @@ class ImageLoadingService:
             tuple: (raster, metadata) on success, or (None, None) on failure
         """
         result = (None, None)
+        isComplete = False
 
         def onSuccess(raster, metadata):
             nonlocal result
+            nonlocal isComplete
             result = (raster, metadata)
+            isComplete = True
 
         def onFailure(error_msg):
             logger.error(f"Sync loading failed: {error_msg}")
@@ -454,7 +457,7 @@ class ImageLoadingService:
         import time
 
         timeout = time.time() + self.loadTimeoutMs / 1000
-        while result == (None, None) and time.time() < timeout:
+        while not isComplete and time.time() < timeout:
             time.sleep(0.1)
 
         return result

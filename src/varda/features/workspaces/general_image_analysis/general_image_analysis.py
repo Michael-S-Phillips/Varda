@@ -17,15 +17,15 @@ from PyQt6.QtCore import Qt, pyqtSignal
 import varda
 from varda.image_rendering.band_management.band_manager import BandManager
 from varda.features.components.metadata_management.metadata_editor import MetadataEditor
-from varda.features.components.raster_view.roi_display_controller import (
+from varda.image_rendering.raster_view import (
     ROIDisplayController,
 )
 from varda.features.components.rois.roi_manager_widget import ROIManagerWidget
-from varda.image_rendering.stretch_management_and_histogram import (
+from varda.image_rendering.stretch_management_and_histogram.stretch_manager import (
     StretchManager,
 )
 from varda.features.image_view_roi import getROIView
-from varda.features.components.raster_view import TripleRasterView
+from varda.image_rendering.raster_view import TripleRasterView
 from varda.features.components.viewport_tools.tool_manager import (
     ToolManager,
 )

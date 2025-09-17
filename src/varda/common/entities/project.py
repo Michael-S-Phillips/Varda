@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 import uuid
 
-from varda.project.roi_manager import ROIManager
 from varda.common.entities import ROI
 from varda.common.entities import Image, Metadata, Stretch, Band
 
@@ -294,10 +293,10 @@ class Project:
                 index=i,
             )
             images.append(image)
-
-        if "roiManager" in data:
-            roiManager = ROIManager.deserialize(data["roiManager"])
-        else:
-            roiManager = ROIManager()
-
-        return cls(path=path, images=images, roiManager=roiManager)
+        #
+        # if "roiManager" in data:
+        #     roiManager = ROIManager.deserialize(data["roiManager"])
+        # else:
+        #     roiManager = ROIManager()
+        #
+        # return cls(path=path, images=images, roiManager=roiManager)

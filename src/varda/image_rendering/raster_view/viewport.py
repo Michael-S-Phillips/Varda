@@ -6,7 +6,7 @@ import pyqtgraph as pg
 
 from varda.common.entities import Image, Stretch, Band
 from varda.features.components.protocols import Viewport, ViewportTool
-from varda.features.components.raster_view.image_region_item import (
+from varda.image_rendering.raster_view.image_region_item import (
     VardaImageItem,
 )
 

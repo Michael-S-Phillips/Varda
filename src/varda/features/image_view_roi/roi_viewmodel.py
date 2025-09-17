@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import QMessageBox
 
 from varda.core.roi_utils import ROIStatistics
 from varda.project import ProjectContext
-from varda.features.components.raster_view.roi_display_controller import (
+from varda.image_rendering.raster_view import (
     ROIDisplayController,
 )
 

@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter, QPushButton
 
 import varda.app
 from varda.core.roi_utils import ROIStatistics
-from varda.features.components.raster_view.roi_display_controller import (
+from varda.image_rendering.raster_view import (
     ROIDisplayController,
 )
 from varda.features.components.rois.roi_property_editor import ROIPropertyEditor

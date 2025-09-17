@@ -6,6 +6,9 @@ ENVI Image Loader implementation.
 import time
 import logging
 import os
+from pathlib import Path
+
+import appdirs
 
 # third party imports
 import numpy as np
@@ -24,6 +27,14 @@ logger = logging.getLogger(__name__)
 @registerImageLoader("ENVI Image", (".hdr", ".img"))
 class ENVIImageLoader(ImageLoaderProtocol):
     """Implementation of ImageLoader for ENVI Images"""
+
+    @staticmethod
+    def loadDataset(filepath):
+        src = rio.open(filepath)
+        cachedFileLocation = Path(appdirs.user_cache_dir()) / filepath.name
+        out = rio.open(cachedFileLocation, "w")
+        out.write(src.read())
+        return out
 
     @staticmethod
     def loadRasterData(filePath, loading_mode="full") -> np.ndarray:
