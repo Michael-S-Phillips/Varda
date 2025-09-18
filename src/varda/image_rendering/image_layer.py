@@ -5,7 +5,7 @@ class ImageLayer:
         self.band = None
         self.stretch = None
 
-    def renderTexture(self):
+    def render(self):
         """
         Render the image with the current band and stretch settings.
         Returns: numpy ndarray with shape (height, width, 3) representing an RGB image.

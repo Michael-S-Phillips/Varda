@@ -5,7 +5,8 @@ import uuid
 from enum import Enum
 from typing import Dict, Optional, Any
 import logging
-import rasterio.transform
+
+import geopandas as gpd
 from PyQt6.QtGui import QColor
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ class ROI:
         customData: Custom user-defined data associated with the ROI
     """
 
+    gdf: Optional[gpd.GeoDataFrame] = field(default_factory=lambda: gpd.GeoDataFrame())
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = "Unnamed ROI"
     mode: ROIMode = ROIMode.FREEHAND
