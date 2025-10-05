@@ -1,12 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from PyInstaller.utils.hooks import collect_submodules
 
 a = Analysis(
-    ['Varda\\main.py'],
-    pathex=['.venv/Lib/site-packages'],
+    ['src/varda/main.py'],
+    pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=collect_submodules('rasterio'),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -21,7 +22,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='main',
+    name='Varda',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -40,5 +41,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='main',
+    name='Varda',
 )

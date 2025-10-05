@@ -4,6 +4,7 @@ Plugin manager for the Varda application.
 
 import importlib
 import logging
+import sys
 from pathlib import Path
 
 from pluggy import PluginManager
@@ -32,6 +33,9 @@ class VardaPluginManager:
         self._registerPluginsInFolder(pluginFolder)
 
     def _registerPluginsInFolder(self, pluginFolder):
+        if getattr(sys, "frozen", True):
+            logger.info(f"Skipping plugin load")
+            return
         for name in pluginFolder.iterdir():
             logger.debug(f"Checking plugin {name}")
             name = name.name

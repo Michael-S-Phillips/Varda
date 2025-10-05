@@ -13,6 +13,8 @@ from PyQt6.QtWidgets import (
     QTabWidget,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+import pyqtgraph as pg
+from pyqtgraph.dockarea import DockArea, Dock
 
 import varda
 from varda.image_rendering.band_management.band_manager import BandManager
@@ -68,7 +70,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # Initialize UI and connections
         self._initComponents()
         self._initUI()
-        self._setupDocks()
         self._connectSignals()
 
         self.showMaximized()
@@ -121,37 +122,61 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         """Initialize the user interface for the workflow"""
         self.setWindowTitle(f"General Image Analysis - Image {self.imageIndex}")
 
+        self._setupDocks()
         # Set the raster view as the central widget
-        self.setCentralWidget(self.tripleRasterView)
+        #self.setCentralWidget(self.tripleRasterView)
 
         self.setStatusBar(QStatusBar(self))
 
     def _setupDocks(self):
         """Setup all of the dock widgets for the workflow. This is most of the viewport_tools"""
+        dockArea = DockArea(self)
+        self.setCentralWidget(dockArea)
         docks = []
         loc = Qt.DockWidgetArea.LeftDockWidgetArea
-        bandDock = VardaDockWidget("Band Manager", self.bandManager, loc, self)
-        docks.append(bandDock)
 
-        stretchDock = VardaDockWidget("Stretch Manager", self.stretchManager, loc, self)
-        docks.append(stretchDock)
+        rasterDock = Dock("Raster Dock", widget=self.tripleRasterView)
+        docks.append(rasterDock)
+        bandDockNew = Dock("Band Dock", widget=self.bandManager)
+        docks.append(bandDockNew)
+        #bandDock = VardaDockWidget("Band Manager", self.bandManager, loc, self)
+        #docks.append(bandDock)
 
-        metadataDock = VardaDockWidget("Metadata", self.metadataEditor, loc, self)
-        docks.append(metadataDock)
+        stretchDockNew = Dock("Stretch Dock", widget=self.stretchManager)
+        docks.append(stretchDockNew)
+        #stretchDock = VardaDockWidget("Stretch Manager", self.stretchManager, loc, self)
+        #docks.append(stretchDock)
 
-        roiDock = VardaDockWidget("ROI Manager", self.roiManager, loc, self)
-        docks.append(roiDock)
+        metadataDockNew = Dock("Metadata Dock", widget=self.metadataEditor)
+        docks.append(metadataDockNew)
+        #metadataDock = VardaDockWidget("Metadata", self.metadataEditor, loc, self)
+        #docks.append(metadataDock)
 
-        oldRoiDock = VardaDockWidget("Old ROI View", self.oldRoiView, loc, self)
-        docks.append(oldRoiDock)
+        roiDockNew = Dock("ROI Dock", widget=self.roiManager)
+        docks.append(roiDockNew)
+        #roiDock = VardaDockWidget("ROI Manager", self.roiManager, loc, self)
+        #docks.append(roiDock)
+
+        oldRoiDockNew = Dock("Old ROI Dock", widget=self.oldRoiView)
+        docks.append(oldRoiDockNew)
+        #oldRoiDock = VardaDockWidget("Old ROI View", self.oldRoiView, loc, self)
+        #docks.append(oldRoiDock)
 
         # stack docks
-        self.tabifyDockWidget(bandDock, stretchDock)
-        self.tabifyDockWidget(stretchDock, roiDock)
-        self.tabifyDockWidget(roiDock, metadataDock)
-        self.setTabPosition(
-            Qt.DockWidgetArea.AllDockWidgetAreas, QTabWidget.TabPosition.North
-        )
+        #self.tabifyDockWidget(bandDock, stretchDock)
+        #self.tabifyDockWidget(stretchDock, roiDock)
+        #self.tabifyDockWidget(roiDock, metadataDock)
+        #self.setTabPosition(
+        #    Qt.DockWidgetArea.AllDockWidgetAreas, QTabWidget.TabPosition.North
+        #)
+        dockArea.addDock(rasterDock, "right")
+        dockArea.addDock(bandDockNew, "left")
+        dockArea.addDock(stretchDockNew, "below", bandDockNew)
+        dockArea.addDock(metadataDockNew, "below", stretchDockNew)
+        dockArea.addDock(roiDockNew, "below", metadataDockNew)
+        dockArea.addDock(oldRoiDockNew, "below", roiDockNew)
+
+
 
     def _connectSignals(self):
         """Connect signals between workflow components"""

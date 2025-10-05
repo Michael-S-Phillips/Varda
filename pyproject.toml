@@ -27,7 +27,7 @@ dependencies = [
     "appdirs~=1.4.4",
     "geopandas~=1.1.1",
     "pydantic~=2.11.7",
-     "numpydantic~=1.6.11"
+    "numpydantic~=1.6.11"
 ]
 
 [project.optional-dependencies]
