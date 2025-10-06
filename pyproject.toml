@@ -27,12 +27,8 @@ dependencies = [
     "appdirs~=1.4.4",
     "geopandas~=1.1.1",
     "pydantic~=2.11.7",
-    "numpydantic~=1.6.11"
+    "numpydantic~=1.6.11",
 ]
-
-[project.optional-dependencies]
-dev = ["pytest", "pylint", "black"]
-
 
 [build-system]
 requires = ["setuptools"]
@@ -47,5 +43,12 @@ varda = "varda.main:main"
 [tool.pytest.ini_options]
 pythonpath = ["varda"]
 testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "black>=25.9.0",
+    "mypy>=1.18.2",
+    "pytest>=8.4.2",
+]
 
 

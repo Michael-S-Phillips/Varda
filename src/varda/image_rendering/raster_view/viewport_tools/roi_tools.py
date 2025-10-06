@@ -13,7 +13,8 @@ from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
 import varda
 from varda.common.entities import ROI
-from varda.features.components.protocols import Viewport, ViewportTool
+from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
+from varda.image_rendering.raster_view.protocols import Viewport
 from varda.core import image_utils
 from varda.features.components.rois.varda_roi import VardaROIItem
 

@@ -1,7 +1,7 @@
 from typing import Protocol
 
 import numpy as np
-
+from pyqtgraph.parametertree import Parameter
 from varda.common.parameter import IntParameter
 
 
@@ -66,6 +66,7 @@ class MinMaxStretch(StretchAlgorithm):
 class LinearPercentileStretch(StretchAlgorithm):
     def __init__(self):
         super().__init__()
+        # self.lowPercent = Parameter.create("Low Percent", )
         self.lowPercent = IntParameter("Low Percent", "%", [0, 100], 1)
         self.highPercent = IntParameter("High Percent", "%", [0, 100], 1)
 

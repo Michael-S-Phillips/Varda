@@ -6,9 +6,9 @@ A registry for managing available viewport tools.
 
 from typing import Dict, List, Type, Set
 
-from varda.features.components.protocols import ViewportTool
-from varda.features.components.viewport_tools.pixel_select_tool import PixelSelectTool
-from varda.features.components.viewport_tools.roi_tools import (
+from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
+from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import PixelSelectTool
+from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
     FreehandROITool,
     RectangleROITool,
     EllipseROITool,

@@ -22,6 +22,7 @@ class ProjectDB:
             );
         """
         )
+
         self.cursor.execute(
             """
             CREATE TABLE stretches (

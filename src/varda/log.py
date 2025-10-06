@@ -2,24 +2,24 @@ import logging
 import sys
 
 
-def info(msg, *args):
-    logging.getLogger(_getCallerName(1)).info(msg, *args)
+def info(msg, *args, **kwargs):
+    logging.getLogger(_getCallerName()).info(msg, *args, **kwargs)
 
 
-def debug(msg, *args):
-    logging.getLogger(_getCallerName(1)).debug(msg, *args)
+def debug(msg, *args, **kwargs):
+    logging.getLogger(_getCallerName()).debug(msg, *args, **kwargs)
 
 
-def warning(msg, *args):
-    logging.getLogger(_getCallerName(1)).warning(msg, *args)
+def warning(msg, *args, **kwargs):
+    logging.getLogger(_getCallerName()).warning(msg, *args, **kwargs)
 
 
-def error(msg, *args):
-    logging.getLogger(_getCallerName(1)).error(msg, *args)
+def error(msg, *args, **kwargs):
+    logging.getLogger(_getCallerName()).error(msg, *args, **kwargs)
 
 
-def critical(msg, *args):
-    logging.getLogger(_getCallerName(1)).critical(msg, *args)
+def critical(msg, *args, **kwargs):
+    logging.getLogger(_getCallerName()).critical(msg, *args, **kwargs)
 
 
 def _getCallerName(depth: int = 1) -> str | None:

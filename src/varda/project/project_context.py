@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 import numpy as np
+from varda.common.image_repository import ImageRepository
 
 from varda.project.project_io import ProjectIO
 from varda.project.project_loader import ProjectLoader
@@ -58,6 +59,7 @@ class ProjectContext(QObject):
     def __init__(self, io: ProjectIO):
         super().__init__()
         self._projectData = Project()
+        self.imageRepository = ImageRepository()
         self._images: List[Image] = []
         self.isSaved: bool = True
         self._imageLoadingService = ImageLoadingService()
@@ -247,6 +249,7 @@ class ProjectContext(QObject):
         Returns:
             int: The index of the newly loaded image, or None if loading failed.
         """
+        self.imageRepository.newImage(path)
         self._imageLoadingService.loadImageData(path, self.createImage)
 
     def createImage(

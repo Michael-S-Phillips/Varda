@@ -5,7 +5,8 @@ from PyQt6.QtCore import Qt, pyqtSignal, QPointF
 import pyqtgraph as pg
 from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
-from varda.features.components.protocols import Viewport, ViewportTool
+from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
+from varda.image_rendering.raster_view.protocols import Viewport
 from varda.features.components.plotting.pixel_plot import PixelPlot
 
 logger = logging.getLogger(__name__)

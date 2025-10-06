@@ -6,4 +6,4 @@ class PropertiesPanel(QWidget):
     def __init__(self, continuousUpdates=True, parameters=None):
         super().__init__()
         self.form = QFormLayout
-        if parameters is not None:
+        self.parameters = parameters

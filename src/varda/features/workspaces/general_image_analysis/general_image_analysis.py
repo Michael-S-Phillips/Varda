@@ -28,9 +28,8 @@ from varda.image_rendering.stretch_management_and_histogram.stretch_manager impo
 )
 from varda.features.image_view_roi import getROIView
 from varda.image_rendering.raster_view import TripleRasterView
-from varda.features.components.viewport_tools.tool_manager import (
-    ToolManager,
-)
+from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
+
 from varda.gui.widgets.varda_dock_widget import VardaDockWidget
 
 logger = logging.getLogger(__name__)
