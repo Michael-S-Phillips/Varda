@@ -18,7 +18,8 @@ from varda.project.project_io import ProjectIO
 from varda.project.project_loader import ProjectLoader
 
 # local imports
-from varda.common.entities import Project, Image, Metadata, Band, Stretch, Plot
+from varda.common.entities import Image, Metadata, Band, Stretch, Plot
+from varda.project.project_entity import Project
 
 # TODO: Update these imports when components are moved
 from varda.image_loading import ImageLoadingService
