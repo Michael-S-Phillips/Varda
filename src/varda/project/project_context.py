@@ -250,7 +250,7 @@ class ProjectContext(QObject):
         Returns:
             int: The index of the newly loaded image, or None if loading failed.
         """
-        self.imageRepository.newImage(path)
+        # self.imageRepository.newImage(path)
         self._imageLoadingService.loadImageData(path, self.createImage)
 
     def createImage(

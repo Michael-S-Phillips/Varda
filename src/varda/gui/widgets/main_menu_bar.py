@@ -159,6 +159,20 @@ class MainMenuBar(QMenuBar):
 
         menu.addAction(action)
 
+    def registerAction(self, path: str, action: QAction):
+        """Register a QAction to be added to the main menu bar"""
+        pathElements = path.split("/")
+        menu = self
+        for item in pathElements[:-1]:
+            notFound = True
+            for child in menu.actions():
+                if child.text() == item:
+                    menu = child.menu()
+                    notFound = False
+            if notFound:
+                menu = menu.addMenu(item)
+        menu.addAction(action)
+
 
 class VectroscopyWidget(QWidget):
     """A simple widget for demonstrating a custom user plugin in Varda."""

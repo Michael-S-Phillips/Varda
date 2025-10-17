@@ -36,8 +36,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.proj = proj
         self.selectedImage = None
         self.imageList = None
-        # self.currControlPanel = None
-        # self.controlPanels: Dict[int, ControlPanel] = {}  # image index -> ControlPanel
         self.rasterViews: Dict[int, RasterView] = {}  # image index -> RasterView
         self.roiViews = {}
 
@@ -45,7 +43,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.childWindows = []  # List of all child windows/widgets we need to track
         self.pixelPlotWindows = []  # Track all pixel plot windows specifically
 
-        #  Dual image view support
+        # Dual image view support
         self.dualImageView: Optional[DualImageView] = None
         self.dualImageDock: Optional[QtWidgets.QDockWidget] = None
         self.initUI()
@@ -106,7 +104,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
         self.menuBar().sigOpenProcessingMenu.connect(self.openProcessingMenu)
 
-        # NEW: Connect dual image signals
+        # Connect dual image signals
         self.menuBar().sigOpenDualImageView.connect(self.openDualImageView)
         self.menuBar().sigLinkSelectedImages.connect(self.linkSelectedImages)
         self.menuBar().sigUnlinkSelectedImages.connect(self.unlinkSelectedImages)
@@ -129,27 +127,6 @@ class MainGUI(QtWidgets.QMainWindow):
         print(
             f"[DEBUG] Selected new image: {self.selectedImage.metadata.name} (index {self.selectedImage.index})"
         )
-
-        # Raster View
-        # rasterView = self.showRasterView(index)
-
-        # Control Panel
-        # if self.currControlPanel:
-        #     self.currControlPanel.tabsDock.hide()
-
-        # if index not in self.controlPanels:
-        #     panel = ControlPanel(self.proj, index, rasterView)
-        #     # panel.updateActiveImage(self.selectedImage.index)
-        #     self.controlPanels[index] = panel
-        #     self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, panel.tabsDock)
-        # else:
-        #     panel = self.controlPanels[index]
-        #
-        # # Update the active image display
-        # panel.updateActiveImage(index)
-        #
-        # self.currControlPanel = panel
-        # panel.tabsDock.show()
 
         # Update any open ROI views
         self.updateAllROIViews(index)

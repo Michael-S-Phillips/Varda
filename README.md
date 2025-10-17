@@ -17,7 +17,7 @@ be useful to you.
 ## Prerequisites:
 
 - Python 3.12+ installed
-- Git is installed on your computer, and you have [connected an ssh key to GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh)
+- Git is installed/setup on your computer
 
 ## Clone the Repository:
 
@@ -29,41 +29,15 @@ in your terminal, navigate to the directory you want to install the project in, 
 ```
 
 ## Setup Development environment:
+[Install the uv package manager:](https://docs.astral.sh/uv/) 
 
 ```bash
-python -m venv .venv       # Create the virtual environment
-source .venv/bin/activate  # Linux/Mac
-.venv\Scripts\activate     # Windows
-
-pip install -e .                    # This should install runtime dependencies and build the project in editable/development mode
-pip install -r requirements-dev.txt # For now, you may have to do this to manually install the development dependencies (pytest, pylint, black...)
+uv sync                    # Sets up environment and installs dependencies
 ```
 
 ## Run Varda:
-
 ```bash
-varda  # this is the command to start the program
-```
-
-## Run pytest (unit testing):
-
-```bash
-pytest tests/
+uv run varda
 # or...
-pytest
-```
-
-## Run Pylint (static code analyzer):
-
-```bash
-pylint src/
-```
-
-## Run Black (formatter):
-
-```bash
-# to simply check for formatting issues
-black --check src/
-# To actually apply formatting
-black src/
+varda
 ```
