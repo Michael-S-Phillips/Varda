@@ -15,7 +15,7 @@ from PyQt6 import QtCore
 from PyQt6.QtCore import Qt
 
 # local imports
-from varda.core.data import ProjectContext
+from varda.project import ProjectContext
 
 
 logger = logging.getLogger(__name__)

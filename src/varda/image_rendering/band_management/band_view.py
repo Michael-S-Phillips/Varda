@@ -1,0 +1,205 @@
+# standard library
+from typing import override, List, Tuple
+import logging
+
+# third-party imports
+import pyqtgraph as pg
+from PyQt6.QtWidgets import QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot, QSignalBlocker, pyqtSignal
+
+# local imports
+from .band_viewmodel import BandViewModel
+
+logger = logging.getLogger(__name__)
+
+
+class BandView(QWidget):
+    """A basic view for editing band configurations of an image. Cannot create new
+    parameters at the moment. only edit existing ones.
+    """
+
+    sigSliderChanged = pyqtSignal(float, float, float)
+
+    viewModel: BandViewModel
+    rBandSlider: pg.InfiniteLine
+    gBandSlider: pg.InfiniteLine
+    bBandSlider: pg.InfiniteLine
+    widgetHeight = 152
+    updateTimer: QTimer
+
+    def __init__(self, viewModel=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Band Editor")
+        # self.setMaximumHeight(self.widgetHeight)
+        self.viewModel = viewModel
+
+        self._initUI()
+        self._connectSignals()
+        self.show()
+
+    def _initUI(self):
+        # Create GraphicsLayout
+        graphicsLayout = pg.GraphicsLayout()
+        graphicsLayout.setContentsMargins(0, 0, 0, 0)
+        graphicsLayout.setSpacing(0)
+
+        # ViewBox setup
+        vbox = pg.ViewBox()
+        logger.debug(f"BandView: Setting ViewBox range to {self.viewModel.bounds}")
+        vbox.setRange(xRange=self.viewModel.bounds, yRange=(-1, 1))
+        vbox.setMaximumHeight(self.widgetHeight)
+        vbox.setMinimumHeight(45)
+        vbox.setMouseEnabled(x=False, y=False)
+        vbox.setAspectLocked(lock=False)
+        graphicsLayout.addItem(vbox, row=0, col=0)
+
+        # Axis setup
+        axis = pg.AxisItem(orientation="bottom")
+        axis.linkToView(vbox)
+        graphicsLayout.addItem(axis, row=1, col=0)
+
+        # Sliders setup
+        self.rBandSlider = pg.InfiniteLine(0, 90, "r", True, self.viewModel.bounds)
+        self.gBandSlider = pg.InfiniteLine(0, 90, "g", True, self.viewModel.bounds)
+        self.bBandSlider = pg.InfiniteLine(0, 90, "b", True, self.viewModel.bounds)
+
+        # initialize labels for each slider
+        self.rLabel = self.MyInfLineLabel(
+            self.viewModel, self.rBandSlider, "{value}", False, 0.5
+        )
+        self.gLabel = self.MyInfLineLabel(
+            self.viewModel, self.gBandSlider, "{value}", False, 0.5
+        )
+        self.bLabel = self.MyInfLineLabel(
+            self.viewModel, self.bBandSlider, "{value}", False, 0.5
+        )
+
+        # Add sliders to the ViewBox
+        vbox.addItem(self.rBandSlider)
+        vbox.addItem(self.gBandSlider)
+        vbox.addItem(self.bBandSlider)
+
+        # GraphicsView setup
+        view = pg.GraphicsView(parent=self)
+        view.setCentralItem(graphicsLayout)
+
+        # Layout setup
+        layout = QVBoxLayout()
+        layout.addWidget(view)
+        self.setLayout(layout)
+
+    def _connectSignals(self):
+        self.viewModel.sigBandChanged.connect(self._onBandChanged)
+        self.rBandSlider.sigPositionChanged.connect(
+            lambda: self._onSliderChanged(self.rBandSlider)
+        )
+        self.gBandSlider.sigPositionChanged.connect(
+            lambda: self._onSliderChanged(self.gBandSlider)
+        )
+        self.bBandSlider.sigPositionChanged.connect(
+            lambda: self._onSliderChanged(self.bBandSlider)
+        )
+
+        self.sigSliderChanged.connect(self.viewModel.updateBand)
+
+    @pyqtSlot(pg.InfiniteLine)
+    def _onSliderChanged(self, slider):
+        # snap slider to nearest wavelength value
+        index = self.viewModel.getIndexOfWavelength(slider.value())
+        if self.viewModel.wavelengthType is float:
+            finalVal = self.viewModel.getWavelengthAt(index)
+        else:
+            finalVal = index
+        # clamp slider to the range of the image wavelengths
+        minValue, maxValue = self.viewModel.bounds
+        logger.debug(f"minValue: {minValue} maxValue {maxValue}")
+        slider.setValue(max(min(finalVal, maxValue), minValue))
+
+        # update the bands
+        self.sigSliderChanged.emit(
+            self.rBandSlider.value(), self.gBandSlider.value(), self.bBandSlider.value()
+        )
+
+    @pyqtSlot(float, float, float)
+    def _onBandChanged(self, r, g, b):
+        logger.debug(f"BandView: Received band changed signal with r={r}, g={g}, b={b}")
+
+        with QSignalBlocker(self):
+            # Block signals temporarily to prevent recursive updates
+            # self.rBandSlider.blockSignals(True)
+            # self.gBandSlider.blockSignals(True)
+            # self.bBandSlider.blockSignals(True)
+
+            # The r, g, b values are already band indices, not wavelength values
+            # We need to convert them to the slider coordinate system
+            if self.viewModel.useWavelengthIndeces:
+                # If using wavelength indices, the values are already indices
+                r_slider_pos = int(r)
+                g_slider_pos = int(g)
+                b_slider_pos = int(b)
+            else:
+                # If using wavelength values, convert band indices to wavelength values for slider
+                r_slider_pos = self.viewModel.getWavelengthAt(int(r))
+                g_slider_pos = self.viewModel.getWavelengthAt(int(g))
+                b_slider_pos = self.viewModel.getWavelengthAt(int(b))
+
+            logger.debug(
+                f"BandView: Setting slider values to r={r_slider_pos}, g={g_slider_pos}, b={b_slider_pos}"
+            )
+
+            self.rBandSlider.setValue(r_slider_pos)
+            self.gBandSlider.setValue(g_slider_pos)
+            self.bBandSlider.setValue(b_slider_pos)
+
+            # Manually trigger label updates
+            # logger.debug("BandView: Manually triggering label updates")
+            # if hasattr(self, "rLabel"):
+            #     self.rLabel.valueChanged()
+            # if hasattr(self, "gLabel"):
+            #     self.gLabel.valueChanged()
+            # if hasattr(self, "bLabel"):
+            #     self.bLabel.valueChanged()
+
+            # # Force a repaint of the view to ensure visual update
+            # self.update()
+
+            logger.debug("BandView: Slider positions updated successfully")
+
+    # pylint: disable=abstract-method
+    class MyInfLineLabel(pg.InfLineLabel):
+        """Custom label for InfiniteLine, just so we can round the displayed value to an
+        integer"""
+
+        def __init__(self, viewModel, line, text, movable, position, **kwargs):
+            self.bandViewModel = viewModel
+            super().__init__(line, text, movable, position, **kwargs)
+
+        @override
+        def valueChanged(self):
+            if not self.isVisible():
+                return
+
+            try:
+                slider_position = self.line.value()
+                logger.debug(f"Label update: slider_position={slider_position}")
+                logger.debug(
+                    f"Label update: useWavelengthIndeces={self.bandViewModel.useWavelengthIndeces}"
+                )
+                logger.debug(
+                    f"Label update: wavelengthType={self.bandViewModel.wavelengthType}"
+                )
+
+                # Get the band index from the slider position
+                index = self.bandViewModel.getIndexOfWavelength(slider_position)
+                logger.debug(f"Label update: calculated band index={index}")
+
+                # Get the wavelength text at that band index
+                text = self.bandViewModel.getWavelengthAt(index)
+                logger.debug(f"Label update: wavelength text={text}")
+
+                self.setText(self.format.format(value=text))
+                self.updatePosition()
+            except (IndexError, ValueError) as e:
+                logger.error(f"Error updating label: {e}")
+                self.setText(self.format.format(value="N/A"))
+                self.updatePosition()

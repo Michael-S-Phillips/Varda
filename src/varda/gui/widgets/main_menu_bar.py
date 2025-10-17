@@ -2,12 +2,21 @@
 import logging
 
 # third party imports
-from PyQt6 import QtCore
+from PyQt6 import QtCore, QtWidgets
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeySequence, QAction
-from PyQt6.QtWidgets import QMenuBar, QMenu
+from PyQt6.QtWidgets import (
+    QMenuBar,
+    QMenu,
+    QWidget,
+    QPushButton,
+    QFormLayout,
+)
 
 # local imports
 import varda
+
+# from varda.plugins.user_plugins.examples import vectroscopy_lite
 
 logger = logging.getLogger(__name__)
 
@@ -92,16 +101,24 @@ class MainMenuBar(QMenuBar):
 
     def _initDebugMenu(self):
         debugMenu = QMenu("Debug", self)
-        # debugMenu.addAction("Load Debug Project", QKeySequence("F10"), self.sigLoadDebugProject)
+        debugMenu.addAction(
+            "Load Debug Project", QKeySequence("F10"), self.sigLoadDebugProject
+        )
         debugMenu.addAction(
             "Project Data Dump", QKeySequence("F12"), self.sigDumpProjectData
         )
         self.addMenu(debugMenu)
 
     def _initProcessMenu(self):
-        processMenu = QMenu("Process", self)
-        processMenu.addAction("Image Processing...", self.sigOpenProcessingMenu)
-        self.addMenu(processMenu)
+        # Import the image process menu system
+        from varda.image_processing.image_process_menu import MainMenuBarExtension
+
+        # Use the extension to add the process menu
+        processMenu = MainMenuBarExtension.addProcessMenuToMainMenuBar(self)
+
+        # Add the legacy action for backward compatibility
+        processMenu.addSeparator()
+        processMenu.addAction("Legacy Image Processing...", self.sigOpenProcessingMenu)
 
     def _initPluginMenu(self):
         # Get all plugin menus from the registry
@@ -114,6 +131,10 @@ class MainMenuBar(QMenuBar):
             action.triggered.connect(lambda: self.openWidget(widgetClass))
             pluginMenu.addAction(action)
             logger.debug(f"Added plugin menu item: {name}")
+
+        action = QAction("Vectroscopy Widget", self)
+        action.triggered.connect(lambda: self.openWidget(VectroscopyWidget))
+        pluginMenu.addAction(action)
         self.addMenu(pluginMenu)
 
     def openWidget(self, widgetClass):
@@ -121,3 +142,95 @@ class MainMenuBar(QMenuBar):
         logger.debug(f"Opening widget {widgetClass}")
         widget = widgetClass(self.parent())
         widget.show()
+
+    def registerAction(self, path: str, action):
+        """Register an action to be added to the main menu."""
+        pathElements = path.split("/")
+        menu = self
+        for item in pathElements[:-1]:
+            notFound = True
+            for child in menu.actions():
+                if child.text() == item:
+                    menu = child.menu()
+                    notFound = False
+                    break
+            if notFound:
+                menu = menu.addMenu(item)
+
+        menu.addAction(action)
+
+    def registerAction(self, path: str, action: QAction):
+        """Register a QAction to be added to the main menu bar"""
+        pathElements = path.split("/")
+        menu = self
+        for item in pathElements[:-1]:
+            notFound = True
+            for child in menu.actions():
+                if child.text() == item:
+                    menu = child.menu()
+                    notFound = False
+            if notFound:
+                menu = menu.addMenu(item)
+        menu.addAction(action)
+
+
+class VectroscopyWidget(QWidget):
+    """A simple widget for demonstrating a custom user plugin in Varda."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Vectroscopy Widget")
+        self.setMinimumSize(300, 200)
+        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+
+        layout = QFormLayout()
+        self.proj = varda.app.proj
+
+        # Add image selection combobox at the top
+        if self.proj:
+            # Create a label for the image selection
+            imageLabel = QtWidgets.QLabel("Select Image:")
+            imageLabel.setToolTip("Select the image")
+
+            # Create the combobox
+            self.image_combobox = QtWidgets.QComboBox()
+
+            # Get all images from the project
+            all_images = self.proj.getAllImages()
+
+            # Populate the combobox with image names
+            for i, img in enumerate(all_images):
+                name = img.metadata.name or f"Image {i}"
+                self.image_combobox.addItem(
+                    name, i
+                )  # Store the image index as user data
+
+            # Set the current image as the selected item if it exists
+            self.image_combobox.setCurrentIndex(0)
+
+            # Connect the combobox signal to update the selected image
+            self.image_combobox.currentIndexChanged.connect(self.updateSelectedImage)
+            self.updateSelectedImage()
+            # Add the combobox to the layout
+            layout.addRow(imageLabel, self.image_combobox)
+
+        self.button = QPushButton("start")
+        # self.button.clicked.connect(self.startVectroscopy)
+        layout.addRow(self.button)
+        self.setLayout(layout)
+
+    # def startVectroscopy(self):
+    #     array = self.image.raster.filled(np.nan)[:, :, 0]
+    #     threshold = ["95p"]
+    #     crs = self.image.metadata.crs
+    #     transform = self.image.metadata.transform
+    #     name = self.image.metadata.name
+    #
+    #     result = vectroscopy_lite.Vectroscopy.from_array(
+    #         array, threshold, crs, transform, name
+    #     )
+    #
+    #     print(result)
+    #
+    # def updateSelectedImage(self):
+    #     self.image = self.proj.getImage(self.image_combobox.currentIndex())

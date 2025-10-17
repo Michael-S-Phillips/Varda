@@ -1,5 +1,10 @@
+"""
+Plugin manager for the Varda application.
+"""
+
 import importlib
 import logging
+import sys
 from pathlib import Path
 
 from pluggy import PluginManager
@@ -24,10 +29,13 @@ class VardaPluginManager:
         # load plugins from local "user_plugins" package
         # plugins can either be standalone .py files, or an installed package
         currPath = Path(varda.__file__).resolve().parent
-        pluginFolder = currPath / "plugins/user_plugins"
+        pluginFolder = currPath / "plugins" / "user_plugins"
         self._registerPluginsInFolder(pluginFolder)
 
     def _registerPluginsInFolder(self, pluginFolder):
+        if getattr(sys, "frozen", True):
+            logger.info(f"Skipping plugin load")
+            return
         for name in pluginFolder.iterdir():
             logger.debug(f"Checking plugin {name}")
             name = name.name
@@ -40,6 +48,7 @@ class VardaPluginManager:
                 moduleName = name
             else:
                 continue
+            # TODO: If we want the plugin folder to be customizable we'll need to fix this line somehow.
             mod = importlib.import_module(f"varda.plugins.user_plugins.{moduleName}")
             self.pm.register(mod)
 

@@ -6,14 +6,13 @@ Dialog for selecting two images to link in dual view mode.
 
 import logging
 from typing import Optional, Tuple
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
     QComboBox,
-    QPushButton,
     QGroupBox,
     QRadioButton,
     QButtonGroup,
@@ -25,7 +24,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .dual_image_types import DualImageConfig, DualImageMode, LinkType
-from varda.core.data import ProjectContext
+from varda.project import ProjectContext
 
 logger = logging.getLogger(__name__)
 

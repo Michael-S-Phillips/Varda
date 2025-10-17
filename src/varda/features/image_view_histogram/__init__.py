@@ -1,1 +1,0 @@
-from .image_view_histogram import getHistogramView

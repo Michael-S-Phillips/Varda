@@ -1,3 +1,7 @@
+"""
+Hook specifications for plugins to implement.
+"""
+
 import functools
 import logging
 

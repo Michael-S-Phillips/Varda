@@ -1,21 +1,18 @@
 from pathlib import Path
 import logging
-import sys
-import asyncio
 from typing import Dict, Optional
 
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QIcon, QCursor
-from PyQt6.QtCore import Qt
-from qasync import QEventLoop, QApplication
+from PyQt6.QtCore import Qt, pyqtSlot
 
-import varda
-from varda.core.data import ProjectContext
-from varda.core.ui import ControlPanel
+from varda.project import ProjectContext
+
 from varda.features.image_view_raster.raster_view import RasterView
+from varda.features.workspaces import GeneralImageAnalysisWorkflow
 from varda.gui.widgets import StatusBar, MainMenuBar
-from varda.features.image_process.process_controls.processingmenu import ProcessingMenu
-from varda.features.image_process.process_controls.processdialog import ProcessDialog
+from varda.image_processing.process_controls.processingmenu import ProcessingMenu
+from varda.image_processing.process_controls.processdialog import ProcessDialog
 from varda.features.dual_image_view.dual_image_view import DualImageView
 from varda.features.dual_image_view.dual_image_types import DualImageMode
 from varda.features import (
@@ -23,7 +20,8 @@ from varda.features import (
     image_view_roi,
     all_images_view_list,
 )
-import varda.core.utilities.debug as debug
+import varda.utilities.debug as debug
+from varda.gui.widgets.detachable_tab_widget import DetachableTabWidget
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +31,11 @@ class MainGUI(QtWidgets.QMainWindow):
         super().__init__()
 
         self.setWindowTitle("Varda")
-        self.setWindowIcon(QIcon("img/logo.svg"))
+        self.setWindowIcon(QIcon("resources/logo.svg"))
 
         self.proj = proj
         self.selectedImage = None
         self.imageList = None
-        self.currControlPanel = None
-        self.controlPanels: Dict[int, ControlPanel] = {}  # image index -> ControlPanel
         self.rasterViews: Dict[int, RasterView] = {}  # image index -> RasterView
         self.roiViews = {}
 
@@ -47,10 +43,9 @@ class MainGUI(QtWidgets.QMainWindow):
         self.childWindows = []  # List of all child windows/widgets we need to track
         self.pixelPlotWindows = []  # Track all pixel plot windows specifically
 
-        #  Dual image view support
+        # Dual image view support
         self.dualImageView: Optional[DualImageView] = None
         self.dualImageDock: Optional[QtWidgets.QDockWidget] = None
-
         self.initUI()
         self.connectSignals()
 
@@ -72,6 +67,8 @@ class MainGUI(QtWidgets.QMainWindow):
         self.rasterContainer = QtWidgets.QStackedWidget()
         self.setCentralWidget(self.rasterContainer)
 
+        self.centralTabs = DetachableTabWidget(self)
+        self.setCentralWidget(self.centralTabs)
         # Starting screen label
         self.startingScreen = self.getStartingScreenWidget()
         self.rasterContainer.addWidget(self.startingScreen)
@@ -100,16 +97,23 @@ class MainGUI(QtWidgets.QMainWindow):
             lambda: debug.ProjectContextDataTable(self.proj, self)
         )
 
+        # TODO: Make this less hacky lol
+        self.menuBar().sigLoadDebugProject.connect(
+            lambda: self.proj.loadProject(Path("../../debugProj.varda").resolve())
+        )
+
         self.menuBar().sigOpenProcessingMenu.connect(self.openProcessingMenu)
 
-        # NEW: Connect dual image signals
+        # Connect dual image signals
         self.menuBar().sigOpenDualImageView.connect(self.openDualImageView)
         self.menuBar().sigLinkSelectedImages.connect(self.linkSelectedImages)
         self.menuBar().sigUnlinkSelectedImages.connect(self.unlinkSelectedImages)
 
         self.imageList.itemClicked.connect(self.onSelectedImageChanged)
 
-        self.proj.sigDataChanged.connect(self.onProjectDataChanged)
+        self.proj.sigDataChanged[
+            int, ProjectContext.ChangeType, ProjectContext.ChangeModifier
+        ].connect(self.onProjectDataChanged)
 
     def onSelectedImageChanged(self, item):
         if item is None:
@@ -117,32 +121,12 @@ class MainGUI(QtWidgets.QMainWindow):
             return
 
         index = self.imageList.row(item)
+
         self.selectedImage = self.proj.getImage(index)
 
         print(
             f"[DEBUG] Selected new image: {self.selectedImage.metadata.name} (index {self.selectedImage.index})"
         )
-
-        # Raster View
-        rasterView = self.showRasterView(index)
-
-        # Control Panel
-        if self.currControlPanel:
-            self.currControlPanel.tabsDock.hide()
-
-        if index not in self.controlPanels:
-            panel = ControlPanel(self.proj, index, rasterView)
-            # panel.updateActiveImage(self.selectedImage.index)
-            self.controlPanels[index] = panel
-            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, panel.tabsDock)
-        else:
-            panel = self.controlPanels[index]
-
-        # Update the active image display
-        panel.updateActiveImage(index)
-
-        self.currControlPanel = panel
-        panel.tabsDock.show()
 
         # Update any open ROI views
         self.updateAllROIViews(index)
@@ -178,7 +162,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
         # Create dual view if it doesn't exist
         if not hasattr(self, "dual_view") or self.dual_view is None:
-            # from features.dual_image_view.dual_image_view import DualImageView
+            # from features.dual_image_analysis.dual_image_analysis import DualImageView
             self.dual_view = DualImageView(self.proj)
 
             # Create and configure dock widget
@@ -311,83 +295,6 @@ class MainGUI(QtWidgets.QMainWindow):
                 "Error",
                 f"An error occurred while opening the image selection dialog: {str(e)}",
             )
-
-    # def openDualImageView(self):
-    #     """Open the dual image view dialog/dock"""
-    #     if len(self.proj.getAllImages()) < 2:
-    #         QtWidgets.QMessageBox.information(
-    #             self,
-    #             "Dual Image View",
-    #             "You need at least 2 images loaded to use dual image view."
-    #         )
-    #         return
-
-    #     # Import here to avoid circular import
-    #     from features.dual_image_view.dual_image_view import DualImageView
-    #     from features.dual_image_view.dual_image_selection_dialog import DualImageSelectionDialog
-
-    #     # Show selection dialog first
-    #     dialog = DualImageSelectionDialog(self.proj, self)
-
-    #     # Set current image as default primary if one is selected
-    #     if self.selectedImage is not None:
-    #         dialog.set_default_images(primary_index=self.selectedImage.index)
-
-    #     # Show dialog to select primary and secondary images
-    #     if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
-    #         primary_index, secondary_index = dialog.get_selected_images()
-    #         config = dialog.get_configuration()
-
-    #         if primary_index is not None and secondary_index is not None:
-    #             # Create dual image view if it doesn't exist
-    #             if self.dualImageView is None:
-    #                 self.dualImageView = DualImageView(self.proj, self)
-
-    #                 # Create dock widget
-    #                 self.dualImageDock = QtWidgets.QDockWidget("Dual Image View", self)
-    #                 self.dualImageDock.setWidget(self.dualImageView)
-    #                 self.dualImageDock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
-
-    #                 # Add to bottom area by default
-    #                 self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.dualImageDock)
-
-    #                 # Connect dual image view signals
-    #                 self.dualImageView.primary_image_changed.connect(self._onDualImagePrimaryChanged)
-    #                 self.dualImageView.secondary_image_changed.connect(self._onDualImageSecondaryChanged)
-    #                 self.dualImageView.link_toggled.connect(self._onDualImageLinkToggled)
-
-    #                 # Track the dock
-    #                 self.childWindows.append(self.dualImageDock)
-
-    #             # Set up the dual view with selected images and configuration
-    #             self.dualImageView.set_primary_image(primary_index)
-    #             self.dualImageView.set_secondary_image(secondary_index)
-
-    #             # Apply configuration by updating the UI controls
-    #             self._apply_dual_image_config(config)
-
-    #             # Auto-link the images
-    #             if not self.dualImageView._is_linked:
-    #                 self.dualImageView._toggle_link()
-
-    #             self.dualImageDock.setVisible(True)
-    #             self.dualImageDock.show()
-    #             self.dualImageView.setVisible(True)
-    #             self.dualImageView.show()
-
-    #             # Force updates
-    #             self.dualImageDock.update()
-    #             self.dualImageView.update()
-
-    #             # Show the dock
-    #             self.dualImageDock.show()
-    #             self.dualImageDock.raise_()
-    #         else:
-    #             QtWidgets.QMessageBox.warning(
-    #                 self,
-    #                 "Invalid Selection",
-    #                 "Please select valid primary and secondary images."
-    #             )
 
     def linkSelectedImages(self):
         """Link two selected images for dual view"""
@@ -531,28 +438,6 @@ class MainGUI(QtWidgets.QMainWindow):
         except Exception as e:
             logger.error(f"Error applying dual image config: {e}")
 
-    # def _apply_dual_image_config(self, config):
-    #     """Apply configuration to the dual image view"""
-    #     if not self.dualImageView:
-    #         return
-
-    #     # Update display mode
-    #     for i in range(self.dualImageView.mode_combo.count()):
-    #         if self.dualImageView.mode_combo.itemData(i) == config.mode:
-    #             self.dualImageView.mode_combo.setCurrentIndex(i)
-    #             break
-
-    #     # Update opacity
-    #     opacity_value = int(config.overlay_opacity * 100)
-    #     self.dualImageView.opacity_slider.setValue(opacity_value)
-
-    #     # Update blink interval
-    #     self.dualImageView.blink_interval_spin.setValue(config.blink_interval)
-
-    #     # Update sync settings
-    #     self.dualImageView.sync_navigation_cb.setChecked(config.sync_navigation)
-    #     self.dualImageView.sync_rois_cb.setChecked(config.sync_rois)
-
     # Add cleanup to exitApp method
     def exitApp(self):
         """Clean up and exit the application."""
@@ -577,38 +462,6 @@ class MainGUI(QtWidgets.QMainWindow):
                 logger.warning(f"Error closing pixel plot window: {e}")
 
         self.close()
-
-    # TODO: I think we can delete the context menu stuff since we have the control panel. Relevant methods tagged below
-
-    # TODO: Delete?
-    def contextMenuEvent(self, event):
-        localPos = self.imageList.mapFromGlobal(event.globalPos())
-        item = self.imageList.itemAt(localPos)
-        index = self.imageList.indexFromItem(item)
-        if index.isValid():
-            contextMenu = self.createContextMenu(index)
-            contextMenu.exec(event.globalPos())
-        else:
-            print("No item selected")
-
-    # TODO: Delete?
-    def createContextMenu(self, index):
-        contextMenu = QtWidgets.QMenu(self)
-        openView = contextMenu.addMenu("Open View")
-        rasterView = openView.addAction("RasterData View")
-        bandView = openView.addAction("Band View")
-        roiView = openView.addAction("ROI Table View")
-        histogramView = openView.addAction("Histogram View")
-
-        image = index.data(QtCore.Qt.ItemDataRole.UserRole)
-        logger.debug(type(image))
-        imageIndex = image.index
-
-        rasterView.triggered.connect(lambda: self.showRasterView(imageIndex))
-        bandView.triggered.connect(lambda: self.openBandView(imageIndex))
-        roiView.triggered.connect(lambda: self.openROIView(imageIndex))
-        histogramView.triggered.connect(lambda: self.openHistogramView(imageIndex))
-        return contextMenu
 
     # TODO: Delete?
     def openROIView(self, image_index):
@@ -674,34 +527,6 @@ class MainGUI(QtWidgets.QMainWindow):
                             self.rasterViews[current_image_index]
                         )
 
-    # TODO: Delete?
-    def openBandView(self, image_index):
-        from varda.features.image_view_band import BandManager
-
-        view = BandManager(self.proj, image_index, self)
-        dock = QtWidgets.QDockWidget("Band View", self)
-        dock.setWidget(view)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-        dock.setFloating(True)
-
-        # Track the dock widget
-        self.childWindows.append(dock)
-        dock.destroyed.connect(lambda: self.removeChildWindow(dock))
-
-    # TODO: Delete?
-    def openHistogramView(self, image_index):
-        from varda.features.image_view_histogram import getHistogramView
-
-        view = getHistogramView(self.proj, image_index, self)
-        dock = QtWidgets.QDockWidget("Histogram View", self)
-        dock.setWidget(view)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-        dock.setFloating(True)
-
-        # Track the dock widget
-        self.childWindows.append(dock)
-        dock.destroyed.connect(lambda: self.removeChildWindow(dock))
-
     def openProcessingMenu(self):
         """Open the image processing menu for the currently selected image."""
         if self.selectedImage is None:
@@ -737,13 +562,29 @@ class MainGUI(QtWidgets.QMainWindow):
         """Handle when an image process finishes - refresh the image list."""
         print("Image processing completed!")
 
-    def onProjectDataChanged(self, index, changeType, changeModifier=None):
+    @pyqtSlot(int, ProjectContext.ChangeType, ProjectContext.ChangeModifier)
+    def onProjectDataChanged(self, index, changeType, changeModifier):
         """Handle when project data changes (like new images being added)."""
+        logger.debug(
+            f"Project data changed: index={index}, type={changeType}, modifier={changeModifier}"
+        )
         if (
             changeType == self.proj.ChangeType.IMAGE
             and changeModifier == self.proj.ChangeModifier.ADD
         ):
-            print(f"New image added at index {index}")
+            image = self.proj.getImage(index)
+            self.centralTabs.addTab(
+                GeneralImageAnalysisWorkflow(index), image.metadata.name
+            )
+
+        # if not hasattr(self, "testWorkflow"):
+        #
+        #     self.testWorkflow = varda.features.workspaces.GeneralImageAnalysisWorkflow(
+        #         parent=self
+        #     )
+        #     self.centralTabs.addTab(self.testWorkflow, "Test Workflow")
+        #     # self.setCentralWidget(self.centralTabs)
+        #     # self.testWorkflow.show()
 
     # TODO: Delete?
     def trackPixelPlotWindow(self, window):
@@ -774,9 +615,9 @@ class MainGUI(QtWidgets.QMainWindow):
                 window.close()
 
         # Close any control panels
-        for panel in self.controlPanels.values():
-            if hasattr(panel, "pixelPlotPopup") and panel.pixelPlotPopup:
-                panel.pixelPlotPopup.close()
+        # for panel in self.controlPanels.values():
+        #     if hasattr(panel, "pixelPlotPopup") and panel.pixelPlotPopup:
+        #         panel.pixelPlotPopup.close()
 
         # Clear tracking lists
         self.childWindows.clear()

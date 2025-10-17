@@ -1,16 +1,16 @@
 """
 Dual Image Tool Manager
 
-Manages tool lifecycle, event routing, and UI coordination for dual image view tools.
+Manages tool lifecycle, event routing, and UI coordination for dual image view viewport_tools.
 Follows the established manager pattern used throughout Varda.
 """
 
 import logging
 from typing import Dict, List, Optional, Type, Any
 from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QSplitter
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QScrollArea
 
-from varda.core.data import ProjectContext
+from varda.project import ProjectContext
 from .dual_image_tool_base import DualImageToolBase
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class DualImageToolManager(QObject):
     """
-    Manager for dual image view tools.
+    Manager for dual image view viewport_tools.
 
     Coordinates tool activation, event routing, and UI management.
     Integrates with the dual image view controller architecture.
@@ -89,7 +89,7 @@ class DualImageToolManager(QObject):
         Returns:
             bool: True if switch was successful
         """
-        # Get currently active tools
+        # Get currently active viewport_tools
         current_active = list(self._active_tools.keys())
 
         # If the new tool is already active, nothing to do
@@ -97,7 +97,7 @@ class DualImageToolManager(QObject):
             logger.debug(f"Tool '{new_tool_name}' is already the active tool")
             return True
 
-        # Deactivate all current tools
+        # Deactivate all current viewport_tools
         for tool_name in current_active:
             if not self.deactivate_tool(tool_name):
                 logger.warning(f"Failed to deactivate tool '{tool_name}' during switch")
@@ -118,7 +118,7 @@ class DualImageToolManager(QObject):
         elif len(active_tools) == 0:
             return None
         else:
-            logger.warning(f"Multiple tools active: {active_tools}")
+            logger.warning(f"Multiple viewport_tools active: {active_tools}")
             return active_tools[0]  # Return first one
 
     def ensure_tool_active(self, preferred_tool: str = "spectral_plot") -> str:
@@ -207,14 +207,14 @@ class DualImageToolManager(QObject):
             return False
 
     def deactivate_all_tools(self):
-        """Deactivate all currently active tools"""
+        """Deactivate all currently active viewport_tools"""
         tool_names = list(self._active_tools.keys())
         for tool_name in tool_names:
             self.deactivate_tool(tool_name)
 
     def handle_click(self, image_index: int, x: int, y: int, view_type: str) -> bool:
         """
-        Route click events to active tools.
+        Route click events to active viewport_tools.
 
         Args:
             image_index: Index of the clicked image
@@ -229,7 +229,7 @@ class DualImageToolManager(QObject):
 
         handled = False
 
-        # Route to all active tools (tools decide if they want to handle it)
+        # Route to all active viewport_tools (viewport_tools decide if they want to handle it)
         for tool_name, tool in self._active_tools.items():
             try:
                 if tool.handle_click(image_index, x, y, view_type):
@@ -243,7 +243,7 @@ class DualImageToolManager(QObject):
 
     def set_image_indices(self, primary_index: int, secondary_index: int):
         """
-        Update the current image pair for all tools.
+        Update the current image pair for all viewport_tools.
 
         Args:
             primary_index: Index of primary image
@@ -273,7 +273,7 @@ class DualImageToolManager(QObject):
         return self._tool_panel_widget
 
     def set_click_routing_enabled(self, enabled: bool):
-        """Enable or disable click event routing to tools"""
+        """Enable or disable click event routing to viewport_tools"""
         self._click_routing_enabled = enabled
         logger.debug(f"Click routing {'enabled' if enabled else 'disabled'}")
 
@@ -309,7 +309,7 @@ class DualImageToolManager(QObject):
         self._tool_container_layout.setContentsMargins(0, 0, 0, 0)
         self._tool_container_layout.setSpacing(5)
 
-        # Add stretch to push tools to top
+        # Add stretch to push viewport_tools to top
         self._tool_container_layout.addStretch()
 
         self._tool_scroll_area.setWidget(self._tool_container)
@@ -323,7 +323,7 @@ class DualImageToolManager(QObject):
         # Clear existing widgets
         self._clear_tool_container()
 
-        # Add UI widgets for active tools
+        # Add UI widgets for active viewport_tools
         for tool_name, tool in self._active_tools.items():
             ui_widget = tool.ui_widget
             if ui_widget:
@@ -331,7 +331,9 @@ class DualImageToolManager(QObject):
                     self._tool_container_layout.count() - 1, ui_widget
                 )
 
-        logger.debug(f"Updated tool panel with {len(self._active_tools)} active tools")
+        logger.debug(
+            f"Updated tool panel with {len(self._active_tools)} active viewport_tools"
+        )
 
     def _clear_tool_container(self):
         """Clear all widgets from the tool container except the stretch"""

@@ -7,7 +7,7 @@ user interactions for dual image functionality.
 
 import logging
 from typing import Optional, Dict, Any, Tuple
-from PyQt6.QtCore import QObject, pyqtSignal, QTimer
+from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QWidget
 
 from .dual_image_types import DualImageConfig, DualImageMode, LinkType
@@ -15,7 +15,7 @@ from .dual_image_link_manager import DualImageLinkManager
 from .roi_sync_manager import ROISyncManager
 from .overlay_manager import OverlayManager
 from .blink_manager import BlinkManager
-from varda.core.data import ProjectContext
+from varda.project import ProjectContext
 
 logger = logging.getLogger(__name__)
 

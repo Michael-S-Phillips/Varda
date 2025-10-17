@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QRadioButton,
 )
 
-from varda.core.data import ProjectContext
+from varda.project import ProjectContext
 from varda.gui.widgets.image_plot_widget import ImagePlotWidget
 from .dual_image_tool_base import DualImageToolBase, DualImageToolPanel
 
@@ -265,7 +265,7 @@ class SpectralPlotTool(DualImageToolBase):
             source_image = self.proj.getImage(source_index)
 
             # Validate coordinates for the source image
-            from varda.core.utilities.bounds_validator import BoundsValidator
+            from varda.utilities import BoundsValidator
 
             is_valid, (safe_x, safe_y) = BoundsValidator.validate_pixel_coordinates(
                 x, y, source_image.raster.shape, allow_clipping=True
@@ -276,7 +276,7 @@ class SpectralPlotTool(DualImageToolBase):
                 return False
 
             # Process wavelength data
-            from varda.core.utilities.wavelength_processor import WavelengthProcessor
+            from varda.utilities import WavelengthProcessor
 
             wavelengths, wavelength_type = WavelengthProcessor.process_wavelength_data(
                 source_image.metadata.wavelengths, source_image.raster.shape[2]
@@ -288,7 +288,7 @@ class SpectralPlotTool(DualImageToolBase):
             )
 
             # Handle invalid values in the spectral data
-            from varda.core.utilities.invalid_data_handler import (
+            from varda.utilities import (
                 InvalidDataHandler,
                 InvalidValueStrategy,
             )

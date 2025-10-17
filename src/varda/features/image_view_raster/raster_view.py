@@ -1,21 +1,16 @@
 import logging
 import numpy as np
 import rasterio
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any
 
 from PyQt6 import QtCore, QtWidgets
-from PyQt6.QtCore import QEvent, pyqtSignal, QPointF, QRectF, Qt
-from PyQt6.QtGui import QPainter, QColor, QPolygonF
+from PyQt6.QtCore import pyqtSignal, QPointF, Qt
+from PyQt6.QtGui import QColor, QPolygonF
 from PyQt6.QtWidgets import QWidget
 import pyqtgraph as pg
 
-from scipy.spatial import ConvexHull
-from skimage.draw import polygon
-
-from varda.features.shared.selection_controls import StretchSelector, BandSelector
 from varda.features.image_view_roi.roi_drawing_manager import ROIDrawingManager
 from varda.gui.widgets.roi_selector import ROISelector
-from varda.core.entities.freehandROI import FreehandROI
 from .raster_viewmodel import RasterViewModel
 
 logger = logging.getLogger(__name__)
@@ -32,9 +27,15 @@ class NavigableViewBox(pg.ViewBox):
         self._drag_start_scene_pos = None
         self._is_navigating = False
         self._initial_roi_pos = None
+        self._roi_drawing_disabled_nav = False
 
     def mouseDragEvent(self, ev, axis=None):
         """Override mouse drag to implement image navigation instead of view panning"""
+        if getattr(self, "_roi_drawing_disabled_nav", False):
+            # Let the event pass through to ROI drawing instead of handling navigation
+            super().mouseDragEvent(ev, axis)
+            return
+
         if ev.button() == QtCore.Qt.MouseButton.LeftButton:
             if ev.isStart():
                 self._drag_start_pos = ev.pos()
@@ -450,8 +451,8 @@ class RasterView(QWidget):
 
         self._makeROISquare(self.contextROI)
 
-        self.mainImage.setRegion(
-            self.contextImage.image, self.contextROI, self.contextImage
+        self.mainImage.setROI(
+            self.contextImage.imageEntity, self.contextROI, self.contextImage
         )
 
         if self.mainROI is not None:
@@ -464,7 +465,7 @@ class RasterView(QWidget):
 
         self._makeROISquare(self.mainROI)
 
-        self.zoomImage.setRegion(self.mainImage.image, self.mainROI, self.mainImage)
+        self.zoomImage.setROI(self.mainImage.imageEntity, self.mainROI, self.mainImage)
 
     def _updateImageItem(self, imageItem, rasterData):
         """Update an image item with new raster data."""
@@ -484,6 +485,10 @@ class RasterView(QWidget):
     def selectStretch(self, stretchIndex):
         """Select a new stretch to apply to the image."""
         self.viewModel.selectStretch(stretchIndex)
+
+    def selectBand(self, bandIndex):
+        """Select a new band to apply to the image."""
+        self.viewModel.selectBand(bandIndex)
 
     def _onStretchChanged(self):
         """Handle stretch changes."""
@@ -1462,7 +1467,7 @@ class RasterView(QWidget):
                     )
 
                     # add points to main polygon, clamping to bounds
-                    mainImageCoords = self.mainImage.getLocalCoords(QPointF(x, y))
+                    mainImageCoords = self.mainImage.absoluteToLocal(QPointF(x, y))
                     polygonForMain.append(pg.Qt.QtCore.QPointF(mainImageCoords))
                     logger.debug(
                         "Adding point to polygon for main: ({}, {})".format(

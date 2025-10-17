@@ -15,12 +15,13 @@ from typing import NoReturn
 
 # third party imports
 from PyQt6.QtCore import QStandardPaths
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QApplication, QSplashScreen
 import pyqtgraph as pg
 
 # local imports
 import varda.app
-from varda.core.data import VardaSessionContext
+from varda.app.varda_session_context import VardaSessionContext
 from varda.gui.maingui import MainGUI
 
 
@@ -29,6 +30,8 @@ logger = logging.getLogger(__name__)
 
 sessionContext: VardaSessionContext = VardaSessionContext()
 q_app: QApplication = None
+
+splash: QSplashScreen = None
 
 
 def initVarda(startGui=True) -> None:
@@ -63,11 +66,14 @@ def initPyQtAndLogging() -> QApplication:
 
     They go together because logging relies on PyQt to determine where to store logs.
     """
-    global q_app
+    global q_app, splash
     # Initialize the QApplication
     q_app = QApplication(sys.argv)
     q_app.setApplicationName("Varda")
     q_app.setOrganizationName("Varda")
+    splash = QSplashScreen(QPixmap("resources/logo.svg"))
+    splash.show()
+    q_app.processEvents()
 
     # Initialize logging
     initLogging()
@@ -81,12 +87,20 @@ def initLogging() -> None:
 
     Usage: create a logger object in any file and use it to log messages, e.g.
 
-      import logging
-      logger = logging.getLogger(__name__)
-      logger.debug("This is a debug message")
-      logger.info("This is an info message")
-      logger.warning("This is a warning message")
-      logger.error("This is an error message")
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug("This is a debug message")
+        logger.info("This is an info message")
+        logger.warning("This is a warning message")
+        logger.error("This is an error message")
+
+    OR you can use the varda.log convenience module:
+
+        import varda
+        varda.log.debug("This is a debug message")
+        varda.log.info("This is an info message")
+        varda.log.warning("This is a warning message")
+        varda.log.error("This is an error message")
     """
     if q_app is None:
         raise RuntimeError("QApplication must be initialized before logging.")
@@ -128,12 +142,13 @@ def setConfigurations() -> None:
 
 def startGUI() -> NoReturn:
     """Enter the GUI event loop. This function never returns."""
-    global sessionContext, q_app
+    global sessionContext, q_app, splash
 
     if sessionContext is None or q_app is None:
         raise RuntimeError("Varda must be initialized before starting the GUI.")
 
     gui = MainGUI(sessionContext.proj)
+    splash.finish(gui)
     gui.showMaximized()
     logger.debug("starting the GUI event loop...")
     exitCode = q_app.exec()

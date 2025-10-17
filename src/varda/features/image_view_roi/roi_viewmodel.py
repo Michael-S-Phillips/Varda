@@ -2,7 +2,12 @@ import logging
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 
-from varda.core.data import ProjectContext
+from varda.core.roi_utils import ROIStatistics
+from varda.project import ProjectContext
+from varda.image_rendering.raster_view import (
+    ROIDisplayController,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -26,24 +31,26 @@ class ROIViewModel(QObject):
         self.proj = proj
         self.imageIndex = imageIndex
         self.view = None
-        self.rasterView = None
 
-        # Connect to ProjectContext signals
-        self._connectSignals()
+        # Initialize the ROI display controller
+        self._displayController = ROIDisplayController(self)
 
+        # Connect display controller signals
+        self._displayController.roiHighlighted.connect(self.roiUpdated)
+        self._displayController.roiSelected.connect(self.roiUpdated)
+
+        self.proj.roiManager.sigROIUpdated.connect(self.roiUpdated)
+        self.proj.roiManager.sigROIAdded.connect(self.roiAdded)
+        self.proj.roiManager.sigROIRemoved.connect(self.roiRemoved)
         logger.debug(f"ROI ViewModel initialized for image {imageIndex}")
+
+    def getDisplayController(self) -> ROIDisplayController:
+        """Get the ROI display controller for external registration of viewports"""
+        return self._displayController
 
     def setView(self, view):
         """Set reference to the ROI View"""
         self.view = view
-
-    def setRasterView(self, rasterView):
-        """Set reference to the RasterView for drawing ROIs"""
-        self.rasterView = rasterView
-
-    def _connectSignals(self):
-        """Connect to signals from the ProjectContext"""
-        self.proj.sigDataChanged.connect(self._onProjectDataChanged)
 
     def updateImageIndex(self, imageIndex):
         """Update the current image index"""
@@ -52,191 +59,145 @@ class ROIViewModel(QObject):
             self.imageChanged.emit(imageIndex)
             logger.debug(f"ROI ViewModel image changed to {imageIndex}")
 
-    def getAllRois(self):
-        """Get all ROIs associated with the current image"""
-        if hasattr(self.proj, "roi_manager"):
-            rois = {}
-            for roi in self.proj.roi_manager.get_rois_for_image(self.imageIndex):
-                rois[roi.id] = roi
-            return rois
-        else:
-            # Fallback to legacy ROI handling
-            return {roi.id: roi for roi in self.proj.getROIs(self.imageIndex)}
+            # Refresh ROI display for new image
+            self.refreshRoiDisplay()
 
     def getROIs(self, imageIndex=None):
         """Get all ROIs for the specified image (default is current image)"""
         idx = imageIndex if imageIndex is not None else self.imageIndex
+        rois = self.proj.roiManager.getROIsForImage(idx)
+        logger.debug(f"Got ROIs for image {idx}, IDs: {[roi.id for roi in rois]}")
+        return self.proj.roiManager.getROIsForImage(idx)
 
-        if hasattr(self.proj, "roi_manager"):
-            return self.proj.get_rois_for_image(idx)
-        else:
-            # Legacy API
-            return self.proj.getROIs(idx)
-
-    def getRoi(self, roi_id):
+    def getRoi(self, roiId):
         """Get a specific ROI by ID"""
-        if hasattr(self.proj, "roi_manager"):
-            return self.proj.roi_manager.get_roi(roi_id)
-        else:
-            # Fallback to searching in the image's ROIs
-            for roi in self.proj.getROIs(self.imageIndex):
-                if hasattr(roi, "id") and roi.id == roi_id:
-                    return roi
-            return None
+        return self.proj.roiManager.getROI(roiId)
 
     def addRoi(self, roi):
         """Add a new ROI"""
-        if hasattr(self.proj, "roi_manager"):
-            # Use ROI Manager API
-            roi_id = self.proj.roi_manager.add_roi(roi, [self.imageIndex])
-            if roi_id:
-                self.roiAdded.emit(roi_id)
-            return roi_id
-        else:
-            # Use legacy API
-            index = self.proj.addROI(self.imageIndex, roi)
-            if hasattr(roi, "id"):
-                self.roiAdded.emit(roi.id)
-            return roi.id if hasattr(roi, "id") else str(index)
+        # Set the source image index
+        roi.sourceImageIndex = self.imageIndex
 
-    def removeRoi(self, roi_id):
-        """Remove an ROI"""
-        if hasattr(self.proj, "roi_manager"):
-            # Use ROI Manager API
-            result = self.proj.roi_manager.remove_roi(roi_id)
+        # Add to ROI manager
+        roiId = self.proj.roiManager.addROI(roi, [self.imageIndex])
+        if roiId:
+            # Refresh the display to show the new ROI
+            self.refreshRoiDisplay()
+            self.roiAdded.emit(roiId)
+        return roiId
+
+    def removeRoi(self, imageIndex, roiIndex):
+        """Remove an ROI by image index and table row index"""
+        rois = self.getROIs(imageIndex)
+        if roiIndex < len(rois):
+            roi = rois[roiIndex]
+            roiId = roi.id
+
+            # Remove from project
+            result = self.proj.roiManager.removeROI(roiId)
             if result:
-                self.roiRemoved.emit(roi_id)
+                # Refresh the display to remove the ROI
+                self.refreshRoiDisplay()
+                self.roiRemoved.emit(roiId)
             return result
-        else:
-            # Use legacy API - this requires finding the index
-            rois = self.proj.getROIs(self.imageIndex)
-            for i, roi in enumerate(rois):
-                if hasattr(roi, "id") and roi.id == roi_id:
-                    self.proj.removeROI(self.imageIndex, i)
-                    self.roiRemoved.emit(roi_id)
-                    return True
-            return False
+        return False
 
-    def updateRoi(self, roi_id, **properties):
+    def updateRoi(self, roiId, **properties):
         """Update ROI properties"""
-        if hasattr(self.proj, "roi_manager"):
-            # Use ROI Manager API
-            result = self.proj.roi_manager.update_roi(roi_id, **properties)
-            if result:
-                self.roiUpdated.emit(roi_id)
-            return result
-        else:
-            # Use legacy API
-            if "visible" in properties:
-                # Special handling for visibility since it affects display
-                self.updateRoiVisibility(roi_id, properties["visible"])
-
-            # Update the ROI object directly
-            roi = self.getRoi(roi_id)
-            if roi:
-                for key, value in properties.items():
-                    if hasattr(roi, key):
-                        setattr(roi, key, value)
-                self.roiUpdated.emit(roi_id)
-                return True
+        # Get the ROI entity
+        roi = self.getRoi(roiId)
+        if not roi:
+            logger.warning(f"ROI {roiId} not found")
             return False
 
-    def updateRoiVisibility(self, roi_id, visible):
-        """Update ROI visibility (special case for display updates)"""
-        roi = self.getRoi(roi_id)
-        if roi:
-            if hasattr(roi, "visible"):
-                roi.visible = visible
-            self.roiUpdated.emit(roi_id)
-            return True
-        return False
-
-    def addRoiCustomField(self, roi_id, field_name, value):
-        """Add a custom field to an ROI"""
-        roi = self.getRoi(roi_id)
-        if roi and hasattr(roi, "custom_data") and hasattr(roi.custom_data, "values"):
-            roi.custom_data.values[field_name] = value
-            self.roiUpdated.emit(roi_id)
-            return True
-        return False
-
-    def updateRoiCustomValue(self, roi_id, field_name, value):
-        """Update a custom field value for an ROI"""
-        return self.addRoiCustomField(roi_id, field_name, value)
-
-    def startDrawingROI(self):
-        """Start the ROI drawing process"""
-        if self.rasterView and hasattr(self.rasterView, "roi_drawing_manager"):
-            self.rasterView.roi_drawing_manager.startDrawingROI()
-        else:
-            # Fallback to old method
-            if self.rasterView:
-                self.rasterView.startNewROI()
+        # Update the ROI entity properties directly
+        for key, value in properties.items():
+            if hasattr(roi, key):
+                setattr(roi, key, value)
             else:
-                logger.warning("Cannot start ROI drawing - no RasterView available")
+                logger.warning(f"Unknown ROI property: {key}")
 
-    def get_roi(self, roi_id):
-        """Get a specific ROI by ID"""
-        if hasattr(self.proj, "roi_manager"):
-            return self.proj.roi_manager.get_roi(roi_id)
-        else:
-            # Fallback to searching in the image's ROIs
-            for roi in self.proj.getROIs(self.imageIndex):
-                if hasattr(roi, "id") and roi.id == roi_id:
-                    return roi
-            return None
-
-    def update_roi(self, roi_id, **properties):
-        """Update ROI properties"""
-        result = False
-
-        if hasattr(self.proj, "roi_manager"):
-            # Use ROI Manager API
-            result = self.proj.roi_manager.update_roi(roi_id, **properties)
-            if result:
-                self.roiUpdated.emit(roi_id)
-        else:
-            # Legacy implementation - find and update directly
-            roi = self.get_roi(roi_id)
-            if roi:
-                for key, value in properties.items():
-                    if hasattr(roi, key):
-                        setattr(roi, key, value)
-                self.roiUpdated.emit(roi_id)
-                result = True
-
-        # Refresh display if this is a visual property
-        visual_properties = {"color", "visible", "line_width", "fill_opacity"}
-        if result and any(prop in visual_properties for prop in properties.keys()):
-            # Notify any connected views
-            if hasattr(self, "view") and self.view:
-                if hasattr(self.view, "refresh_raster_view"):
-                    self.view.refresh_raster_view()
-
-            # Direct update to RasterView if available
-            if hasattr(self, "rasterView") and self.rasterView:
-                if hasattr(self.rasterView, "remove_polygons_from_display"):
-                    self.rasterView.remove_polygons_from_display()
-                if hasattr(self.rasterView, "draw_all_polygons"):
-                    self.rasterView.draw_all_polygons()
-
+        # Update in ROI manager
+        result = self.proj.roiManager.updateROI(roiId, roi)
+        if result:
+            # Update the display controller with the updated ROI
+            self._displayController.updateRoi(roi)
+            self.roiUpdated.emit(roiId)
         return result
 
-    def plotRoiSpectrum(self, roi_id):
+    def updateRoiVisibility(self, roiId, visible):
+        """Update ROI visibility"""
+        return self.updateRoi(roiId, visible=visible)
+
+    def highlightRoi(self, roiId):
+        """Highlight a specific ROI"""
+        self._displayController.highlightRoi(roiId)
+
+    def showAllROIs(self):
+        """Show all ROIs"""
+        rois = self.getROIs()
+        for roi in rois:
+            if not roi.visible:
+                roi.visible = True
+                self.proj.roiManager.updateROI(roi.id, roi)
+        self.refreshRoiDisplay()
+
+    def hideAllROIs(self):
+        """Hide all ROIs"""
+        rois = self.getROIs()
+        for roi in rois:
+            if roi.visible:
+                roi.visible = False
+                self.proj.roiManager.updateROI(roi.id, roi)
+        self.refreshRoiDisplay()
+
+    def startBlinking(self):
+        """Start ROI blinking animation"""
+        self._displayController.startBlinking()
+
+    def stopBlinking(self):
+        """Stop ROI blinking animation"""
+        self._displayController.stopBlinking()
+
+    def isBlinking(self):
+        """Check if ROI blinking is active"""
+        return self._displayController.isBlinking()
+
+    def refreshRoiDisplay(self):
+        """Refresh the ROI display for the current image"""
+        rois = self.getROIs(self.imageIndex)
+        self._displayController.displayRoisForImage(rois)
+
+    def addRoiCustomField(self, roiId, fieldName, value):
+        """Add a custom field to an ROI"""
+        roi = self.getRoi(roiId)
+        if roi:
+            roi.setCustomValue(fieldName, value)
+            result = self.proj.roiManager.updateROI(roiId, roi)
+            if result:
+                self.roiUpdated.emit(roiId)
+            return result
+        return False
+
+    def updateRoiCustomValue(self, roiId, fieldName, value):
+        """Update a custom field value for an ROI"""
+        return self.addRoiCustomField(roiId, fieldName, value)
+
+    def plotRoiSpectrum(self, roiId):
         """Plot the spectrum of an ROI"""
         try:
             # Get the ROI
-            roi = self.viewModel.get_roi(roi_id)
-            if not roi or roi.mean_spectrum is None:
+            roi = self.getRoi(roiId)
+            if not roi or roi.meanSpectrum is None:
                 QMessageBox.warning(
-                    self,
+                    None,
                     "No Spectrum",
                     "This ROI doesn't have spectrum data available.",
                 )
                 return
 
             # Get wavelength data from the image
-            image = self.viewModel.proj.getImage(self.viewModel.imageIndex)
+            image = self.proj.getImage(self.imageIndex)
             wavelengths = image.metadata.wavelengths
 
             # Create or reuse the pixel plot window
@@ -247,7 +208,7 @@ class ROIViewModel(QObject):
 
             # Update the plot with ROI data
             self.pixelPlotWindow.updatePlot(
-                wavelengths, roi.mean_spectrum, f"ROI {roi.name}"
+                wavelengths, roi.meanSpectrum, f"ROI {roi.name}"
             )
             self.pixelPlotWindow.show()
             self.pixelPlotWindow.raise_()  # Bring to front
@@ -255,60 +216,28 @@ class ROIViewModel(QObject):
         except Exception as e:
             logger.error(f"Error plotting ROI spectrum: {e}")
             QMessageBox.warning(
-                self, "Plot Error", f"Error plotting spectrum: {str(e)}"
+                None, "Plot Error", f"Error plotting spectrum: {str(e)}"
             )
 
-    def calculate_roi_statistics(self, roi_id):
+    def calculateRoiStatistics(self, roiId):
         """Calculate detailed statistics for an ROI"""
-        from varda.features.roi_statistics import calculate_roi_stats
 
-        roi = self.getRoi(roi_id)
+        roi = self.getRoi(roiId)
         if not roi:
-            logger.warning(f"ROI {roi_id} not found")
+            logger.warning(f"ROI {roiId} not found")
             return None
 
         # Get the image data
         image = self.proj.getImage(self.imageIndex)
-        image_data = image.raster
-        wavelengths = image.metadata.wavelengths
 
         # Calculate statistics
-        stats = calculate_roi_stats(roi, image_data, wavelengths)
+        stats = ROIStatistics.getROIStats(roi, image)
 
         # Store statistics in the ROI for future reference
-        if hasattr(roi, "statistics"):
-            roi.statistics = stats.get_summary()
-        else:
-            # For older ROI objects, store in custom_data
-            if hasattr(roi, "custom_data") and hasattr(roi.custom_data, "values"):
-                roi.custom_data.values["statistics"] = stats.get_summary()
+        roi.setCustomValue("statistics", stats.getSummary())
+        self.proj.roiManager.updateROI(roiId, roi)
 
         # Signal that the ROI has been updated
-        self.roiUpdated.emit(roi_id)
+        self.roiUpdated.emit(roiId)
 
         return stats
-
-    def duplicateRoi(self, roi_id):
-        """Create a duplicate of an ROI"""
-        # This would create a copy of the ROI with a new ID
-        # Not implemented in this version
-        logger.warning("ROI duplication not implemented")
-        return None
-
-    def _onProjectDataChanged(self, index, changeType, changeModifier=None):
-        """Handle changes in the ProjectContext"""
-        # Only process events for the current image
-        if index != self.imageIndex:
-            return
-
-        # Check if it's an ROI change
-        if changeType == ProjectContext.ChangeType.ROI:
-            logger.debug(f"ProjectContext ROI change: {changeModifier}")
-
-            # With the new ROI manager, we can't easily determine which ROI changed
-            # So we'll just emit a signal that will cause the view to refresh
-            # In a more complete implementation, we'd get the specific ROI ID from the event
-
-            # For now, we'll just trigger a view update
-            if self.view:
-                self.view.updateROITable()
