@@ -1,3 +1,7 @@
+""" "
+Experiment with using SQLIte as a database for project data, but not being used right now.
+"""
+
 import apsw
 
 

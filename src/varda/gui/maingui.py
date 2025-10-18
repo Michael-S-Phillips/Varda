@@ -27,14 +27,15 @@ logger = logging.getLogger(__name__)
 
 
 class MainGUI(QtWidgets.QMainWindow):
-    def __init__(self, proj: ProjectContext, menubar, statusbar):
+    def __init__(self, app, menubar, statusbar):
         super().__init__()
 
         self.setWindowTitle("Varda")
         self.setWindowIcon(QIcon("resources/logo.svg"))
         self.setMenuBar(menubar)
         self.setStatusBar(statusbar)
-        self.proj = proj
+        self.app = app
+        self.proj = app.proj
         self.selectedImage = None
         self.imageList = None
         self.rasterViews: Dict[int, RasterView] = {}  # image index -> RasterView
@@ -551,15 +552,6 @@ class MainGUI(QtWidgets.QMainWindow):
             self.centralTabs.addTab(
                 GeneralImageAnalysisWorkflow(index), image.metadata.name
             )
-
-        # if not hasattr(self, "testWorkflow"):
-        #
-        #     self.testWorkflow = varda.features.workspaces.GeneralImageAnalysisWorkflow(
-        #         parent=self
-        #     )
-        #     self.centralTabs.addTab(self.testWorkflow, "Test Workflow")
-        #     # self.setCentralWidget(self.centralTabs)
-        #     # self.testWorkflow.show()
 
     # TODO: Delete?
     def trackPixelPlotWindow(self, window):

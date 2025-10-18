@@ -9,10 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 @varda.plugins.hookimpl
-def onLoad():
+def onLoad(app):
     """Hook called on plugin load."""
     logger.info("Plugin hook implementation called: varda_add_new_widget :O")
-    varda.app.registry.registerWidget(MyNewWidget)
+    app.registry.registerWidget(MyNewWidget)
 
 
 class MyNewWidget(QWidget):

@@ -91,7 +91,7 @@ class VectroscopyWidget(QWidget):
             layout.addRow(imageLabel, self.image_combobox)
 
         self.button = QPushButton("start")
-        # self.button.clicked.connect(self.startVectroscopy)
+        self.button.clicked.connect(self.startVectroscopy)
         layout.addRow(self.button)
         self.setLayout(layout)
 

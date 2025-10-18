@@ -16,7 +16,7 @@ class ImageProcessMenuSystem(QObject):
     3. Displays a dialog for parameter editing when a process is selected
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, app, parent=None):
         """
         Initialize the image process menu system.
 
@@ -24,6 +24,7 @@ class ImageProcessMenuSystem(QObject):
             parent: The parent widget
         """
         super().__init__(parent)
+        self.app = app
         self.parent = parent
         self.process_dialog = None
 
@@ -38,7 +39,7 @@ class ImageProcessMenuSystem(QObject):
         processMenu = QMenu("Process", self.parent)
 
         # Get all registered image processes
-        registry = varda.app.registry.imageProcesses
+        registry = self.app.registry.imageProcesses
 
         # Dictionary to store category menus
         category_menus = {}

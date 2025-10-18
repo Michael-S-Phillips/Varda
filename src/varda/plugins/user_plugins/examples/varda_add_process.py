@@ -6,9 +6,9 @@ logger = logging.getLogger(__name__)
 
 
 @varda.plugins.hookimpl
-def onLoad():
+def onLoad(app):
     logger.info("Plugin hook implementation called: varda_add_process :O")
-    varda.app.registry.registerImageProcess(MyProcess)
+    app.registry.registerImageProcess(MyProcess)
 
 
 class MyProcess:
@@ -25,7 +25,7 @@ class MyProcess:
             "type": bool,
             "default": False,
             "description": "Whether to invert the image",
-        }
+        },
     }
     input_data_type = "full_raster"
 

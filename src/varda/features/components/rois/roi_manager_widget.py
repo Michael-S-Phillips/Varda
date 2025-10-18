@@ -2,7 +2,6 @@ import logging
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter, QPushButton
 
-import varda.app
 from varda.core.roi_utils import ROIStatistics
 from varda.image_rendering.raster_view import (
     ROIDisplayController,
@@ -19,6 +18,7 @@ logger = logging.getLogger(__name__)
 class ROIManagerWidget(QWidget):
     def __init__(self, projContext, imageIndex=0, parent=None):
         super().__init__(parent)
+        self.proj = projContext
         self.roiManager = projContext.roiManager
         self.model = ROITableModel(self.roiManager, imageIndex)
         self.table = ROITableView(self.model)
@@ -108,7 +108,7 @@ class ROIManagerWidget(QWidget):
         if not idxs:
             return
         roi = self.model.rois()[idxs[0].row()]
-        image = varda.app.proj.getImage(self.model.imageIndex)
+        image = self.proj.getImage(self.model.imageIndex)
         stats = ROIStatistics(roi, image)
         dlg = ROIStatisticsDialog(stats, self)
         dlg.exec()

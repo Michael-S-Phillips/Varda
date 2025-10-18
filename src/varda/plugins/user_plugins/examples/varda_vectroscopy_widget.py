@@ -10,22 +10,22 @@ logger = logging.getLogger(__name__)
 
 
 @varda.plugins.hookimpl
-def onLoad():
+def onLoad(app):
     """Hook called on plugin load."""
     logger.debug("hook called onLoad")
-    varda.app.registry.registerWidget(VectroscopyWidget)
+    app.registry.registerWidget(VectroscopyWidget)
 
 
 class VectroscopyWidget(QWidget):
     """A simple widget for demonstrating a custom user plugin in Varda."""
 
-    def __init__(self, parent=None):
+    def __init__(self, app, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Vectroscopy Widget")
         self.setMinimumSize(300, 200)
 
         layout = QVBoxLayout()
-        self.proj = varda.app.proj
+        self.proj = app.proj
 
         # Add image selection combobox at the top
         if self.proj:
@@ -42,9 +42,7 @@ class VectroscopyWidget(QWidget):
             # Populate the combobox with image names
             for i, img in enumerate(all_images):
                 name = img.metadata.name or f"Image {i}"
-                self.image_combobox.addItem(
-                    name, i
-                )  # Store the image index as user data
+                self.image_combobox.addItem(name, i)  # Store the image index as user data
 
             # Set the current image as the selected item if it exists
             self.image_combobox.setCurrentIndex(0)

@@ -14,17 +14,17 @@ hookimpl = pluggy.HookimplMarker("varda")
 
 
 @hookspec
-def onLoad():
+def onLoad(app):
     """Hook called on plugin load."""
 
 
 @hookspec
-def onUnload():
+def onUnload(app):
     """Hook called on plugin unload."""
 
 
 @hookimpl(wrapper=True)
-def onLoad():
+def onLoad(app):
     try:
         logger.info(f"Initializing plugins...")
         yield
