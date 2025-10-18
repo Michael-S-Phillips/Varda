@@ -2,12 +2,11 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMainWindow
 
 
-class MainGUI(QMainWindow):
-    def __init__(self, menuBar, statusBar, imageRepository):
+class VardaMainWindow(QMainWindow):
+    def __init__(self, menuBar, statusBar):
         super().__init__()
         self.menuBar = menuBar
         self.statusBar = statusBar
-        self.imageRepository = imageRepository
         self._initUI()
 
     def _initUI(self):

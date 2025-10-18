@@ -103,6 +103,7 @@ class ImageLoadingService:
         Returns:
             (raster, metadata): Data from the image file, or None if loading fails
         """
+        logger.debug(f"Loading image data for {filePath}")
         if filePath is None:
             filePath = self._requestFilePath()
             if filePath is None:
@@ -159,9 +160,7 @@ class ImageLoadingService:
             else:
                 self._showErrorMessage(f"Error loading image: {e}")
 
-    def loadMetadataOnly(
-        self, filePath, onSuccessCallback=None, onFailureCallback=None
-    ):
+    def loadMetadataOnly(self, filePath, onSuccessCallback=None, onFailureCallback=None):
         """
         Load only the metadata for an image file without loading the full raster data.
 
@@ -237,9 +236,7 @@ class ImageLoadingService:
         # Add options
         option_group = QButtonGroup(dialog)
 
-        preview_option = QRadioButton(
-            "Load a downsampled preview (faster, less memory)"
-        )
+        preview_option = QRadioButton("Load a downsampled preview (faster, less memory)")
         preview_option.setChecked(True)
         option_group.addButton(preview_option)
         layout.addWidget(preview_option)

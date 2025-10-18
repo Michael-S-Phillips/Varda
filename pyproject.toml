@@ -30,6 +30,13 @@ dependencies = [
     "numpydantic~=1.6.11",
 ]
 
+[dependency-groups]
+dev = [
+    "black>=25.9.0",
+    "mypy>=1.18.2",
+    "pytest>=8.4.2",
+]
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
@@ -39,16 +46,10 @@ varda = "varda.main:main"
 
 [project.entry-points."varda.plugins"]
 
-
 [tool.pytest.ini_options]
 pythonpath = ["varda"]
 testpaths = ["tests"]
 
-[dependency-groups]
-dev = [
-    "black>=25.9.0",
-    "mypy>=1.18.2",
-    "pytest>=8.4.2",
-]
-
+[tool.black]
+line-length = 90
 

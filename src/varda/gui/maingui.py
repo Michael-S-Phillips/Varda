@@ -10,7 +10,7 @@ from varda.project import ProjectContext
 
 from varda.features.image_view_raster.raster_view import RasterView
 from varda.features.workspaces import GeneralImageAnalysisWorkflow
-from varda.gui.widgets import StatusBar, MainMenuBar
+from varda.gui.widgets import StatusBar, VardaMenuBar
 from varda.image_processing.process_controls.processingmenu import ProcessingMenu
 from varda.image_processing.process_controls.processdialog import ProcessDialog
 from varda.features.dual_image_view.dual_image_view import DualImageView
@@ -27,12 +27,13 @@ logger = logging.getLogger(__name__)
 
 
 class MainGUI(QtWidgets.QMainWindow):
-    def __init__(self, proj: ProjectContext):
+    def __init__(self, proj: ProjectContext, menubar, statusbar):
         super().__init__()
 
         self.setWindowTitle("Varda")
         self.setWindowIcon(QIcon("resources/logo.svg"))
-
+        self.setMenuBar(menubar)
+        self.setStatusBar(statusbar)
         self.proj = proj
         self.selectedImage = None
         self.imageList = None
@@ -52,9 +53,6 @@ class MainGUI(QtWidgets.QMainWindow):
         logger.info("MainGUI Initialized")
 
     def initUI(self):
-        self.setMenuBar(MainMenuBar())
-        self.setStatusBar(StatusBar(self.proj))
-
         self.setTabPosition(
             Qt.DockWidgetArea.AllDockWidgetAreas,
             QtWidgets.QTabWidget.TabPosition.North,
@@ -89,25 +87,6 @@ class MainGUI(QtWidgets.QMainWindow):
         return dock
 
     def connectSignals(self):
-        self.menuBar().sigImportFile.connect(self.proj.loadNewImage)
-        self.menuBar().sigExitApp.connect(self.exitApp)
-        self.menuBar().sigSaveProject.connect(self.proj.saveProject)
-        self.menuBar().sigOpenProject.connect(self.proj.loadProject)
-        self.menuBar().sigDumpProjectData.connect(
-            lambda: debug.ProjectContextDataTable(self.proj, self)
-        )
-
-        # TODO: Make this less hacky lol
-        self.menuBar().sigLoadDebugProject.connect(
-            lambda: self.proj.loadProject(Path("../../debugProj.varda").resolve())
-        )
-
-        self.menuBar().sigOpenProcessingMenu.connect(self.openProcessingMenu)
-
-        # Connect dual image signals
-        self.menuBar().sigOpenDualImageView.connect(self.openDualImageView)
-        self.menuBar().sigLinkSelectedImages.connect(self.linkSelectedImages)
-        self.menuBar().sigUnlinkSelectedImages.connect(self.unlinkSelectedImages)
 
         self.imageList.itemClicked.connect(self.onSelectedImageChanged)
 
@@ -172,9 +151,7 @@ class MainGUI(QtWidgets.QMainWindow):
             self.dual_view_dock.setFloating(False)  # Dock it properly
 
             # Add to right dock area
-            self.addDockWidget(
-                Qt.DockWidgetArea.RightDockWidgetArea, self.dual_view_dock
-            )
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dual_view_dock)
 
             # Store reference for cleanup
             if not hasattr(self, "childWindows"):
@@ -241,9 +218,7 @@ class MainGUI(QtWidgets.QMainWindow):
                 if primary_index is not None and secondary_index is not None:
                     # Set the selected images in dual view
                     if hasattr(self, "dual_view") and self.dual_view:
-                        success_primary = self.dual_view.set_primary_image(
-                            primary_index
-                        )
+                        success_primary = self.dual_view.set_primary_image(primary_index)
                         success_secondary = self.dual_view.set_secondary_image(
                             secondary_index
                         )
