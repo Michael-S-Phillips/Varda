@@ -17,22 +17,17 @@ be useful to you.
 ## Prerequisites:
 
 - Python 3.12+ installed
-- Git is installed/setup on your computer
+- [uv package manager](https://docs.astral.sh/uv/)
 
 ## Clone the Repository:
 
 in your terminal, navigate to the directory you want to install the project in, and run the following commands
 
-```bash
-   git clone git@github.com:Michael-S-Phillips/Varda.git
-   cd Varda
-```
-
 ## Setup Development environment:
-[Install the uv package manager:](https://docs.astral.sh/uv/) 
-
+1. clone the repository and navigate to the project directory.
+2. run the following command to setup the environment and install dependencies:
 ```bash
-uv sync                    # Sets up environment and installs dependencies
+uv sync
 ```
 
 ## Run Varda:
