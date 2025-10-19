@@ -550,7 +550,7 @@ class MainGUI(QtWidgets.QMainWindow):
         ):
             image = self.proj.getImage(index)
             self.centralTabs.addTab(
-                GeneralImageAnalysisWorkflow(index), image.metadata.name
+                GeneralImageAnalysisWorkflow(self.proj, index), image.metadata.name
             )
 
     # TODO: Delete?

@@ -50,14 +50,14 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     # Workflow-level signals
     workflowClosed: pyqtSignal = pyqtSignal()  # Emitted when workflow is closed
 
-    def __init__(self, imageIndex=0, parent=None):
+    def __init__(self, proj, imageIndex=0, parent=None):
         super().__init__(parent)
         # self.viewModel = GeneralPurposeImageViewModel(self)
         # self.viewModel.imageIndex = imageIndex
         # self.image = self.viewModel.getImage()
         self.imageIndex = imageIndex
-        self.image = varda.app.proj.getImage(imageIndex)
-        self.project = varda.app.proj
+        self.proj = proj
+        self.image = self.proj.getImage(imageIndex)
 
         # Initialize core components
         self.rasterView = None
@@ -81,7 +81,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         """Initialize all workflow components"""
 
         # Initialize raster view
-        self.tripleRasterView = TripleRasterView(self.imageIndex, self.project, self)
+        self.tripleRasterView = TripleRasterView(self.imageIndex, self.proj, self)
 
         # Initialize tool management for each viewport
         self.toolManager1 = ToolManager(self.tripleRasterView.viewport1, self)
@@ -94,28 +94,22 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.tripleRasterView.viewport3.addToolBar(self.toolManager3.getToolbar())
 
         # Initialize band selection view
-        self.bandManager = BandManager(self.project, self.imageIndex, self)
+        self.bandManager = BandManager(self.proj, self.imageIndex, self)
 
         # Initialize stretch controls
-        self.stretchManager = StretchManager(self.project, self.imageIndex, self)
+        self.stretchManager = StretchManager(self.proj, self.imageIndex, self)
 
         # Initialize metadata editor
-        self.metadataEditor = MetadataEditor(self.project, self.imageIndex, self)
+        self.metadataEditor = MetadataEditor(self.proj, self.imageIndex, self)
 
         # Initialize ROI view/table
-        self.roiManager = ROIManagerWidget(self.project, self.imageIndex, self)
+        self.roiManager = ROIManagerWidget(self.proj, self.imageIndex, self)
         displayController: ROIDisplayController = self.roiManager.getDisplayController()
 
-        displayController.registerViewport(
-            "viewport 1", self.tripleRasterView.viewport1
-        )
-        displayController.registerViewport(
-            "viewport 2", self.tripleRasterView.viewport2
-        )
-        displayController.registerViewport(
-            "viewport 3", self.tripleRasterView.viewport3
-        )
-        self.oldRoiView = getROIView(self.project, self.imageIndex, self)
+        displayController.registerViewport("viewport 1", self.tripleRasterView.viewport1)
+        displayController.registerViewport("viewport 2", self.tripleRasterView.viewport2)
+        displayController.registerViewport("viewport 3", self.tripleRasterView.viewport3)
+        self.oldRoiView = getROIView(self.proj, self.imageIndex, self)
 
     def _initUI(self):
         """Initialize the user interface for the workflow"""
@@ -123,7 +117,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         self._setupDocks()
         # Set the raster view as the central widget
-        #self.setCentralWidget(self.tripleRasterView)
+        # self.setCentralWidget(self.tripleRasterView)
 
         self.setStatusBar(QStatusBar(self))
 
@@ -138,44 +132,42 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         docks.append(rasterDock)
         bandDockNew = Dock("Band Dock", widget=self.bandManager)
         docks.append(bandDockNew)
-        #bandDock = VardaDockWidget("Band Manager", self.bandManager, loc, self)
-        #docks.append(bandDock)
+        # bandDock = VardaDockWidget("Band Manager", self.bandManager, loc, self)
+        # docks.append(bandDock)
 
         stretchDockNew = Dock("Stretch Dock", widget=self.stretchManager)
         docks.append(stretchDockNew)
-        #stretchDock = VardaDockWidget("Stretch Manager", self.stretchManager, loc, self)
-        #docks.append(stretchDock)
+        # stretchDock = VardaDockWidget("Stretch Manager", self.stretchManager, loc, self)
+        # docks.append(stretchDock)
 
         metadataDockNew = Dock("Metadata Dock", widget=self.metadataEditor)
         docks.append(metadataDockNew)
-        #metadataDock = VardaDockWidget("Metadata", self.metadataEditor, loc, self)
-        #docks.append(metadataDock)
+        # metadataDock = VardaDockWidget("Metadata", self.metadataEditor, loc, self)
+        # docks.append(metadataDock)
 
         roiDockNew = Dock("ROI Dock", widget=self.roiManager)
         docks.append(roiDockNew)
-        #roiDock = VardaDockWidget("ROI Manager", self.roiManager, loc, self)
-        #docks.append(roiDock)
+        # roiDock = VardaDockWidget("ROI Manager", self.roiManager, loc, self)
+        # docks.append(roiDock)
 
         oldRoiDockNew = Dock("Old ROI Dock", widget=self.oldRoiView)
         docks.append(oldRoiDockNew)
-        #oldRoiDock = VardaDockWidget("Old ROI View", self.oldRoiView, loc, self)
-        #docks.append(oldRoiDock)
+        # oldRoiDock = VardaDockWidget("Old ROI View", self.oldRoiView, loc, self)
+        # docks.append(oldRoiDock)
 
         # stack docks
-        #self.tabifyDockWidget(bandDock, stretchDock)
-        #self.tabifyDockWidget(stretchDock, roiDock)
-        #self.tabifyDockWidget(roiDock, metadataDock)
-        #self.setTabPosition(
+        # self.tabifyDockWidget(bandDock, stretchDock)
+        # self.tabifyDockWidget(stretchDock, roiDock)
+        # self.tabifyDockWidget(roiDock, metadataDock)
+        # self.setTabPosition(
         #    Qt.DockWidgetArea.AllDockWidgetAreas, QTabWidget.TabPosition.North
-        #)
+        # )
         dockArea.addDock(rasterDock, "right")
         dockArea.addDock(bandDockNew, "left")
         dockArea.addDock(stretchDockNew, "below", bandDockNew)
         dockArea.addDock(metadataDockNew, "below", stretchDockNew)
         dockArea.addDock(roiDockNew, "below", metadataDockNew)
         dockArea.addDock(oldRoiDockNew, "below", roiDockNew)
-
-
 
     def _connectSignals(self):
         """Connect signals between workflow components"""
