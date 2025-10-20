@@ -3,8 +3,8 @@ import logging
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QTableView
 
-from varda.features.components.rois.delegates import ColorDelegate
-from varda.features.components.rois.roi_table_model import ROITableModel
+from varda.rois.delegates import ColorDelegate
+from varda.rois.roi_table_model import ROITableModel
 
 logger = logging.getLogger(__name__)
 

@@ -2,14 +2,14 @@ import logging
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter, QPushButton
 
-from varda.core.roi_utils import ROIStatistics
+from varda.utilities.roi_utils import ROIStatistics
 from varda.image_rendering.raster_view import (
     ROIDisplayController,
 )
-from varda.features.components.rois.roi_property_editor import ROIPropertyEditor
-from varda.features.components.rois.roi_statistics_dialog import ROIStatisticsDialog
-from varda.features.components.rois.roi_table_model import ROITableModel
-from varda.features.components.rois.roi_table_view import ROITableView
+from varda.rois.roi_property_editor import ROIPropertyEditor
+from varda.rois.roi_statistics_dialog import ROIStatisticsDialog
+from varda.rois.roi_table_model import ROITableModel
+from varda.rois.roi_table_view import ROITableView
 
 
 logger = logging.getLogger(__name__)

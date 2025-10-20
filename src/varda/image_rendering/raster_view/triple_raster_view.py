@@ -2,7 +2,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter
 
-from varda.features.components.rois.varda_roi import VardaROIItem
+from varda.rois.varda_roi import VardaROIItem
 from varda.project import ProjectContext
 from varda.common.entities import Band, Stretch
 from varda.image_rendering.raster_view.viewport import ImageViewport
@@ -68,9 +68,7 @@ class TripleRasterView(QWidget):
             aspectLocked=True,
         )
 
-        self.mainController = RegionController(
-            self.viewport1, self.viewport2, self.roi1
-        )
+        self.mainController = RegionController(self.viewport1, self.viewport2, self.roi1)
         self.zoomController = RegionController(
             self.viewport2, self.viewport3, self.roi2, self.mainController
         )

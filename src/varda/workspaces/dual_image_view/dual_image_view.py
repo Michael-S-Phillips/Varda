@@ -28,7 +28,7 @@ from .dual_image_types import DualImageMode, LinkType, DualImageConfig
 from .dual_image_view_controller import DualImageViewController
 from .dual_image_tool_manager import DualImageToolManager
 from .spectral_plot_tool import SpectralPlotTool
-from varda.features.image_view_raster.raster_view import RasterView
+from varda._old.image_view_raster.raster_view import RasterView
 from varda.project import ProjectContext
 
 logger = logging.getLogger(__name__)
@@ -289,9 +289,7 @@ class DualImageView(QWidget):
         # Link button
         self.link_button = QPushButton("Link Images")
         self.link_button.setCheckable(True)
-        self.link_button.setToolTip(
-            "Link/unlink the two images for synchronized viewing"
-        )
+        self.link_button.setToolTip("Link/unlink the two images for synchronized viewing")
         self.link_button.clicked.connect(self._toggle_link)
         layout.addWidget(self.link_button)
 
@@ -507,9 +505,7 @@ class DualImageView(QWidget):
             # Get current raster data
             raster_data = raster_view.viewModel.getRasterFromBand()
             logger.debug(f"Raster data shape: {raster_data.shape}")
-            logger.debug(
-                f"Raster data range: {raster_data.min()} to {raster_data.max()}"
-            )
+            logger.debug(f"Raster data range: {raster_data.min()} to {raster_data.max()}")
 
             # Update the cache in the raster view
             raster_view.current_stretch_levels = stretch_levels
@@ -988,9 +984,7 @@ class DualImageView(QWidget):
 
             if hasattr(raster_view, "sigNavigationChanged"):
                 raster_view.sigNavigationChanged.connect(
-                    lambda state, idx=image_index: self._on_navigation_changed(
-                        idx, state
-                    )
+                    lambda state, idx=image_index: self._on_navigation_changed(idx, state)
                 )
 
             if hasattr(raster_view, "sigROIChanged"):
@@ -1006,9 +1000,7 @@ class DualImageView(QWidget):
             logger.debug(f"Connected signals for raster view {image_index}")
 
         except Exception as e:
-            logger.error(
-                f"Failed to connect signals for raster view {image_index}: {e}"
-            )
+            logger.error(f"Failed to connect signals for raster view {image_index}: {e}")
 
     def _on_view_clicked(self, image_index: int, x: int, y: int):
         """Handle clicks on either image view"""
@@ -1108,9 +1100,7 @@ class DualImageView(QWidget):
             if main_stretch_index is not None:
                 # Get the last known index
                 if image_index in self._stretch_monitors:
-                    last_index = self._stretch_monitors[image_index][
-                        "last_stretch_index"
-                    ]
+                    last_index = self._stretch_monitors[image_index]["last_stretch_index"]
 
                     # Check if it changed
                     if last_index != main_stretch_index:
@@ -1178,9 +1168,7 @@ class DualImageView(QWidget):
 
     def _on_viewmodel_band_changed(self, image_index: int):
         """Handle band changes from the ViewModel directly"""
-        logger.debug(
-            f"=== DUAL VIEW: ViewModel band changed for image {image_index} ==="
-        )
+        logger.debug(f"=== DUAL VIEW: ViewModel band changed for image {image_index} ===")
 
         try:
             raster_view = self._raster_views.get(image_index)

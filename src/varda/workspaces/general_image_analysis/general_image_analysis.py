@@ -10,7 +10,6 @@ import logging
 from PyQt6.QtWidgets import (
     QMainWindow,
     QStatusBar,
-    QTabWidget,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 import pyqtgraph as pg
@@ -18,15 +17,15 @@ from pyqtgraph.dockarea import DockArea, Dock
 
 import varda
 from varda.image_rendering.band_management.band_manager import BandManager
-from varda.features.components.metadata_management.metadata_editor import MetadataEditor
+from varda.metadata_management.metadata_editor import MetadataEditor
 from varda.image_rendering.raster_view import (
     ROIDisplayController,
 )
-from varda.features.components.rois.roi_manager_widget import ROIManagerWidget
+from varda.rois.roi_manager_widget import ROIManagerWidget
 from varda.image_rendering.stretch_management_and_histogram.stretch_manager import (
     StretchManager,
 )
-from varda.features.image_view_roi import getROIView
+
 from varda.image_rendering.raster_view import TripleRasterView
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 
@@ -109,7 +108,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         displayController.registerViewport("viewport 1", self.tripleRasterView.viewport1)
         displayController.registerViewport("viewport 2", self.tripleRasterView.viewport2)
         displayController.registerViewport("viewport 3", self.tripleRasterView.viewport3)
-        self.oldRoiView = getROIView(self.proj, self.imageIndex, self)
+        # self.oldRoiView = getROIView(self.proj, self.imageIndex, self)
 
     def _initUI(self):
         """Initialize the user interface for the workflow"""
@@ -150,8 +149,8 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # roiDock = VardaDockWidget("ROI Manager", self.roiManager, loc, self)
         # docks.append(roiDock)
 
-        oldRoiDockNew = Dock("Old ROI Dock", widget=self.oldRoiView)
-        docks.append(oldRoiDockNew)
+        # oldRoiDockNew = Dock("Old ROI Dock", widget=self.oldRoiView)
+        # docks.append(oldRoiDockNew)
         # oldRoiDock = VardaDockWidget("Old ROI View", self.oldRoiView, loc, self)
         # docks.append(oldRoiDock)
 
@@ -167,7 +166,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         dockArea.addDock(stretchDockNew, "below", bandDockNew)
         dockArea.addDock(metadataDockNew, "below", stretchDockNew)
         dockArea.addDock(roiDockNew, "below", metadataDockNew)
-        dockArea.addDock(oldRoiDockNew, "below", roiDockNew)
+        # dockArea.addDock(oldRoiDockNew, "below", roiDockNew)
 
     def _connectSignals(self):
         """Connect signals between workflow components"""

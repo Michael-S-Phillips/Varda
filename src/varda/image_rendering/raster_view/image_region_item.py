@@ -7,8 +7,8 @@ from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QTransform
 from affine import Affine
 
-from varda.features.components.rois.varda_roi import VardaROIItem
-from varda.core import roi_utils, image_utils
+from varda.rois.varda_roi import VardaROIItem
+from varda.utilities import roi_utils, image_utils
 from varda.common.entities import Image, Band, Stretch
 
 logger = logging.getLogger(__name__)
@@ -178,9 +178,7 @@ class VardaImageItem(pg.ImageItem):
 
         # x_global = vy[1]*x_local + vx[1]*y_local + origin[1]
         # y_global = vy[0]*x_local + vx[0]*y_local + origin[0]
-        return QTransform(
-            vy[1], vy[0], 0.0, vx[1], vx[0], 0.0, origin[1], origin[0], 1.0
-        )
+        return QTransform(vy[1], vy[0], 0.0, vx[1], vx[0], 0.0, origin[1], origin[0], 1.0)
 
     def _updateQTransform(self):
         """Update composed QTransform to account for current regional state."""

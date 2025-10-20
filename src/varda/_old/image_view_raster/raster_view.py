@@ -9,7 +9,7 @@ from PyQt6.QtGui import QColor, QPolygonF
 from PyQt6.QtWidgets import QWidget
 import pyqtgraph as pg
 
-from varda.features.image_view_roi.roi_drawing_manager import ROIDrawingManager
+from varda._old.image_view_roi.roi_drawing_manager import ROIDrawingManager
 from varda.gui.widgets.roi_selector import ROISelector
 from .raster_viewmodel import RasterViewModel
 
@@ -89,10 +89,7 @@ class MainViewBox(NavigableViewBox):
 
     def _handle_navigation_drag(self, ev):
         """Move contextROI based on drag in main view"""
-        if (
-            not hasattr(self.raster_view, "contextROI")
-            or not self.raster_view.contextROI
-        ):
+        if not hasattr(self.raster_view, "contextROI") or not self.raster_view.contextROI:
             return
 
         if self._drag_start_scene_pos is None or self._initial_roi_pos is None:
@@ -242,9 +239,7 @@ class RasterView(QWidget):
         try:
             image = self.viewModel.proj.getImage(self.viewModel.index)
             logger.debug(f"Image shape: {image.raster.shape}")
-            logger.debug(
-                f"Metadata wavelength shape: {image.metadata.wavelengths.shape}"
-            )
+            logger.debug(f"Metadata wavelength shape: {image.metadata.wavelengths.shape}")
             logger.debug(f"First few wavelengths: {image.metadata.wavelengths[:5]}")
             logger.debug(
                 f"Wavelength range: {image.metadata.wavelengths.min():.2f} - {image.metadata.wavelengths.max():.2f} nm"
@@ -537,9 +532,7 @@ class RasterView(QWidget):
                 self.contextROI.sigRegionChanged.connect(
                     self._on_context_roi_navigation_changed
                 )
-                logger.debug(
-                    "Connected contextROI.sigRegionChanged for navigation sync"
-                )
+                logger.debug("Connected contextROI.sigRegionChanged for navigation sync")
 
             # Connect to mainROI changes (red box in main view)
             if hasattr(self, "mainROI") and self.mainROI:
@@ -912,9 +905,7 @@ class RasterView(QWidget):
         if self._is_overlay_secondary:
             # Control whether overlay intercepts mouse events
             if enabled:
-                self.setAttribute(
-                    Qt.WidgetAttribute.WA_TransparentForMouseEvents, False
-                )
+                self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
             else:
                 self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
@@ -1443,8 +1434,7 @@ class RasterView(QWidget):
             # Get color and points from the ROI
             color = roi.color if hasattr(roi, "color") else (255, 0, 0, 128)
             highlighted = (
-                hasattr(self, "highlighted_roi_index")
-                and self.highlighted_roi_index == i
+                hasattr(self, "highlighted_roi_index") and self.highlighted_roi_index == i
             )
 
             # Get points - handle different ROI formats
@@ -1536,9 +1526,7 @@ class RasterView(QWidget):
 
     def _initMainViewBox(self, name, imageItem):
         """Initialize the main view box with custom navigation behavior."""
-        viewBox = MainViewBox(
-            raster_view=self, name=name, lockAspect=True, invertY=True
-        )
+        viewBox = MainViewBox(raster_view=self, name=name, lockAspect=True, invertY=True)
         viewBox.addItem(imageItem)
         # Enable mouse interaction for panning and zooming
         viewBox.setMouseEnabled(x=True, y=True)
@@ -1556,9 +1544,7 @@ class RasterView(QWidget):
 
     def _initZoomViewBox(self, name, imageItem):
         """Initialize the zoom view box with custom navigation behavior."""
-        viewBox = ZoomViewBox(
-            raster_view=self, name=name, lockAspect=True, invertY=True
-        )
+        viewBox = ZoomViewBox(raster_view=self, name=name, lockAspect=True, invertY=True)
         viewBox.addItem(imageItem)
         # Enable mouse interaction for panning and zooming
         viewBox.setMouseEnabled(x=True, y=True)

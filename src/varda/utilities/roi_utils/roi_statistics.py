@@ -4,7 +4,7 @@ from typing import Dict, Any, Tuple
 import numpy as np
 from scipy import stats
 
-from varda.core import roi_utils
+from varda.utilities import roi_utils
 from varda.common.entities import ROI, Image
 
 logger = logging.getLogger(__name__)

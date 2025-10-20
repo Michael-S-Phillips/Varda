@@ -2,7 +2,7 @@ import logging
 from typing import Dict, List, Optional, Any
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer, QRectF
 
-from varda.features.components.rois.varda_roi import VardaROIItem
+from varda.rois.varda_roi import VardaROIItem
 from varda.common.entities import ROI
 
 logger = logging.getLogger(__name__)
@@ -201,9 +201,7 @@ class ROIDisplayController(QObject):
             self._viewports[viewportId].imageItem.coordinateTransform
         )
 
-    def _removeRoiItemFromViewport(
-        self, viewportId: str, roiItem: VardaROIItem
-    ) -> None:
+    def _removeRoiItemFromViewport(self, viewportId: str, roiItem: VardaROIItem) -> None:
         """Remove a ROI item from a viewport"""
         viewport = self._viewports[viewportId]
         viewport.removeItem(roiItem)

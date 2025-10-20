@@ -15,8 +15,8 @@ import varda
 from varda.common.entities import ROI
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
 from varda.image_rendering.raster_view.protocols import Viewport
-from varda.core import image_utils
-from varda.features.components.rois.varda_roi import VardaROIItem
+from varda.utilities import image_utils
+from varda.rois.varda_roi import VardaROIItem
 
 logger = logging.getLogger(__name__)
 
@@ -141,9 +141,7 @@ class FreehandROITool(ROIDrawingTool):
     """Tool for drawing freehand ROIs."""
 
     toolName = "Freehand ROI"
-    toolDescription = (
-        "Draw a freehand ROI by clicking and dragging. Release to complete."
-    )
+    toolDescription = "Draw a freehand ROI by clicking and dragging. Release to complete."
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
         if not self.isDrawing:
@@ -266,9 +264,7 @@ class EllipseROITool(ROIDrawingTool):
         super().startDrawing()
         self.startPoint = None
 
-    def _ellipseToPoints(
-        self, rect: QRectF, num_points=36
-    ) -> List[Tuple[float, float]]:
+    def _ellipseToPoints(self, rect: QRectF, num_points=36) -> List[Tuple[float, float]]:
         """Convert QRectF to ellipse point arrays"""
         center_x = rect.center().x()
         center_y = rect.center().y()

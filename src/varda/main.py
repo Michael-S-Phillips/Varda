@@ -17,7 +17,7 @@ import pyqtgraph as pg
 
 # local imports
 import varda
-from varda.gui.maingui import MainGUI
+from varda.maingui import MainGUI
 from varda.gui.widgets import VardaMenuBar, StatusBar
 from varda.plugins import VardaPluginManager
 from varda.project import ProjectContext

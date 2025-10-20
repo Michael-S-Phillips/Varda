@@ -4,7 +4,7 @@ import numpy as np
 from PyQt6.QtCore import QObject, QEvent, Qt, QPointF
 from PyQt6.QtWidgets import QGraphicsRectItem
 
-from varda.features.components.rois.varda_roi import VardaROIItem
+from varda.rois.varda_roi import VardaROIItem
 from varda.image_rendering.raster_view.protocols import Viewport
 
 logger = logging.getLogger(__name__)
@@ -202,9 +202,7 @@ class RegionController(QObject):
         for x, y in self.displayROI.roiEntity.points:
             # scenePoint = self.displayROI.mapToScene(QPointF(point[0], point[1]))
             # localImagePoint = self.sourceViewport.imageItem.mapFromScene(scenePoint)
-            absoluteImagePoint = self.sourceViewport.imageItem.localToImage(
-                QPointF(x, y)
-            )
+            absoluteImagePoint = self.sourceViewport.imageItem.localToImage(QPointF(x, y))
             absolutePoints.append([absoluteImagePoint.x(), absoluteImagePoint.y()])
 
         # Create new ROI entity with absolute coordinates

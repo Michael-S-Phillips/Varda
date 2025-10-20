@@ -1,26 +1,24 @@
 from pathlib import Path
 import logging
-from typing import Dict, Optional
+from typing import Optional
 
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtWidgets
 from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt, pyqtSlot
 
 from varda.project import ProjectContext
 
-from varda.features.image_view_raster.raster_view import RasterView
-from varda.features.workspaces import GeneralImageAnalysisWorkflow
-from varda.gui.widgets import StatusBar, VardaMenuBar
+from varda.workspaces import GeneralImageAnalysisWorkflow
 from varda.image_processing.process_controls.processingmenu import ProcessingMenu
 from varda.image_processing.process_controls.processdialog import ProcessDialog
-from varda.features.dual_image_view.dual_image_view import DualImageView
-from varda.features.dual_image_view.dual_image_types import DualImageMode
-from varda.features import (
-    image_view_raster,
-    image_view_roi,
+from varda.workspaces.dual_image_view.dual_image_view import DualImageView
+from varda.workspaces.dual_image_view.dual_image_types import DualImageMode
+from varda.workspaces.dual_image_view.dual_image_selection_dialog import (
+    DualImageSelectionDialog,
+)
+from varda.gui.widgets import (
     all_images_view_list,
 )
-import varda.utilities.debug as debug
 from varda.gui.widgets.detachable_tab_widget import DetachableTabWidget
 
 logger = logging.getLogger(__name__)
@@ -38,7 +36,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.proj = app.proj
         self.selectedImage = None
         self.imageList = None
-        self.rasterViews: Dict[int, RasterView] = {}  # image index -> RasterView
+        self.rasterViews = {}  # image index -> RasterView
         self.roiViews = {}
 
         # Track all open windows
@@ -110,24 +108,6 @@ class MainGUI(QtWidgets.QMainWindow):
 
         # Update any open ROI views
         self.updateAllROIViews(index)
-
-    def showRasterView(self, index):
-        print(f"[DEBUG] Showing RasterView for image {index}")
-        for view in self.rasterViews.values():
-            view.hide()
-
-        if index not in self.rasterViews:
-            view = image_view_raster.getRasterView(self.proj, index, self)
-            logger.debug("New RasterView created!")
-            self.rasterContainer.addWidget(view)
-            self.rasterViews[index] = view
-        else:
-            view = self.rasterViews[index]
-
-        self.rasterContainer.setCurrentWidget(view)
-        view.show()
-
-        return view
 
     # DUAL IMAGE METHODS
     def openDualImageView(self):
@@ -290,12 +270,6 @@ class MainGUI(QtWidgets.QMainWindow):
             index = self.imageList.row(item)
             indices.append(index)
 
-        # Import here to avoid circular import
-        from varda.features.dual_image_view.dual_image_view import DualImageView
-        from varda.features.dual_image_view.dual_image_selection_dialog import (
-            DualImageSelectionDialog,
-        )
-
         # Show configuration dialog with pre-selected images
         dialog = DualImageSelectionDialog(self.proj, self)
         dialog.set_default_images(primary_index=indices[0], secondary_index=indices[1])
@@ -439,43 +413,6 @@ class MainGUI(QtWidgets.QMainWindow):
 
         self.close()
 
-    # TODO: Delete?
-    def openROIView(self, image_index):
-        """Open ROI view and properly connect it to RasterView"""
-        print(f"[DEBUG] openROIView called with index: {image_index}")
-        view = image_view_roi.getROIView(self.proj, image_index, self)
-
-        # Set raster view reference if available
-        if image_index in self.rasterViews:
-            raster_view = self.rasterViews[image_index]
-            view.viewModel.setRasterView(raster_view)
-
-            # Connect signals/slots for updates in both directions
-            if hasattr(view, "roiSelectionChanged"):
-                view.roiSelectionChanged.connect(
-                    lambda roi_index: (
-                        raster_view.highlightROI(roi_index)
-                        if hasattr(raster_view, "highlightROI")
-                        else None
-                    )
-                )
-
-        dock = QtWidgets.QDockWidget("ROI Table", self)
-        dock.setWidget(view)
-        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        dock.setFloating(True)
-
-        # Store the view and track the dock widget
-        self.childWindows.append(dock)
-        if not hasattr(self, "roiViews"):
-            self.roiViews = {}
-        self.roiViews[image_index] = view
-
-        # Connect close event to remove from tracking when dock is closed
-        dock.destroyed.connect(lambda: self.removeChildWindow(dock))
-
-        return view
-
     def removeChildWindow(self, window):
         """Remove a window from tracking when it's closed."""
         if window in self.childWindows:
@@ -553,20 +490,6 @@ class MainGUI(QtWidgets.QMainWindow):
                 GeneralImageAnalysisWorkflow(self.proj, index), image.metadata.name
             )
 
-    # TODO: Delete?
-    def trackPixelPlotWindow(self, window):
-        """Track a pixel plot window."""
-        if window not in self.pixelPlotWindows:
-            self.pixelPlotWindows.append(window)
-            # Connect close event to remove from tracking
-            window.destroyed.connect(lambda: self.removePixelPlotWindow(window))
-
-    # TODO: Delete?
-    def removePixelPlotWindow(self, window):
-        """Remove a pixel plot window from tracking."""
-        if window in self.pixelPlotWindows:
-            self.pixelPlotWindows.remove(window)
-
     def closeAllChildWindows(self):
         """Close all child windows before shutting down."""
         # Close all tracked child windows
@@ -591,19 +514,6 @@ class MainGUI(QtWidgets.QMainWindow):
         self.pixelPlotWindows.clear()
 
         logger.info("All child windows closed")
-
-    def exitApp(self):
-        """Properly shut down the application by closing all windows."""
-        logger.info("Exiting application...")
-
-        # Close all child windows first
-        self.closeAllChildWindows()
-
-        # Then close the main window
-        self.close()
-
-        # Force application to quit after a short delay if it hasn't already
-        QtCore.QTimer.singleShot(500, lambda: QtWidgets.QApplication.quit())
 
     def closeEvent(self, event):
         """Handle the window close event to ensure proper cleanup."""

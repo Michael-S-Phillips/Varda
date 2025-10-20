@@ -2,7 +2,7 @@ import logging
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 
-from varda.core.roi_utils import ROIStatistics
+from varda.utilities.roi_utils import ROIStatistics
 from varda.project import ProjectContext
 from varda.image_rendering.raster_view import (
     ROIDisplayController,
@@ -215,9 +215,7 @@ class ROIViewModel(QObject):
 
         except Exception as e:
             logger.error(f"Error plotting ROI spectrum: {e}")
-            QMessageBox.warning(
-                None, "Plot Error", f"Error plotting spectrum: {str(e)}"
-            )
+            QMessageBox.warning(None, "Plot Error", f"Error plotting spectrum: {str(e)}")
 
     def calculateRoiStatistics(self, roiId):
         """Calculate detailed statistics for an ROI"""

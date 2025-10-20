@@ -20,8 +20,9 @@ from PyQt6.QtGui import QColor
 
 # local imports
 from .histogram_viewmodel import HistogramViewModel
-from varda.core.stretch_utils import StretchPresets
-from varda.features.shared.base_view import BaseView
+from varda._old.stretch_utils import StretchPresets
+
+# from varda.features.shared.base_view import BaseView
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +71,13 @@ class DualHistogram(QWidget):
         self.histogramZoomed.item.setHistogramRange(mn, mx)
 
 
-class HistogramView(BaseView):
+class HistogramView(QWidget):
     """A basic view for editing band configurations of an image with selectable RGB histograms."""
 
     def __init__(self, viewModel: HistogramViewModel = None, parent=None):
-        super().__init__(viewModel, parent)
+        super().__init__(parent)
         self.setWindowTitle("Histogram")
-
+        self.viewModel = viewModel
         # To link the histograms to the image, we use an ImageItem.
         # This is just to leverage the existing functionality of the HistogramLUTWidget.
         self.imageItemR = pg.ImageItem()
