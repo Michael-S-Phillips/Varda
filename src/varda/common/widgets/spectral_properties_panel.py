@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -13,18 +13,15 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QCheckBox,
     QColorDialog,
-    QApplication,
     QSplitter,
-    QFrame,
-    QScrollArea,
     QFormLayout,
     QMessageBox,
     QSizePolicy,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QObject, QEventLoop, QTimer
-from PyQt6.QtGui import QColor, QPalette, QIcon, QPixmap, QPainter
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QColor, QIcon, QPixmap, QPainter
 
-from varda.gui.widgets.image_plot_widget import ImagePlotWidget
+from varda.common.widgets.image_plot_widget import ImagePlotWidget
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +102,7 @@ class SpectrumListWidget(QListWidget):
 
         # Set checkable for visibility toggle
         item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        item.setCheckState(
-            Qt.CheckState.Checked if visible else Qt.CheckState.Unchecked
-        )
+        item.setCheckState(Qt.CheckState.Checked if visible else Qt.CheckState.Unchecked)
 
         self.addItem(item)
         return item
@@ -447,9 +442,7 @@ class SpectralPropertiesPanel(QWidget):
 
         # List signals
         self.spectrum_list.spectrumSelectionChanged.connect(self._on_spectrum_selected)
-        self.spectrum_list.spectrumVisibilityToggled.connect(
-            self._on_visibility_toggled
-        )
+        self.spectrum_list.spectrumVisibilityToggled.connect(self._on_visibility_toggled)
 
         # Properties signals
         self.properties_widget.propertyChanged.connect(self._on_property_changed)
@@ -559,9 +552,7 @@ class EnhancedImagePlotWidget(ImagePlotWidget):
 
         # Remove the plot_widget from the existing layout
         existing_layout.removeWidget(self.plot_widget)
-        self.plot_widget.setParent(
-            None
-        )  # Explicitly unparent before adding to splitter
+        self.plot_widget.setParent(None)  # Explicitly unparent before adding to splitter
 
         # Clear the layout to ensure only the splitter is present
         while existing_layout.count():
@@ -576,9 +567,7 @@ class EnhancedImagePlotWidget(ImagePlotWidget):
         splitter.setMinimumSize(400, 300)  # Set a minimum size for the splitter
 
         # Configure splitter behavior
-        splitter.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
+        splitter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         splitter.setContentsMargins(0, 0, 0, 0)
 
         # Ensure plot widget has proper size policy

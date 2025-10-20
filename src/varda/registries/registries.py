@@ -135,7 +135,6 @@ class VardaRegistries:
 
     def __init__(self):
         self._widgets = WidgetRegistry()
-        # self._imageLoaders = ImageLoaderRegistry()
         self._imageProcesses = ImageProcessRegistry()
 
     def registerWidget(self, widget):
@@ -143,12 +142,6 @@ class VardaRegistries:
         name = widget.__name__
         self._widgets[name] = widget
         logger.info(f"Registered widget {name}")
-
-    def registerImageLoader(self, loader):
-        """Register an image loader class."""
-        name = loader.__name__
-        self._imageLoaders[name] = loader
-        logger.info(f"Registered image loader {name}")
 
     def registerImageProcess(self, process):
         """Register an image processing function or class."""
@@ -165,15 +158,6 @@ class VardaRegistries:
         else:
             logger.warning(f"Widget {name} not found in registry.")
 
-    def unregisterImageLoader(self, loader):
-        """Unregister an image loader class."""
-        name = loader.__name__
-        if name in self._imageLoaders:
-            del self._imageLoaders[name]
-            logger.info(f"Unregistered image loader {name}")
-        else:
-            logger.warning(f"Image loader {name} not found in registry.")
-
     def unregisterImageProcess(self, process):
         """Unregister an image processing function or class."""
         name = process.__name__
@@ -189,13 +173,6 @@ class VardaRegistries:
         Get the registered widgets.
         """
         return self._widgets
-
-    @property
-    def imageLoaders(self):
-        """
-        Get the registered image loaders.
-        """
-        return self._imageLoaders
 
     @property
     def imageProcesses(self):

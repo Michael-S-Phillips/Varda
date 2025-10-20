@@ -202,7 +202,7 @@ class ROIViewModel(QObject):
 
             # Create or reuse the pixel plot window
             if not hasattr(self, "pixelPlotWindow") or self.pixelPlotWindow is None:
-                from varda.gui.widgets.image_plot_widget import ImagePlotWidget
+                from varda.common.widgets import ImagePlotWidget
 
                 self.pixelPlotWindow = ImagePlotWidget()
 

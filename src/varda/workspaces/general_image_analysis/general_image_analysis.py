@@ -12,10 +12,8 @@ from PyQt6.QtWidgets import (
     QStatusBar,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-import pyqtgraph as pg
 from pyqtgraph.dockarea import DockArea, Dock
 
-import varda
 from varda.image_rendering.band_management.band_manager import BandManager
 from varda.metadata_management.metadata_editor import MetadataEditor
 from varda.image_rendering.raster_view import (
@@ -28,8 +26,6 @@ from varda.image_rendering.stretch_management_and_histogram.stretch_manager impo
 
 from varda.image_rendering.raster_view import TripleRasterView
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
-
-from varda.gui.widgets.varda_dock_widget import VardaDockWidget
 
 logger = logging.getLogger(__name__)
 

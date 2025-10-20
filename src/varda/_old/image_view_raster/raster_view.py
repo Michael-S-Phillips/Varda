@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QWidget
 import pyqtgraph as pg
 
 from varda._old.image_view_roi.roi_drawing_manager import ROIDrawingManager
-from varda.gui.widgets.roi_selector import ROISelector
+from varda.common.widgets.roi_selector import ROISelector
 from .raster_viewmodel import RasterViewModel
 
 logger = logging.getLogger(__name__)

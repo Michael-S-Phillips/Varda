@@ -18,7 +18,7 @@ import pyqtgraph as pg
 # local imports
 import varda
 from varda.maingui import MainGUI
-from varda.gui.widgets import VardaMenuBar, StatusBar
+from varda.common.widgets import VardaMenuBar, StatusBar
 from varda.plugins import VardaPluginManager
 from varda.project import ProjectContext
 from varda.project.project_io import ProjectJsonIO
@@ -123,7 +123,7 @@ def initVarda() -> None:
     app = VardaApplication(
         ProjectContext(io=ProjectJsonIO()), VardaPluginManager(), VardaRegistries()
     )
-    # let plugins run their startup code -- can only be done after the app api has been set up
+    # let plugins run their startup code
     app.pm.hook.onLoad(app=app)
 
     ### Initialization complete ###
@@ -132,8 +132,8 @@ def initVarda() -> None:
     ### start GUI ###
     gui = MainGUI(app, initMenuBar(app), StatusBar(app.proj))
     gui.showMaximized()
-    varda.log.debug("starting the GUI event loop...")
     splash.finish(gui)
+    varda.log.debug("starting the GUI event loop...")
     exitCode = q_app.exec()
     varda.log.info("Application exiting, performing cleanup...")
     sys.exit(exitCode)

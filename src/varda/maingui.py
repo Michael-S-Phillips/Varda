@@ -6,6 +6,7 @@ from PyQt6 import QtWidgets
 from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt, pyqtSlot
 
+from varda.common.widgets.detachable_tab_widget import DetachableTabWidget
 from varda.project import ProjectContext
 
 from varda.workspaces import GeneralImageAnalysisWorkflow
@@ -16,10 +17,7 @@ from varda.workspaces.dual_image_view.dual_image_types import DualImageMode
 from varda.workspaces.dual_image_view.dual_image_selection_dialog import (
     DualImageSelectionDialog,
 )
-from varda.gui.widgets import (
-    all_images_view_list,
-)
-from varda.gui.widgets.detachable_tab_widget import DetachableTabWidget
+from varda.common.widgets import all_images_view_list
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +35,9 @@ class MainGUI(QtWidgets.QMainWindow):
         self.selectedImage = None
         self.imageList = None
         self.rasterViews = {}  # image index -> RasterView
-        self.roiViews = {}
 
         # Track all open windows
         self.childWindows = []  # List of all child windows/widgets we need to track
-        self.pixelPlotWindows = []  # Track all pixel plot windows specifically
 
         # Dual image view support
         self.dualImageView: Optional[DualImageView] = None
@@ -60,23 +56,15 @@ class MainGUI(QtWidgets.QMainWindow):
         self.imageList = all_images_view_list.newList(self.proj, self)
         self.newDock("Image List", self.imageList, Qt.DockWidgetArea.LeftDockWidgetArea)
 
-        # Raster container
-        self.rasterContainer = QtWidgets.QStackedWidget()
-        self.setCentralWidget(self.rasterContainer)
-
         self.centralTabs = DetachableTabWidget(self)
         self.setCentralWidget(self.centralTabs)
-        # Starting screen label
-        self.startingScreen = self.getStartingScreenWidget()
-        self.rasterContainer.addWidget(self.startingScreen)
-
-    def getStartingScreenWidget(self):
-        label = QtWidgets.QLabel(
-            "Go to File->Import to open your first image!", parent=self
-        )
-        label.setStyleSheet("font-size: 20px;")
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        return label
+        # # Starting screen label
+        # startingScreen = QtWidgets.QLabel(
+        #     "Go to File->Import to open your first image!", parent=self
+        # )
+        # startingScreen.setStyleSheet("font-size: 20px;")
+        # startingScreen.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # self.setCentralWidget(startingScreen)
 
     def newDock(self, title, widget, dockArea):
         dock = QtWidgets.QDockWidget(title, self)
@@ -102,12 +90,9 @@ class MainGUI(QtWidgets.QMainWindow):
 
         self.selectedImage = self.proj.getImage(index)
 
-        print(
-            f"[DEBUG] Selected new image: {self.selectedImage.metadata.name} (index {self.selectedImage.index})"
+        logger.debug(
+            f"Selected new image: {self.selectedImage.metadata.name} (index {self.selectedImage.index})"
         )
-
-        # Update any open ROI views
-        self.updateAllROIViews(index)
 
     # DUAL IMAGE METHODS
     def openDualImageView(self):
@@ -404,13 +389,6 @@ class MainGUI(QtWidgets.QMainWindow):
             except Exception as e:
                 logger.warning(f"Error closing child window: {e}")
 
-        # Close all pixel plot windows
-        for window in self.pixelPlotWindows[:]:
-            try:
-                window.close()
-            except Exception as e:
-                logger.warning(f"Error closing pixel plot window: {e}")
-
         self.close()
 
     def removeChildWindow(self, window):
@@ -420,25 +398,6 @@ class MainGUI(QtWidgets.QMainWindow):
             logger.debug(
                 f"Removed window from tracking. Remaining windows: {len(self.childWindows)}"
             )
-
-    def updateAllROIViews(self, current_image_index):
-        """Update all open ROI views to show data for the current image."""
-        for window in self.childWindows:
-            if hasattr(window, "widget") and window.widget():
-                widget = window.widget()
-                if hasattr(widget, "viewModel") and hasattr(
-                    widget.viewModel, "updateImageIndex"
-                ):
-                    widget.viewModel.updateImageIndex(current_image_index)
-
-                    # Update raster view reference if available
-                    if (
-                        hasattr(widget.viewModel, "setRasterView")
-                        and current_image_index in self.rasterViews
-                    ):
-                        widget.viewModel.setRasterView(
-                            self.rasterViews[current_image_index]
-                        )
 
     def openProcessingMenu(self):
         """Open the image processing menu for the currently selected image."""
@@ -453,6 +412,10 @@ class MainGUI(QtWidgets.QMainWindow):
         # Create processing menu
         processingMenu = ProcessingMenu(self)
 
+        def onProcessFinished():
+            """Handle when an image process finishes - refresh the image list."""
+            logger.info("Image processing completed!")
+
         # Connect menu actions to process execution
         def handle_process_action(action):
             # Find process class by action text
@@ -462,7 +425,7 @@ class MainGUI(QtWidgets.QMainWindow):
                 processDialog = ProcessDialog(self.selectedImage)
                 processDialog.setParent(self)  # Ensure proper parent chain
                 processDialog.project_context = self.proj  # Direct assignment
-                processDialog.sigProcessFinished.connect(self.onProcessFinished)
+                processDialog.sigProcessFinished.connect(onProcessFinished)
                 processDialog.openProcessControlMenu(process_class)
 
         processingMenu.triggered.connect(handle_process_action)
@@ -470,10 +433,6 @@ class MainGUI(QtWidgets.QMainWindow):
         # Show menu at cursor position
         cursor_pos = QCursor.pos()
         processingMenu.exec(cursor_pos)
-
-    def onProcessFinished(self):
-        """Handle when an image process finishes - refresh the image list."""
-        print("Image processing completed!")
 
     @pyqtSlot(int, ProjectContext.ChangeType, ProjectContext.ChangeModifier)
     def onProjectDataChanged(self, index, changeType, changeModifier):
@@ -499,19 +458,8 @@ class MainGUI(QtWidgets.QMainWindow):
             if window and window.isVisible():
                 window.close()
 
-        # Close all pixel plot windows
-        for window in self.pixelPlotWindows[:]:
-            if window and window.isVisible():
-                window.close()
-
-        # Close any control panels
-        # for panel in self.controlPanels.values():
-        #     if hasattr(panel, "pixelPlotPopup") and panel.pixelPlotPopup:
-        #         panel.pixelPlotPopup.close()
-
         # Clear tracking lists
         self.childWindows.clear()
-        self.pixelPlotWindows.clear()
 
         logger.info("All child windows closed")
 

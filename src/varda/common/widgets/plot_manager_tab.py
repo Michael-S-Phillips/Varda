@@ -24,7 +24,7 @@ from PyQt6.QtGui import QDrag, QPixmap, QPainter, QAction, QIcon
 
 from varda.project import ProjectContext
 from varda.features.components.controlpanel import DockableTab
-from varda.gui.widgets.spectral_properties_panel import (
+from varda.common.widgets.spectral_properties_panel import (
     SpectralPropertiesPanel,
     EnhancedImagePlotWidget,
 )
@@ -349,9 +349,7 @@ class PlotWindow(EnhancedImagePlotWidget):
                     )
                 )
 
-                spectrum = BoundsValidator.safe_pixel_access(
-                    image.raster, safe_x, safe_y
-                )
+                spectrum = BoundsValidator.safe_pixel_access(image.raster, safe_x, safe_y)
 
                 # Clean the data
                 (
@@ -707,9 +705,7 @@ class PlotManagerTab(DockableTab):
         self.scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        self.scroll_area.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         self.plots_widget = QWidget()
         self.plots_layout = QGridLayout(self.plots_widget)
@@ -1121,9 +1117,7 @@ class PlotManagerTab(DockableTab):
             )
 
             if not is_valid:
-                logger.warning(
-                    f"Invalid coordinates ({x}, {y}) for thumbnail generation"
-                )
+                logger.warning(f"Invalid coordinates ({x}, {y}) for thumbnail generation")
                 return None
 
             # Use centralized wavelength processing
@@ -1296,9 +1290,7 @@ class PlotManagerTab(DockableTab):
             menu.addSeparator()
             if thumb and thumb.is_pinned:
                 unpin_action = QAction("Unpin Plot", self)
-                unpin_action.triggered.connect(
-                    lambda: self._unpin_plot(plot_data["id"])
-                )
+                unpin_action.triggered.connect(lambda: self._unpin_plot(plot_data["id"]))
                 menu.addAction(unpin_action)
             else:
                 pin_action = QAction("Pin Plot", self)
@@ -1651,9 +1643,7 @@ class PlotManagerTab(DockableTab):
 
         # Update button states (buttons will be created next)
         if hasattr(self, "pin_selected_button"):
-            self.pin_selected_button.setEnabled(
-                single_selected and self.update_existing
-            )
+            self.pin_selected_button.setEnabled(single_selected and self.update_existing)
         if hasattr(self, "unpin_all_button"):
             self.unpin_all_button.setEnabled(has_pinned)
 
@@ -1715,9 +1705,7 @@ class PlotManagerTab(DockableTab):
     def _export_selected_plots(self):
         """Export selected plots."""
         if not self.selected_plots:
-            QMessageBox.information(
-                self, "No Selection", "No plots selected for export."
-            )
+            QMessageBox.information(self, "No Selection", "No plots selected for export.")
             return
 
         selected_titles = [
@@ -1795,13 +1783,13 @@ class PlotManagerTab(DockableTab):
             )
 
         if hasattr(raster_view, "mainImage"):
-            raster_view.mainImage.mouseClickEvent = (
-                lambda event: self._handle_main_click(event, raster_view)
+            raster_view.mainImage.mouseClickEvent = lambda event: self._handle_main_click(
+                event, raster_view
             )
 
         if hasattr(raster_view, "zoomImage"):
-            raster_view.zoomImage.mouseClickEvent = (
-                lambda event: self._handle_zoom_click(event, raster_view)
+            raster_view.zoomImage.mouseClickEvent = lambda event: self._handle_zoom_click(
+                event, raster_view
             )
 
     def _handle_context_click(self, event, raster_view):

@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt, QObject, pyqtSignal
 from PyQt6.QtWidgets import QToolBar, QLabel
 from PyQt6.QtGui import QAction
 
-from varda.gui.widgets.roi_selector import ROISelector, ROIMode
+from varda.common.widgets.roi_selector import ROISelector, ROIMode
 from varda.common.entities.roi import ROI
 
 logger = logging.getLogger(__name__)
@@ -369,9 +369,7 @@ class ROIDrawingManager(QObject):
         """Set up ROI selector for the specified view type"""
         if view_type == "context":
             if hasattr(self.raster_view, "contextImage"):
-                self.active_roi_selector.setTargetImageItem(
-                    self.raster_view.contextImage
-                )
+                self.active_roi_selector.setTargetImageItem(self.raster_view.contextImage)
                 self.raster_view.contextView.addItem(self.active_roi_selector)
                 return True
 

@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QDialog, QLabel, QPushButton, QHBoxLayout, QVBoxLayout
 
-from varda.gui.widgets import FilePathBox
+from varda.common.widgets import FilePathBox
 
 
 class FileInputDialog(QDialog):
