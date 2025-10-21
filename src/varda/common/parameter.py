@@ -8,7 +8,11 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QLabel,
     QDoubleSpinBox,
+    QFormLayout,
+    QSizePolicy,
 )
+import pyqtgraph as pg
+
 from typing_extensions import override
 
 
@@ -28,7 +32,7 @@ class FloatSlider(QSlider):
 
     @override
     def setValue(self, a0):
-        super().setValue(a0 * pow(10, self.precision))
+        super().setValue(int(a0 * pow(10, self.precision)))
 
     def onValueChanged(self, value):
         floatVal = value / pow(10, self.precision)
@@ -50,22 +54,33 @@ class Parameter(QWidget):
     def get(self): ...
 
 
-class IntParameter(QWidget):
+class ParameterGroup(QWidget):
+    def __init__(self, params: list[Parameter], parent=None):
+        super().__init__(parent)
+        self.params = params
+        formLayout = QFormLayout()
+        for param in self.params:
+            formLayout.addRow(param.name(), param)
+        self.setLayout(formLayout)
+
+
+class IntParameter(Parameter):
 
     def __init__(self, name, units, default=0, valueRange=None, parent=None):
         super().__init__()
-        self.name = name
-        self.units = units
+        self._name = name
+        self._units = units
         self.valueRange = valueRange
         if self.valueRange is not None:  # clamp default to range
             default = max(self.valueRange[0], min(self.valueRange[1], default))
         self.value = default
         self.spinBox = None
         self.slider = None
+        self._initUI()
 
     def _initUI(self):
         # initialize widget
-        layout = QHBoxLayout(self)
+        paramLayout = QHBoxLayout(self)
         self.spinBox = QSpinBox(parent=self)
         if self.valueRange is not None:
             self.spinBox.setRange(self.valueRange[0], self.valueRange[1])
@@ -73,20 +88,23 @@ class IntParameter(QWidget):
             self.spinBox.setRange(-100000, 100000)
         self.spinBox.setValue(self.value)
         self.spinBox.valueChanged.connect(self.valueChanged)
-        layout.addWidget(self.spinBox)
+        paramLayout.addWidget(self.spinBox)
 
-        self.unitLabel = QLabel(self.units)
-        layout.addWidget(self.unitLabel)
+        self.unitLabel = QLabel(self._units)
+        paramLayout.addWidget(self.unitLabel)
 
         if self.valueRange is not None:
             self.slider = QSlider(parent=self)
             self.slider.setOrientation(Qt.Orientation.Horizontal)
+            self.slider.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            )
             self.slider.setRange(self.valueRange[0], self.valueRange[1])
             self.slider.setValue(self.value)
             self.slider.valueChanged.connect(self.valueChanged)
-            layout.addWidget(self.slider)
+            paramLayout.addWidget(self.slider)
 
-        self.setLayout(layout)
+        self.setLayout(paramLayout)
 
     @pyqtSlot(int)
     def valueChanged(self, value):
@@ -102,10 +120,10 @@ class IntParameter(QWidget):
         self.sigValueChanged.emit(value)
 
     def name(self):
-        return self.name
+        return self._name
 
     def units(self):
-        return self.units
+        return self._units
 
     def set(self, value):
         self.valueChanged(value)
@@ -116,16 +134,17 @@ class IntParameter(QWidget):
 
 class FloatParameter(Parameter):
 
-    def __init__(self, name, units, default=0.0, valueRange=None, parent=None):
+    def __init__(self, name: str, units: str, default=0.0, valueRange=None, parent=None):
         super().__init__(parent)
-        self.name = name
-        self.units = units
+        self._name = name
+        self._units = units
         self.valueRange = valueRange
         if self.valueRange is not None:  # clamp default to range
             default = max(self.valueRange[0], min(self.valueRange[1], default))
         self.value = default
         self.spinBox = None
         self.slider = None
+        self._initUI()
 
     def _initUI(self):
         # initialize widget
@@ -139,7 +158,7 @@ class FloatParameter(Parameter):
         self.spinBox.valueChanged.connect(self.valueChanged)
         layout.addWidget(self.spinBox)
 
-        self.unitLabel = QLabel(self.units)
+        self.unitLabel = QLabel(self._units)
         layout.addWidget(self.unitLabel)
 
         if self.valueRange is not None:
@@ -147,7 +166,7 @@ class FloatParameter(Parameter):
             self.slider.setOrientation(Qt.Orientation.Horizontal)
             self.slider.setRange(self.valueRange[0], self.valueRange[1])
             self.slider.setValue(self.value)
-            self.slider.valueChanged.connect(self.valueChanged)
+            self.slider.sigFloatValueChanged.connect(self.valueChanged)
             layout.addWidget(self.slider)
 
         self.setLayout(layout)
@@ -166,10 +185,10 @@ class FloatParameter(Parameter):
         self.sigValueChanged.emit(value)
 
     def name(self):
-        return self.name
+        return self._name
 
     def units(self):
-        return self.units
+        return self._units
 
     def set(self, value):
         self.valueChanged(value)
@@ -178,7 +197,7 @@ class FloatParameter(Parameter):
         return self.value
 
 
-class StringParameter:
+class StringParameter(Parameter):
     def __init__(self, name, default):
         self.name = name
         self.default = default
@@ -199,21 +218,34 @@ class BoolParameter:
 
 
 if __name__ == "__main__":
-    import sys
+    q_app = pg.mkQApp()
+    paramGroup = ParameterGroup(
+        [
+            IntParameter("test", "test units", 10, (0, 100)),
+            IntParameter("test2", "test units", 7, (0, 10)),
+            FloatParameter("float test3", "test units", 55.15, (50, 100)),
+        ]
+    )
+    paramGroup.show()
+    q_app.exec()
 
-    qapp = QApplication([])
-
-    layout = QVBoxLayout()
-
-    intParam0 = IntParameter("test", "test units", 10, (0, 100))
-    # intParam1 = IntParameter("test4", "test units", 10)
-    # floatParam0 = FloatParameter("FloatVal", "floating units", 15.15, (0, 100))
-
-    layout.addWidget(intParam0)
-    # layout.addWidget(intParam1)
-    # layout.addWidget(floatParam0)
-
-    w = QWidget()
-    w.setLayout(layout)
-    w.show()
-    sys.exit(qapp.exec())
+#
+# if __name__ == "__main__":
+#     import sys
+#
+#     qapp = QApplication([])
+#
+#     layout = QVBoxLayout()
+#
+#     intParam0 = IntParameter("test", "test units", 10, (0, 100))
+#     # intParam1 = IntParameter("test4", "test units", 10)
+#     # floatParam0 = FloatParameter("FloatVal", "floating units", 15.15, (0, 100))
+#
+#     layout.addWidget(intParam0)
+#     # layout.addWidget(intParam1)
+#     # layout.addWidget(floatParam0)
+#
+#     w = QWidget()
+#     w.setLayout(layout)
+#     w.show()
+#     sys.exit(qapp.exec())

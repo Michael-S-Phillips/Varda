@@ -1,22 +1,25 @@
 from typing import Protocol
-
+from typing import Type
 import numpy as np
-from pyqtgraph.parametertree import Parameter
-from varda.common.parameter import IntParameter
 
+from PyQt6.QtWidgets import QFormLayout
+import pyqtgraph as pg
 
-stretchAlgorithmRegistry = {}
+from varda.common.parameter import IntParameter, ParameterGroup
 
 
 def registerStretchAlgorithm(cls):
-    def wrapper(*args, **kwargs):
-        return cls(*args, **kwargs)
-
-    stretchAlgorithmRegistry[cls.__name__] = wrapper
-    return wrapper
+    stretchAlgorithmRegistry.append(cls)
+    return cls
 
 
-class StretchAlgorithm(Protocol):
+stretchAlgorithmRegistry: list[Type["StretchAlgorithm"]] = []
+
+
+class StretchAlgorithm:
+
+    # class-level attribute
+    name: str
 
     def parameters(self):
         raise NotImplementedError("Subclasses classes must implement this method.")
@@ -24,13 +27,21 @@ class StretchAlgorithm(Protocol):
     def apply(self, image):
         raise NotImplementedError("Subclasses classes must implement this method.")
 
+    def getWidget(self):
+        formLayout = QFormLayout()
+        for param in self.parameters():
+            formLayout.addRow(param.name, param.widget)
+        return formLayout
+
 
 @registerStretchAlgorithm
 class MinMaxStretch(StretchAlgorithm):
     """Simple min-max stretch that uses the full range of values in the image."""
 
+    name = "Min-Max (Full Range)"
+
     def parameters(self):
-        return {}
+        return ParameterGroup([])
 
     def apply(self, image):
         """Compute min/max values for the full range of data."""
@@ -64,14 +75,16 @@ class MinMaxStretch(StretchAlgorithm):
 
 @registerStretchAlgorithm
 class LinearPercentileStretch(StretchAlgorithm):
+
+    name = "Linear Percentile"
+
     def __init__(self):
         super().__init__()
-        # self.lowPercent = Parameter.create("Low Percent", )
-        self.lowPercent = IntParameter("Low Percent", "%", [0, 100], 1)
-        self.highPercent = IntParameter("High Percent", "%", [0, 100], 1)
+        self.lowPercent = IntParameter("Low Percent", "%", 1, [0, 100])
+        self.highPercent = IntParameter("High Percent", "%", 99, [0, 100])
 
     def parameters(self):
-        return [self.lowPercent, self.highPercent]
+        return ParameterGroup([self.lowPercent, self.highPercent])
 
     def computePercentile(self, data, percentile):
         """Safely compute percentile for masked or regular arrays."""

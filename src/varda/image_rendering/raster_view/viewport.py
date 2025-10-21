@@ -5,7 +5,10 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 
 from varda.common.entities import Image, Stretch, Band
-from varda.image_rendering.raster_view.viewport_tools.viewport_tool import Viewport, ViewportTool
+from varda.image_rendering.raster_view.viewport_tools.viewport_tool import (
+    Viewport,
+    ViewportTool,
+)
 from varda.image_rendering.raster_view.protocols import Viewport
 from varda.image_rendering.raster_view.image_region_item import (
     VardaImageItem,
@@ -33,14 +36,8 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         self._imageItem = VardaImageItem(imageEntity)
         self._vb = pg.ViewBox(lockAspect=True, invertY=True)
         self._vb.setMouseEnabled(x=False, y=False)
-        # self._vb.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        # self._imageItem = pg.ImageItem(
-        #     image_utils.getRasterFromBand(self.imageEntity, self.band),
-        #     levels=self.stretch.toList(),
-        # )
-        # self.imageItem = ImageRegionItem(image, autoLevels=False)
 
-        self._vb.addItem(self.imageItem)
+        self._vb.addItem(self._imageItem)
         self._vb.keyPressEvent = lambda event: None
         self._gv = pg.GraphicsView()
         self._gv.setCentralItem(self._vb)
@@ -48,7 +45,7 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         layout.addWidget(self._gv)
         self.setLayout(layout)
 
-        self.imageItem.sigImageChanged.connect(self.sigImageChanged)
+        self._imageItem.sigImageChanged.connect(self.sigImageChanged)
 
     def disableSelfUpdating(self):
         """Disable self-updating of the image item."""
@@ -60,15 +57,15 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
 
     def setBand(self, band: Band, update=True):
         """Set the band for the image item."""
-        self.imageItem.setBand(band, update)
+        self._imageItem.setBand(band, update)
 
     def setStretch(self, stretch: Stretch, update=True):
         """Set the stretch for the image item."""
-        self.imageItem.setStretch(stretch, update)
+        self._imageItem.setStretch(stretch, update)
 
     def refresh(self):
         """Refresh the image display with current settings."""
-        self.imageItem.refresh()
+        self._imageItem.refresh()
 
     def addItem(self, item):
         """Add a graphics item to the viewport."""

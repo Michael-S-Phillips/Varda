@@ -424,7 +424,7 @@ class ImageLoadingService:
         msg_box.setText(message)
         msg_box.exec()
 
-    def loadImageSync(self, filePath):
+    def loadImageSync(self, filePath=None):
         """
         Load an image synchronously and return the result.
 
