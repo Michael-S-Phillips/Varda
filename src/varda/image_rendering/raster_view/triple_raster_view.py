@@ -2,8 +2,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter
 
+from varda.image_rendering.image_renderer import ImageRenderer
 from varda.rois.varda_roi import VardaROIItem
-from varda.project import ProjectContext
 from varda.common.entities import Band, Stretch
 from varda.image_rendering.raster_view.viewport import ImageViewport
 from varda.image_rendering.raster_view.region_controller import (
@@ -12,17 +12,16 @@ from varda.image_rendering.raster_view.region_controller import (
 
 
 class TripleRasterView(QWidget):
-    def __init__(self, imageIndex: int, proj: ProjectContext, parent=None):
+    def __init__(self, imageRenderer: ImageRenderer, parent=None):
         super().__init__(parent)
-        self.imageIndex = imageIndex
-        self.image = proj.getImage(imageIndex)
+        self.imageRenderer = imageRenderer
         self._initUI()
         self._initROIControllers()
 
     def _initUI(self):
-        self.viewport1 = ImageViewport(self.image)
-        self.viewport2 = ImageViewport(self.image)
-        self.viewport3 = ImageViewport(self.image)
+        self.viewport1 = ImageViewport(self.imageRenderer)
+        self.viewport2 = ImageViewport(self.imageRenderer)
+        self.viewport3 = ImageViewport(self.imageRenderer)
 
         # top-level layout
         verticalSplitter = QSplitter(Qt.Orientation.Vertical)
@@ -39,31 +38,20 @@ class TripleRasterView(QWidget):
 
     def _initROIControllers(self):
         """Initialize ROI controllers for the viewports"""
-
-        # # Create test ROI with no controllers to verify basic visibility
-        # test_roi = VardaROI.rectROI(
-        #     (200, 200),
-        #     (150, 150),
-        #     self.imageIndex,
-        #     (0, 255, 0, 100),  # Bright green
-        # )
-        #
-        # # Add directly to viewport with no controllers
-        # self.viewport1.addItem(test_roi)
-
-        # Create ROIs
+        startPoint = self.viewport1.imageItem.localToImage((50, 50))
+        roiTempIndex = -1  # temp -- ROIs probably dont need an index field at all
         self.roi1 = VardaROIItem.rectROI(
-            self.viewport1.imageItem.localToImage((50, 50)),
+            startPoint,
             (100, 100),
-            self.imageIndex,
+            roiTempIndex,
             QColor(255, 0, 0, 0),
             aspectLocked=True,
         )
         startPoint = self.viewport2.imageItem.localToImage((25, 25))
         self.roi2 = VardaROIItem.rectROI(
-            self.viewport2.imageItem.localToImage((25, 25)),
+            startPoint,
             (50, 50),
-            self.imageIndex,
+            roiTempIndex,  # temp -- ROIs probably dont need an index field at all
             QColor(255, 0, 0, 0),
             aspectLocked=True,
         )

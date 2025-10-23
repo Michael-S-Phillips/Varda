@@ -1,52 +1,67 @@
-from typing import Protocol
 from typing import Type
 import numpy as np
-
-from PyQt6.QtWidgets import QFormLayout
-import pyqtgraph as pg
+from PyQt6.QtCore import QObject
 
 from varda.common.parameter import IntParameter, ParameterGroup
 
 
-def registerStretchAlgorithm(cls):
-    stretchAlgorithmRegistry.append(cls)
-    return cls
+def registerStretchAlgorithm(name):
+    def wrapper(cls):
+        cls.name = name
+        stretchAlgorithmRegistry[name] = cls
+        return cls
+
+    return wrapper
 
 
-stretchAlgorithmRegistry: list[Type["StretchAlgorithm"]] = []
+stretchAlgorithmRegistry: dict[str, Type["StretchAlgorithm"]] = {}
 
 
-class StretchAlgorithm:
+def validateArrayShape(image):
+    if image.ndim != 3 or image.shape[2] not in (1, 3):
+        raise ValueError(
+            f"Image must be 3-dimensional greyscale or RGB. Got {image.shape} "
+        )
 
-    # class-level attribute
-    name: str
+
+class StretchAlgorithm(QObject):
 
     def parameters(self):
-        raise NotImplementedError("Subclasses classes must implement this method.")
+        """
+        Returns a ParameterGroup object containing parameters for this stretch algorithm.
+        If an algorithm has no parameters, they do not need to reimplement this method.
+        """
+        return ParameterGroup([])
 
     def apply(self, image):
         raise NotImplementedError("Subclasses classes must implement this method.")
 
-    def getWidget(self):
-        formLayout = QFormLayout()
-        for param in self.parameters():
-            formLayout.addRow(param.name, param.widget)
-        return formLayout
+    def __repr__(self):
+        params = self.parameters()
+        out = f"{self.__class__.__name__} ( {params} )"
+        return out
 
 
-@registerStretchAlgorithm
+@registerStretchAlgorithm("No Stretch")
+class NoStretch(StretchAlgorithm):
+    """
+    placeholder stretch algorithm that does nothing.
+    """
+
+    def apply(self, image):
+        return image
+
+
+@registerStretchAlgorithm("Min-Max (Full Range)")
 class MinMaxStretch(StretchAlgorithm):
     """Simple min-max stretch that uses the full range of values in the image."""
-
-    name = "Min-Max (Full Range)"
 
     def parameters(self):
         return ParameterGroup([])
 
     def apply(self, image):
         """Compute min/max values for the full range of data."""
-        if image.ndim != 3 or image.shape[2] not in (1, 3):
-            raise ValueError("Image must be 3-dimensional greyscale or RGB.")
+        validateArrayShape(image)
 
         if image.shape[2] == 1:
             # Handle grayscale or invalid data
@@ -73,22 +88,21 @@ class MinMaxStretch(StretchAlgorithm):
         return (np.clip(image, minVals, maxVals) - minVals) / (maxVals - minVals)
 
 
-@registerStretchAlgorithm
+@registerStretchAlgorithm("Linear Percentile")
 class LinearPercentileStretch(StretchAlgorithm):
-
-    name = "Linear Percentile"
 
     def __init__(self):
         super().__init__()
-        self.lowPercent = IntParameter("Low Percent", "%", 1, [0, 100])
-        self.highPercent = IntParameter("High Percent", "%", 99, [0, 100])
+        self.lowPercent = IntParameter("Low Percent", "%", 1, [0, 100], self)
+        self.highPercent = IntParameter("High Percent", "%", 99, [0, 100], self)
 
     def parameters(self):
         return ParameterGroup([self.lowPercent, self.highPercent])
 
-    def computePercentile(self, data, percentile):
+    @staticmethod
+    def computePercentile(data, percentile):
         """Safely compute percentile for masked or regular arrays."""
-        # TODO: I don't think we should be making this function worry about masked/non-masked arrays.
+        # TODO: I don't think we should be making this function worry about masked/non-masked arrays?
         #   Varda Should prob just fill masked arrays with np.nan upfront.
         if np.ma.is_masked(data):
             # Use compressed() to get only non-masked values
@@ -101,11 +115,14 @@ class LinearPercentileStretch(StretchAlgorithm):
         lowPercent = self.lowPercent.get()
         highPercent = self.highPercent.get()
 
-        if image.ndim != 3 or image.shape[2] not in (1, 3):
-            raise ValueError("Image must be 3-dimensional greyscale or RGB.")
+        validateArrayShape(image)
+
+        # Create a copy if the array is not writeable, because np.nanpercentile fails otherwise
+        if not image.flags.writeable:
+            image = image.copy()
+
         if image.shape[2] == 1:
             # Handle grayscale
-            np.nanpercentile(image, lowPercent)
             minVal = np.nanpercentile(image, lowPercent)
             maxVal = self.computePercentile(image, highPercent)
             # clip and stretch

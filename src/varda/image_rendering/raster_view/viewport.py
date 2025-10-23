@@ -5,8 +5,8 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 
 from varda.common.entities import Image, Stretch, Band
+from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import (
-    Viewport,
     ViewportTool,
 )
 from varda.image_rendering.raster_view.protocols import Viewport
@@ -28,12 +28,11 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
 
     sigImageChanged = pyqtSignal()
 
-    def __init__(self, imageEntity: Image, parent=None):
+    def __init__(self, imageRenderer: ImageRenderer, parent=None):
         super().__init__(parent)
         self.selfUpdating = True
-        self._imageEntity = imageEntity
-
-        self._imageItem = VardaImageItem(imageEntity)
+        self._imageRenderer = imageRenderer
+        self._imageItem = VardaImageItem(self._imageRenderer)
         self._vb = pg.ViewBox(lockAspect=True, invertY=True)
         self._vb.setMouseEnabled(x=False, y=False)
 
@@ -57,6 +56,7 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
 
     def setBand(self, band: Band, update=True):
         """Set the band for the image item."""
+        self._imageRenderer.set
         self._imageItem.setBand(band, update)
 
     def setStretch(self, stretch: Stretch, update=True):
@@ -86,11 +86,6 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
     def addToolBar(self, toolbar):
         """Add a toolbar to the viewport."""
         self.layout().addWidget(toolbar)
-
-    @property
-    def imageEntity(self) -> Image:
-        """Get the Image entity for this viewport."""
-        return self._imageEntity
 
     @property
     def imageItem(self) -> VardaImageItem:

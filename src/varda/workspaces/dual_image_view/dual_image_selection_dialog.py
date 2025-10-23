@@ -210,9 +210,7 @@ class DualImageSelectionDialog(QDialog):
         # Sync navigation
         self.sync_navigation_cb = QCheckBox("Synchronize navigation (pan/zoom)")
         self.sync_navigation_cb.setChecked(True)
-        self.sync_navigation_cb.setToolTip(
-            "Keep navigation synchronized between images"
-        )
+        self.sync_navigation_cb.setToolTip("Keep navigation synchronized between images")
         layout.addWidget(self.sync_navigation_cb)
 
         # Sync ROIs
@@ -324,8 +322,5 @@ class DualImageSelectionDialog(QDialog):
         if primary_index is not None and primary_index < self.primary_combo.count():
             self.primary_combo.setCurrentIndex(primary_index)
 
-        if (
-            secondary_index is not None
-            and secondary_index < self.secondary_combo.count()
-        ):
+        if secondary_index is not None and secondary_index < self.secondary_combo.count():
             self.secondary_combo.setCurrentIndex(secondary_index)

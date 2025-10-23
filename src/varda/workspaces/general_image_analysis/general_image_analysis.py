@@ -15,6 +15,11 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from pyqtgraph.dockarea import DockArea, Dock
 
 from varda.image_rendering.band_management.band_manager import BandManager
+from varda.image_rendering.image_renderer import (
+    ImageRenderer,
+    RendererSettings,
+    RendererSettingsPanel,
+)
 from varda.metadata_management.metadata_editor import MetadataEditor
 from varda.image_rendering.raster_view import (
     ROIDisplayController,
@@ -76,7 +81,12 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         """Initialize all workflow components"""
 
         # Initialize raster view
-        self.tripleRasterView = TripleRasterView(self.imageIndex, self.proj, self)
+        self.rendererSettings = RendererSettings()
+        self.rendererSettingsPanel = RendererSettingsPanel(
+            self.image, self.rendererSettings
+        )
+        self.imageRenderer = ImageRenderer(self.image, self.rendererSettings)
+        self.tripleRasterView = TripleRasterView(self.imageRenderer, self)
 
         # Initialize tool management for each viewport
         self.toolManager1 = ToolManager(self.tripleRasterView.viewport1, self)
@@ -125,13 +135,16 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         rasterDock = Dock("Raster Dock", widget=self.tripleRasterView)
         docks.append(rasterDock)
-        bandDockNew = Dock("Band Dock", widget=self.bandManager)
-        docks.append(bandDockNew)
+
+        settingsDock = Dock("Render Settings", widget=self.rendererSettingsPanel)
+        docks.append(settingsDock)
+        # bandDockNew = Dock("Band Dock", widget=self.bandManager)
+        # docks.append(bandDockNew)
         # bandDock = VardaDockWidget("Band Manager", self.bandManager, loc, self)
         # docks.append(bandDock)
 
-        stretchDockNew = Dock("Stretch Dock", widget=self.stretchManager)
-        docks.append(stretchDockNew)
+        # stretchDockNew = Dock("Stretch Dock", widget=self.stretchManager)
+        # docks.append(stretchDockNew)
         # stretchDock = VardaDockWidget("Stretch Manager", self.stretchManager, loc, self)
         # docks.append(stretchDock)
 
@@ -158,16 +171,20 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         #    Qt.DockWidgetArea.AllDockWidgetAreas, QTabWidget.TabPosition.North
         # )
         dockArea.addDock(rasterDock, "right")
-        dockArea.addDock(bandDockNew, "left")
-        dockArea.addDock(stretchDockNew, "below", bandDockNew)
-        dockArea.addDock(metadataDockNew, "below", stretchDockNew)
+        dockArea.addDock(settingsDock, "left")
+        # dockArea.addDock(bandDockNew, "left")
+        # dockArea.addDock(stretchDockNew, "below", bandDockNew)
+        dockArea.addDock(metadataDockNew, "below", settingsDock)
         dockArea.addDock(roiDockNew, "below", metadataDockNew)
         # dockArea.addDock(oldRoiDockNew, "below", roiDockNew)
 
     def _connectSignals(self):
         """Connect signals between workflow components"""
-        self.bandManager.sigBandChanged.connect(self.tripleRasterView.setBand)
-        self.stretchManager.sigStretchChanged.connect(self.tripleRasterView.setStretch)
+        # self.bandManager.sigBandChanged.connect(self.tripleRasterView.setBand)
+        # self.stretchManager.sigStretchChanged.connect(self.tripleRasterView.setStretch)
+        self.rendererSettingsPanel.sigSettingsChanged.connect(
+            self.imageRenderer.updateSettings
+        )
 
     def setStatusMessage(self, message):
         """Set a status message in the status bar"""

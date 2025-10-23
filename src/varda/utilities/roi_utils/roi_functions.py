@@ -131,7 +131,10 @@ def getMaskedArrayRegionSimple(
     # Mask out only the polygon region
     localPoints = roi.points - np.array([min_x, min_y])
     mask = createROIMask(localPoints, (height, width))
-    mask = np.broadcast_to(~mask[..., np.newaxis], arraySlice.shape)
+    mask = ~mask
+    # reshape mask to match arraySlice dimensions, if necessary (sometimes arrayslice is 2d and sometimes 3d)
+    if mask.ndim < arraySlice.ndim:
+        mask = np.broadcast_to(~mask[..., np.newaxis], arraySlice.shape)
     maskedArray = np.ma.masked_array(arraySlice, mask=mask)
     # np.newaxis is to explicitly give the mask the same number of dimensions as arraySlice. For some reason need to do that.
     # maskedArray = np.where(mask[..., np.newaxis], arraySlice, np.nan)

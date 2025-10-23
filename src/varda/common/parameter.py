@@ -1,4 +1,4 @@
-from PyQt6.QtCore import pyqtSignal, pyqtSlot, QSignalBlocker, Qt
+from PyQt6.QtCore import pyqtSignal, pyqtSlot, QSignalBlocker, Qt, QObject
 from PyQt6.QtWidgets import (
     QSpinBox,
     QWidget,
@@ -17,7 +17,7 @@ from typing_extensions import override
 
 
 class FloatSlider(QSlider):
-    sigFloatValueChanged = pyqtSignal(float)
+    sigFloatValueChanged: pyqtSignal = pyqtSignal(float)
 
     def __init__(self, precision=3, parent=None):
         super().__init__(parent)
@@ -39,8 +39,8 @@ class FloatSlider(QSlider):
         self.sigFloatValueChanged.emit(floatVal)
 
 
-class Parameter(QWidget):
-    sigValueChanged = pyqtSignal(object)
+class Parameter(QObject):
+    sigValueChanged: pyqtSignal = pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -53,15 +53,23 @@ class Parameter(QWidget):
 
     def get(self): ...
 
+    def getWidget(self): ...
+
 
 class ParameterGroup(QWidget):
+    sigParameterChanged: pyqtSignal = pyqtSignal()
+
     def __init__(self, params: list[Parameter], parent=None):
         super().__init__(parent)
         self.params = params
         formLayout = QFormLayout()
         for param in self.params:
-            formLayout.addRow(param.name(), param)
+            formLayout.addRow(param.name(), param.getWidget())
+            param.sigValueChanged.connect(self.sigParameterChanged)
         self.setLayout(formLayout)
+
+    def __repr__(self):
+        return f"ParameterGroup({[p.get() for p in self.params]})"
 
 
 class IntParameter(Parameter):
@@ -73,51 +81,7 @@ class IntParameter(Parameter):
         self.valueRange = valueRange
         if self.valueRange is not None:  # clamp default to range
             default = max(self.valueRange[0], min(self.valueRange[1], default))
-        self.value = default
-        self.spinBox = None
-        self.slider = None
-        self._initUI()
-
-    def _initUI(self):
-        # initialize widget
-        paramLayout = QHBoxLayout(self)
-        self.spinBox = QSpinBox(parent=self)
-        if self.valueRange is not None:
-            self.spinBox.setRange(self.valueRange[0], self.valueRange[1])
-        else:
-            self.spinBox.setRange(-100000, 100000)
-        self.spinBox.setValue(self.value)
-        self.spinBox.valueChanged.connect(self.valueChanged)
-        paramLayout.addWidget(self.spinBox)
-
-        self.unitLabel = QLabel(self._units)
-        paramLayout.addWidget(self.unitLabel)
-
-        if self.valueRange is not None:
-            self.slider = QSlider(parent=self)
-            self.slider.setOrientation(Qt.Orientation.Horizontal)
-            self.slider.setSizePolicy(
-                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-            )
-            self.slider.setRange(self.valueRange[0], self.valueRange[1])
-            self.slider.setValue(self.value)
-            self.slider.valueChanged.connect(self.valueChanged)
-            paramLayout.addWidget(self.slider)
-
-        self.setLayout(paramLayout)
-
-    @pyqtSlot(int)
-    def valueChanged(self, value):
-        self.value = value
-
-        if self.spinBox.value() != value:
-            with QSignalBlocker(self.spinBox):
-                self.spinBox.setValue(value)
-        if self.slider is not None and self.slider.value() != value:
-            with QSignalBlocker(self.slider):
-                self.slider.setValue(value)
-
-        self.sigValueChanged.emit(value)
+        self._value = default
 
     def name(self):
         return self._name
@@ -126,10 +90,57 @@ class IntParameter(Parameter):
         return self._units
 
     def set(self, value):
-        self.valueChanged(value)
+        self._value = value
+        self.sigValueChanged.emit(self._value)
 
     def get(self):
-        return self.value
+        return self._value
+
+    def getWidget(self):
+        return IntParameter.IntParameterWidget(self)
+
+    class IntParameterWidget(QWidget):
+        def __init__(self, param: "IntParameter", parent=None):
+            super().__init__(parent)
+            self.param = param
+            # init UI
+            paramLayout = QHBoxLayout(self)
+            self.spinBox = QSpinBox(parent=self)
+            if self.param.valueRange is not None:
+                self.spinBox.setRange(self.param.valueRange[0], self.param.valueRange[1])
+            else:
+                self.spinBox.setRange(-100000, 100000)
+            self.spinBox.setValue(self.param.get())
+            self.spinBox.valueChanged.connect(self.valueChanged)
+            paramLayout.addWidget(self.spinBox)
+
+            self.unitLabel = QLabel(self.param.units())
+            paramLayout.addWidget(self.unitLabel)
+
+            if self.param.valueRange is not None:
+                self.slider = QSlider(parent=self)
+                self.slider.setOrientation(Qt.Orientation.Horizontal)
+                self.slider.setSizePolicy(
+                    QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+                )
+                self.slider.setRange(self.param.valueRange[0], self.param.valueRange[1])
+                self.slider.setValue(self.param.get())
+                self.slider.valueChanged.connect(self.valueChanged)
+                paramLayout.addWidget(self.slider)
+
+            self.setLayout(paramLayout)
+
+        @pyqtSlot(int)
+        def valueChanged(self, value):
+
+            if self.spinBox.value() != value:
+                with QSignalBlocker(self.spinBox):
+                    self.spinBox.setValue(value)
+            if self.slider is not None and self.slider.value() != value:
+                with QSignalBlocker(self.slider):
+                    self.slider.setValue(value)
+
+            self.param.set(value)
 
 
 class FloatParameter(Parameter):

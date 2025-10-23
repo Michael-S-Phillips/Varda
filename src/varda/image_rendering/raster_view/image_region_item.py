@@ -7,6 +7,7 @@ from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QTransform
 from affine import Affine
 
+from varda.image_rendering.image_renderer import ImageRenderer
 from varda.rois.varda_roi import VardaROIItem
 from varda.utilities import roi_utils, image_utils
 from varda.common.entities import Image, Band, Stretch
@@ -34,15 +35,23 @@ class VardaImageItem(pg.ImageItem):
     """
 
     def __init__(
-        self, imageEntity: Image, band: Band = None, stretch: Stretch = None, **kwargs
+        self,
+        imageRenderer: ImageRenderer = None,
+        band: Band = None,
+        stretch: Stretch = None,
+        **kwargs,
     ):
         super().__init__(**kwargs)
-
-        self._imageEntity = imageEntity
+        self._imageRenderer = imageRenderer
+        # not totally sure how good this setup is --
+        # the renderer is created way up at the workspace level, which is probably also where the settings panel will be displayed
+        # but the signals emitted when those settings change is sent straight down here. idk feels weird but maybe it's actually genius
+        self._imageRenderer.sigShouldRefresh.connect(self.refresh)
+        self._imageEntity = self._imageRenderer.image
         if band:
             self._band = band
         else:
-            self._band = imageEntity.metadata.defaultBand
+            self._band = self.imageEntity.metadata.defaultBand
             logger.debug("Using default band: %s", self._band)
         self._stretch = stretch or Stretch.createDefault()
 
@@ -149,7 +158,8 @@ class VardaImageItem(pg.ImageItem):
         """Update the displayed image data."""
         self._calculateRegionalData()
         # self._updateQTransform()
-        self.setImage(self._regionalData, levels=self._stretch.toList())
+        # self.setImage(self._regionalData, levels=self._stretch.toList())
+        self.setImage(self._regionalData)
 
     def _buildImageQTransformFromAffine(self) -> QTransform:
         """Build a QTransform from the image's affine (pixel -> world)."""
@@ -194,13 +204,14 @@ class VardaImageItem(pg.ImageItem):
 
     def _calculateRegionalData(self):
         """Get the current regional data being displayed."""
-        bandSlice = image_utils.getRasterFromBand(self._imageEntity, self._band)
+        rgb_data = self._imageRenderer.render()
+        # bandSlice = image_utils.getRasterFromBand(self._imageEntity, self._band)
 
         if self._isShowingRegion:
             # get the region
             self._regionalData, self._coordinateTransform = (
                 roi_utils.getMaskedArrayRegionSimple(
-                    self._roi, bandSlice, returnTransform=True
+                    self._roi, rgb_data, returnTransform=True
                 )
             )
             self._regionalData = self._regionalData.filled(
@@ -208,10 +219,10 @@ class VardaImageItem(pg.ImageItem):
             )  # Fill NaNs to avoid display issues
         else:
             # Show full image
-            if isinstance(bandSlice, np.ma.MaskedArray):
-                self._regionalData = bandSlice.filled(np.nan)
-            else:
-                self._regionalData = bandSlice
+            # if isinstance(rgb_data, np.ma.MaskedArray):
+            #     self._regionalData = rgb_data.filled(np.nan)
+            # else:
+            self._regionalData = rgb_data
             # self._regionalData = bandSlice.filled(
             #     np.nan
             # )  # Fill NaNs to avoid display issues
