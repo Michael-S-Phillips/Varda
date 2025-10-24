@@ -20,6 +20,8 @@ class TripleRasterView(QWidget):
 
     def _initUI(self):
         self.viewport1 = ImageViewport(self.imageRenderer)
+        # only need to connect one first viewport, because others are linked via region controllers
+        self.imageRenderer.sigShouldRefresh.connect(self.viewport1.refresh)
         self.viewport2 = ImageViewport(self.imageRenderer)
         self.viewport3 = ImageViewport(self.imageRenderer)
 

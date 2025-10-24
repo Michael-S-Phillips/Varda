@@ -46,7 +46,6 @@ class VardaImageItem(pg.ImageItem):
         # not totally sure how good this setup is --
         # the renderer is created way up at the workspace level, which is probably also where the settings panel will be displayed
         # but the signals emitted when those settings change is sent straight down here. idk feels weird but maybe it's actually genius
-        self._imageRenderer.sigShouldRefresh.connect(self.refresh)
         self._imageEntity = self._imageRenderer.image
         if band:
             self._band = band
@@ -159,7 +158,7 @@ class VardaImageItem(pg.ImageItem):
         self._calculateRegionalData()
         # self._updateQTransform()
         # self.setImage(self._regionalData, levels=self._stretch.toList())
-        self.setImage(self._regionalData)
+        self.setImage(self._regionalData, levels=(0, 255))
 
     def _buildImageQTransformFromAffine(self) -> QTransform:
         """Build a QTransform from the image's affine (pixel -> world)."""
@@ -209,14 +208,12 @@ class VardaImageItem(pg.ImageItem):
 
         if self._isShowingRegion:
             # get the region
-            self._regionalData, self._coordinateTransform = (
-                roi_utils.getMaskedArrayRegionSimple(
-                    self._roi, rgb_data, returnTransform=True
-                )
+            self._regionalData, self._coordinateTransform = roi_utils.getRectImageRegion(
+                self._roi, rgb_data, returnTransform=True
             )
-            self._regionalData = self._regionalData.filled(
-                np.nan
-            )  # Fill NaNs to avoid display issues
+            # self._regionalData = self._regionalData.filled(
+            #     0
+            # )  # Fill NaNs to avoid display issues
         else:
             # Show full image
             # if isinstance(rgb_data, np.ma.MaskedArray):

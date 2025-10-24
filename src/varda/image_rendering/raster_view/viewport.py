@@ -56,7 +56,6 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
 
     def setBand(self, band: Band, update=True):
         """Set the band for the image item."""
-        self._imageRenderer.set
         self._imageItem.setBand(band, update)
 
     def setStretch(self, stretch: Stretch, update=True):

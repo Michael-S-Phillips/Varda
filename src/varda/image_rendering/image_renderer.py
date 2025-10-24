@@ -78,14 +78,24 @@ class ImageRenderer(QObject):
         else:
             rgb_data = self.image.raster[:, :, self.settings.bands[:3]]
 
+        # if array is masked, convert to regular array with nans
+        if np.ma.isMaskedArray(rgb_data):
+            rgb_data = rgb_data.filled(np.nan)
+
         # Run the stretch algorithm
         rgb_data = self.settings.stretch.apply(rgb_data)
+
+        # convert NaNs to zeros before color mapping and outputting
+        rgb_data[np.isnan(rgb_data)] = 0
 
         # Apply color map
         if self.settings.mode == "mono":
             rgb_data = np.squeeze(rgb_data)  # go back to 2D because ColorMap expects it
-            rgb_data = self.settings.colorMap.map(rgb_data)
-
+            rgb_data = self.settings.colorMap.mapToByte(rgb_data)
+        else:
+            # convert the image to byte values, since it's faster to display I think.
+            # (ColorMap already does this for mono images)
+            rgb_data = (rgb_data * 255).astype(np.uint8)
         self.cachedRender = rgb_data
         return rgb_data
 

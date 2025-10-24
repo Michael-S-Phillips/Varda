@@ -99,17 +99,6 @@ class LinearPercentileStretch(StretchAlgorithm):
     def parameters(self):
         return ParameterGroup([self.lowPercent, self.highPercent])
 
-    @staticmethod
-    def computePercentile(data, percentile):
-        """Safely compute percentile for masked or regular arrays."""
-        # TODO: I don't think we should be making this function worry about masked/non-masked arrays?
-        #   Varda Should prob just fill masked arrays with np.nan upfront.
-        if np.ma.is_masked(data):
-            # Use compressed() to get only non-masked values
-            valid_data = data.compressed()
-            return np.percentile(valid_data, percentile) if len(valid_data) > 0 else 0.0
-        return np.nanpercentile(data, percentile)
-
     def apply(self, image):
         """Compute min/max values based on percentiles."""
         lowPercent = self.lowPercent.get()
@@ -124,25 +113,29 @@ class LinearPercentileStretch(StretchAlgorithm):
         if image.shape[2] == 1:
             # Handle grayscale
             minVal = np.nanpercentile(image, lowPercent)
-            maxVal = self.computePercentile(image, highPercent)
+            maxVal = np.nanpercentile(image, highPercent)
             # clip and stretch
-            return (np.clip(image, minVal, maxVal) - minVal) / (maxVal - minVal)
+            scale = maxVal - minVal
+            scale = 1.0 if scale == 0 else scale  # prevent division by zero
+            return (np.clip(image, minVal, maxVal) - minVal) / scale
+        else:
+            # Compute percentiles for each channel
+            minVals = np.array(
+                [
+                    np.nanpercentile(image[:, :, 0], lowPercent),
+                    np.nanpercentile(image[:, :, 1], lowPercent),
+                    np.nanpercentile(image[:, :, 2], lowPercent),
+                ]
+            ).reshape((1, 1, 3))
+            maxVals = np.array(
+                [
+                    np.nanpercentile(image[:, :, 0], highPercent),
+                    np.nanpercentile(image[:, :, 1], highPercent),
+                    np.nanpercentile(image[:, :, 2], highPercent),
+                ]
+            ).reshape((1, 1, 3))
 
-        # Compute percentiles for each channel
-        minVals = np.array(
-            [
-                self.computePercentile(image[:, :, 0], lowPercent),
-                self.computePercentile(image[:, :, 1], lowPercent),
-                self.computePercentile(image[:, :, 2], lowPercent),
-            ]
-        ).reshape((1, 1, 3))
-        maxVals = np.array(
-            [
-                self.computePercentile(image[:, :, 0], highPercent),
-                self.computePercentile(image[:, :, 1], highPercent),
-                self.computePercentile(image[:, :, 2], highPercent),
-            ]
-        ).reshape((1, 1, 3))
-
-        # clip and stretch
-        return (np.clip(image, minVals, maxVals) - minVals) / (maxVals - minVals)
+            # clip and stretch
+            scale = maxVals - minVals
+            scale[scale == 0] = 1.0  # prevent division by zero
+            return (np.clip(image, minVals, maxVals) - minVals) / scale
