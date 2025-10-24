@@ -5,6 +5,14 @@ from PyQt6.QtCore import QObject
 from varda.common.parameter import IntParameter, ParameterGroup
 
 
+# TODO: Implement the other stretch algorithms:
+# - Gaussian Stretch
+# - Logarithmic Stretch
+# - Square Root Stretch
+# - Decorrelation Stretch
+# - Histogram Equalization Stretch
+# - Adaptive Equalization Stretch
+
 def registerStretchAlgorithm(name):
     def wrapper(cls):
         cls.name = name
