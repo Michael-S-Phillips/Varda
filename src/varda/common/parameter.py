@@ -63,6 +63,10 @@ class ParameterGroup(QWidget):
         super().__init__(parent)
         self.params = params
         formLayout = QFormLayout()
+        # formLayout.setSpacing(0)
+        formLayout.setFieldGrowthPolicy(
+            formLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
+        )
         for param in self.params:
             formLayout.addRow(param.name(), param.getWidget())
             param.sigValueChanged.connect(self.sigParameterChanged)
@@ -105,6 +109,11 @@ class IntParameter(Parameter):
             self.param = param
             # init UI
             paramLayout = QHBoxLayout(self)
+            paramLayout.setAlignment(
+                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+            )
+            paramLayout.setContentsMargins(0, 0, 0, 0)
+
             self.spinBox = QSpinBox(parent=self)
             if self.param.valueRange is not None:
                 self.spinBox.setRange(self.param.valueRange[0], self.param.valueRange[1])

@@ -133,10 +133,12 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         docks = []
         loc = Qt.DockWidgetArea.LeftDockWidgetArea
 
-        rasterDock = Dock("Raster Dock", widget=self.tripleRasterView)
+        rasterDock = Dock("Raster Dock", widget=self.tripleRasterView, size=(10, 10))
         docks.append(rasterDock)
 
-        settingsDock = Dock("Render Settings", widget=self.rendererSettingsPanel)
+        settingsDock = Dock(
+            "Render Settings", widget=self.rendererSettingsPanel, size=(5, 5)
+        )
         docks.append(settingsDock)
         # bandDockNew = Dock("Band Dock", widget=self.bandManager)
         # docks.append(bandDockNew)
@@ -172,10 +174,10 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # )
         dockArea.addDock(rasterDock, "right")
         dockArea.addDock(settingsDock, "left")
+        dockArea.addDock(roiDockNew, "below", settingsDock)
         # dockArea.addDock(bandDockNew, "left")
         # dockArea.addDock(stretchDockNew, "below", bandDockNew)
-        dockArea.addDock(metadataDockNew, "below", settingsDock)
-        dockArea.addDock(roiDockNew, "below", metadataDockNew)
+        # dockArea.addDock(metadataDockNew, "bottom")
         # dockArea.addDock(oldRoiDockNew, "below", roiDockNew)
 
     def _connectSignals(self):

@@ -1,7 +1,8 @@
+import sys
 from dataclasses import dataclass, field
 import logging
 
-from PyQt6.QtCore import pyqtSlot, pyqtSignal, QObject
+from PyQt6.QtCore import pyqtSlot, pyqtSignal, QObject, Qt
 from PyQt6.QtWidgets import (
     QWidget,
     QFormLayout,
@@ -11,6 +12,11 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QStackedLayout,
     QVBoxLayout,
+    QGridLayout,
+    QLabel,
+    QApplication,
+    QLayout,
+    QSizePolicy,
 )
 import pyqtgraph as pg
 from pyqtgraph import ColorMap
@@ -128,30 +134,41 @@ class RendererSettingsPanel(QWidget):
         self.settings = settings
 
         ### init UI ###
-        layout = QFormLayout()
-        layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        layout.setSpacing(2)
         ## Mode selection ##
         modeSelector = QButtonGroup(self)
         modeSelector.addButton(rgbMode := QRadioButton("rgb"))
         modeSelector.addButton(monoMode := QRadioButton("mono"))
         modeLayout = QHBoxLayout()
+        modeLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         modeLayout.addWidget(rgbMode)
         modeLayout.addWidget(monoMode)
-        layout.addRow("Mode", modeLayout)
+        layout.addWidget(QLabel("Mode:"))
+        layout.addLayout(modeLayout)
 
         ## Band Selection ##
         self.rgbBands: list[QComboBox] = []
         self.bandLayout = QStackedLayout()
+        self.bandLayout.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
         rgbBandLayout = QHBoxLayout()
+        rgbBandLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         # generate band layout for rgb mode
         for i in range(3):
             comboBox = getComboBox()
             comboBox.addItems([str(w) for w in self.image.metadata.wavelengths])
+            comboBox.setMaximumWidth(100)
             comboBox.currentIndexChanged.connect(self._onBandsChanged)
             self.rgbBands.append(comboBox)
             rgbBandLayout.addWidget(comboBox)
         # generate band layout for mono mode
         monoBandLayout = QVBoxLayout()
+        monoBandLayout.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
         self.monoBand = getComboBox()
         self.monoBand.addItems([str(w) for w in self.image.metadata.wavelengths])
         self.monoBand.currentIndexChanged.connect(self._onBandsChanged)
@@ -166,17 +183,25 @@ class RendererSettingsPanel(QWidget):
         self.bandLayout.addWidget(widgetContainer)
         widgetContainer = QWidget()
         widgetContainer.setLayout(monoBandLayout)
+
         self.bandLayout.addWidget(widgetContainer)
 
-        layout.addRow("Band", self.bandLayout)
+        layout.addLayout(self.bandLayout)
 
         ## Stretch Selection ##
         stretchLayout = QVBoxLayout()
+        stretchLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self.stretchAlgSelector = getComboBox()
         self.stretchAlgSelector.addItems([key for key in stretchAlgorithmRegistry.keys()])
         stretchLayout.addWidget(self.stretchAlgSelector)
         self.stretchParameters = QStackedLayout()
-
+        self.stretchParameters.setSizeConstraint(
+            QStackedLayout.SizeConstraint.SetMinimumSize
+        )
+        self.stretchParameters.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
+        # self.stretchParameters.setContentsMargins(0, 0, 0, 0)
         self.stretchInstances = []  # list of StretchAlgorithm objects, one for each
         for alg in stretchAlgorithmRegistry.values():
             instance = alg()
@@ -189,7 +214,9 @@ class RendererSettingsPanel(QWidget):
             self.stretchParameters.addWidget(parameters)
             self.stretchInstances.append(instance)
         stretchLayout.addLayout(self.stretchParameters)
-        layout.addRow("Stretch Algorithm", stretchLayout)
+
+        layout.addWidget(QLabel("Stretch Algorithm:"))
+        layout.addLayout(stretchLayout)
 
         ### Finish Init UI ###
         self.setLayout(layout)
@@ -254,7 +281,7 @@ class RendererSettingsPanel(QWidget):
 
 
 if __name__ == "__main__":
-    q_app = pg.mkQApp()
+    q_app = QApplication(sys.argv)
     image = varda.utilities.debug.generateRandomImage((100, 100, 10), (10, 10, 10))
     settings = RendererSettings()
     renderer = ImageRenderer(image, settings)
