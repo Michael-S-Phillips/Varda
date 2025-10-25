@@ -60,12 +60,19 @@ def initMenuBar(app):
         "Dump Project Data",
         lambda: varda.utilities.debug.ProjectContextDataTable(app.proj, None),
     )
+    # debug actions
+    loadDummyImageAction = createAction(
+        "Load Dummy Image",
+        lambda: varda.utilities.debug.loadRandomImageIntoProject(
+            app.proj, (100, 100, 50), (10, 10, 10)
+        ),
+    )
     actions.append(importImageAction)
     actions.append(saveProjectAction)
     actions.append(openProjectAction)
     actions.append(exitAppAction)
     actions.append(dumpProjectDataAction)
-
+    actions.append(loadDummyImageAction)
     ### Initialize MenuBar ###
     menuBar = VardaMenuBar()
     menuBar.registerAction("File", importImageAction)
@@ -73,6 +80,7 @@ def initMenuBar(app):
     menuBar.registerAction("File", openProjectAction)
     menuBar.registerAction("File", exitAppAction)
     menuBar.registerAction("Debug", dumpProjectDataAction)
+    menuBar.registerAction("Debug", loadDummyImageAction)
     return menuBar
 
 
@@ -85,35 +93,35 @@ def initVarda() -> None:
     # Initialize the QApplication
     q_app = QApplication(sys.argv)
     q_app.setApplicationName("Varda")
-    q_app.setOrganizationName("Varda")
     splash = QSplashScreen(QPixmap("resources/logo.svg"))
     splash.show()
     q_app.processEvents()  # ensures splash screen is shown
 
     ### Initialize Logging -- Logs stored in user's local appdata folder ###
-    logFolder = (
-        Path(
-            QStandardPaths.writableLocation(
-                QStandardPaths.StandardLocation.AppLocalDataLocation
-            )
-        )
-        / "Logs"
-    )
-    logFolder.mkdir(parents=True, exist_ok=True)
-    # Get existing log files and remove the oldest ones if there are too many
-    maxLogs = 10
-    log_files = sorted(logFolder.glob("Varda.*.log"), key=lambda f: f.stat().st_mtime)
-    while len(log_files) >= maxLogs:
-        log_files[0].unlink()  # Delete the oldest log file
-        log_files.pop(0)
-    # compute name for new log file
-    logTime = datetime.now().strftime("%Y-%m-%d_%I-%M-%S-%p")
-    logName = logFolder / f"Varda.{logTime}.log"
-    logging.basicConfig(
-        level=logging.DEBUG,
-        handlers=[logging.FileHandler(logName), logging.StreamHandler(sys.stdout)],
-    )
-    varda.log.debug("QApplication and logging initialized")
+    varda.log._initializeFullLogging()
+    # logFolder = (
+    #     Path(
+    #         QStandardPaths.writableLocation(
+    #             QStandardPaths.StandardLocation.AppLocalDataLocation
+    #         )
+    #     )
+    #     / "Logs"
+    # )
+    # logFolder.mkdir(parents=True, exist_ok=True)
+    # # Get existing log files and remove the oldest ones if there are too many
+    # maxLogs = 10
+    # log_files = sorted(logFolder.glob("Varda.*.log"), key=lambda f: f.stat().st_mtime)
+    # while len(log_files) >= maxLogs:
+    #     log_files[0].unlink()  # Delete the oldest log file
+    #     log_files.pop(0)
+    # # compute name for new log file
+    # logTime = datetime.now().strftime("%Y-%m-%d_%I-%M-%S-%p")
+    # logName = logFolder / f"Varda.{logTime}.log"
+    # logging.basicConfig(
+    #     level=logging.DEBUG,
+    #     handlers=[logging.FileHandler(logName), logging.StreamHandler(sys.stdout)],
+    # )
+    # varda.log.debug("QApplication and logging initialized")
 
     ### Set Configurations ###
     pg.setConfigOptions(imageAxisOrder="row-major")
@@ -144,4 +152,4 @@ def main():
 
 
 if __name__ == "__main__":
-    initVarda()
+    main()

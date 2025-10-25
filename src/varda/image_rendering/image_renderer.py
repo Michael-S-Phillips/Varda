@@ -41,7 +41,7 @@ class RendererSettings:
         default_factory=lambda: np.zeros(3, dtype=np.uint)
     )
     stretch: StretchAlgorithm = field(
-        default_factory=lambda: stretchAlgorithmRegistry["No Stretch"]()
+        default_factory=lambda: stretchAlgorithmRegistry["Min-Max (Full Range)"]()
     )
     # default to a simple black-to-white gradient
     colorMap: ColorMap = field(
@@ -137,6 +137,7 @@ class RendererSettingsPanel(QWidget):
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         layout.setSpacing(2)
+
         ## Mode selection ##
         modeSelector = QButtonGroup(self)
         modeSelector.addButton(rgbMode := QRadioButton("rgb"))

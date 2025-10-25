@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 import numpy as np
 
-from varda.common.entities import Metadata, Image
+from varda.common.entities import Metadata, Image, Band
 
 DEBUG = True
 
@@ -134,13 +134,20 @@ class ProjectContextDataTable(QWidget):
         return match
 
 
+def loadRandomImageIntoProject(proj, shape=(10, 10, 10), res=(1, 1, 1)):
+    """Load a random Image entity into the specified project."""
+    image = generateRandomImage(shape, res)
+    proj.addImage(image)
+
+
 def generateRandomImage(shape, res):
     """Generate a random Image entity of the specified size."""
     import numpy as np
 
     raster = generate_perlin_noise_3d(shape, res)
     metadata = Metadata(
-        wavelengths=np.array(["wavelength " + num for num in map(str, range(shape[2]))])
+        wavelengths=np.array(["wavelength " + num for num in map(str, range(shape[2]))]),
+        defaultBand=Band("default", 0, 0, 0),
     )
     return Image(raster, metadata)
 

@@ -99,10 +99,10 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.tripleRasterView.viewport3.addToolBar(self.toolManager3.getToolbar())
 
         # Initialize band selection view
-        self.bandManager = BandManager(self.proj, self.imageIndex, self)
+        # self.bandManager = BandManager(self.proj, self.imageIndex, self)
 
         # Initialize stretch controls
-        self.stretchManager = StretchManager(self.proj, self.imageIndex, self)
+        # self.stretchManager = StretchManager(self.proj, self.imageIndex, self)
 
         # Initialize metadata editor
         self.metadataEditor = MetadataEditor(self.proj, self.imageIndex, self)
@@ -133,11 +133,11 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         docks = []
         loc = Qt.DockWidgetArea.LeftDockWidgetArea
 
-        rasterDock = Dock("Raster Dock", widget=self.tripleRasterView, size=(10, 10))
+        rasterDock = Dock("Raster Dock", widget=self.tripleRasterView, size=(800, 800))
         docks.append(rasterDock)
 
         settingsDock = Dock(
-            "Render Settings", widget=self.rendererSettingsPanel, size=(5, 5)
+            "Render Settings", widget=self.rendererSettingsPanel, size=(100, 1)
         )
         docks.append(settingsDock)
         # bandDockNew = Dock("Band Dock", widget=self.bandManager)
@@ -155,7 +155,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # metadataDock = VardaDockWidget("Metadata", self.metadataEditor, loc, self)
         # docks.append(metadataDock)
 
-        roiDockNew = Dock("ROI Dock", widget=self.roiManager)
+        roiDockNew = Dock("ROI Dock", widget=self.roiManager, size=(100, 100))
         docks.append(roiDockNew)
         # roiDock = VardaDockWidget("ROI Manager", self.roiManager, loc, self)
         # docks.append(roiDock)
@@ -174,7 +174,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # )
         dockArea.addDock(rasterDock, "right")
         dockArea.addDock(settingsDock, "left")
-        dockArea.addDock(roiDockNew, "below", settingsDock)
+        dockArea.addDock(roiDockNew, "bottom", settingsDock)
         # dockArea.addDock(bandDockNew, "left")
         # dockArea.addDock(stretchDockNew, "below", bandDockNew)
         # dockArea.addDock(metadataDockNew, "bottom")

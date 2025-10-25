@@ -8,6 +8,8 @@ from PyQt6.QtWidgets import QListView, QListWidget, QListWidgetItem
 from PyQt6.QtCore import Qt
 import pyqtgraph as pg
 
+from varda.image_rendering.image_renderer import ImageRenderer
+from varda.image_rendering.raster_view import VardaImageItem
 
 # local imports
 from varda.project import ProjectContext
@@ -96,20 +98,10 @@ class ImageItemDelegate(QtWidgets.QStyledItemDelegate):
 
         # Get the data from the model
         image = index.data(QtCore.Qt.ItemDataRole.UserRole)
+        renderer = ImageRenderer(image)
 
         # Get the current stretch index from the main view
-        current_stretch_index = self._get_current_stretch_index(image.index)
-
-        # Use the current band configuration
-        current_band = image.band[0]  # For now, use the first band
-
-        # Extract RGB data based on current band
-        data = image.raster[:, :, [current_band.r, current_band.g, current_band.b]]
-
-        # Use the current stretch instead of always stretch[0]
-        stretch_levels = image.stretch[current_stretch_index].toList()
-        icon = pg.ImageItem(data, levels=stretch_levels)
-
+        icon = VardaImageItem(renderer)
         icon.setRect(self.iconSize)
         label = index.data(QtCore.Qt.ItemDataRole.DisplayRole)
 

@@ -40,19 +40,25 @@ class TripleRasterView(QWidget):
 
     def _initROIControllers(self):
         """Initialize ROI controllers for the viewports"""
-        startPoint = self.viewport1.imageItem.localToImage((50, 50))
+        imageShape = self.viewport1.imageItem.image.shape
+        height, width = imageShape[0], imageShape[1]
+
+        startPoint = width // 3, height // 3
+        size = width // 3, height // 3
         roiTempIndex = -1  # temp -- ROIs probably dont need an index field at all
         self.roi1 = VardaROIItem.rectROI(
             startPoint,
-            (100, 100),
+            size,
             roiTempIndex,
             QColor(255, 0, 0, 0),
             aspectLocked=True,
         )
-        startPoint = self.viewport2.imageItem.localToImage((25, 25))
+
+        startPoint = startPoint[0] // 3, startPoint[1] // 3
+        size = size[0] // 3, size[1] // 3
         self.roi2 = VardaROIItem.rectROI(
             startPoint,
-            (50, 50),
+            size,
             roiTempIndex,  # temp -- ROIs probably dont need an index field at all
             QColor(255, 0, 0, 0),
             aspectLocked=True,
