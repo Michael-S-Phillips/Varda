@@ -92,6 +92,10 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         return self._imageItem
 
     @property
+    def imageEntity(self) -> Image:
+        return self._imageRenderer.image
+
+    @property
     def viewBox(self) -> pg.ViewBox:
         """Get the ViewBox for this viewport."""
         return self._vb

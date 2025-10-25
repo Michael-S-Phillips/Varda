@@ -139,5 +139,9 @@ def initVarda() -> None:
     sys.exit(exitCode)
 
 
+def main():
+    initVarda()
+
+
 if __name__ == "__main__":
     initVarda()
