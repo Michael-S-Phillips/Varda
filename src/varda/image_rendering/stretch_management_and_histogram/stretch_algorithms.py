@@ -13,6 +13,7 @@ from varda.common.parameter import IntParameter, ParameterGroup
 # - Histogram Equalization Stretch
 # - Adaptive Equalization Stretch
 
+
 def registerStretchAlgorithm(name):
     def wrapper(cls):
         cls.name = name
@@ -44,6 +45,9 @@ class StretchAlgorithm(QObject):
     def apply(self, image):
         raise NotImplementedError("Subclasses classes must implement this method.")
 
+    def minMaxVals(self):
+        return None
+
     def __repr__(self):
         params = self.parameters()
         out = f"{self.__class__.__name__} ( {params} )"
@@ -59,10 +63,18 @@ class NoStretch(StretchAlgorithm):
     def apply(self, image):
         return image
 
+    def minMaxVals(self):
+        return None
+
 
 @registerStretchAlgorithm("Min-Max (Full Range)")
 class MinMaxStretch(StretchAlgorithm):
     """Simple min-max stretch that uses the full range of values in the image."""
+
+    def __init__(self):
+        super().__init__()
+        self.minVals = None
+        self.maxVals = None
 
     def parameters(self):
         return ParameterGroup([])
@@ -75,6 +87,8 @@ class MinMaxStretch(StretchAlgorithm):
             # Handle grayscale or invalid data
             minVal = np.nanmin(image)
             maxVal = np.nanmax(image)
+            self.minVals = minVal
+            self.maxVals = maxVal
             return (np.clip(image, minVal, maxVal) - minVal) / (maxVal - minVal)
 
         # Compute percentiles for each channel
@@ -93,7 +107,16 @@ class MinMaxStretch(StretchAlgorithm):
             ]
         ).reshape((1, 1, 3))
 
+        self.minVals = minVals.squeeze()
+        self.maxVals = maxVals.squeeze()
+
         return (np.clip(image, minVals, maxVals) - minVals) / (maxVals - minVals)
+
+    def minMaxVals(self):
+        if self.minVals is not None and self.maxVals is not None:
+            return self.minVals, self.maxVals
+        else:
+            return None
 
 
 @registerStretchAlgorithm("Linear Percentile")
@@ -103,6 +126,8 @@ class LinearPercentileStretch(StretchAlgorithm):
         super().__init__()
         self.lowPercent = IntParameter("Low Percent", "%", 1, [0, 100], self)
         self.highPercent = IntParameter("High Percent", "%", 99, [0, 100], self)
+        self.minVals = None
+        self.maxVals = None
 
     def parameters(self):
         return ParameterGroup([self.lowPercent, self.highPercent])
@@ -125,6 +150,8 @@ class LinearPercentileStretch(StretchAlgorithm):
             # clip and stretch
             scale = maxVal - minVal
             scale = 1.0 if scale == 0 else scale  # prevent division by zero
+            self.minVals = minVal
+            self.maxVals = maxVal
             return (np.clip(image, minVal, maxVal) - minVal) / scale
         else:
             # Compute percentiles for each channel
@@ -142,8 +169,18 @@ class LinearPercentileStretch(StretchAlgorithm):
                     np.nanpercentile(image[:, :, 2], highPercent),
                 ]
             ).reshape((1, 1, 3))
-
+            print(f"maxVals {maxVals}")
             # clip and stretch
             scale = maxVals - minVals
             scale[scale == 0] = 1.0  # prevent division by zero
+
+            self.minVals = np.squeeze(minVals)
+            self.maxVals = np.squeeze(maxVals)
+
             return (np.clip(image, minVals, maxVals) - minVals) / scale
+
+    def minMaxVals(self):
+        if self.minVals is not None and self.maxVals is not None:
+            return self.minVals, self.maxVals
+        else:
+            return None

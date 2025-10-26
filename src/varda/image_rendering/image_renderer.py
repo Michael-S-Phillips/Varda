@@ -23,15 +23,10 @@ from pyqtgraph import ColorMap
 import numpy as np
 
 import varda.utilities.debug
-from varda.common.entities import Image
-from varda.image_loading import ImageLoadingService
 from varda.image_rendering.stretch_management_and_histogram.stretch_algorithms import (
     stretchAlgorithmRegistry,
     StretchAlgorithm,
-    NoStretch,
 )
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -64,6 +59,10 @@ class ImageRenderer(QObject):
         else:
             self.settings = RendererSettings()
         self.cachedRender = None
+        self._stretchedData = (
+            None  # the data from the latest render post-stretch but pre-colormap.
+        )
+        self._rawBandData = None  # extracted data bands with no processing applied.
 
     def render(self):
         """
@@ -71,45 +70,73 @@ class ImageRenderer(QObject):
         Returns: numpy ndarray with shape (height, width, 3) representing an RGB image.
 
         """
-        if self.image is None or self.settings is None:
-            raise ValueError("Image and settings must be set before rendering.")
-
         if self.cachedRender is not None:
             return self.cachedRender
+
+        if self.image is None or self.settings is None:
+            raise ValueError("Image and settings must be set before rendering.")
 
         # Extract the raster data for the specified band
         if self.settings.mode == "mono":
             # maintain 3D shape so stretch algorithms don't need to account for both 2d and 3d arrays
-            rgb_data = self.image.raster[:, :, self.settings.bands[0]][:, :, np.newaxis]
+            rgbData = self.image.raster[:, :, self.settings.bands[0]][:, :, np.newaxis]
         else:
-            rgb_data = self.image.raster[:, :, self.settings.bands[:3]]
+            rgbData = self.image.raster[:, :, self.settings.bands[:3]]
+        self._rawBandData = rgbData
 
         # if array is masked, convert to regular array with nans
-        if np.ma.isMaskedArray(rgb_data):
-            rgb_data = rgb_data.filled(np.nan)
+        if np.ma.isMaskedArray(rgbData):
+            rgbData = rgbData.filled(np.nan)
 
         # Run the stretch algorithm
-        rgb_data = self.settings.stretch.apply(rgb_data)
+        rgbData = self.settings.stretch.apply(rgbData)
+
+        # save the stretched data pre-colormap; expand mono image to RGB image
+        self._stretchedData = rgbData
 
         # convert NaNs to zeros before color mapping and outputting
-        rgb_data[np.isnan(rgb_data)] = 0
+        rgbData[np.isnan(rgbData)] = 0
 
         # Apply color map
         if self.settings.mode == "mono":
-            rgb_data = np.squeeze(rgb_data)  # go back to 2D because ColorMap expects it
-            rgb_data = self.settings.colorMap.mapToByte(rgb_data)
+            rgbData = np.squeeze(rgbData)  # go back to 2D because ColorMap expects it
+            rgbData = self.settings.colorMap.mapToByte(rgbData)
         else:
             # convert the image to byte values, since it's faster to display I think.
             # (ColorMap already does this for mono images)
-            rgb_data = (rgb_data * 255).astype(np.uint8)
-        self.cachedRender = rgb_data
-        return rgb_data
+            rgbData = (rgbData * 255).astype(np.uint8)
+        self.cachedRender = rgbData
+        return rgbData
+
+    def getStretchedData(self):
+        if self._stretchedData is None:
+            self.render()
+        return self._stretchedData
+
+    def getRawBandData(self):
+        # Extract the raster data for the specified band
+        if self._rawBandData is None:
+            self.render()
+        return self._rawBandData
+
+    def getMinMaxValues(self):
+        if self.cachedRender is None:
+            self.render()
+        return self.settings.stretch.minMaxVals()
+
+    def isLinearStretch(self):
+        return isinstance(
+            self.settings.stretch,
+            stretchAlgorithmRegistry["Linear Percentile"]
+            | stretchAlgorithmRegistry["Min-Max (Full Range)"],
+        )
 
     def updateSettings(self, settings: RendererSettings):
         print(f"ImageRenderer: Received new settings. {settings}")
         self.settings = settings
         # delete cache so new image is generated
         self.cachedRender = None
+        self._stretchedData = None
         self.sigShouldRefresh.emit()
 
 

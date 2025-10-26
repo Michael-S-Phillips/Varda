@@ -20,6 +20,9 @@ from varda.image_rendering.image_renderer import (
     RendererSettings,
     RendererSettingsPanel,
 )
+from varda.image_rendering.stretch_management_and_histogram.new_histogram_view import (
+    NewHistogramView,
+)
 from varda.metadata_management.metadata_editor import MetadataEditor
 from varda.image_rendering.raster_view import (
     ROIDisplayController,
@@ -98,6 +101,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.tripleRasterView.viewport2.addToolBar(self.toolManager2.getToolbar())
         self.tripleRasterView.viewport3.addToolBar(self.toolManager3.getToolbar())
 
+        # initialize histogram view
+        self.histogram = NewHistogramView(self.imageRenderer, self)
+
         # Initialize band selection view
         # self.bandManager = BandManager(self.proj, self.imageIndex, self)
 
@@ -140,6 +146,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             "Render Settings", widget=self.rendererSettingsPanel, size=(100, 1)
         )
         docks.append(settingsDock)
+
+        histogramDock = Dock("Histogram Dock", self.histogram)
+        docks.append(histogramDock)
         # bandDockNew = Dock("Band Dock", widget=self.bandManager)
         # docks.append(bandDockNew)
         # bandDock = VardaDockWidget("Band Manager", self.bandManager, loc, self)
@@ -175,6 +184,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         dockArea.addDock(rasterDock, "right")
         dockArea.addDock(settingsDock, "left")
         dockArea.addDock(roiDockNew, "bottom", settingsDock)
+        dockArea.addDock(histogramDock, "bottom", roiDockNew)
         # dockArea.addDock(bandDockNew, "left")
         # dockArea.addDock(stretchDockNew, "below", bandDockNew)
         # dockArea.addDock(metadataDockNew, "bottom")
