@@ -223,9 +223,9 @@ class RendererSettingsPanel(QWidget):
         self.stretchAlgSelector.addItems([key for key in stretchAlgorithmRegistry.keys()])
         stretchLayout.addWidget(self.stretchAlgSelector)
         self.stretchParameters = QStackedLayout()
-        self.stretchParameters.setSizeConstraint(
-            QStackedLayout.SizeConstraint.SetMinimumSize
-        )
+        # self.stretchParameters.setSizeConstraint(
+        #     QStackedLayout.SizeConstraint.SetMinimumSize
+        # )
         self.stretchParameters.setAlignment(
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )

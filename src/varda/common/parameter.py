@@ -64,9 +64,9 @@ class ParameterGroup(QWidget):
         self.params = params
         formLayout = QFormLayout()
         # formLayout.setSpacing(0)
-        formLayout.setFieldGrowthPolicy(
-            formLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
-        )
+        # formLayout.setFieldGrowthPolicy(
+        #     formLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
+        # )
         for param in self.params:
             formLayout.addRow(param.name(), param.getWidget())
             param.sigValueChanged.connect(self.sigParameterChanged)
@@ -115,12 +115,17 @@ class IntParameter(Parameter):
             paramLayout.setContentsMargins(0, 0, 0, 0)
 
             self.spinBox = QSpinBox(parent=self)
+            self.spinBox.setSizePolicy(
+                QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
+            )
+            self.spinBox.setMinimumSize(60, 30)
             if self.param.valueRange is not None:
                 self.spinBox.setRange(self.param.valueRange[0], self.param.valueRange[1])
             else:
                 self.spinBox.setRange(-100000, 100000)
             self.spinBox.setValue(self.param.get())
             self.spinBox.valueChanged.connect(self.valueChanged)
+
             paramLayout.addWidget(self.spinBox)
 
             self.unitLabel = QLabel(self.param.units())
@@ -129,9 +134,9 @@ class IntParameter(Parameter):
             if self.param.valueRange is not None:
                 self.slider = QSlider(parent=self)
                 self.slider.setOrientation(Qt.Orientation.Horizontal)
-                self.slider.setSizePolicy(
-                    QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-                )
+                # self.slider.setSizePolicy(
+                #     QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+                # )
                 self.slider.setRange(self.param.valueRange[0], self.param.valueRange[1])
                 self.slider.setValue(self.param.get())
                 self.slider.valueChanged.connect(self.valueChanged)
@@ -237,18 +242,17 @@ class BoolParameter:
         self.value = default
 
 
-if __name__ == "__main__":
-    q_app = pg.mkQApp()
-    paramGroup = ParameterGroup(
-        [
-            IntParameter("test", "test units", 10, (0, 100)),
-            IntParameter("test2", "test units", 7, (0, 10)),
-            FloatParameter("float test3", "test units", 55.15, (50, 100)),
-        ]
-    )
-    paramGroup.show()
-    q_app.exec()
-
+# if __name__ == "__main__":
+#     q_app = pg.mkQApp()
+#     paramGroup = ParameterGroup(
+#         [
+#             IntParameter("test", "test units", 10, (0, 100)),
+#             IntParameter("test2", "test units", 7, (0, 10)),
+#         ]
+#     )
+#     paramGroup.show()
+#     q_app.exec()
+#
 #
 # if __name__ == "__main__":
 #     import sys
@@ -257,7 +261,7 @@ if __name__ == "__main__":
 #
 #     layout = QVBoxLayout()
 #
-#     intParam0 = IntParameter("test", "test units", 10, (0, 100))
+#     intParam0 = IntParameter("test", "test units", 10, (0, 100)).getWidget()
 #     # intParam1 = IntParameter("test4", "test units", 10)
 #     # floatParam0 = FloatParameter("FloatVal", "floating units", 15.15, (0, 100))
 #

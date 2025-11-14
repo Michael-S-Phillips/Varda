@@ -10,11 +10,11 @@ import logging
 from PyQt6.QtWidgets import (
     QMainWindow,
     QStatusBar,
+    QApplication,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from pyqtgraph.dockarea import DockArea, Dock
 
-from varda.image_rendering.band_management.band_manager import BandManager
 from varda.image_rendering.image_renderer import (
     ImageRenderer,
     RendererSettings,
@@ -28,9 +28,7 @@ from varda.image_rendering.raster_view import (
     ROIDisplayController,
 )
 from varda.rois.roi_manager_widget import ROIManagerWidget
-from varda.image_rendering.stretch_management_and_histogram.stretch_manager import (
-    StretchManager,
-)
+
 
 from varda.image_rendering.raster_view import TripleRasterView
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
@@ -86,8 +84,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # Initialize raster view
         self.rendererSettings = RendererSettings()
         self.rendererSettingsPanel = RendererSettingsPanel(
-            self.image, self.rendererSettings
+            self.image, self.rendererSettings, self
         )
+
         self.imageRenderer = ImageRenderer(self.image, self.rendererSettings)
         self.tripleRasterView = TripleRasterView(self.imageRenderer, self)
 
@@ -143,11 +142,11 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         docks.append(rasterDock)
 
         settingsDock = Dock(
-            "Render Settings", widget=self.rendererSettingsPanel, size=(100, 1)
+            "Render Settings", widget=self.rendererSettingsPanel, size=(100, 100)
         )
         docks.append(settingsDock)
 
-        histogramDock = Dock("Histogram Dock", self.histogram)
+        histogramDock = Dock("Histogram Dock", widget=self.histogram)
         docks.append(histogramDock)
         # bandDockNew = Dock("Band Dock", widget=self.bandManager)
         # docks.append(bandDockNew)

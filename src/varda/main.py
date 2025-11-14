@@ -99,29 +99,7 @@ def initVarda() -> None:
 
     ### Initialize Logging -- Logs stored in user's local appdata folder ###
     varda.log._initializeFullLogging()
-    # logFolder = (
-    #     Path(
-    #         QStandardPaths.writableLocation(
-    #             QStandardPaths.StandardLocation.AppLocalDataLocation
-    #         )
-    #     )
-    #     / "Logs"
-    # )
-    # logFolder.mkdir(parents=True, exist_ok=True)
-    # # Get existing log files and remove the oldest ones if there are too many
-    # maxLogs = 10
-    # log_files = sorted(logFolder.glob("Varda.*.log"), key=lambda f: f.stat().st_mtime)
-    # while len(log_files) >= maxLogs:
-    #     log_files[0].unlink()  # Delete the oldest log file
-    #     log_files.pop(0)
-    # # compute name for new log file
-    # logTime = datetime.now().strftime("%Y-%m-%d_%I-%M-%S-%p")
-    # logName = logFolder / f"Varda.{logTime}.log"
-    # logging.basicConfig(
-    #     level=logging.DEBUG,
-    #     handlers=[logging.FileHandler(logName), logging.StreamHandler(sys.stdout)],
-    # )
-    # varda.log.debug("QApplication and logging initialized")
+
 
     ### Set Configurations ###
     pg.setConfigOptions(imageAxisOrder="row-major")
