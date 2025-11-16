@@ -14,6 +14,9 @@ class Band:
         """get object data as a list in the format: [r, g, b]"""
         return [self.r, self.g, self.b]
 
+    def __getitem__(self, key):
+        return self.toList()[key]
+
     def serialize(self):
         return [self.name, *self.toList()]
 

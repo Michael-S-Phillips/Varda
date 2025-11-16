@@ -23,9 +23,9 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
 )
-
 from varda.common.entities.geo_referencer import GeoReferencer
 from .protocols import ImageLoaderProtocol
+from ..common.entities import Image
 
 # TODO: Update these imports when loaders are moved
 
@@ -42,7 +42,7 @@ class RegisteredLoader:
 _loader_registry: list[RegisteredLoader] = []
 
 
-def registerImageLoader(formatName: str, fileExtensions: str | list | tuple):
+def register_image_loader(formatName: str, fileExtensions: str | list | tuple):
     """Decorator to register an ImageLoader for specific file extensions."""
 
     def decorator(cls):
@@ -70,24 +70,22 @@ class ImageLoadingService:
         WARNING = 3  # New status for partial success with warnings
 
     def __init__(self):
-        self.threadPool = QThreadPool()  # Global thread pool
-        self.activeLoadingProcesses = []  # Track active processes
-        self.loadTimeoutMs = 120000  # Increase timeout to 120 seconds (2 minutes)
-        self.largeFileThresholdMB = (
-            100  # Files larger than this will use an extended timeout
-        )
+        self.thread_pool = QThreadPool()  # Global thread pool
+        self.active_loading_processes = []  # Track active processes
+        self.load_timeout_ms = 120000  # Increase timeout to 120 seconds (2 minutes)
+        self.large_file_threshold_mb = 100  # larger files will use an extended timeout
         self.largeFileTimeoutMs = 600000  # 10 minutes for very large files
 
     # public methods
-    def _getFileSize(self, filePath):
+    def _get_file_size(self, filePath):
         """Get file size in megabytes"""
         try:
             return os.path.getsize(filePath) / (1024 * 1024)  # Convert to MB
         except:
             return 0
 
-    def loadImageData(
-        self, filePath=None, onSuccessCallback=None, onFailureCallback=None
+    def load_image_data(
+        self, file_path=None, on_success_callback=None, on_failure_callback=None
     ):
         """Loads a new image and adds it to the project.
 
@@ -96,46 +94,47 @@ class ImageLoadingService:
         onSuccessCallback should accept two arguments: the array of raster data, and a Metadata Object.
 
         Args:
-            filePath: Path to the image file. If None, prompts user to select a file.
-            onSuccessCallback: Function to call on successful load, receives (raster, metadata).
-            onFailureCallback: Function to call on load failure, receives error message.
+            file_path: Path to the image file. If None, prompts user to select a file.
+            on_success_callback: Function to call on successful load, receives image entity with raster and metadata.
+            on_failure_callback: Function to call on load failure, receives error message.
 
         Returns:
             (raster, metadata): Data from the image file, or None if loading fails
         """
-        logger.debug(f"Loading image data for {filePath}")
-        if filePath is None:
-            filePath = self._requestFilePath()
-            if filePath is None:
+        logger.debug(f"Loading image data for {file_path}")
+        if file_path is None:
+            file_path = self._request_file_path()
+            if file_path is None:
                 # if user closed file dialog without selecting a file.
                 logger.info("No file path provided.")
                 return
 
         # Check file size and adjust timeout
-        file_size_mb = self._getFileSize(filePath)
-        timeout_ms = self.loadTimeoutMs
+        file_size_mb = self._get_file_size(file_path)
+        timeout_ms = self.load_timeout_ms
         progress_dialog = None
 
-        if file_size_mb > self.largeFileThresholdMB:
+        if file_size_mb > self.large_file_threshold_mb:
             timeout_ms = self.largeFileTimeoutMs
             logger.info(
                 f"Large file detected ({file_size_mb:.2f} MB), using extended timeout"
             )
 
             # Show progress dialog for large files
-            progress_dialog = self._showLargeFileLoadingDialog(filePath, timeout_ms)
+            progress_dialog = self._show_large_file_loading_dialog(file_path, timeout_ms)
         try:
-            loader = self._getLoader(filePath)
+            loader = self._get_loader(file_path)
 
             # Wrap the callbacks to handle the progress dialog
-            original_success = onSuccessCallback
-            original_failure = onFailureCallback
+            original_success = on_success_callback
+            original_failure = on_failure_callback
 
             def success_with_dialog(raster, metadata):
                 if progress_dialog:
                     progress_dialog.close()
                 if original_success:
-                    original_success(raster, metadata)
+                    image = Image(raster, metadata)
+                    original_success(image)
 
             def failure_with_dialog(error_msg):
                 if progress_dialog:
@@ -143,10 +142,10 @@ class ImageLoadingService:
                 if original_failure:
                     original_failure(error_msg)
                 else:
-                    self._showErrorMessage(error_msg)
+                    self._show_error_message(error_msg)
 
-            self._createNewLoadProcess(
-                loader, filePath, success_with_dialog, failure_with_dialog, timeout_ms
+            self._create_new_load_process(
+                loader, file_path, success_with_dialog, failure_with_dialog, timeout_ms
             )
             if progress_dialog:
                 progress_dialog.exec()  # Show the progress dialog and wait for it to finish
@@ -155,12 +154,14 @@ class ImageLoadingService:
             if progress_dialog:
                 progress_dialog.close()
             logger.error(f"Error loading image: {e}")
-            if onFailureCallback:
-                onFailureCallback(str(e))
+            if on_failure_callback:
+                on_failure_callback(str(e))
             else:
-                self._showErrorMessage(f"Error loading image: {e}")
+                self._show_error_message(f"Error loading image: {e}")
 
-    def loadMetadataOnly(self, filePath, onSuccessCallback=None, onFailureCallback=None):
+    def load_metadata_only(
+        self, file_path, on_success_callback=None, on_failure_callback=None
+    ):
         """
         Load only the metadata for an image file without loading the full raster data.
 
@@ -168,42 +169,42 @@ class ImageLoadingService:
         deciding whether to load the full file.
 
         Args:
-            filePath: Path to the image file
-            onSuccessCallback: Function to call on successful load, receives (metadata)
-            onFailureCallback: Function to call on load failure, receives error message
+            file_path: Path to the image file
+            on_success_callback: Function to call on successful load, receives (metadata)
+            on_failure_callback: Function to call on load failure, receives error message
         """
-        if filePath is None:
-            filePath = self._requestFilePath()
-            if filePath is None:
+        if file_path is None:
+            file_path = self._request_file_path()
+            if file_path is None:
                 return
 
         try:
-            loader = self._getLoader(filePath)
+            loader = self._get_loader(file_path)
 
             # Create a small temporary array just to satisfy the metadata loader
             temp_array = np.zeros((1, 1, 3), dtype=np.uint8)
 
             # Load metadata
             try:
-                metadata = loader.loadMetadata(temp_array, filePath)
-                if onSuccessCallback:
-                    onSuccessCallback(metadata)
+                metadata = loader.loadMetadata(temp_array, file_path)
+                if on_success_callback:
+                    on_success_callback(metadata)
             except Exception as e:
                 logger.error(f"Error loading metadata: {e}")
-                if onFailureCallback:
-                    onFailureCallback(f"Error loading metadata: {e}")
+                if on_failure_callback:
+                    on_failure_callback(f"Error loading metadata: {e}")
                 else:
-                    self._showErrorMessage(f"Error loading metadata: {e}")
+                    self._show_error_message(f"Error loading metadata: {e}")
 
         except ValueError as e:
             logger.error(f"Error finding loader: {e}")
-            if onFailureCallback:
-                onFailureCallback(str(e))
+            if on_failure_callback:
+                on_failure_callback(str(e))
             else:
-                self._showErrorMessage(f"Error loading image: {e}")
+                self._show_error_message(f"Error loading image: {e}")
 
     @staticmethod
-    def getImageTypeFilter():
+    def get_image_type_filter():
         """Returns a list of file filters for the image file dialog."""
         filters = "Image File ("
         for loader in _loader_registry:
@@ -213,7 +214,7 @@ class ImageLoadingService:
         return filters
 
     # private methods
-    def _showLargeFileOptionsDialog(self, filePath, file_size_mb):
+    def _show_large_file_options_dialog(self, filePath, file_size_mb):
         """
         Show a dialog with options for loading a large file
 
@@ -276,7 +277,7 @@ class ImageLoadingService:
 
         return "cancel"
 
-    def _createNewLoadProcess(
+    def _create_new_load_process(
         self, loader, filePath, onSuccessCallback, onFailureCallback, timeout_ms=None
     ):
         """Creates and starts a new image loading process in the thread pool."""
@@ -284,45 +285,45 @@ class ImageLoadingService:
         process = self.ImageLoadProcess(
             loader, filePath, onSuccessCallback, onFailureCallback
         )
-        process.signals.sigFinished.connect(self._onLoadingProcessFinished)
+        process.signals.sigFinished.connect(self._on_loading_process_finished)
 
         # Set up a timeout for the loading process
         timer = QTimer()
         timer.setSingleShot(True)
-        timer.timeout.connect(lambda: self._handleLoadTimeout(process))
+        timer.timeout.connect(lambda: self._handle_load_timeout(process))
 
         # Use custom timeout if provided, otherwise use the default
         if timeout_ms is None:
-            timeout_ms = self.loadTimeoutMs
+            timeout_ms = self.load_timeout_ms
 
         timer.start(timeout_ms)
         process.timer = timer
 
-        self.activeLoadingProcesses.append(process)
-        self.threadPool.start(process)
+        self.active_loading_processes.append(process)
+        self.thread_pool.start(process)
 
-    def _handleLoadTimeout(self, process):
+    def _handle_load_timeout(self, process):
         """Handle a loading process timeout."""
-        if process in self.activeLoadingProcesses:
+        if process in self.active_loading_processes:
             logger.error(f"Image loading timeout for {process.filePath}")
-            self.activeLoadingProcesses.remove(process)
+            self.active_loading_processes.remove(process)
             if process.onFailureCallback:
                 process.onFailureCallback(
                     "Loading timed out. The file may be too large or corrupted."
                 )
             else:
-                self._showErrorMessage(
+                self._show_error_message(
                     f"Loading timed out for {process.filePath}. The file may be too large or corrupted."
                 )
 
-    def _onLoadingProcessFinished(self, loadingProcess):
+    def _on_loading_process_finished(self, loadingProcess):
         """Handles cleanup and callback (if success) once the image is loaded."""
         # Cancel the timeout timer
         if hasattr(loadingProcess, "timer") and loadingProcess.timer.isActive():
             loadingProcess.timer.stop()
 
-        if loadingProcess in self.activeLoadingProcesses:
-            self.activeLoadingProcesses.remove(loadingProcess)  # Cleanup
+        if loadingProcess in self.active_loading_processes:
+            self.active_loading_processes.remove(loadingProcess)  # Cleanup
 
             if loadingProcess.status == ImageLoadingService.LoadStatus.SUCCESS:
                 raster, metadata = loadingProcess.result
@@ -351,7 +352,7 @@ class ImageLoadingService:
                 if loadErrors and loadingProcess.onSuccessCallback:
                     # We still load the image but with warnings
                     loadingProcess.status = ImageLoadingService.LoadStatus.WARNING
-                    self._showWarningMessage(
+                    self._show_warning_message(
                         f"Image loaded with warnings:\n\n{chr(10).join(loadErrors[:5])}"
                         + (
                             f"\n... and {len(loadErrors) - 5} more issues"
@@ -374,13 +375,13 @@ class ImageLoadingService:
                 if loadingProcess.onFailureCallback:
                     loadingProcess.onFailureCallback(error_msg)
                 else:
-                    self._showErrorMessage(f"Failed to load image: {error_msg}")
+                    self._show_error_message(f"Failed to load image: {error_msg}")
 
-    def _showLargeFileLoadingDialog(self, filePath, timeout_ms):
+    def _show_large_file_loading_dialog(self, filePath, timeout_ms):
         """Show a dialog with progress information for large files"""
         logger.info(f"Showing large file loading dialog for {filePath}")
         file_name = os.path.basename(filePath)
-        file_size_mb = self._getFileSize(filePath)
+        file_size_mb = self._get_file_size(filePath)
 
         dialog = QProgressDialog(
             f"Loading large file ({file_size_mb:.1f} MB)...\n{file_name}",
@@ -408,7 +409,7 @@ class ImageLoadingService:
         )
         return dialog
 
-    def _showErrorMessage(self, message):
+    def _show_error_message(self, message):
         """Display an error message to the user."""
         msg_box = QMessageBox()
         msg_box.setIcon(QMessageBox.Icon.Critical)
@@ -416,7 +417,7 @@ class ImageLoadingService:
         msg_box.setText(message)
         msg_box.exec()
 
-    def _showWarningMessage(self, message):
+    def _show_warning_message(self, message):
         """Display a warning message to the user."""
         msg_box = QMessageBox()
         msg_box.setIcon(QMessageBox.Icon.Warning)
@@ -424,36 +425,37 @@ class ImageLoadingService:
         msg_box.setText(message)
         msg_box.exec()
 
-    def loadImageSync(self, filePath=None):
+    def load_image_sync(self, file_path=None):
         """
         Load an image synchronously and return the result.
 
-        This is a convenience method for simple cases where async loading isn't needed.
+        This is a convenience method for simple cases where async loading isn't needed. Will block until complete.
 
         Args:
-            filePath: Path to the image file
+            file_path: Path to the image file
 
         Returns:
-            tuple: (raster, metadata) on success, or (None, None) on failure
+            Image entity on success, or None on failure
         """
-        result = (None, None)
+        result = None
         isComplete = False
 
-        def onSuccess(raster, metadata):
+        def on_success(raster, metadata):
             nonlocal result
             nonlocal isComplete
-            result = (raster, metadata)
+
+            result = Image(raster, metadata)
             isComplete = True
 
-        def onFailure(error_msg):
+        def on_failure(error_msg):
             logger.error(f"Sync loading failed: {error_msg}")
 
-        self.loadImageData(filePath, onSuccess, onFailure)
+        self.load_image_data(file_path, on_success, on_failure)
 
         # Wait until loading is complete (not ideal for large files, but works for simple cases)
         import time
 
-        timeout = time.time() + self.loadTimeoutMs / 1000
+        timeout = time.time() + self.load_timeout_ms / 1000
         while not isComplete and time.time() < timeout:
             time.sleep(0.1)
 
@@ -461,18 +463,18 @@ class ImageLoadingService:
 
     # private helpers
     @staticmethod
-    def _requestFilePath():
+    def _request_file_path():
         """Opens a file dialog to request an image file path from the user."""
-        fileName, _ = QFileDialog.getOpenFileName(
+        file_name, _ = QFileDialog.getOpenFileName(
             None,
             "Open File",
             "",
-            ImageLoadingService.getImageTypeFilter(),
+            ImageLoadingService.get_image_type_filter(),
         )
-        return fileName if fileName else None
+        return file_name if file_name else None
 
     @staticmethod
-    def _getLoader(filePath):
+    def _get_loader(filePath):
         """Finds the correct image loader based on the file type.
 
         Args:

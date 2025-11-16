@@ -1,6 +1,7 @@
 import sys
 from dataclasses import dataclass, field
 import logging
+from typing import Optional
 
 from PyQt6.QtCore import pyqtSlot, pyqtSignal, QObject, Qt
 from PyQt6.QtWidgets import (
@@ -31,17 +32,20 @@ from varda.image_rendering.stretch_management_and_histogram.stretch_algorithms i
 
 @dataclass
 class RendererSettings:
-    mode: str = "mono"
-    bands: np.ndarray[tuple[int], np.dtype[np.uint]] = field(
-        default_factory=lambda: np.zeros(3, dtype=np.uint)
-    )
-    stretch: StretchAlgorithm = field(
-        default_factory=lambda: stretchAlgorithmRegistry["Min-Max (Full Range)"]()
-    )
+    mode: str
+    bands: np.ndarray[tuple[int], np.dtype[np.uint]]
+    stretch: StretchAlgorithm
     # default to a simple black-to-white gradient
-    colorMap: ColorMap = field(
-        default_factory=lambda: pg.ColorMap(None, color=[0.0, 1.0])
-    )
+    colorMap: ColorMap
+
+    @staticmethod
+    def new(image):
+        return RendererSettings(
+            mode="mono",
+            bands=image.metadata.defaultBand,
+            stretch=stretchAlgorithmRegistry["Min-Max (Full Range)"](),
+            colorMap=pg.ColorMap(None, color=[0.0, 1.0]),
+        )
 
     def __repr__(self):
         return f"RendererSettings (\n    mode={self.mode},\n    bands={self.bands},\n    stretch={self.stretch},\n    colorMap={self.colorMap}\n)"
@@ -51,13 +55,11 @@ class ImageRenderer(QObject):
 
     sigShouldRefresh: pyqtSignal = pyqtSignal()
 
-    def __init__(self, image=None, settings: RendererSettings = None):
+    def __init__(self, image=None, settings: Optional[RendererSettings] = None):
         super().__init__()
         self.image = image
-        if settings is not None:
-            self.settings = settings
-        else:
-            self.settings = RendererSettings()
+        self.settings = settings if settings is not None else RendererSettings.new(image)
+
         self.cachedRender = None
         self._stretchedData = (
             None  # the data from the latest render post-stretch but pre-colormap.
@@ -310,8 +312,8 @@ class RendererSettingsPanel(QWidget):
 
 if __name__ == "__main__":
     q_app = QApplication(sys.argv)
-    image = varda.utilities.debug.generateRandomImage((100, 100, 10), (10, 10, 10))
-    settings = RendererSettings()
+    image = varda.utilities.debug.generate_random_image((100, 100, 10), (10, 10, 10))
+    settings = RendererSettings.new(image)
     renderer = ImageRenderer(image, settings)
     settingsPanel = RendererSettingsPanel(image, settings)
     settingsPanel.sigSettingsChanged.connect(renderer.updateSettings)

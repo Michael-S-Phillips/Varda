@@ -16,7 +16,7 @@ import rasterio as rio
 
 # local imports
 from varda.common.entities import Metadata, Band
-from varda.image_loading import registerImageLoader, ImageLoaderProtocol
+from varda.image_loading import register_image_loader, ImageLoaderProtocol
 from varda.utilities import debug
 
 logging.getLogger("rasterio").setLevel(logging.CRITICAL)
@@ -24,7 +24,7 @@ logging.getLogger("rasterio").setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
-@registerImageLoader("ENVI Image", (".hdr", ".img"))
+@register_image_loader("ENVI Image", (".hdr", ".img"))
 class ENVIImageLoader(ImageLoaderProtocol):
     """Implementation of ImageLoader for ENVI Images"""
 
@@ -202,9 +202,7 @@ class ENVIImageLoader(ImageLoaderProtocol):
                                 wavelength_strings, dtype="U50"
                             )
                             metadata_dict["wavelengths_type"] = str
-                            logger.debug(
-                                "Using spectral parameter names as wavelengths"
-                            )
+                            logger.debug("Using spectral parameter names as wavelengths")
                         else:
                             # Try to parse as numeric wavelengths
                             try:
@@ -227,9 +225,7 @@ class ENVIImageLoader(ImageLoaderProtocol):
                     elif bandNames is not None:
                         # Try to extract numeric values from band names if they look like wavelengths
                         try:
-                            wavelengths = np.asarray(
-                                [float(name) for name in bandNames]
-                            )
+                            wavelengths = np.asarray([float(name) for name in bandNames])
                             metadata_dict["wavelengths"] = wavelengths
                             metadata_dict["wavelengths_type"] = float
                         except ValueError:
@@ -268,9 +264,7 @@ class ENVIImageLoader(ImageLoaderProtocol):
                         # Try to convert to indices
                         try:
                             # First try as numeric indices
-                            defaultBandIndices = [
-                                int(band) for band in defaultBandNames
-                            ]
+                            defaultBandIndices = [int(band) for band in defaultBandNames]
                         except ValueError:
                             # If not numeric, try to find indices by name
                             if bandNames:
@@ -300,12 +294,12 @@ class ENVIImageLoader(ImageLoaderProtocol):
                             min(idx, max_band) for idx in defaultBandIndices
                         ]
 
-                        metadata_dict["defaultBand"] = Band(
-                            "default",
+                        metadata_dict["defaultBand"] = [
                             defaultBandIndices[0],
                             defaultBandIndices[1],
                             defaultBandIndices[2],
-                        )
+                        ]
+
                     else:
                         # Set reasonable default bands if not specified
                         if metadata_dict["bandCount"] >= 3:

@@ -90,7 +90,7 @@ class ProjectLoader:
                 continue
 
             # Create callback with captured variables for this iteration
-            self._image_loading_service.loadImageData(
+            self._image_loading_service.load_image_data(
                 str(file_path),
                 lambda raster, metadata, idx=i: on_image_loaded(raster, metadata, idx),
             )

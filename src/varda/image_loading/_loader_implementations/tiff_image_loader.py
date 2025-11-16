@@ -13,12 +13,12 @@ import rasterio
 # local imports
 from varda.common.entities import Metadata
 from varda.common.entities import Band
-from varda.image_loading import registerImageLoader, ImageLoaderProtocol
+from varda.image_loading import register_image_loader, ImageLoaderProtocol
 
 logger = logging.getLogger(__name__)
 
 
-@registerImageLoader("TIFF/GEOTIFF Image", (".tif", ".tiff", ".geotiff", ".gtiff"))
+@register_image_loader("TIFF/GEOTIFF Image", (".tif", ".tiff", ".geotiff", ".gtiff"))
 class TIFFImageLoader(ImageLoaderProtocol):
     """Implementation of ImageLoader for TIFF/GeoTIFF Images"""
 
@@ -113,9 +113,7 @@ class TIFFImageLoader(ImageLoaderProtocol):
                 metadata_dict["dtype"] = str(src.dtypes[0])
 
                 # Handle nodata value
-                metadata_dict["dataIgnore"] = (
-                    src.nodata if src.nodata is not None else 0
-                )
+                metadata_dict["dataIgnore"] = src.nodata if src.nodata is not None else 0
 
                 # CRS and transform (for georeferenced images)
                 if src.crs:
@@ -140,9 +138,7 @@ class TIFFImageLoader(ImageLoaderProtocol):
                             "wavelength_units", "nm"
                         )
                     except (ValueError, TypeError):
-                        errors.append(
-                            "Could not parse wavelength information from tags"
-                        )
+                        errors.append("Could not parse wavelength information from tags")
 
                 # If no wavelength info, create default wavelengths
                 if wavelengths is None:

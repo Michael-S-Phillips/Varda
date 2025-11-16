@@ -40,11 +40,10 @@ class MetadataEditor(QWidget):
 
     metadataUpdated = pyqtSignal(Metadata)
 
-    def __init__(self, proj: ProjectContext = None, imageIndex=None, parent=None):
+    def __init__(self, image, parent=None):
         super().__init__(parent)
-        self.proj = proj
-        self.imageIndex = imageIndex
-        self.metadata = proj.getImage(imageIndex).metadata
+        self.image = image
+        self.metadata = image.metadata
 
         self.initUI()
 
@@ -79,7 +78,11 @@ class MetadataEditor(QWidget):
 
         # Layout
         layout = QVBoxLayout()
-        layout.addWidget(QLabel("Edit metadata properties:"))
+        layout.addWidget(
+            QLabel(
+                "Edit metadata properties: - WARNING: Does not actually update the image at the moment"
+            )
+        )
         layout.addWidget(self.tabWidget)
         layout.addWidget(self.buttonBox)
         self.setLayout(layout)
@@ -224,8 +227,7 @@ class MetadataEditor(QWidget):
             bands.append(self.metadata.defaultBand)
 
         # If this is from an existing image, get all bands
-        if self.proj and self.imageIndex is not None:
-            bands = self.proj.getImage(self.imageIndex).band
+        bands = self.image.band
 
         # If no bands, create a default one
         if not bands:
@@ -309,9 +311,7 @@ class MetadataEditor(QWidget):
 
             # Update the table
             for i in range(min(count, self.wavelengthTable.rowCount())):
-                self.wavelengthTable.setItem(
-                    i, 1, QTableWidgetItem(str(wavelengths[i]))
-                )
+                self.wavelengthTable.setItem(i, 1, QTableWidgetItem(str(wavelengths[i])))
 
             # If the table has fewer rows than the new count, add more
             if self.wavelengthTable.rowCount() < count:
@@ -424,29 +424,29 @@ class MetadataEditor(QWidget):
             updated_metadata = Metadata(**metadata_dict)
 
             # If this is for an existing image in a project
-            if self.proj and self.imageIndex is not None:
-                for key, value in metadata_dict.items():
-                    if key != "extraMetadata":
-                        self.proj.updateMetadata(self.imageIndex, key, value)
-
-                # Handle bands separately (clear existing and add new ones)
-                image = self.proj.getImage(self.imageIndex)
-                for i, band in enumerate(bands):
-                    if i < len(image.band):
-                        self.proj.updateBand(
-                            self.imageIndex,
-                            i,
-                            name=band.name,
-                            r=band.r,
-                            g=band.g,
-                            b=band.b,
-                        )
-                    else:
-                        self.proj.addBand(self.imageIndex, band)
-
-                # Update extra metadata
-                for key, value in extraMetadata.items():
-                    self.proj.updateMetadata(self.imageIndex, key, value)
+            # if self.proj and self.imageIndex is not None:
+            #     for key, value in metadata_dict.items():
+            #         if key != "extraMetadata":
+            #             self.proj.updateMetadata(self.imageIndex, key, value)
+            #
+            #     # Handle bands separately (clear existing and add new ones)
+            #     image = self.proj.getImage(self.imageIndex)
+            #     for i, band in enumerate(bands):
+            #         if i < len(image.band):
+            #             self.proj.updateBand(
+            #                 self.imageIndex,
+            #                 i,
+            #                 name=band.name,
+            #                 r=band.r,
+            #                 g=band.g,
+            #                 b=band.b,
+            #             )
+            #         else:
+            #             self.proj.addBand(self.imageIndex, band)
+            #
+            #     # Update extra metadata
+            #     for key, value in extraMetadata.items():
+            #         self.proj.updateMetadata(self.imageIndex, key, value)
 
             # Emit the updated metadata
             self.metadataUpdated.emit(updated_metadata)

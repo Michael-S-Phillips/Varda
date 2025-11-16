@@ -38,7 +38,9 @@ class Metadata:
     dtype: str = ""
     dataIgnore: float = 0
     bandCount: int = 0
-    defaultBand: Band = field(default_factory=Band.createDefault)
+    defaultBand: np.ndarray[tuple[int], np.dtype[np.uint]] = field(
+        default_factory=lambda: np.zeros(3, dtype=np.uint)
+    )
     wavelengths: np.ndarray = field(default_factory=lambda: np.zeros(0))
     wavelengths_type: Type = float
     name: str = ""  # Added a name field for display purposes
@@ -83,6 +85,8 @@ class Metadata:
         # fix inputs
         if self.wavelengths.size == 0:
             self.wavelengths = np.arange(self.bandCount)
+        if len(self.name) == 0:
+            self.name = self.filePath.split("/")[-1]
 
     def __init__(self, **kwargs):
         """
@@ -102,9 +106,7 @@ class Metadata:
 
         # Move any remaining unexpected kwargs to extraMetadata
         for key, value in kwargs.items():
-            logger.warning(
-                f"Unexpected keyword argument '{key}' moved to extraMetadata"
-            )
+            logger.warning(f"Unexpected keyword argument '{key}' moved to extraMetadata")
             self.extraMetadata[key] = value
 
     def _checkExtraMetadata(self, item):

@@ -13,12 +13,12 @@ from PIL.ExifTags import TAGS
 # local imports
 from varda.common.entities import Metadata
 from varda.common.entities import Band
-from varda.image_loading import registerImageLoader, ImageLoaderProtocol
+from varda.image_loading import register_image_loader, ImageLoaderProtocol
 
 logger = logging.getLogger(__name__)
 
 
-@registerImageLoader("Common Image", (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tga"))
+@register_image_loader("Common Image", (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tga"))
 class PillowImageLoader(ImageLoaderProtocol):
     """Implementation of ImageLoader for common image formats using Pillow"""
 
@@ -38,9 +38,7 @@ class PillowImageLoader(ImageLoaderProtocol):
             image = PILImage.open(filePath)
 
             # Handle preview mode for large images
-            if loading_mode == "preview" and (
-                image.width > 1000 or image.height > 1000
-            ):
+            if loading_mode == "preview" and (image.width > 1000 or image.height > 1000):
                 # Calculate resize factor to get a reasonable preview size
                 max_dim = max(image.width, image.height)
                 resize_factor = max(1, max_dim // 1000)

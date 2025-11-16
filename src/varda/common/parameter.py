@@ -4,39 +4,13 @@ from PyQt6.QtWidgets import (
     QWidget,
     QSlider,
     QHBoxLayout,
-    QApplication,
-    QVBoxLayout,
     QLabel,
     QDoubleSpinBox,
     QFormLayout,
     QSizePolicy,
 )
-import pyqtgraph as pg
 
 from typing_extensions import override
-
-
-class FloatSlider(QSlider):
-    sigFloatValueChanged: pyqtSignal = pyqtSignal(float)
-
-    def __init__(self, precision=3, parent=None):
-        super().__init__(parent)
-        self.precision = precision
-        self.valueChanged.connect(self.onValueChanged)
-
-    @override
-    def setRange(self, min, max):
-        min = min * pow(10, self.precision)
-        max = max * pow(10, self.precision)
-        super().setRange(min, max)
-
-    @override
-    def setValue(self, a0):
-        super().setValue(int(a0 * pow(10, self.precision)))
-
-    def onValueChanged(self, value):
-        floatVal = value / pow(10, self.precision)
-        self.sigFloatValueChanged.emit(floatVal)
 
 
 class Parameter(QObject):
@@ -95,13 +69,13 @@ class IntParameter(Parameter):
 
     def set(self, value):
         self._value = value
-        self.sigValueChanged.emit(self._value)
+        super().sigValueChanged.emit(self._value)
 
     def get(self):
         return self._value
 
-    def getWidget(self):
-        return IntParameter.IntParameterWidget(self)
+    def getWidget(self, parent=None):
+        return self.IntParameterWidget(self, parent)
 
     class IntParameterWidget(QWidget):
         def __init__(self, param: "IntParameter", parent=None):
@@ -166,48 +140,7 @@ class FloatParameter(Parameter):
         self.valueRange = valueRange
         if self.valueRange is not None:  # clamp default to range
             default = max(self.valueRange[0], min(self.valueRange[1], default))
-        self.value = default
-        self.spinBox = None
-        self.slider = None
-        self._initUI()
-
-    def _initUI(self):
-        # initialize widget
-        layout = QHBoxLayout(self)
-        self.spinBox = QDoubleSpinBox(parent=self)
-        if self.valueRange is not None:
-            self.spinBox.setRange(self.valueRange[0], self.valueRange[1])
-        else:
-            self.spinBox.setRange(-100000, 100000)
-        self.spinBox.setValue(self.value)
-        self.spinBox.valueChanged.connect(self.valueChanged)
-        layout.addWidget(self.spinBox)
-
-        self.unitLabel = QLabel(self._units)
-        layout.addWidget(self.unitLabel)
-
-        if self.valueRange is not None:
-            self.slider = FloatSlider(parent=self)
-            self.slider.setOrientation(Qt.Orientation.Horizontal)
-            self.slider.setRange(self.valueRange[0], self.valueRange[1])
-            self.slider.setValue(self.value)
-            self.slider.sigFloatValueChanged.connect(self.valueChanged)
-            layout.addWidget(self.slider)
-
-        self.setLayout(layout)
-
-    @pyqtSlot(float)
-    def valueChanged(self, value):
-        self.value = value
-
-        if self.spinBox.value() != value:
-            with QSignalBlocker(self.spinBox):
-                self.spinBox.setValue(value)
-        if self.slider is not None and self.slider.value() != value:
-            with QSignalBlocker(self.slider):
-                self.slider.setValue(value)
-
-        self.sigValueChanged.emit(value)
+        self._value = default
 
     def name(self):
         return self._name
@@ -216,10 +149,73 @@ class FloatParameter(Parameter):
         return self._units
 
     def set(self, value):
-        self.valueChanged(value)
+        self._value = value
+        super().sigValueChanged.emit(self._value)
 
     def get(self):
-        return self.value
+        return self._value
+
+    class FloatParameterWidget(QWidget):
+        def __init__(self, param: "FloatParameter", parent=None):
+            super().__init__(parent)
+            self.param = param
+            # initialize widget
+            layout = QHBoxLayout(self)
+            self.spinBox = QDoubleSpinBox(parent=self)
+            if self.param.valueRange is not None:
+                self.spinBox.setRange(self.param.valueRange[0], self.param.valueRange[1])
+            else:
+                self.spinBox.setRange(-100000, 100000)
+            self.spinBox.setValue(self.param.get())
+            self.spinBox.valueChanged.connect(self.valueChanged)
+            layout.addWidget(self.spinBox)
+
+            self.unitLabel = QLabel(self.param._units)
+            layout.addWidget(self.unitLabel)
+
+            if self.param.valueRange is not None:
+                self.slider = self.FloatSlider(parent=self)
+                self.slider.setOrientation(Qt.Orientation.Horizontal)
+                self.slider.setRange(self.param.valueRange[0], self.param.valueRange[1])
+                self.slider.setValue(self.param.get())
+                self.slider.sigFloatValueChanged.connect(self.valueChanged)
+                layout.addWidget(self.slider)
+
+            self.setLayout(layout)
+
+        @pyqtSlot(float)
+        def valueChanged(self, value):
+
+            if self.spinBox.value() != value:
+                with QSignalBlocker(self.spinBox):
+                    self.spinBox.setValue(value)
+            if self.slider is not None and self.slider.value() != value:
+                with QSignalBlocker(self.slider):
+                    self.slider.setValue(value)
+
+            self.param.set(value)
+
+        class FloatSlider(QSlider):
+            sigFloatValueChanged: pyqtSignal = pyqtSignal(float)
+
+            def __init__(self, precision=3, parent=None):
+                super().__init__(parent)
+                self.precision = precision
+                self.valueChanged.connect(self.onValueChanged)
+
+            @override
+            def setRange(self, min, max):
+                min = min * pow(10, self.precision)
+                max = max * pow(10, self.precision)
+                super().setRange(min, max)
+
+            @override
+            def setValue(self, a0):
+                super().setValue(int(a0 * pow(10, self.precision)))
+
+            def onValueChanged(self, value):
+                floatVal = value / pow(10, self.precision)
+                self.sigFloatValueChanged.emit(floatVal)
 
 
 class StringParameter(Parameter):
@@ -240,6 +236,11 @@ class BoolParameter:
         self.name = name
         self.default = default
         self.value = default
+
+
+class ImageParameter:
+    def __init__(self, name, default):
+        self.name = name
 
 
 # if __name__ == "__main__":

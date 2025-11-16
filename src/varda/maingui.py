@@ -53,7 +53,7 @@ class MainGUI(QtWidgets.QMainWindow):
             QtWidgets.QTabWidget.TabPosition.North,
         )
 
-        self.imageList = all_images_view_list.newList(self.proj, self)
+        self.imageList = all_images_view_list.newList(self.app.images, self)
         self.newDock("Image List", self.imageList, Qt.DockWidgetArea.LeftDockWidgetArea)
 
         self.centralTabs = DetachableTabWidget(self)
@@ -81,6 +81,8 @@ class MainGUI(QtWidgets.QMainWindow):
             int, ProjectContext.ChangeType, ProjectContext.ChangeModifier
         ].connect(self.onProjectDataChanged)
 
+        self.app.images.sigDataChanged.connect(self.onImageListChanged)
+
     def onSelectedImageChanged(self, item):
         if item is None:
             self.selectedImage = None
@@ -88,7 +90,7 @@ class MainGUI(QtWidgets.QMainWindow):
 
         index = self.imageList.row(item)
 
-        self.selectedImage = self.proj.getImage(index)
+        self.selectedImage = self.app.images[index]
 
         logger.debug(
             f"Selected new image: {self.selectedImage.metadata.name} (index {self.selectedImage.index})"
@@ -446,8 +448,14 @@ class MainGUI(QtWidgets.QMainWindow):
         ):
             image = self.proj.getImage(index)
             self.centralTabs.addTab(
-                GeneralImageAnalysisWorkflow(self.proj, index), image.metadata.name
+                GeneralImageAnalysisWorkflow(image), image.metadata.name
             )
+
+    def onImageListChanged(self, list):
+        """Handle when project data changes (like new images being added)."""
+
+        image = list[len(list) - 1]
+        self.centralTabs.addTab(GeneralImageAnalysisWorkflow(image), image.metadata.name)
 
     def closeAllChildWindows(self):
         """Close all child windows before shutting down."""

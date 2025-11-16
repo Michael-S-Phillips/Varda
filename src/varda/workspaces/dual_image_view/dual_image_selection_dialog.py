@@ -21,10 +21,15 @@ from PyQt6.QtWidgets import (
     QSlider,
     QFormLayout,
     QDialogButtonBox,
+    QApplication,
 )
 
-from .dual_image_types import DualImageConfig, DualImageMode, LinkType
-from varda.project import ProjectContext
+from varda.workspaces.dual_image_view.dual_image_types import (
+    DualImageConfig,
+    DualImageMode,
+    LinkType,
+)
+import varda
 
 logger = logging.getLogger(__name__)
 
@@ -34,28 +39,28 @@ class DualImageSelectionDialog(QDialog):
     Dialog for selecting images and configuring dual image view settings.
     """
 
-    def __init__(self, project_context: ProjectContext, parent=None):
+    def __init__(self, imageList, parent=None):
         super().__init__(parent)
-        self.proj = project_context
+        self.imageList = imageList
         self.config = DualImageConfig()
 
         # UI components
-        self.primary_combo = None
-        self.secondary_combo = None
-        self.mode_group = None
-        self.link_type_group = None
-        self.opacity_slider = None
-        self.blink_interval_spin = None
-        self.sync_navigation_cb = None
-        self.sync_rois_cb = None
+        self.primaryCombo = None
+        self.secondaryCombo = None
+        self.modeGroup = None
+        self.linkTypeGroup = None
+        self.opacitySlider = None
+        self.blinkIntervalSpin = None
+        self.syncNavigationCb = None
+        self.syncRoisCb = None
 
-        self._init_ui()
-        self._populate_image_lists()
-        self._connect_signals()
+        self._initUI()
+        self._populateImageLists()
+        self._connectSignals()
 
         logger.debug("DualImageSelectionDialog initialized")
 
-    def _init_ui(self):
+    def _initUI(self):
         """Initialize the user interface"""
         self.setWindowTitle("Dual Image View Setup")
         self.setModal(True)
@@ -64,75 +69,75 @@ class DualImageSelectionDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # Image selection
-        image_group = self._create_image_selection_group()
-        layout.addWidget(image_group)
+        imageGroup = self._createImageSelectionGroup()
+        layout.addWidget(imageGroup)
 
         # Link type selection
-        link_type_group = self._create_link_type_group()
-        layout.addWidget(link_type_group)
+        linkTypeGroup = self._createLinkTypeGroup()
+        layout.addWidget(linkTypeGroup)
 
         # Display mode selection
-        mode_group = self._create_mode_group()
-        layout.addWidget(mode_group)
+        modeGroup = self._create_mode_group()
+        layout.addWidget(modeGroup)
 
         # Overlay settings
-        overlay_group = self._create_overlay_group()
-        layout.addWidget(overlay_group)
+        overlayGroup = self._create_overlay_group()
+        layout.addWidget(overlayGroup)
 
         # Blink settings
-        blink_group = self._create_blink_group()
-        layout.addWidget(blink_group)
+        blinkGroup = self._create_blink_group()
+        layout.addWidget(blinkGroup)
 
         # Synchronization settings
-        sync_group = self._create_sync_group()
-        layout.addWidget(sync_group)
+        syncGroup = self._create_sync_group()
+        layout.addWidget(syncGroup)
 
         # Dialog buttons
-        button_box = QDialogButtonBox(
+        buttonBox = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
+        buttonBox.accepted.connect(self.accept)
+        buttonBox.rejected.connect(self.reject)
+        layout.addWidget(buttonBox)
 
-    def _create_image_selection_group(self) -> QGroupBox:
+    def _createImageSelectionGroup(self) -> QGroupBox:
         """Create image selection controls"""
         group = QGroupBox("Image Selection")
         layout = QFormLayout(group)
 
         # Primary image
-        self.primary_combo = QComboBox()
-        self.primary_combo.setToolTip("Select the primary (reference) image")
-        layout.addRow("Primary Image:", self.primary_combo)
+        self.primaryCombo = QComboBox()
+        self.primaryCombo.setToolTip("Select the primary (reference) image")
+        layout.addRow("Primary Image:", self.primaryCombo)
 
         # Secondary image
-        self.secondary_combo = QComboBox()
-        self.secondary_combo.setToolTip("Select the secondary image to compare")
-        layout.addRow("Secondary Image:", self.secondary_combo)
+        self.secondaryCombo = QComboBox()
+        self.secondaryCombo.setToolTip("Select the secondary image to compare")
+        layout.addRow("Secondary Image:", self.secondaryCombo)
 
         return group
 
-    def _create_link_type_group(self) -> QGroupBox:
+    def _createLinkTypeGroup(self) -> QGroupBox:
         """Create link type selection controls"""
         group = QGroupBox("Link Type")
         layout = QVBoxLayout(group)
 
-        self.link_type_group = QButtonGroup(self)
+        self.linkTypeGroup = QButtonGroup(self)
 
         # Pixel-based linking - use integer IDs instead of enum values
-        pixel_radio = QRadioButton("Pixel-based (same extent)")
-        pixel_radio.setToolTip(
+        pixelRadio = QRadioButton("Pixel-based (same extent)")
+        pixelRadio.setToolTip(
             "Link images pixel-to-pixel (assumes same geographic extent)"
         )
-        pixel_radio.setChecked(True)
-        self.link_type_group.addButton(pixel_radio, 0)  # Use 0 for pixel-based
-        layout.addWidget(pixel_radio)
+        pixelRadio.setChecked(True)
+        self.linkTypeGroup.addButton(pixelRadio, 0)  # Use 0 for pixel-based
+        layout.addWidget(pixelRadio)
 
         # Geospatial linking
-        geo_radio = QRadioButton("Geospatial coordinates")
-        geo_radio.setToolTip("Link images by geographic coordinates")
-        self.link_type_group.addButton(geo_radio, 1)  # Use 1 for geospatial
-        layout.addWidget(geo_radio)
+        geoRadio = QRadioButton("Geospatial coordinates")
+        geoRadio.setToolTip("Link images by geographic coordinates")
+        self.linkTypeGroup.addButton(geoRadio, 1)  # Use 1 for geospatial
+        layout.addWidget(geoRadio)
 
         return group
 
@@ -141,25 +146,25 @@ class DualImageSelectionDialog(QDialog):
         group = QGroupBox("Display Mode")
         layout = QVBoxLayout(group)
 
-        self.mode_group = QButtonGroup(self)
+        self.modeGroup = QButtonGroup(self)
 
         # Side by side
         side_by_side_radio = QRadioButton("Side by Side")
         side_by_side_radio.setToolTip("Display images side by side")
         side_by_side_radio.setChecked(True)
-        self.mode_group.addButton(side_by_side_radio, 0)  # Use 0 for side-by-side
+        self.modeGroup.addButton(side_by_side_radio, 0)  # Use 0 for side-by-side
         layout.addWidget(side_by_side_radio)
 
         # Overlay
         overlay_radio = QRadioButton("Overlay")
         overlay_radio.setToolTip("Overlay secondary image on primary")
-        self.mode_group.addButton(overlay_radio, 1)  # Use 1 for overlay
+        self.modeGroup.addButton(overlay_radio, 1)  # Use 1 for overlay
         layout.addWidget(overlay_radio)
 
         # Blink
         blink_radio = QRadioButton("Blink")
         blink_radio.setToolTip("Alternate between images")
-        self.mode_group.addButton(blink_radio, 2)  # Use 2 for blink
+        self.modeGroup.addButton(blink_radio, 2)  # Use 2 for blink
         layout.addWidget(blink_radio)
 
         return group
@@ -170,18 +175,18 @@ class DualImageSelectionDialog(QDialog):
         layout = QFormLayout(group)
 
         # Opacity slider
-        self.opacity_slider = QSlider(Qt.Orientation.Horizontal)
-        self.opacity_slider.setMinimum(0)
-        self.opacity_slider.setMaximum(100)
-        self.opacity_slider.setValue(50)
-        self.opacity_slider.setToolTip("Adjust overlay transparency")
+        self.opacitySlider = QSlider(Qt.Orientation.Horizontal)
+        self.opacitySlider.setMinimum(0)
+        self.opacitySlider.setMaximum(100)
+        self.opacitySlider.setValue(50)
+        self.opacitySlider.setToolTip("Adjust overlay transparency")
 
-        opacity_layout = QHBoxLayout()
-        self.opacity_label = QLabel("50%")
-        opacity_layout.addWidget(self.opacity_slider)
-        opacity_layout.addWidget(self.opacity_label)
+        opacityLayout = QHBoxLayout()
+        self.opacityLabel = QLabel("50%")
+        opacityLayout.addWidget(self.opacitySlider)
+        opacityLayout.addWidget(self.opacityLabel)
 
-        layout.addRow("Opacity:", opacity_layout)
+        layout.addRow("Opacity:", opacityLayout)
 
         return group
 
@@ -191,14 +196,14 @@ class DualImageSelectionDialog(QDialog):
         layout = QFormLayout(group)
 
         # Blink interval
-        self.blink_interval_spin = QSpinBox()
-        self.blink_interval_spin.setMinimum(100)
-        self.blink_interval_spin.setMaximum(5000)
-        self.blink_interval_spin.setValue(1000)
-        self.blink_interval_spin.setSuffix(" ms")
-        self.blink_interval_spin.setToolTip("Time between blinks in milliseconds")
+        self.blinkIntervalSpin = QSpinBox()
+        self.blinkIntervalSpin.setMinimum(100)
+        self.blinkIntervalSpin.setMaximum(5000)
+        self.blinkIntervalSpin.setValue(1000)
+        self.blinkIntervalSpin.setSuffix(" ms")
+        self.blinkIntervalSpin.setToolTip("Time between blinks in milliseconds")
 
-        layout.addRow("Interval:", self.blink_interval_spin)
+        layout.addRow("Interval:", self.blinkIntervalSpin)
 
         return group
 
@@ -208,29 +213,27 @@ class DualImageSelectionDialog(QDialog):
         layout = QVBoxLayout(group)
 
         # Sync navigation
-        self.sync_navigation_cb = QCheckBox("Synchronize navigation (pan/zoom)")
-        self.sync_navigation_cb.setChecked(True)
-        self.sync_navigation_cb.setToolTip("Keep navigation synchronized between images")
-        layout.addWidget(self.sync_navigation_cb)
+        self.syncNavigationCb = QCheckBox("Synchronize navigation (pan/zoom)")
+        self.syncNavigationCb.setChecked(True)
+        self.syncNavigationCb.setToolTip("Keep navigation synchronized between images")
+        layout.addWidget(self.syncNavigationCb)
 
         # Sync ROIs
-        self.sync_rois_cb = QCheckBox("Synchronize ROIs")
-        self.sync_rois_cb.setChecked(True)
-        self.sync_rois_cb.setToolTip("Share ROIs between linked images")
-        layout.addWidget(self.sync_rois_cb)
+        self.syncRoisCb = QCheckBox("Synchronize ROIs")
+        self.syncRoisCb.setChecked(True)
+        self.syncRoisCb.setToolTip("Share ROIs between linked images")
+        layout.addWidget(self.syncRoisCb)
 
         return group
 
-    def _populate_image_lists(self):
+    def _populateImageLists(self):
         """Populate the image selection combo boxes"""
-        images = self.proj.getAllImages()
-
-        for i, image in enumerate(images):
+        for i, image in enumerate(self.imageList):
             # Get image name for display
             display_name = self._get_image_display_name(image, i)
 
-            self.primary_combo.addItem(display_name, i)
-            self.secondary_combo.addItem(display_name, i)
+            self.primaryCombo.addItem(display_name, i)
+            self.secondaryCombo.addItem(display_name, i)
 
     def _get_image_display_name(self, image, index: int) -> str:
         """Get a display name for an image"""
@@ -247,40 +250,38 @@ class DualImageSelectionDialog(QDialog):
         except Exception:
             return f"Image {index}"
 
-    def _connect_signals(self):
+    def _connectSignals(self):
         """Connect UI signals"""
-        self.primary_combo.currentIndexChanged.connect(self._on_primary_changed)
-        self.secondary_combo.currentIndexChanged.connect(self._on_secondary_changed)
-        self.opacity_slider.valueChanged.connect(self._on_opacity_changed)
+        self.primaryCombo.currentIndexChanged.connect(self._on_primary_changed)
+        self.secondaryCombo.currentIndexChanged.connect(self._on_secondary_changed)
+        self.opacitySlider.valueChanged.connect(
+            lambda value: self.opacityLabel.setText(f"{value}%")
+        )
 
     def _on_primary_changed(self, index):
         """Handle primary image selection change"""
         # Ensure primary and secondary are different
-        if self.secondary_combo.currentIndex() == index:
+        if self.secondaryCombo.currentIndex() == index:
             # Find a different secondary
-            for i in range(self.secondary_combo.count()):
+            for i in range(self.secondaryCombo.count()):
                 if i != index:
-                    self.secondary_combo.setCurrentIndex(i)
+                    self.secondaryCombo.setCurrentIndex(i)
                     break
 
     def _on_secondary_changed(self, index):
         """Handle secondary image selection change"""
         # Ensure primary and secondary are different
-        if self.primary_combo.currentIndex() == index:
+        if self.primaryCombo.currentIndex() == index:
             # Find a different primary
-            for i in range(self.primary_combo.count()):
+            for i in range(self.primaryCombo.count()):
                 if i != index:
-                    self.primary_combo.setCurrentIndex(i)
+                    self.primaryCombo.setCurrentIndex(i)
                     break
-
-    def _on_opacity_changed(self, value):
-        """Handle opacity slider change"""
-        self.opacity_label.setText(f"{value}%")
 
     def get_selected_images(self) -> Tuple[Optional[int], Optional[int]]:
         """Get the selected primary and secondary image indices"""
-        primary_index = self.primary_combo.currentData()
-        secondary_index = self.secondary_combo.currentData()
+        primary_index = self.primaryCombo.currentData()
+        secondary_index = self.secondaryCombo.currentData()
         return primary_index, secondary_index
 
     def get_configuration(self) -> DualImageConfig:
@@ -288,30 +289,30 @@ class DualImageSelectionDialog(QDialog):
         config = DualImageConfig()
 
         # Display mode based on button group ID
-        mode_id = self.mode_group.checkedId()
-        if mode_id == 0:
+        modeId = self.modeGroup.checkedId()
+        if modeId == 0:
             config.mode = DualImageMode.SIDE_BY_SIDE
-        elif mode_id == 1:
+        elif modeId == 1:
             config.mode = DualImageMode.OVERLAY
-        elif mode_id == 2:
+        elif modeId == 2:
             config.mode = DualImageMode.BLINK
         else:
             config.mode = DualImageMode.SIDE_BY_SIDE  # Default
 
         # Link type based on button group ID
-        link_type_id = self.link_type_group.checkedId()
-        if link_type_id == 0:
+        linkTypeId = self.linkTypeGroup.checkedId()
+        if linkTypeId == 0:
             config.link_type = LinkType.PIXEL_BASED
-        elif link_type_id == 1:
+        elif linkTypeId == 1:
             config.link_type = LinkType.GEOSPATIAL
         else:
             config.link_type = LinkType.PIXEL_BASED  # Default
 
         # Other settings
-        config.overlay_opacity = self.opacity_slider.value() / 100.0
-        config.blink_interval = self.blink_interval_spin.value()
-        config.sync_navigation = self.sync_navigation_cb.isChecked()
-        config.sync_rois = self.sync_rois_cb.isChecked()
+        config.overlay_opacity = self.opacitySlider.value() / 100.0
+        config.blink_interval = self.blinkIntervalSpin.value()
+        config.sync_navigation = self.syncNavigationCb.isChecked()
+        config.sync_rois = self.syncRoisCb.isChecked()
 
         return config
 
@@ -319,8 +320,19 @@ class DualImageSelectionDialog(QDialog):
         self, primary_index: Optional[int] = None, secondary_index: Optional[int] = None
     ):
         """Set default image selections"""
-        if primary_index is not None and primary_index < self.primary_combo.count():
-            self.primary_combo.setCurrentIndex(primary_index)
+        if primary_index is not None and primary_index < self.primaryCombo.count():
+            self.primaryCombo.setCurrentIndex(primary_index)
 
-        if secondary_index is not None and secondary_index < self.secondary_combo.count():
-            self.secondary_combo.setCurrentIndex(secondary_index)
+        if secondary_index is not None and secondary_index < self.secondaryCombo.count():
+            self.secondaryCombo.setCurrentIndex(secondary_index)
+
+
+if __name__ == "__main__":
+    qapp = QApplication([])
+    imageList = [
+        varda.utilities.debug.generate_random_image((100, 100, 10), (10, 10, 10))
+        for i in range(5)
+    ]
+    dialog = DualImageSelectionDialog(imageList)
+    dialog.show()
+    qapp.exec()

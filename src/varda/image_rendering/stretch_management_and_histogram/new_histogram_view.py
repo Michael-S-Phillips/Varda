@@ -155,8 +155,8 @@ class NewHistogramView(QWidget):
 
 if __name__ == "__main__":
     q_app = pg.mkQApp()
-    image = varda.utilities.debug.generateRandomImage((100, 100, 10), (10, 10, 10))
-    renderSettings = RendererSettings()
+    image = varda.utilities.debug.generate_random_image((100, 100, 10), (10, 10, 10))
+    renderSettings = RendererSettings.new(image)
     renderSettings.bands = np.array([0, 1, 2])
     settingsPanel = RendererSettingsPanel(image, renderSettings)
     renderer = ImageRenderer(image, renderSettings)

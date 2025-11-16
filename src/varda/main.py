@@ -10,13 +10,16 @@ from pathlib import Path
 import sys
 
 # third party imports
-from PyQt6.QtCore import QStandardPaths
+from PyQt6.QtCore import QStandardPaths, QObject, pyqtSignal
 from PyQt6.QtGui import QPixmap, QAction
 from PyQt6.QtWidgets import QApplication, QSplashScreen
 import pyqtgraph as pg
 
 # local imports
 import varda
+from varda.common.entities import Image
+from varda.common.observable_list import ObservableList
+from varda.image_loading import ImageLoadingService
 from varda.maingui import MainGUI
 from varda.common.widgets import VardaMenuBar, StatusBar
 from varda.plugins import VardaPluginManager
@@ -25,11 +28,18 @@ from varda.project.project_io import ProjectJsonIO
 from varda.registries.registries import VardaRegistries
 
 
-class VardaApplication:
+class VardaApplicationContext(QObject):
     def __init__(self, proj, pm, registry):
+        super().__init__()
         self.proj = proj
         self.pm = pm
         self.registry = registry
+        self.images = ObservableList()
+
+        self._imageLoadingService = ImageLoadingService()
+
+    def loadNewImage(self):
+        self._imageLoadingService.load_image_data(on_success_callback=self.images.append)
 
 
 def quitApp():
@@ -52,7 +62,7 @@ def createAction(name: str, callback, shortcut=None):
 
 def initMenuBar(app):
     ### Initialize Actions ###
-    importImageAction = createAction("Import Image", app.proj.loadNewImage, "Ctrl+N")
+    importImageAction = createAction("Import Image", app.loadNewImage, "Ctrl+N")
     saveProjectAction = createAction("Save Project", app.proj.saveProject, "Ctrl+S")
     openProjectAction = createAction("Open Project", app.proj.loadProject, "Ctrl+O")
     exitAppAction = createAction("Exit", quitApp)
@@ -64,8 +74,9 @@ def initMenuBar(app):
     loadDummyImageAction = createAction(
         "Load Dummy Image",
         lambda: varda.utilities.debug.loadRandomImageIntoProject(
-            app.proj, (100, 100, 50), (10, 10, 10)
+            app, (100, 100, 50), (10, 10, 10)
         ),
+        "F11",
     )
     actions.append(importImageAction)
     actions.append(saveProjectAction)
@@ -106,7 +117,7 @@ def initVarda() -> None:
     varda.log.debug("Configurations set")
 
     ### Initialize Application Components ###
-    app = VardaApplication(
+    app = VardaApplicationContext(
         ProjectContext(io=ProjectJsonIO()), VardaPluginManager(), VardaRegistries()
     )
     # let plugins run their startup code

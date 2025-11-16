@@ -59,10 +59,8 @@ def main():
     app = QApplication(sys.argv)
 
     imageLoadingService = ImageLoadingService()
-    raster, metadata = imageLoadingService.loadImageSync(
-        str(
-            Path("../../testImages/Data/CRISM/frt00012dfa_07_if164j_mtr3.img").resolve()
-        )
+    raster, metadata = imageLoadingService.load_image_sync(
+        str(Path("../../testImages/Data/CRISM/frt00012dfa_07_if164j_mtr3.img").resolve())
     )
     print("Image done loading.")
     rgbData = raster[:, :, [1, 2, 3]]

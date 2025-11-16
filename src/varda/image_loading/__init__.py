@@ -1,4 +1,4 @@
-from .image_loading_service import ImageLoadingService, registerImageLoader
+from .image_loading_service import ImageLoadingService, register_image_loader
 from .protocols import ImageLoaderProtocol
 
 

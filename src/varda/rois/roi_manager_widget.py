@@ -24,7 +24,7 @@ class ROIManagerWidget(QWidget):
         self.table = ROITableView(self.model)
         self.propEditor = ROIPropertyEditor(self.roiManager)
 
-        self.displayController = ROIDisplayController(self.roiManager)
+        self.displayController = ROIDisplayController()
 
         # controls
         self.showAllBtn = QPushButton("Show All")

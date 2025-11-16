@@ -48,17 +48,12 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     - Metadata editing
     """
 
-    # Workflow-level signals
-    workflowClosed: pyqtSignal = pyqtSignal()  # Emitted when workflow is closed
-
-    def __init__(self, proj, imageIndex=0, parent=None):
+    def __init__(self, image, parent=None):
         super().__init__(parent)
         # self.viewModel = GeneralPurposeImageViewModel(self)
         # self.viewModel.imageIndex = imageIndex
         # self.image = self.viewModel.getImage()
-        self.imageIndex = imageIndex
-        self.proj = proj
-        self.image = self.proj.getImage(imageIndex)
+        self.image = image
 
         # Initialize core components
         self.rasterView = None
@@ -74,15 +69,13 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         self.showMaximized()
 
-        self.setStatusMessage(
-            f"General Image Analysis Workflow initialized for image {imageIndex}"
-        )
+        self.setStatusMessage(f"General Image Analysis Workflow initialized")
 
     def _initComponents(self):
         """Initialize all workflow components"""
 
         # Initialize raster view
-        self.rendererSettings = RendererSettings()
+        self.rendererSettings = RendererSettings.new(self.image)
         self.rendererSettingsPanel = RendererSettingsPanel(
             self.image, self.rendererSettings, self
         )
@@ -110,20 +103,21 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # self.stretchManager = StretchManager(self.proj, self.imageIndex, self)
 
         # Initialize metadata editor
-        self.metadataEditor = MetadataEditor(self.proj, self.imageIndex, self)
+        self.metadataEditor = MetadataEditor(self.image, self)
 
+        # TODO: Commented out until I refactor to not rely on ProjectContext/ROIManager
         # Initialize ROI view/table
-        self.roiManager = ROIManagerWidget(self.proj, self.imageIndex, self)
-        displayController: ROIDisplayController = self.roiManager.getDisplayController()
-
-        displayController.registerViewport("viewport 1", self.tripleRasterView.viewport1)
-        displayController.registerViewport("viewport 2", self.tripleRasterView.viewport2)
-        displayController.registerViewport("viewport 3", self.tripleRasterView.viewport3)
+        # self.roiManager = ROIManagerWidget(self.proj, self.imageIndex, self)
+        # displayController = self.roiManager.getDisplayController()
+        #
+        # displayController.registerViewport("viewport 1", self.tripleRasterView.viewport1)
+        # displayController.registerViewport("viewport 2", self.tripleRasterView.viewport2)
+        # displayController.registerViewport("viewport 3", self.tripleRasterView.viewport3)
         # self.oldRoiView = getROIView(self.proj, self.imageIndex, self)
 
     def _initUI(self):
         """Initialize the user interface for the workflow"""
-        self.setWindowTitle(f"General Image Analysis - Image {self.imageIndex}")
+        self.setWindowTitle(f"General Image Analysis - Image {self.image.metadata.name}")
 
         self._setupDocks()
         # Set the raster view as the central widget

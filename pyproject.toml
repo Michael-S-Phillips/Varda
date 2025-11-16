@@ -10,24 +10,25 @@ authors = [{"name" = "Michael Phillips", "email" = "phillipsm@arizona.edu"},
            {"name" = "Hamad Ayaz", "email" = "hamadayaz@arizona.edu"}]
 
 dependencies = [
-    "PyQt6~=6.7.1",
-    "numpy~=2.1.1",
-    "matplotlib~=3.9.2",
-    "spectral~=0.23.1",
-    "rasterio~=1.4.0",
+    "PyQt6>=6.7.1",
+    "numpy>=2.1.1",
+    "matplotlib>=3.9.2",
+    "spectral>=0.23.1",
+    "rasterio>=1.4.0",
     "scikit-image>=0.21.0",
-    "pyqtgraph~=0.13.7",
-    "h5py~=3.12.1",
-    "opencv-python~=4.10.0.84",
-    "affine~=2.4.0",
-    "scipy~=1.15.1",
+    "pyqtgraph>=0.13.7",
+    "h5py>=3.15.1",
+    "opencv-python>=4.10.0.84",
+    "affine>=2.4.0",
+    "scipy>=1.15.1",
     "pillow>=10.1.0",
-    "pyproj~=3.7.1",
-    "pluggy~=1.6.0",
-    "appdirs~=1.4.4",
-    "geopandas~=1.1.1",
-    "pydantic~=2.11.7",
-    "numpydantic~=1.6.11",
+    "pyproj>=3.7.1",
+    "pluggy>=1.6.0",
+    "appdirs>=1.4.4",
+    "pyogrio>=0.11.1",
+    "geopandas>=1.1.1",
+    "pydantic>=2.11.7",
+    "numpydantic>=1.6.11",
 ]
 
 [dependency-groups]
@@ -36,6 +37,7 @@ dev = [
     "mypy>=1.18.2",
     "pyinstaller>=6.16.0",
     "pytest>=8.4.2",
+    "ruff>=0.14.5",
 ]
 
 [build-system]
@@ -54,3 +56,5 @@ testpaths = ["tests"]
 [tool.black]
 line-length = 90
 
+[tool.mypy]
+mypy_path = ["src"]

@@ -56,7 +56,7 @@ class ImageRepository(QObject):
         def _onImageLoadFailure():
             varda.log.error(f"Failed to load image from {filePath}!")
 
-        self._imageLoadingService.loadImageData(
+        self._imageLoadingService.load_image_data(
             filePath, _onImageLoadSuccess, _onImageLoadFailure
         )
 

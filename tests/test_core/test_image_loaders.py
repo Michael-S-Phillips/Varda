@@ -142,7 +142,7 @@ def test_image_loading_service(test_images):
     for ext, path in test_images.items():
         # Get the correct loader for each file type
         try:
-            loader = service._getLoader(path)
+            loader = service._get_loader(path)
             assert loader is not None
         except ValueError:
             pytest.fail(f"Could not find loader for {ext} file")

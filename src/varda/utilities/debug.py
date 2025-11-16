@@ -134,25 +134,31 @@ class ProjectContextDataTable(QWidget):
         return match
 
 
-def loadRandomImageIntoProject(proj, shape=(10, 10, 10), res=(1, 1, 1)):
+def loadRandomImageIntoProject(app, shape=(10, 10, 10), res=(1, 1, 1)):
     """Load a random Image entity into the specified project."""
-    image = generateRandomImage(shape, res)
-    proj.addImage(image)
+    image = generate_random_image(shape, res)
+    app.images.append(image)
 
 
-def generateRandomImage(shape, res):
+randomImageNo = 0
+
+
+def generate_random_image(shape, res):
     """Generate a random Image entity of the specified size."""
+    global randomImageNo
     import numpy as np
 
     raster = generate_perlin_noise_3d(shape, res)
     metadata = Metadata(
+        name=f"random image {randomImageNo}",
         wavelengths=np.array(["wavelength " + num for num in map(str, range(shape[2]))]),
         defaultBand=Band("default", 0, 0, 0),
     )
+    randomImageNo += 1
     return Image(raster, metadata)
 
 
-### Credit for noise function: https://github.com/pvigier/perlin-numpy/blob/master/perlin_numpy
+### credit: https://github.com/pvigier/perlin-numpy/blob/master/perlin_numpy
 def generate_perlin_noise_3d(shape, res, seed=None, tileable=(False, False, False)):
     """Generate a 3D numpy array of perlin noise.
 
