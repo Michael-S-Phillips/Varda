@@ -1,5 +1,6 @@
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QSignalBlocker, Qt, QObject
 from PyQt6.QtWidgets import (
+    QComboBox,
     QSpinBox,
     QWidget,
     QSlider,
@@ -15,19 +16,18 @@ from typing_extensions import override
 
 class Parameter(QObject):
     sigValueChanged: pyqtSignal = pyqtSignal(object)
+    name: str
+    value: object
 
-    def __init__(self, parent=None):
+    def __init__(self, name, parent=None):
         super().__init__(parent)
-
-    def name(self): ...
-
-    def units(self): ...
+        self.name = name
 
     def set(self, value): ...
 
     def get(self): ...
 
-    def getWidget(self): ...
+    def getWidget(self, parent=None): ...
 
 
 class ParameterGroup(QWidget):
@@ -42,7 +42,7 @@ class ParameterGroup(QWidget):
         #     formLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
         # )
         for param in self.params:
-            formLayout.addRow(param.name(), param.getWidget())
+            formLayout.addRow(param.name, param.getWidget(self))
             param.sigValueChanged.connect(self.sigParameterChanged)
         self.setLayout(formLayout)
 
@@ -51,21 +51,13 @@ class ParameterGroup(QWidget):
 
 
 class IntParameter(Parameter):
-
     def __init__(self, name, units, default=0, valueRange=None, parent=None):
-        super().__init__()
-        self._name = name
-        self._units = units
+        super().__init__(name, parent)
+        self.units = units
         self.valueRange = valueRange
         if self.valueRange is not None:  # clamp default to range
             default = max(self.valueRange[0], min(self.valueRange[1], default))
         self._value = default
-
-    def name(self):
-        return self._name
-
-    def units(self):
-        return self._units
 
     def set(self, value):
         self._value = value
@@ -94,7 +86,9 @@ class IntParameter(Parameter):
             )
             self.spinBox.setMinimumSize(60, 30)
             if self.param.valueRange is not None:
-                self.spinBox.setRange(self.param.valueRange[0], self.param.valueRange[1])
+                self.spinBox.setRange(
+                    self.param.valueRange[0], self.param.valueRange[1]
+                )
             else:
                 self.spinBox.setRange(-100000, 100000)
             self.spinBox.setValue(self.param.get())
@@ -102,7 +96,7 @@ class IntParameter(Parameter):
 
             paramLayout.addWidget(self.spinBox)
 
-            self.unitLabel = QLabel(self.param.units())
+            self.unitLabel = QLabel(self.param.units)
             paramLayout.addWidget(self.unitLabel)
 
             if self.param.valueRange is not None:
@@ -120,7 +114,6 @@ class IntParameter(Parameter):
 
         @pyqtSlot(int)
         def valueChanged(self, value):
-
             if self.spinBox.value() != value:
                 with QSignalBlocker(self.spinBox):
                     self.spinBox.setValue(value)
@@ -132,21 +125,16 @@ class IntParameter(Parameter):
 
 
 class FloatParameter(Parameter):
-
-    def __init__(self, name: str, units: str, default=0.0, valueRange=None, parent=None):
-        super().__init__(parent)
-        self._name = name
-        self._units = units
+    def __init__(
+        self, name: str, units: str, default=0.0, valueRange=None, parent=None
+    ):
+        super().__init__(name, parent)
+        self.name = name
+        self.units = units
         self.valueRange = valueRange
         if self.valueRange is not None:  # clamp default to range
             default = max(self.valueRange[0], min(self.valueRange[1], default))
         self._value = default
-
-    def name(self):
-        return self._name
-
-    def units(self):
-        return self._units
 
     def set(self, value):
         self._value = value
@@ -163,14 +151,16 @@ class FloatParameter(Parameter):
             layout = QHBoxLayout(self)
             self.spinBox = QDoubleSpinBox(parent=self)
             if self.param.valueRange is not None:
-                self.spinBox.setRange(self.param.valueRange[0], self.param.valueRange[1])
+                self.spinBox.setRange(
+                    self.param.valueRange[0], self.param.valueRange[1]
+                )
             else:
                 self.spinBox.setRange(-100000, 100000)
             self.spinBox.setValue(self.param.get())
             self.spinBox.valueChanged.connect(self.valueChanged)
             layout.addWidget(self.spinBox)
 
-            self.unitLabel = QLabel(self.param._units)
+            self.unitLabel = QLabel(self.param.units)
             layout.addWidget(self.unitLabel)
 
             if self.param.valueRange is not None:
@@ -185,7 +175,6 @@ class FloatParameter(Parameter):
 
         @pyqtSlot(float)
         def valueChanged(self, value):
-
             if self.spinBox.value() != value:
                 with QSignalBlocker(self.spinBox):
                     self.spinBox.setValue(value)
@@ -238,9 +227,38 @@ class BoolParameter:
         self.value = default
 
 
-class ImageParameter:
-    def __init__(self, name, default):
-        self.name = name
+class ImageParameter(Parameter):
+    def __init__(self, name: str, imageList, parent=None) -> None:
+        super().__init__(name, parent)
+        self.imageList = imageList
+        self._image = imageList[0] if len(self.imageList) != 0 else None
+
+    def set(self, image):
+        self._image = image
+        super().sigValueChanged.emit(self._image)
+
+    def get(self):
+        return self._image
+
+    def getWidget(self, parent=None):
+        return self.ImageParameterWidget(self, self.imageList, parent)
+
+    class ImageParameterWidget(QWidget):
+        def __init__(self, param: "ImageParameter", imageList, parent=None):
+            super().__init__(parent)
+            self.param = param
+            self.imageList = imageList
+            self.comboBox = QComboBox(self)
+            if len(imageList) == 0:
+                self.comboBox.addItem("No Images Available!")
+            else:
+                self.comboBox.addItems(
+                    [image.metadata.name for image in self.imageList]
+                )
+            self.comboBox.currentIndexChanged.connect(self.imageSelectionChanged)
+
+        def imageSelectionChanged(self, index):
+            self.param.set(self.imageList[index])
 
 
 # if __name__ == "__main__":

@@ -57,4 +57,4 @@ testpaths = ["tests"]
 line-length = 90
 
 [tool.mypy]
-mypy_path = ["src"]
+packages = ["varda"]

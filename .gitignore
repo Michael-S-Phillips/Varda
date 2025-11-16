@@ -8,6 +8,8 @@ $py.class
 #  before PyInstaller builds the exe, so as to inject dateother infos into it.
 .manifest
 .spec
+# MyPy
+.mypy_cache
 
 # Builds
 build/
@@ -23,6 +25,7 @@ venv/
 testImages/*
 .idea
 *.varda
+.junie
 
 # exclude .vscode generally, but keep the launch.json
 .vscode/*

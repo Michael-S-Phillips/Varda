@@ -4,24 +4,22 @@ This module initializes all the core components of Varda right away, and then st
 """
 
 # standard library
-from datetime import datetime
-import logging
-from pathlib import Path
 import sys
 
-# third party imports
-from PyQt6.QtCore import QStandardPaths, QObject, pyqtSignal
-from PyQt6.QtGui import QPixmap, QAction
-from PyQt6.QtWidgets import QApplication, QSplashScreen
 import pyqtgraph as pg
+
+# third party imports
+from PyQt6.QtCore import QObject
+from PyQt6.QtGui import QAction, QPixmap
+from PyQt6.QtWidgets import QApplication, QSplashScreen
 
 # local imports
 import varda
-from varda.common.entities import Image
 from varda.common.observable_list import ObservableList
+from varda.common.widgets import StatusBar, VardaMenuBar
 from varda.image_loading import ImageLoadingService
 from varda.maingui import MainGUI
-from varda.common.widgets import VardaMenuBar, StatusBar
+from varda.new_workspace_dialog import NewWorkspaceDialog
 from varda.plugins import VardaPluginManager
 from varda.project import ProjectContext
 from varda.project.project_io import ProjectJsonIO
@@ -39,7 +37,9 @@ class VardaApplicationContext(QObject):
         self._imageLoadingService = ImageLoadingService()
 
     def loadNewImage(self):
-        self._imageLoadingService.load_image_data(on_success_callback=self.images.append)
+        self._imageLoadingService.load_image_data(
+            on_success_callback=self.images.append
+        )
 
 
 def quitApp():
@@ -78,12 +78,16 @@ def initMenuBar(app):
         ),
         "F11",
     )
+    newWorkspaceCreator = createAction(
+        "New Workspace Creator", lambda: NewWorkspaceDialog(app.images).exec()
+    )
     actions.append(importImageAction)
     actions.append(saveProjectAction)
     actions.append(openProjectAction)
     actions.append(exitAppAction)
     actions.append(dumpProjectDataAction)
     actions.append(loadDummyImageAction)
+    actions.append(newWorkspaceCreator)
     ### Initialize MenuBar ###
     menuBar = VardaMenuBar()
     menuBar.registerAction("File", importImageAction)
@@ -92,6 +96,7 @@ def initMenuBar(app):
     menuBar.registerAction("File", exitAppAction)
     menuBar.registerAction("Debug", dumpProjectDataAction)
     menuBar.registerAction("Debug", loadDummyImageAction)
+    menuBar.registerAction("Debug", newWorkspaceCreator)
     return menuBar
 
 
@@ -110,7 +115,6 @@ def initVarda() -> None:
 
     ### Initialize Logging -- Logs stored in user's local appdata folder ###
     varda.log._initializeFullLogging()
-
 
     ### Set Configurations ###
     pg.setConfigOptions(imageAxisOrder="row-major")
