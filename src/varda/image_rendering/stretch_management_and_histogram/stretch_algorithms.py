@@ -169,7 +169,6 @@ class LinearPercentileStretch(StretchAlgorithm):
                     np.nanpercentile(image[:, :, 2], highPercent),
                 ]
             ).reshape((1, 1, 3))
-            print(f"maxVals {maxVals}")
             # clip and stretch
             scale = maxVals - minVals
             scale[scale == 0] = 1.0  # prevent division by zero
