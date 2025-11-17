@@ -143,7 +143,7 @@ def loadRandomImageIntoProject(app, shape=(10, 10, 10), res=(1, 1, 1)):
 randomImageNo = 0
 
 
-def generate_random_image(shape, res):
+def generate_random_image(shape=(100, 100, 100), res=(10, 10, 10)):
     """Generate a random Image entity of the specified size."""
     global randomImageNo
     import numpy as np
@@ -151,7 +151,9 @@ def generate_random_image(shape, res):
     raster = generate_perlin_noise_3d(shape, res)
     metadata = Metadata(
         name=f"random image {randomImageNo}",
-        wavelengths=np.array(["wavelength " + num for num in map(str, range(shape[2]))]),
+        wavelengths=np.array(
+            ["wavelength " + num for num in map(str, range(shape[2]))]
+        ),
         defaultBand=Band("default", 0, 0, 0),
     )
     randomImageNo += 1
@@ -212,7 +214,8 @@ def generate_perlin_noise_3d(shape, res, seed=None, tileable=(False, False, Fals
     g111 = gradients[d[0] :, d[1] :, d[2] :]
     # Ramps
     n000 = np.sum(
-        np.stack((grid[:, :, :, 0], grid[:, :, :, 1], grid[:, :, :, 2]), axis=3) * g000, 3
+        np.stack((grid[:, :, :, 0], grid[:, :, :, 1], grid[:, :, :, 2]), axis=3) * g000,
+        3,
     )
     n100 = np.sum(
         np.stack((grid[:, :, :, 0] - 1, grid[:, :, :, 1], grid[:, :, :, 2]), axis=3)

@@ -23,8 +23,8 @@ class NewDualImageWorkspaceConfig:
     image2Param: ImageParameter
 
     def __init__(self, imageList) -> None:
-        self.image1Param: ImageParameter = ImageParameter("Image 1", imageList)
-        self.image2Param: ImageParameter = ImageParameter("Image 2", imageList)
+        self.image1Param: ImageParameter = ImageParameter("Primary Image", imageList)
+        self.image2Param: ImageParameter = ImageParameter("Secondary Image", imageList)
 
     def getParameters(self):
         return ParameterGroup([self.image1Param, self.image2Param])

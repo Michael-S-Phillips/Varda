@@ -1,5 +1,8 @@
+from typing import Generic
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QSignalBlocker, Qt, QObject
 from PyQt6.QtWidgets import (
+    QCheckBox,
+    QLineEdit,
     QComboBox,
     QSpinBox,
     QWidget,
@@ -13,21 +16,31 @@ from PyQt6.QtWidgets import (
 
 from typing_extensions import override
 
+from varda.common.entities import Image
 
-class Parameter(QObject):
+
+class Parameter[T](QObject):
     sigValueChanged: pyqtSignal = pyqtSignal(object)
     name: str
-    value: object
+    value: T
 
-    def __init__(self, name, parent=None):
+    def __init__(
+        self, name: str, default: T, description: str | None = None, parent=None
+    ):
         super().__init__(parent)
         self.name = name
+        self.value = default
+        self.description = description
 
-    def set(self, value): ...
+    def set(self, value: T) -> None:
+        self.value = value
+        self.sigValueChanged.emit(self.value)
 
-    def get(self): ...
+    def get(self) -> T:
+        return self.value
 
-    def getWidget(self, parent=None): ...
+    def getWidget(self, parent=None) -> QWidget:
+        raise NotImplementedError("Subclasses must implement getWidget")
 
 
 class ParameterGroup(QWidget):
@@ -42,7 +55,12 @@ class ParameterGroup(QWidget):
         #     formLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
         # )
         for param in self.params:
-            formLayout.addRow(param.name, param.getWidget(self))
+            label = QLabel(param.name)
+            widget = param.getWidget(self)
+            if param.description is not None:
+                label.setToolTip(param.description)
+                widget.setToolTip(param.description)
+            formLayout.addRow(label, widget)
             param.sigValueChanged.connect(self.sigParameterChanged)
         self.setLayout(formLayout)
 
@@ -50,23 +68,30 @@ class ParameterGroup(QWidget):
         return f"ParameterGroup({[p.get() for p in self.params]})"
 
 
-class IntParameter(Parameter):
-    def __init__(self, name, units, default=0, valueRange=None, parent=None):
-        super().__init__(name, parent)
+def paramLayoutDefault():
+    paramLayout = QHBoxLayout()
+    paramLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+    paramLayout.setContentsMargins(0, 0, 0, 0)
+    return paramLayout
+
+
+class IntParameter(Parameter[int]):
+    def __init__(
+        self,
+        name,
+        default=0,
+        description=None,
+        units=None,
+        valueRange=None,
+        parent=None,
+    ):
         self.units = units
         self.valueRange = valueRange
-        if self.valueRange is not None:  # clamp default to range
-            default = max(self.valueRange[0], min(self.valueRange[1], default))
-        self._value = default
+        if valueRange is not None:  # clamp default to range
+            default = max(valueRange[0], min(valueRange[1], default))
+        super().__init__(name, default, description=description, parent=parent)
 
-    def set(self, value):
-        self._value = value
-        super().sigValueChanged.emit(self._value)
-
-    def get(self):
-        return self._value
-
-    def getWidget(self, parent=None):
+    def getWidget(self, parent=None) -> QWidget:
         return self.IntParameterWidget(self, parent)
 
     class IntParameterWidget(QWidget):
@@ -74,11 +99,7 @@ class IntParameter(Parameter):
             super().__init__(parent)
             self.param = param
             # init UI
-            paramLayout = QHBoxLayout(self)
-            paramLayout.setAlignment(
-                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
-            )
-            paramLayout.setContentsMargins(0, 0, 0, 0)
+            paramLayout = paramLayoutDefault()
 
             self.spinBox = QSpinBox(parent=self)
             self.spinBox.setSizePolicy(
@@ -96,8 +117,9 @@ class IntParameter(Parameter):
 
             paramLayout.addWidget(self.spinBox)
 
-            self.unitLabel = QLabel(self.param.units)
-            paramLayout.addWidget(self.unitLabel)
+            if self.param.units is not None:
+                self.unitLabel = QLabel(self.param.units)
+                paramLayout.addWidget(self.unitLabel)
 
             if self.param.valueRange is not None:
                 self.slider = QSlider(parent=self)
@@ -124,31 +146,33 @@ class IntParameter(Parameter):
             self.param.set(value)
 
 
-class FloatParameter(Parameter):
+class FloatParameter(Parameter[float]):
     def __init__(
-        self, name: str, units: str, default=0.0, valueRange=None, parent=None
+        self,
+        name: str,
+        default=0.0,
+        description=None,
+        units=None,
+        valueRange=None,
+        parent=None,
     ):
-        super().__init__(name, parent)
-        self.name = name
         self.units = units
         self.valueRange = valueRange
         if self.valueRange is not None:  # clamp default to range
             default = max(self.valueRange[0], min(self.valueRange[1], default))
-        self._value = default
+        super().__init__(name, default, description, parent)
 
-    def set(self, value):
-        self._value = value
-        super().sigValueChanged.emit(self._value)
-
-    def get(self):
-        return self._value
+    def getWidget(self, parent=None) -> QWidget:
+        return self.FloatParameterWidget(self, parent)
 
     class FloatParameterWidget(QWidget):
         def __init__(self, param: "FloatParameter", parent=None):
             super().__init__(parent)
             self.param = param
             # initialize widget
-            layout = QHBoxLayout(self)
+
+            paramLayout = paramLayoutDefault()
+
             self.spinBox = QDoubleSpinBox(parent=self)
             if self.param.valueRange is not None:
                 self.spinBox.setRange(
@@ -158,10 +182,11 @@ class FloatParameter(Parameter):
                 self.spinBox.setRange(-100000, 100000)
             self.spinBox.setValue(self.param.get())
             self.spinBox.valueChanged.connect(self.valueChanged)
-            layout.addWidget(self.spinBox)
+            paramLayout.addWidget(self.spinBox)
 
-            self.unitLabel = QLabel(self.param.units)
-            layout.addWidget(self.unitLabel)
+            if self.param.units is not None:
+                self.unitLabel = QLabel(self.param.units)
+                paramLayout.addWidget(self.unitLabel)
 
             if self.param.valueRange is not None:
                 self.slider = self.FloatSlider(parent=self)
@@ -169,9 +194,9 @@ class FloatParameter(Parameter):
                 self.slider.setRange(self.param.valueRange[0], self.param.valueRange[1])
                 self.slider.setValue(self.param.get())
                 self.slider.sigFloatValueChanged.connect(self.valueChanged)
-                layout.addWidget(self.slider)
+                paramLayout.addWidget(self.slider)
 
-            self.setLayout(layout)
+            self.setLayout(paramLayout)
 
         @pyqtSlot(float)
         def valueChanged(self, value):
@@ -193,13 +218,13 @@ class FloatParameter(Parameter):
                 self.valueChanged.connect(self.onValueChanged)
 
             @override
-            def setRange(self, min, max):
+            def setRange(self, min: float, max: float) -> None:
                 min = min * pow(10, self.precision)
                 max = max * pow(10, self.precision)
-                super().setRange(min, max)
+                super().setRange(int(min), int(max))
 
             @override
-            def setValue(self, a0):
+            def setValue(self, a0: float) -> None:
                 super().setValue(int(a0 * pow(10, self.precision)))
 
             def onValueChanged(self, value):
@@ -207,55 +232,85 @@ class FloatParameter(Parameter):
                 self.sigFloatValueChanged.emit(floatVal)
 
 
-class StringParameter(Parameter):
-    def __init__(self, name, default):
-        self.name = name
-        self.default = default
-        self.value = default
+class StringParameter(Parameter[str]):
+    def __init__(self, name: str, default: str = "", description=None, parent=None):
+        super().__init__(name, default, description, parent)
 
-    def set(self, value):
-        self.value = value
+    def getWidget(self, parent=None) -> QWidget:
+        return self.StringParameterWidget(self, parent)
 
-    def get(self):
-        return self.value
-
-
-class BoolParameter:
-    def __init__(self, name, default):
-        self.name = name
-        self.default = default
-        self.value = default
-
-
-class ImageParameter(Parameter):
-    def __init__(self, name: str, imageList, parent=None) -> None:
-        super().__init__(name, parent)
-        self.imageList = imageList
-        self._image = imageList[0] if len(self.imageList) != 0 else None
-
-    def set(self, image):
-        self._image = image
-        super().sigValueChanged.emit(self._image)
-
-    def get(self):
-        return self._image
-
-    def getWidget(self, parent=None):
-        return self.ImageParameterWidget(self, self.imageList, parent)
-
-    class ImageParameterWidget(QWidget):
-        def __init__(self, param: "ImageParameter", imageList, parent=None):
+    class StringParameterWidget(QWidget):
+        def __init__(self, param: "StringParameter", parent=None):
             super().__init__(parent)
             self.param = param
-            self.imageList = imageList
+
+            self.lineEdit = QLineEdit(self)
+            self.lineEdit.setText(self.param.get())
+            self.lineEdit.textChanged.connect(self.textChanged)
+
+            paramLayout = paramLayoutDefault()
+            paramLayout.addWidget(self.lineEdit)
+            self.setLayout(paramLayout)
+
+        @pyqtSlot(str)
+        def textChanged(self, text):
+            self.param.set(text)
+
+
+class BoolParameter(Parameter[bool]):
+    def __init__(self, name, default=False, description=None, parent=None):
+        super().__init__(name, default, description, parent)
+
+    def getWidget(self, parent=None) -> QWidget:
+        return self.BoolParameterWidget(self, parent)
+
+    class BoolParameterWidget(QWidget):
+        def __init__(self, param: "BoolParameter", parent=None):
+            super().__init__(parent)
+            self.param = param
+
+            self.checkBox = QCheckBox(self)
+            self.checkBox.setChecked(self.param.get())
+            self.checkBox.checkStateChanged.connect(self.stateChanged)
+            paramLayout = paramLayoutDefault()
+            paramLayout.addWidget(self.checkBox)
+            self.setLayout(paramLayout)
+
+        @pyqtSlot(Qt.CheckState)
+        def stateChanged(self, state):
+            self.param.set(state == Qt.CheckState.Checked)
+
+
+class ImageParameter(Parameter[Image]):
+    def __init__(
+        self, name: str, imageList: list[Image], description=None, parent=None
+    ) -> None:
+        self.imageList = imageList
+        if len(self.imageList) == 0:
+            raise ValueError("ImageParameter requires a non-empty imageList")
+        default = self.imageList[0]
+        super().__init__(name, default, description, parent)
+
+    def getWidget(self, parent=None) -> QWidget:
+        return self.ImageParameterWidget(self, parent)
+
+    class ImageParameterWidget(QWidget):
+        def __init__(self, param: "ImageParameter", parent=None):
+            super().__init__(parent)
+            self.param = param
+            self.imageList = param.imageList
             self.comboBox = QComboBox(self)
-            if len(imageList) == 0:
+            if len(self.imageList) == 0:
                 self.comboBox.addItem("No Images Available!")
             else:
                 self.comboBox.addItems(
                     [image.metadata.name for image in self.imageList]
                 )
             self.comboBox.currentIndexChanged.connect(self.imageSelectionChanged)
+
+            paramLayout = paramLayoutDefault()
+            paramLayout.addWidget(self.comboBox)
+            self.setLayout(paramLayout)
 
         def imageSelectionChanged(self, index):
             self.param.set(self.imageList[index])
@@ -273,22 +328,34 @@ class ImageParameter(Parameter):
 #     q_app.exec()
 #
 #
-# if __name__ == "__main__":
-#     import sys
-#
-#     qapp = QApplication([])
-#
-#     layout = QVBoxLayout()
-#
-#     intParam0 = IntParameter("test", "test units", 10, (0, 100)).getWidget()
-#     # intParam1 = IntParameter("test4", "test units", 10)
-#     # floatParam0 = FloatParameter("FloatVal", "floating units", 15.15, (0, 100))
-#
-#     layout.addWidget(intParam0)
-#     # layout.addWidget(intParam1)
-#     # layout.addWidget(floatParam0)
-#
-#     w = QWidget()
-#     w.setLayout(layout)
-#     w.show()
-#     sys.exit(qapp.exec())
+if __name__ == "__main__":
+    import sys
+    from PyQt6.QtWidgets import QApplication, QVBoxLayout, QWidget
+    from varda.utilities import debug
+
+    qapp = QApplication([])
+
+    layout = QVBoxLayout()
+
+    intParam0 = IntParameter("test", 10, "A test int parameter", "test units", (0, 100))
+    floatParam0 = FloatParameter(
+        "FloatVal", 15.15, "A test float parameter", "floating units", (0, 100)
+    )
+    boolParam0 = BoolParameter("BoolVal", True, "A test bool parameter")
+    stringParam0 = StringParameter(
+        "StringVal", "default text", "A test string parameter"
+    )
+    imageParam0 = ImageParameter(
+        "ImageVal",
+        [debug.generate_random_image(), debug.generate_random_image()],
+        "A test image parameter",
+    )
+    paramGroup = ParameterGroup(
+        [intParam0, floatParam0, boolParam0, stringParam0, imageParam0]
+    )
+    layout.addWidget(paramGroup)
+
+    w = QWidget()
+    w.setLayout(layout)
+    w.show()
+    sys.exit(qapp.exec())
