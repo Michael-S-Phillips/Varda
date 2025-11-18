@@ -10,7 +10,7 @@ from varda.common.parameter import ImageParameter, ParameterGroup
 from varda.common.entities import Image
 from varda.image_rendering.raster_view import ImageViewport
 from varda.image_rendering.image_renderer import ImageRenderer
-from varda.common.widgets import VBoxBuilder, SplitterBuilder
+from varda.common.widgets import VBoxBuilder, SplitterBuilder, HBoxBuilder
 
 
 class NewDualImageWorkspaceConfig:
@@ -47,6 +47,7 @@ class DualImageWorkspace(QWidget):
 
         self.primaryViewport = ImageViewport(self.primaryRenderer, self)
         self.secondaryViewport = ImageViewport(self.secondaryRenderer, self)
+
         splitter = (
             SplitterBuilder(Qt.Orientation.Horizontal)
             .withLayout(
@@ -60,9 +61,8 @@ class DualImageWorkspace(QWidget):
                 .withWidget(self.secondarySettings, 1)
             )
         )
-        layout = QHBoxLayout()
-        layout.addWidget(splitter)
-        self.setLayout(layout)
+
+        self.setLayout(HBoxBuilder().withWidget(splitter))
 
 
 if __name__ == "__main__":

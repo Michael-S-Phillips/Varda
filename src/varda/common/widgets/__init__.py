@@ -4,4 +4,4 @@ from .status_bar import StatusBar
 from .main_menu_bar import VardaMenuBar
 from .file_path_box import FilePathBox
 from .file_input_dialog import FileInputDialog
-from .widgets import VBoxBuilder, SplitterBuilder
+from .widgets import VBoxBuilder, HBoxBuilder, SplitterBuilder

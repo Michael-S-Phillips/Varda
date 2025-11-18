@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QVBoxLayout, QWidget, QSplitter, QLayout
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QSplitter, QLayout
 
 
 class WrapperWidget(QWidget):
@@ -15,15 +17,33 @@ class VBoxBuilder(QVBoxLayout):
 
     def withWidget(
         self, widget: QWidget, stretch: int = 0, alignment=Qt.AlignmentFlag(0)
-    ):
+    ) -> VBoxBuilder:
         self.addWidget(widget, stretch, alignment)
         return self
 
-    def withLayout(self, layout: QVBoxLayout, stretch: int = 0):
+    def withLayout(self, layout: QVBoxLayout, stretch: int = 0) -> VBoxBuilder:
         self.addLayout(layout, stretch)
         return self
 
-    def wrapped(self) -> QWidget:
+    def wrapped(self) -> WrapperWidget:
+        return WrapperWidget(self)
+
+
+class HBoxBuilder(QHBoxLayout):
+    def __init__(self):
+        super().__init__()
+
+    def withWidget(
+        self, widget: QWidget, stretch: int = 0, alignment=Qt.AlignmentFlag(0)
+    ) -> HBoxBuilder:
+        self.addWidget(widget, stretch, alignment)
+        return self
+
+    def withLayout(self, layout: QHBoxLayout, stretch: int = 0) -> HBoxBuilder:
+        self.addLayout(layout, stretch)
+        return self
+
+    def wrapped(self) -> WrapperWidget:
         return WrapperWidget(self)
 
 
@@ -32,11 +52,13 @@ class SplitterBuilder(QSplitter):
         super().__init__()
         self.setOrientation(orientation)
 
-    def withWidget(self, widget: QWidget):
+    def withWidget(self, widget: QWidget, stretchFactor: int = 1) -> SplitterBuilder:
         self.addWidget(widget)
+        self.setStretchFactor(self.indexOf(widget), stretchFactor)
         return self
 
-    def withLayout(self, layout: QLayout):
+    def withLayout(self, layout: QLayout, stretchFactor: int = 1) -> SplitterBuilder:
         wrapper = WrapperWidget(layout)
         self.addWidget(wrapper)
+        self.setStretchFactor(self.indexOf(wrapper), stretchFactor)
         return self
