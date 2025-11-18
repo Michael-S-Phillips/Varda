@@ -55,3 +55,6 @@ testpaths = ["tests"]
 
 [tool.black]
 line-length = 90
+
+[tool.mypy]
+disable_error_code = ["import-untyped"]

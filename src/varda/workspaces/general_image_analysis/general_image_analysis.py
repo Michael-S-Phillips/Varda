@@ -11,7 +11,6 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QStatusBar,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
 from pyqtgraph.dockarea import DockArea, Dock
 
 from varda.common.entities.image import Image

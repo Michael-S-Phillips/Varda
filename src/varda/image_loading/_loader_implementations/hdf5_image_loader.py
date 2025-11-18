@@ -95,7 +95,10 @@ class HDF5ImageLoader(ImageLoaderProtocol):
                         visited.add(id(current))
 
                         # Check if this is a dataset with a suitable shape
-                        if isinstance(current, h5py.Dataset) and len(current.shape) >= 2:
+                        if (
+                            isinstance(current, h5py.Dataset)
+                            and len(current.shape) >= 2
+                        ):
                             if len(current.shape) == 3 or (
                                 len(current.shape) == 2
                                 and current.shape[0] > 1
@@ -111,7 +114,9 @@ class HDF5ImageLoader(ImageLoaderProtocol):
                                 queue.append(current[key])
 
                 if dataset is None:
-                    raise ValueError("Could not find a suitable dataset in the HDF5 file")
+                    raise ValueError(
+                        "Could not find a suitable dataset in the HDF5 file"
+                    )
 
                 # Check if we're in preview mode for large datasets
                 if loading_mode == "preview" and dataset is not None:
@@ -245,16 +250,18 @@ class HDF5ImageLoader(ImageLoaderProtocol):
                         metadata_dict["wavelengths_type"] = int
                         errors.append("Wavelength count mismatch")
                 else:
-                    logger.warning("No wavelength information found, using band indices")
+                    logger.warning(
+                        "No wavelength information found, using band indices"
+                    )
                     metadata_dict["wavelengths"] = np.arange(raster.shape[2])
                     metadata_dict["wavelengths_type"] = int
                     errors.append("No wavelength information found")
 
                 # Create a default band if we have at least 3 bands
                 if raster.shape[2] >= 3:
-                    metadata_dict["defaultBand"] = Band("default", 0, 1, 2)
+                    metadata_dict["defaultBand"] = [0, 1, 2]
                 else:
-                    metadata_dict["defaultBand"] = Band("default", 0, 0, 0)
+                    metadata_dict["defaultBand"] = [0, 0, 0]
 
                 # Add any other metadata that might be useful
                 extraMetadata = {}

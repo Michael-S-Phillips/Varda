@@ -4,8 +4,8 @@ import numpy as np
 from PyQt6.QtCore import QObject, QEvent, Qt, QPointF
 from PyQt6.QtWidgets import QGraphicsRectItem
 
+from varda.image_rendering.raster_view.viewport import ImageViewport
 from varda.rois.varda_roi import VardaROIItem
-from varda.image_rendering.raster_view.protocols import Viewport
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +15,10 @@ class RegionController(QObject):
 
     def __init__(
         self,
-        sourceViewport: Viewport,
-        targetViewport: Viewport,
+        sourceViewport: ImageViewport,
+        targetViewport: ImageViewport,
         roi: VardaROIItem,
-        parentRegionController: "RegionController" = None,
+        parentRegionController: "RegionController" | None = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -34,7 +34,6 @@ class RegionController(QObject):
         self.sourceViewport.addItem(self.displayROI)
         self.displayROI.sigRegionChanged.connect(self.onRegionChanged)
         self.sourceViewport.sigImageChanged.connect(self.onRegionChanged)
-
         self.targetViewport.sigImageChanged.connect(self._updateRoiBounds)
         # Initialize drag state variables
         self._dragStartScenePos = None
@@ -202,7 +201,9 @@ class RegionController(QObject):
         for x, y in self.displayROI.roiEntity.points:
             # scenePoint = self.displayROI.mapToScene(QPointF(point[0], point[1]))
             # localImagePoint = self.sourceViewport.imageItem.mapFromScene(scenePoint)
-            absoluteImagePoint = self.sourceViewport.imageItem.localToImage(QPointF(x, y))
+            absoluteImagePoint = self.sourceViewport.imageItem.localToImage(
+                QPointF(x, y)
+            )
             absolutePoints.append([absoluteImagePoint.x(), absoluteImagePoint.y()])
 
         # Create new ROI entity with absolute coordinates

@@ -113,7 +113,9 @@ class TIFFImageLoader(ImageLoaderProtocol):
                 metadata_dict["dtype"] = str(src.dtypes[0])
 
                 # Handle nodata value
-                metadata_dict["dataIgnore"] = src.nodata if src.nodata is not None else 0
+                metadata_dict["dataIgnore"] = (
+                    src.nodata if src.nodata is not None else 0
+                )
 
                 # CRS and transform (for georeferenced images)
                 if src.crs:
@@ -138,7 +140,9 @@ class TIFFImageLoader(ImageLoaderProtocol):
                             "wavelength_units", "nm"
                         )
                     except (ValueError, TypeError):
-                        errors.append("Could not parse wavelength information from tags")
+                        errors.append(
+                            "Could not parse wavelength information from tags"
+                        )
 
                 # If no wavelength info, create default wavelengths
                 if wavelengths is None:

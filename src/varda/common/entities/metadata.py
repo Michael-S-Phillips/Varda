@@ -11,7 +11,6 @@ import logging
 from affine import Affine
 from pyproj import CRS
 
-from .geo_referencer import GeoReferencer
 
 # local imports
 from .band import Band
@@ -45,8 +44,7 @@ class Metadata:
     wavelengths_type: Type = float
     name: str = ""
     transform: Affine = affine.identity
-    crs: CRS = None
-    geoReferencer: GeoReferencer = None
+    crs: CRS | None = None
 
     extraMetadata: Dict[str, str | int | float] = field(default_factory=dict)
 
@@ -68,12 +66,6 @@ class Metadata:
             raise self.BadMetadataError("defaultBand", "Band", self.defaultBand)
         if not isinstance(self.wavelengths, np.ndarray):
             raise self.BadMetadataError("wavelengths", "np.ndarray", self.wavelengths)
-        if self.geoReferencer is not None and not isinstance(
-            self.geoReferencer, GeoReferencer
-        ):
-            raise self.BadMetadataError(
-                "geoReference", "GeoReference", self.geoReferencer
-            )
         if not isinstance(self.extraMetadata, dict):
             raise self.BadMetadataError("extraMetadata", "dict", self.extraMetadata)
         for key, value in self.extraMetadata.items():
