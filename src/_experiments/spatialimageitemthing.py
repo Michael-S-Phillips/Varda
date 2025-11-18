@@ -12,7 +12,7 @@ from PyQt6.QtGui import QTransform
 import pyqtgraph as pg
 
 from varda.image_loading import ImageLoadingService
-from varda.image_rendering.stretch_management_and_histogram.stretch_algorithms import (
+from varda.image_rendering.stretch_algorithms import (
     LinearPercentileStretch,
 )
 
@@ -60,7 +60,9 @@ def main():
 
     imageLoadingService = ImageLoadingService()
     raster, metadata = imageLoadingService.load_image_sync(
-        str(Path("../../testImages/Data/CRISM/frt00012dfa_07_if164j_mtr3.img").resolve())
+        str(
+            Path("../../testImages/Data/CRISM/frt00012dfa_07_if164j_mtr3.img").resolve()
+        )
     )
     print("Image done loading.")
     rgbData = raster[:, :, [1, 2, 3]]

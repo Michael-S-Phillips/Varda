@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter
 
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.rois.varda_roi import VardaROIItem
-from varda.image_rendering.raster_view.viewport import ImageViewport
+from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.image_rendering.raster_view.region_controller import (
     RegionController,
 )

@@ -10,6 +10,7 @@ from varda.image_rendering.raster_view.protocols import Viewport
 
 logger = logging.getLogger(__name__)
 
+
 class ViewportTool(QObject):
     """
     Abstract base class for all viewport tools.
@@ -159,7 +160,6 @@ class ViewportTool(QObject):
 
         # Set up timeout if specified
         if timeout is not None:
-
             timer = QTimer(self)
             timer.setSingleShot(True)
             timer.timeout.connect(self.hideText)

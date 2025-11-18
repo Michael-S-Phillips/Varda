@@ -4,7 +4,7 @@ import numpy as np
 from PyQt6.QtCore import QObject, QEvent, Qt, QPointF
 from PyQt6.QtWidgets import QGraphicsRectItem
 
-from varda.image_rendering.raster_view.viewport import ImageViewport
+from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.rois.varda_roi import VardaROIItem
 
 logger = logging.getLogger(__name__)
