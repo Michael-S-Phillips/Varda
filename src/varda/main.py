@@ -64,6 +64,8 @@ def createAction(name: str, callback, shortcut=None):
 
 def initMenuBar(app):
     ### Initialize Actions ###
+    # This is probably not a long term solution, but it's vaguely in the realm of what we want
+    # -- that being a centralized action registry seperate from any specific UI component, that can be injected into menubar and such.
     importImageAction = createAction("Import Image", app.loadNewImage, "Ctrl+N")
     saveProjectAction = createAction("Save Project", app.proj.saveProject, "Ctrl+S")
     openProjectAction = createAction("Open Project", app.proj.loadProject, "Ctrl+O")
@@ -81,7 +83,9 @@ def initMenuBar(app):
     newWorkspaceCreator = createAction(
         "New Workspace Creator",
         lambda: NewDualImageWorkspaceDialog(app.images)
-        .connectOnAccept(app.maingui.addTab)
+        .connectOnAccept(
+            lambda workspace: app.maingui.addTab(workspace, "Dual Image Workspace")
+        )
         .open(),
     )
     actions.append(importImageAction)
@@ -138,7 +142,7 @@ def initVarda() -> None:
     initMenuBar(app)
     app.maingui.showMaximized()
     splash.finish(app.maingui)
-    varda.log.debug("starting the GUI event loop...")
+    varda.log.info("starting the GUI event loop...")
     exitCode = q_app.exec()
     varda.log.info("Application exiting, performing cleanup...")
     sys.exit(exitCode)

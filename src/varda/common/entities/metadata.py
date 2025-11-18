@@ -64,7 +64,7 @@ class Metadata:
             raise self.BadMetadataError("dataIgnore", "int or float", self.dataIgnore)
         if not isinstance(self.bandCount, int):
             raise self.BadMetadataError("bandCount", "int", self.bandCount)
-        if not isinstance(self.defaultBand, Band):
+        if not isinstance(self.defaultBand, list | np.ndarray):
             raise self.BadMetadataError("defaultBand", "Band", self.defaultBand)
         if not isinstance(self.wavelengths, np.ndarray):
             raise self.BadMetadataError("wavelengths", "np.ndarray", self.wavelengths)
@@ -110,6 +110,9 @@ class Metadata:
                 f"Unexpected keyword argument '{key}' moved to extraMetadata"
             )
             self.extraMetadata[key] = value
+
+        # I think this doesnt get called automatically if we override __init__
+        self.__post_init__()
 
     def _checkExtraMetadata(self, item):
         """Check if a value is serializable by JSON."""
