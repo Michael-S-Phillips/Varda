@@ -202,7 +202,9 @@ class ENVIImageLoader(ImageLoaderProtocol):
                                 wavelength_strings, dtype="U50"
                             )
                             metadata_dict["wavelengths_type"] = str
-                            logger.debug("Using spectral parameter names as wavelengths")
+                            logger.debug(
+                                "Using spectral parameter names as wavelengths"
+                            )
                         else:
                             # Try to parse as numeric wavelengths
                             try:
@@ -225,7 +227,9 @@ class ENVIImageLoader(ImageLoaderProtocol):
                     elif bandNames is not None:
                         # Try to extract numeric values from band names if they look like wavelengths
                         try:
-                            wavelengths = np.asarray([float(name) for name in bandNames])
+                            wavelengths = np.asarray(
+                                [float(name) for name in bandNames]
+                            )
                             metadata_dict["wavelengths"] = wavelengths
                             metadata_dict["wavelengths_type"] = float
                         except ValueError:
@@ -264,7 +268,9 @@ class ENVIImageLoader(ImageLoaderProtocol):
                         # Try to convert to indices
                         try:
                             # First try as numeric indices
-                            defaultBandIndices = [int(band) for band in defaultBandNames]
+                            defaultBandIndices = [
+                                int(band) for band in defaultBandNames
+                            ]
                         except ValueError:
                             # If not numeric, try to find indices by name
                             if bandNames:
@@ -303,15 +309,15 @@ class ENVIImageLoader(ImageLoaderProtocol):
                     else:
                         # Set reasonable default bands if not specified
                         if metadata_dict["bandCount"] >= 3:
-                            metadata_dict["defaultBand"] = Band("default", 0, 1, 2)
+                            metadata_dict["defaultBand"] = [0, 1, 2]
                         else:
-                            metadata_dict["defaultBand"] = Band("default", 0, 0, 0)
+                            metadata_dict["defaultBand"] = [0, 0, 0]
                 except Exception as e:
                     # Create a sensible default
                     if metadata_dict["bandCount"] >= 3:
-                        metadata_dict["defaultBand"] = Band("default", 0, 1, 2)
+                        metadata_dict["defaultBand"] = [0, 1, 2]
                     else:
-                        metadata_dict["defaultBand"] = Band("default", 0, 0, 0)
+                        metadata_dict["defaultBand"] = [0, 0, 0]
                     errors.append(f"Could not parse default bands: {e}, using fallback")
 
                 # Add extra metadata fields

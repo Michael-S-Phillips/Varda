@@ -34,18 +34,17 @@ def validateArrayShape(image):
 
 
 class StretchAlgorithm(QObject):
-
-    def parameters(self):
+    def parameters(self) -> ParameterGroup:
         """
         Returns a ParameterGroup object containing parameters for this stretch algorithm.
         If an algorithm has no parameters, they do not need to reimplement this method.
         """
         return ParameterGroup([])
 
-    def apply(self, image):
+    def apply(self, image: np.ndarray) -> np.ndarray:
         raise NotImplementedError("Subclasses classes must implement this method.")
 
-    def minMaxVals(self):
+    def minMaxVals(self) -> tuple[np.ndarray, np.ndarray] | None:
         return None
 
     def __repr__(self):
@@ -121,18 +120,26 @@ class MinMaxStretch(StretchAlgorithm):
 
 @registerStretchAlgorithm("Linear Percentile")
 class LinearPercentileStretch(StretchAlgorithm):
-
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.lowPercent = IntParameter("Low Percent", "%", 1, [0, 100], self)
-        self.highPercent = IntParameter("High Percent", "%", 99, [0, 100], self)
-        self.minVals = None
-        self.maxVals = None
+        self.lowPercent = IntParameter(
+            "Low Percent", 1, "lower percentile of data to cut off", "%", [0, 100], self
+        )
+        self.highPercent = IntParameter(
+            "High Percent",
+            99,
+            "upper percentile of data to cut off",
+            "%",
+            [0, 100],
+            self,
+        )
+        self.minVals: np.ndarray | None = None
+        self.maxVals: np.ndarray | None = None
 
-    def parameters(self):
+    def parameters(self) -> ParameterGroup:
         return ParameterGroup([self.lowPercent, self.highPercent])
 
-    def apply(self, image):
+    def apply(self, image: np.ndarray) -> np.ndarray:
         """Compute min/max values based on percentiles."""
         lowPercent = self.lowPercent.get()
         highPercent = self.highPercent.get()
@@ -178,7 +185,7 @@ class LinearPercentileStretch(StretchAlgorithm):
 
             return (np.clip(image, minVals, maxVals) - minVals) / scale
 
-    def minMaxVals(self):
+    def minMaxVals(self) -> tuple[np.ndarray, np.ndarray] | None:
         if self.minVals is not None and self.maxVals is not None:
             return self.minVals, self.maxVals
         else:

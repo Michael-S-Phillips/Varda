@@ -10,24 +10,16 @@ import logging
 from PyQt6.QtWidgets import (
     QMainWindow,
     QStatusBar,
-    QApplication,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from pyqtgraph.dockarea import DockArea, Dock
 
-from varda.image_rendering.image_renderer import (
-    ImageRenderer,
-    RendererSettings,
-    RendererSettingsPanel,
-)
+from varda.common.entities.image import Image
+from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.stretch_management_and_histogram.new_histogram_view import (
     NewHistogramView,
 )
 from varda.metadata_management.metadata_editor import MetadataEditor
-from varda.image_rendering.raster_view import (
-    ROIDisplayController,
-)
-from varda.rois.roi_manager_widget import ROIManagerWidget
 
 
 from varda.image_rendering.raster_view import TripleRasterView
@@ -48,7 +40,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     - Metadata editing
     """
 
-    def __init__(self, image, parent=None):
+    def __init__(self, image: Image, parent=None):
         super().__init__(parent)
         # self.viewModel = GeneralPurposeImageViewModel(self)
         # self.viewModel.imageIndex = imageIndex
@@ -69,18 +61,16 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         self.showMaximized()
 
-        self.setStatusMessage(f"General Image Analysis Workflow initialized")
+        self.setStatusMessage("General Image Analysis Workflow initialized")
 
     def _initComponents(self):
         """Initialize all workflow components"""
 
         # Initialize raster view
-        self.rendererSettings = RendererSettings.new(self.image)
-        self.rendererSettingsPanel = RendererSettingsPanel(
-            self.image, self.rendererSettings, self
-        )
+        self.imageRenderer = ImageRenderer(self.image)
 
-        self.imageRenderer = ImageRenderer(self.image, self.rendererSettings)
+        self.rendererSettingsPanel = self.imageRenderer.getSettingsPanel()
+
         self.tripleRasterView = TripleRasterView(self.imageRenderer, self)
 
         # Initialize tool management for each viewport
@@ -117,7 +107,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
     def _initUI(self):
         """Initialize the user interface for the workflow"""
-        self.setWindowTitle(f"General Image Analysis - Image {self.image.metadata.name}")
+        self.setWindowTitle(
+            f"General Image Analysis - Image {self.image.metadata.name}"
+        )
 
         self._setupDocks()
         # Set the raster view as the central widget
@@ -130,7 +122,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         dockArea = DockArea(self)
         self.setCentralWidget(dockArea)
         docks = []
-        loc = Qt.DockWidgetArea.LeftDockWidgetArea
 
         rasterDock = Dock("Raster Dock", widget=self.tripleRasterView, size=(800, 800))
         docks.append(rasterDock)

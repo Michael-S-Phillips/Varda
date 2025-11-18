@@ -21,9 +21,10 @@ class TripleRasterView(QWidget):
     def _initUI(self):
         self.viewport1 = ImageViewport(self.imageRenderer)
         # only need to connect one first viewport, because others are linked via region controllers
-        self.imageRenderer.sigShouldRefresh.connect(self.viewport1.refresh)
         self.viewport2 = ImageViewport(self.imageRenderer)
+        self.viewport2.disableSelfUpdating()
         self.viewport3 = ImageViewport(self.imageRenderer)
+        self.viewport3.disableSelfUpdating()
 
         # top-level layout
         verticalSplitter = QSplitter(Qt.Orientation.Vertical)
@@ -64,7 +65,9 @@ class TripleRasterView(QWidget):
             aspectLocked=True,
         )
 
-        self.mainController = RegionController(self.viewport1, self.viewport2, self.roi1)
+        self.mainController = RegionController(
+            self.viewport1, self.viewport2, self.roi1
+        )
         self.zoomController = RegionController(
             self.viewport2, self.viewport3, self.roi2, self.mainController
         )

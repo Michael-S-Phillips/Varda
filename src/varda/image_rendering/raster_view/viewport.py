@@ -45,6 +45,9 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         self.setLayout(layout)
 
         self._imageItem.sigImageChanged.connect(self.sigImageChanged)
+        self._imageRenderer.sigShouldRefresh.connect(
+            lambda: self.refresh() if self.selfUpdating else None
+        )
 
     def disableSelfUpdating(self):
         """Disable self-updating of the image item."""

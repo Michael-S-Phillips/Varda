@@ -10,6 +10,6 @@ class BandConfiguration:
         """Apply the band configuration to the image"""
         if self.mode == "rgb":
             return image[:, :, self.values]
-        else if self.mode == "mono":
+        elif self.mode == "mono":
             data = image[:, :, self.values[0]]
             return self.colorMap(data)

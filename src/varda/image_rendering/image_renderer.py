@@ -1,28 +1,24 @@
 import sys
-from dataclasses import dataclass, field
-import logging
+from dataclasses import dataclass
 from typing import Optional
 
-from PyQt6.QtCore import pyqtSlot, pyqtSignal, QObject, Qt
+from PyQt6.QtCore import pyqtSignal, QObject, Qt
 from PyQt6.QtWidgets import (
     QWidget,
-    QFormLayout,
     QComboBox,
     QButtonGroup,
     QRadioButton,
     QHBoxLayout,
     QStackedLayout,
     QVBoxLayout,
-    QGridLayout,
     QLabel,
     QApplication,
-    QLayout,
-    QSizePolicy,
 )
 import pyqtgraph as pg
 from pyqtgraph import ColorMap
 import numpy as np
 
+from varda.common.entities import Image
 import varda.utilities.debug
 from varda.image_rendering.stretch_management_and_histogram.stretch_algorithms import (
     stretchAlgorithmRegistry,
@@ -32,6 +28,7 @@ from varda.image_rendering.stretch_management_and_histogram.stretch_algorithms i
 
 @dataclass
 class RendererSettings:
+    image: Image
     mode: str
     bands: np.ndarray[tuple[int], np.dtype[np.uint]]
     stretch: StretchAlgorithm
@@ -41,6 +38,7 @@ class RendererSettings:
     @staticmethod
     def new(image):
         return RendererSettings(
+            image=image,
             mode="mono",
             bands=image.metadata.defaultBand,
             stretch=stretchAlgorithmRegistry["Min-Max (Full Range)"](),
@@ -52,13 +50,14 @@ class RendererSettings:
 
 
 class ImageRenderer(QObject):
-
     sigShouldRefresh: pyqtSignal = pyqtSignal()
 
-    def __init__(self, image=None, settings: Optional[RendererSettings] = None):
+    def __init__(self, image: Image, settings: Optional[RendererSettings] = None):
         super().__init__()
         self.image = image
-        self.settings = settings if settings is not None else RendererSettings.new(image)
+        self.settings = (
+            settings if settings is not None else RendererSettings.new(image)
+        )
 
         self.cachedRender = None
         self._stretchedData = (
@@ -141,6 +140,11 @@ class ImageRenderer(QObject):
         self._stretchedData = None
         self.sigShouldRefresh.emit()
 
+    def getSettingsPanel(self) -> "RendererSettingsPanel":
+        settingsPanel = RendererSettingsPanel(self.settings)
+        settingsPanel.sigSettingsChanged.connect(self.updateSettings)
+        return settingsPanel
+
 
 def getComboBox():
     comboBox = QComboBox()
@@ -153,13 +157,11 @@ def getComboBox():
 
 
 class RendererSettingsPanel(QWidget):
-
     sigSettingsChanged: pyqtSignal = pyqtSignal(RendererSettings)
 
-    def __init__(self, image, settings: RendererSettings, parent=None):
+    def __init__(self, settings: RendererSettings, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Image Render Settings")
-        self.image = image
         self.settings = settings
 
         ### init UI ###
@@ -185,11 +187,14 @@ class RendererSettingsPanel(QWidget):
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )
         rgbBandLayout = QHBoxLayout()
-        rgbBandLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        rgbBandLayout.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
         # generate band layout for rgb mode
+        wavelengths = self.settings.image.metadata.wavelengths
         for i in range(3):
             comboBox = getComboBox()
-            comboBox.addItems([str(w) for w in self.image.metadata.wavelengths])
+            comboBox.addItems([str(w) for w in wavelengths])
             comboBox.setMaximumWidth(100)
             comboBox.currentIndexChanged.connect(self._onBandsChanged)
             self.rgbBands.append(comboBox)
@@ -200,7 +205,7 @@ class RendererSettingsPanel(QWidget):
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )
         self.monoBand = getComboBox()
-        self.monoBand.addItems([str(w) for w in self.image.metadata.wavelengths])
+        self.monoBand.addItems([str(w) for w in wavelengths])
         self.monoBand.currentIndexChanged.connect(self._onBandsChanged)
         monoBandLayout.addWidget(self.monoBand)
         colormapSelector = pg.GradientWidget()
@@ -220,9 +225,13 @@ class RendererSettingsPanel(QWidget):
 
         ## Stretch Selection ##
         stretchLayout = QVBoxLayout()
-        stretchLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        stretchLayout.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
         self.stretchAlgSelector = getComboBox()
-        self.stretchAlgSelector.addItems([key for key in stretchAlgorithmRegistry.keys()])
+        self.stretchAlgSelector.addItems(
+            [key for key in stretchAlgorithmRegistry.keys()]
+        )
         stretchLayout.addWidget(self.stretchAlgSelector)
         self.stretchParameters = QStackedLayout()
         # self.stretchParameters.setSizeConstraint(
@@ -269,7 +278,9 @@ class RendererSettingsPanel(QWidget):
         self.monoBand.setCurrentIndex(self.settings.bands[0])
         # this is kinda hacky whoops
         self.stretchAlgSelector.setCurrentIndex(
-            list(stretchAlgorithmRegistry.values()).index(self.settings.stretch.__class__)
+            list(stretchAlgorithmRegistry.values()).index(
+                self.settings.stretch.__class__
+            )
         )
 
     def _onModeToggled(self, button, checked):

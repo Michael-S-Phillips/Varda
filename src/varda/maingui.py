@@ -74,7 +74,6 @@ class MainGUI(QtWidgets.QMainWindow):
         return dock
 
     def connectSignals(self):
-
         self.imageList.itemClicked.connect(self.onSelectedImageChanged)
 
         self.proj.sigDataChanged[
@@ -119,7 +118,9 @@ class MainGUI(QtWidgets.QMainWindow):
             self.dual_view_dock.setFloating(False)  # Dock it properly
 
             # Add to right dock area
-            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dual_view_dock)
+            self.addDockWidget(
+                Qt.DockWidgetArea.RightDockWidgetArea, self.dual_view_dock
+            )
 
             # Store reference for cleanup
             if not hasattr(self, "childWindows"):
@@ -186,7 +187,9 @@ class MainGUI(QtWidgets.QMainWindow):
                 if primary_index is not None and secondary_index is not None:
                     # Set the selected images in dual view
                     if hasattr(self, "dual_view") and self.dual_view:
-                        success_primary = self.dual_view.set_primary_image(primary_index)
+                        success_primary = self.dual_view.set_primary_image(
+                            primary_index
+                        )
                         success_secondary = self.dual_view.set_secondary_image(
                             secondary_index
                         )
@@ -455,7 +458,11 @@ class MainGUI(QtWidgets.QMainWindow):
         """Handle when project data changes (like new images being added)."""
 
         image = list[len(list) - 1]
-        self.centralTabs.addTab(GeneralImageAnalysisWorkflow(image), image.metadata.name)
+        self.addTab(GeneralImageAnalysisWorkflow(image), image.metadata.name)
+
+    def addTab(self, widget, title=None):
+        """Add a new tab to the central tab widget."""
+        self.centralTabs.addTab(widget, title)
 
     def closeAllChildWindows(self):
         """Close all child windows before shutting down."""

@@ -6,9 +6,8 @@ This module initializes all the core components of Varda right away, and then st
 # standard library
 import sys
 
-import pyqtgraph as pg
-
 # third party imports
+import pyqtgraph as pg
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QAction, QPixmap
 from PyQt6.QtWidgets import QApplication, QSplashScreen
@@ -19,7 +18,9 @@ from varda.common.observable_list import ObservableList
 from varda.common.widgets import StatusBar, VardaMenuBar
 from varda.image_loading import ImageLoadingService
 from varda.maingui import MainGUI
-from varda.new_workspace_dialog import NewWorkspaceDialog
+from varda.workspaces.dual_image_workspace.workspace_initializer import (
+    NewDualImageWorkspaceDialog,
+)
 from varda.plugins import VardaPluginManager
 from varda.project import ProjectContext
 from varda.project.project_io import ProjectJsonIO
@@ -27,11 +28,12 @@ from varda.registries.registries import VardaRegistries
 
 
 class VardaApplicationContext(QObject):
-    def __init__(self, proj, pm, registry):
+    def __init__(self, proj, pm, registry, maingui=None):
         super().__init__()
         self.proj = proj
         self.pm = pm
         self.registry = registry
+        self.maingui = maingui
         self.images = ObservableList()
 
         self._imageLoadingService = ImageLoadingService()
@@ -73,13 +75,14 @@ def initMenuBar(app):
     # debug actions
     loadDummyImageAction = createAction(
         "Load Dummy Image",
-        lambda: varda.utilities.debug.loadRandomImageIntoProject(
-            app, (100, 100, 50), (10, 10, 10)
-        ),
+        lambda: varda.utilities.debug.loadRandomImageIntoProject(app),
         "F11",
     )
     newWorkspaceCreator = createAction(
-        "New Workspace Creator", lambda: NewWorkspaceDialog(app.images).exec()
+        "New Workspace Creator",
+        lambda: NewDualImageWorkspaceDialog(app.images)
+        .connectOnAccept(app.maingui.addTab)
+        .open(),
     )
     actions.append(importImageAction)
     actions.append(saveProjectAction)
@@ -89,7 +92,7 @@ def initMenuBar(app):
     actions.append(loadDummyImageAction)
     actions.append(newWorkspaceCreator)
     ### Initialize MenuBar ###
-    menuBar = VardaMenuBar()
+    menuBar = app.maingui.menuBar()
     menuBar.registerAction("File", importImageAction)
     menuBar.registerAction("File", saveProjectAction)
     menuBar.registerAction("File", openProjectAction)
@@ -131,9 +134,10 @@ def initVarda() -> None:
     varda.log.info("Varda initialized successfully!")
 
     ### start GUI ###
-    gui = MainGUI(app, initMenuBar(app), StatusBar(app.proj))
-    gui.showMaximized()
-    splash.finish(gui)
+    app.maingui = MainGUI(app, VardaMenuBar(), StatusBar(app.proj))
+    initMenuBar(app)
+    app.maingui.showMaximized()
+    splash.finish(app.maingui)
     varda.log.debug("starting the GUI event loop...")
     exitCode = q_app.exec()
     varda.log.info("Application exiting, performing cleanup...")

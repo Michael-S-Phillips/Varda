@@ -43,7 +43,7 @@ class Metadata:
     )
     wavelengths: np.ndarray = field(default_factory=lambda: np.zeros(0))
     wavelengths_type: Type = float
-    name: str = ""  # Added a name field for display purposes
+    name: str = ""
     transform: Affine = affine.identity
     crs: CRS = None
     geoReferencer: GeoReferencer = None
@@ -106,7 +106,9 @@ class Metadata:
 
         # Move any remaining unexpected kwargs to extraMetadata
         for key, value in kwargs.items():
-            logger.warning(f"Unexpected keyword argument '{key}' moved to extraMetadata")
+            logger.warning(
+                f"Unexpected keyword argument '{key}' moved to extraMetadata"
+            )
             self.extraMetadata[key] = value
 
     def _checkExtraMetadata(self, item):

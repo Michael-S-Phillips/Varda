@@ -134,7 +134,7 @@ class ProjectContextDataTable(QWidget):
         return match
 
 
-def loadRandomImageIntoProject(app, shape=(10, 10, 10), res=(1, 1, 1)):
+def loadRandomImageIntoProject(app, shape=(100, 100, 100), res=(10, 10, 10)):
     """Load a random Image entity into the specified project."""
     image = generate_random_image(shape, res)
     app.images.append(image)
@@ -154,7 +154,7 @@ def generate_random_image(shape=(100, 100, 100), res=(10, 10, 10)):
         wavelengths=np.array(
             ["wavelength " + num for num in map(str, range(shape[2]))]
         ),
-        defaultBand=Band("default", 0, 0, 0),
+        defaultBand=[0, 0, 0],
     )
     randomImageNo += 1
     return Image(raster, metadata)
