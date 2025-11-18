@@ -1,7 +1,14 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QSplitter, QLayout
+from PyQt6.QtWidgets import (
+    QVBoxLayout,
+    QHBoxLayout,
+    QWidget,
+    QSplitter,
+    QLayout,
+    QFormLayout,
+)
 
 
 class WrapperWidget(QWidget):
@@ -62,3 +69,15 @@ class SplitterBuilder(QSplitter):
         self.addWidget(wrapper)
         self.setStretchFactor(self.indexOf(wrapper), stretchFactor)
         return self
+
+
+class FormBuilder(QFormLayout):
+    def __init__(self):
+        super().__init__()
+
+    def withRow(self, label: str, widget: QWidget) -> FormBuilder:
+        self.addRow(label, widget)
+        return self
+
+    def wrapped(self) -> WrapperWidget:
+        return WrapperWidget(self)
