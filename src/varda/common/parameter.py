@@ -51,7 +51,7 @@ class ParameterGroup(QWidget):
         self.params = params
         formLayout = QFormLayout()
         # formLayout.setSpacing(0)
-        # formLayout.setFieldGrowthPolicy(
+        # formLayout.setFieldGrowthPolicy(di
         #     formLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
         # )
         for param in self.params:

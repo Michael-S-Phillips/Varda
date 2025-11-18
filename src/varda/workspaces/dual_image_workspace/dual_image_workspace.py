@@ -10,6 +10,7 @@ from varda.common.parameter import ImageParameter, ParameterGroup
 from varda.common.entities import Image
 from varda.image_rendering.raster_view import ImageViewport
 from varda.image_rendering.image_renderer import ImageRenderer
+from varda.common.widgets import VBoxBuilder, SplitterBuilder
 
 
 class NewDualImageWorkspaceConfig:
@@ -32,20 +33,6 @@ class NewDualImageWorkspaceConfig:
         return ParameterGroup([self.image1Param, self.image2Param])
 
 
-class BetterVBoxLayout(QVBoxLayout):
-    @override
-    def addWidget(self, a0, stretch=0, alignment=Qt.AlignmentFlag(0)):
-        super().addWidget(a0, stretch, alignment)
-        return self
-
-
-class WrapperWidget(QWidget):
-    def __init__(self, layout, parent=None):
-        super().__init__(parent)
-        self.setContentsMargins(0, 0, 0, 0)
-        self.setLayout(layout)
-
-
 class DualImageWorkspace(QWidget):
     def __init__(self, config: NewDualImageWorkspaceConfig, parent=None):
         super().__init__(parent)
@@ -60,20 +47,17 @@ class DualImageWorkspace(QWidget):
 
         self.primaryViewport = ImageViewport(self.primaryRenderer, self)
         self.secondaryViewport = ImageViewport(self.secondaryRenderer, self)
-        splitter = QSplitter()
-        splitter.setOrientation(Qt.Orientation.Horizontal)
-        splitter.addWidget(
-            WrapperWidget(
-                BetterVBoxLayout()
-                .addWidget(self.primaryViewport, 2)
-                .addWidget(self.primarySettings, 1)
+        splitter = (
+            SplitterBuilder(Qt.Orientation.Horizontal)
+            .withLayout(
+                VBoxBuilder()
+                .withWidget(self.primaryViewport, 2)
+                .withWidget(self.primarySettings, 1)
             )
-        )
-        splitter.addWidget(
-            WrapperWidget(
-                BetterVBoxLayout()
-                .addWidget(self.secondaryViewport, 2)
-                .addWidget(self.secondarySettings)
+            .withLayout(
+                VBoxBuilder()
+                .withWidget(self.secondaryViewport, 2)
+                .withWidget(self.secondarySettings, 1)
             )
         )
         layout = QHBoxLayout()

@@ -18,7 +18,7 @@ class RegionController(QObject):
         sourceViewport: ImageViewport,
         targetViewport: ImageViewport,
         roi: VardaROIItem,
-        parentRegionController: "RegionController" | None = None,
+        parentRegionController: "RegionController" = None,
         parent=None,
     ):
         super().__init__(parent)
