@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 
+# TODO: Delete. Keeping for now just to not break some stuff that will also be deleted soon.
 @dataclass(frozen=True)
 class Band:
     """Immutable data container representing a Band configuration for an image."""

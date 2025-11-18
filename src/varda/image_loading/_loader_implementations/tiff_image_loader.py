@@ -12,7 +12,6 @@ import rasterio
 
 # local imports
 from varda.common.entities import Metadata
-from varda.common.entities import Band
 from varda.image_loading import register_image_loader, ImageLoaderProtocol
 
 logger = logging.getLogger(__name__)
@@ -158,14 +157,6 @@ class TIFFImageLoader(ImageLoaderProtocol):
 
                 if band_names:
                     metadata_dict["band_names"] = band_names
-
-                # Create default band
-                if src.count >= 3:
-                    # Use RGB bands if we have at least 3
-                    metadata_dict["defaultBand"] = Band("default", 0, 1, 2)
-                else:
-                    # Use the first band for all channels if we have fewer than 3
-                    metadata_dict["defaultBand"] = Band("default", 0, 0, 0)
 
                 # Add all tags as extra metadata
                 extraMetadata = {}

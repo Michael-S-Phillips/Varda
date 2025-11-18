@@ -3,7 +3,9 @@ from typing import Dict, List, Tuple
 import uuid
 
 from varda.common.entities import ROI
-from varda.common.entities import Image, Metadata, Stretch, Band
+from varda.common.entities import Metadata
+from varda.common._old_entities import Stretch, Band
+from varda.common.entities import Image
 
 
 class ImageTable:

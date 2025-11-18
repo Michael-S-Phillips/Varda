@@ -202,7 +202,7 @@ class ROIViewModel(QObject):
 
             # Create or reuse the pixel plot window
             if not hasattr(self, "pixelPlotWindow") or self.pixelPlotWindow is None:
-                from varda.common.widgets import ImagePlotWidget
+                from varda.common._old_widgets import ImagePlotWidget
 
                 self.pixelPlotWindow = ImagePlotWidget()
 
@@ -215,7 +215,9 @@ class ROIViewModel(QObject):
 
         except Exception as e:
             logger.error(f"Error plotting ROI spectrum: {e}")
-            QMessageBox.warning(None, "Plot Error", f"Error plotting spectrum: {str(e)}")
+            QMessageBox.warning(
+                None, "Plot Error", f"Error plotting spectrum: {str(e)}"
+            )
 
     def calculateRoiStatistics(self, roiId):
         """Calculate detailed statistics for an ROI"""

@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.project import ProjectContext
-from varda.common.widgets.image_plot_widget import ImagePlotWidget
+from varda.common._old_widgets.image_plot_widget import ImagePlotWidget
 from .dual_image_tool_base import DualImageToolBase, DualImageToolPanel
 
 logger = logging.getLogger(__name__)
@@ -228,7 +228,9 @@ class SpectralPlotTool(DualImageToolBase):
             self._control_panel.plot_mode_changed.connect(self._on_plot_mode_changed)
             self._control_panel.clear_spectra_requested.connect(self._on_clear_spectra)
             self._control_panel.auto_label_toggled.connect(self._on_auto_label_toggled)
-            self._control_panel.max_spectra_changed.connect(self._on_max_spectra_changed)
+            self._control_panel.max_spectra_changed.connect(
+                self._on_max_spectra_changed
+            )
 
     def _on_activate(self) -> bool:
         """Handle tool activation"""

@@ -4,7 +4,7 @@ import uuid
 
 from PyQt6.QtCore import pyqtSignal, QObject
 
-from varda.common.entities.roi import ROI
+from varda.common.entities import ROI
 
 logger = logging.getLogger(__name__)
 

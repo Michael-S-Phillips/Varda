@@ -4,9 +4,10 @@ import numpy as np
 import pyqtgraph as pg
 
 import varda
+from varda.common.entities import Image
 from varda.utilities import image_utils
 from varda.utilities.roi_utils import RegionCoordinateTransform
-from varda.common.entities import ROIMode, ROI, Image
+from varda.common.entities import ROIMode, ROI
 
 
 def createROI(
@@ -54,7 +55,9 @@ def createROIMask(points: np.ndarray, shape: Tuple[int, int]) -> np.ndarray:
 
     # Create a grid of all image coordinates
     y, x = np.mgrid[: shape[0], : shape[1]]
-    coords = np.column_stack((x.ravel() + 0.5, y.ravel() + 0.5))  # +0.5 for pixel center
+    coords = np.column_stack(
+        (x.ravel() + 0.5, y.ravel() + 0.5)
+    )  # +0.5 for pixel center
 
     # Test which points are inside the path
     mask = path.contains_points(coords).reshape(shape)

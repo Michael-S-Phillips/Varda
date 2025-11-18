@@ -1,7 +1,8 @@
 from pathlib import Path
+from varda.common.entities.Image_1 import Image
 import varda.features as image_loader
 from varda.project import ProjectContext
-from varda.common.entities import Image, Metadata
+from varda.common.entities import Metadata
 import numpy as np
 import os
 import asyncio

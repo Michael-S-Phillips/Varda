@@ -4,47 +4,48 @@ import numpy as np
 import rasterio
 from pyproj import Transformer, CRS
 
-from varda.common.entities import Image, Band
+from varda.common.entities import Image
 
 logger = logging.getLogger(__name__)
 
+### Dont think we need this anymore ####
 
-def getRasterFromBand(image: Image | np.ndarray, band: Band):
-    """Get a subset of the raster data for RGB display.
+# def getRasterFromBand(image: Image | np.ndarray, band: Band):
+#     """Get a subset of the raster data for RGB display.
 
-    Creates a 3-band subset of the raster data based on the RGB channels
-    defined in the selected band configuration.
+#     Creates a 3-band subset of the raster data based on the RGB channels
+#     defined in the selected band configuration.
 
-    Returns:
-        np.ndarray: Array with shape (height, width, 3) for RGB display
-    """
+#     Returns:
+#         np.ndarray: Array with shape (height, width, 3) for RGB display
+#     """
 
-    try:
-        # Get the RGB bands from the raster data
-        if isinstance(image, Image):
-            rgb_data = image.raster[:, :, [band.r, band.g, band.b]]
-        elif isinstance(image, np.ndarray):
-            rgb_data = image[:, :, [band.r, band.g, band.b]]
-        else:
-            raise TypeError("image input must be an Image entity or a numpy ndarray.")
+#     try:
+#         # Get the RGB bands from the raster data
+#         if isinstance(image, Image):
+#             rgb_data = image.raster[:, :, [band.r, band.g, band.b]]
+#         elif isinstance(image, np.ndarray):
+#             rgb_data = image[:, :, [band.r, band.g, band.b]]
+#         else:
+#             raise TypeError("image input must be an Image entity or a numpy ndarray.")
 
-        # Handle any out-of-range values
-        if np.isnan(rgb_data).any():
-            logger.warning(
-                f"NaN values found in raster data for bands {[band.r, band.g, band.b]}"
-            )
-            rgb_data = np.nan_to_num(rgb_data)
+#         # Handle any out-of-range values
+#         if np.isnan(rgb_data).any():
+#             logger.warning(
+#                 f"NaN values found in raster data for bands {[band.r, band.g, band.b]}"
+#             )
+#             rgb_data = np.nan_to_num(rgb_data)
 
-        return rgb_data
-    except IndexError as e:
-        logger.error(f"Error extracting RGB bands", exc_info=e)
-        # Return a placeholder if there's an error
-        if isinstance(image, Image):
-            h, w = image.raster.shape[0:2]
-        else:
-            h, w = image.shape[0:2]
+#         return rgb_data
+#     except IndexError as e:
+#         logger.error(f"Error extracting RGB bands", exc_info=e)
+#         # Return a placeholder if there's an error
+#         if isinstance(image, Image):
+#             h, w = image.raster.shape[0:2]
+#         else:
+#             h, w = image.shape[0:2]
 
-        return np.zeros((h, w, 3))
+#         return np.zeros((h, w, 3))
 
 
 def transformPixelToGeoCoord(image: Image, px: int, py: int) -> tuple[float, float]:

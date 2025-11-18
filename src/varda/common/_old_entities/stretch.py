@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 
+# TODO: Delete. Keeping for now just to not break some stuff that will also be deleted soon.
 @dataclass(frozen=True)
 class Stretch:
     """data container representing a Stretch configuration for an image."""

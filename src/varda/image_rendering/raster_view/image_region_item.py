@@ -9,8 +9,8 @@ from affine import Affine
 
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.rois.varda_roi import VardaROIItem
-from varda.utilities import roi_utils, image_utils
-from varda.common.entities import Image, Band, Stretch
+from varda.utilities import roi_utils
+from varda.common.entities import Image
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +36,7 @@ class VardaImageItem(pg.ImageItem):
 
     def __init__(
         self,
-        imageRenderer: ImageRenderer = None,
-        band: Band = None,
-        stretch: Stretch = None,
+        imageRenderer: ImageRenderer,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -47,19 +45,13 @@ class VardaImageItem(pg.ImageItem):
         # the renderer is created way up at the workspace level, which is probably also where the settings panel will be displayed
         # but the signals emitted when those settings change is sent straight down here. idk feels weird but maybe it's actually genius
         self._imageEntity = self._imageRenderer.image
-        if band:
-            self._band = band
-        else:
-            self._band = self.imageEntity.metadata.defaultBand
-            logger.debug("Using default band: %s", self._band)
-        self._stretch = stretch or Stretch.createDefault()
 
         # Region state
         self._backgroundImageItem = pg.ImageItem()
         self._backgroundImageItem.setZValue(-10)
         self._backgroundImageItem.setOpacity(0)
 
-        self._roi = None
+        self._roi: pg.ROI | None = None
         self._regionalData = None
         self._coordinateTransform = None
         self._isShowingRegion = False
@@ -82,18 +74,6 @@ class VardaImageItem(pg.ImageItem):
         self._isShowingRegion = False
         self._qtransform = QTransform(self._baseQTransform)
         self.refresh()
-
-    def setBand(self, band: Band, update=True):
-        """Set the band configuration."""
-        self._band = band
-        if update:
-            self.refresh()
-
-    def setStretch(self, stretch: Stretch, update=True):
-        """Set the stretch configuration."""
-        self._stretch = stretch
-        if update:
-            self.refresh()
 
     def refresh(self):
         """Refresh the image display with current settings."""
@@ -187,7 +167,9 @@ class VardaImageItem(pg.ImageItem):
 
         # x_global = vy[1]*x_local + vx[1]*y_local + origin[1]
         # y_global = vy[0]*x_local + vx[0]*y_local + origin[0]
-        return QTransform(vy[1], vy[0], 0.0, vx[1], vx[0], 0.0, origin[1], origin[0], 1.0)
+        return QTransform(
+            vy[1], vy[0], 0.0, vx[1], vx[0], 0.0, origin[1], origin[0], 1.0
+        )
 
     def _updateQTransform(self):
         """Update composed QTransform to account for current regional state."""
@@ -208,8 +190,8 @@ class VardaImageItem(pg.ImageItem):
 
         if self._isShowingRegion:
             # get the region
-            self._regionalData, self._coordinateTransform = roi_utils.getRectImageRegion(
-                self._roi, rgb_data, returnTransform=True
+            self._regionalData, self._coordinateTransform = (
+                roi_utils.getRectImageRegion(self._roi, rgb_data, returnTransform=True)
             )
             # self._regionalData = self._regionalData.filled(
             #     0

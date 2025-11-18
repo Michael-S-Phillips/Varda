@@ -141,7 +141,9 @@ class FreehandROITool(ROIDrawingTool):
     """Tool for drawing freehand ROIs."""
 
     toolName = "Freehand ROI"
-    toolDescription = "Draw a freehand ROI by clicking and dragging. Release to complete."
+    toolDescription = (
+        "Draw a freehand ROI by clicking and dragging. Release to complete."
+    )
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
         if not self.isDrawing:
@@ -264,7 +266,9 @@ class EllipseROITool(ROIDrawingTool):
         super().startDrawing()
         self.startPoint = None
 
-    def _ellipseToPoints(self, rect: QRectF, num_points=36) -> List[Tuple[float, float]]:
+    def _ellipseToPoints(
+        self, rect: QRectF, num_points=36
+    ) -> List[Tuple[float, float]]:
         """Convert QRectF to ellipse point arrays"""
         center_x = rect.center().x()
         center_y = rect.center().y()
@@ -343,7 +347,6 @@ class PolygonROITool(ROIDrawingTool):
         super().completeDrawing()
 
     def keyPressEvent(self, event) -> bool:
-
         if not self.isDrawing:
             return False
 

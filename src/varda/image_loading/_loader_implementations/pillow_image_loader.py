@@ -8,17 +8,20 @@ import logging
 # third party imports
 import numpy as np
 from PIL import Image as PILImage
+from PIL.ImageFile import ImageFile
+from PIL.Image import Image
 from PIL.ExifTags import TAGS
 
 # local imports
 from varda.common.entities import Metadata
-from varda.common.entities import Band
 from varda.image_loading import register_image_loader, ImageLoaderProtocol
 
 logger = logging.getLogger(__name__)
 
 
-@register_image_loader("Common Image", (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tga"))
+@register_image_loader(
+    "Common Image", (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tga")
+)
 class PillowImageLoader(ImageLoaderProtocol):
     """Implementation of ImageLoader for common image formats using Pillow"""
 
@@ -35,15 +38,17 @@ class PillowImageLoader(ImageLoaderProtocol):
         """
         try:
             # Open the image
-            image = PILImage.open(filePath)
+            image: ImageFile | Image = PILImage.open(filePath)
 
             # Handle preview mode for large images
-            if loading_mode == "preview" and (image.width > 1000 or image.height > 1000):
+            if loading_mode == "preview" and (
+                image.width > 1000 or image.height > 1000
+            ):
                 # Calculate resize factor to get a reasonable preview size
                 max_dim = max(image.width, image.height)
                 resize_factor = max(1, max_dim // 1000)
                 new_size = (image.width // resize_factor, image.height // resize_factor)
-                image = image.resize(new_size, PILImage.LANCZOS)
+                image = image.resize(new_size, PILImage.Resampling.LANCZOS)
                 logger.info(f"Loaded preview with resize factor {resize_factor}")
 
             # Convert to RGB if needed
@@ -76,7 +81,6 @@ class PillowImageLoader(ImageLoaderProtocol):
             Metadata: The metadata for the image
         """
         metadata_dict = {}
-        errors = []
 
         try:
             # Open the image to extract metadata
@@ -100,21 +104,6 @@ class PillowImageLoader(ImageLoaderProtocol):
             metadata_dict["wavelengths"] = np.arange(metadata_dict["bandCount"])
             metadata_dict["wavelengths_type"] = int
 
-            # For RGB images, set appropriate band names
-            band_names = []
-            if metadata_dict["bandCount"] == 3:
-                band_names = ["Red", "Green", "Blue"]
-            elif metadata_dict["bandCount"] == 4:
-                band_names = ["Red", "Green", "Blue", "Alpha"]
-            else:
-                band_names = [f"Band_{i}" for i in range(metadata_dict["bandCount"])]
-
-            # Set default band configuration for RGB
-            if metadata_dict["bandCount"] >= 3:
-                metadata_dict["defaultBand"] = Band("default", 0, 1, 2)
-            else:
-                metadata_dict["defaultBand"] = Band("default", 0, 0, 0)
-
             # Extract EXIF data if available
             extraMetadata = {}
             if hasattr(image, "_getexif") and image._getexif():
@@ -131,12 +120,9 @@ class PillowImageLoader(ImageLoaderProtocol):
                         extraMetadata[f"exif_{tag}"] = str(value)
 
             # Add image info
-            extraMetadata["format"] = image.format
+            if image.format is not None:
+                extraMetadata["format"] = image.format
             extraMetadata["mode"] = image.mode
-
-            # Add any errors
-            if errors:
-                extraMetadata["loadErrors"] = errors
 
             metadata_dict["extraMetadata"] = extraMetadata
 

@@ -6,7 +6,7 @@ from PyQt6 import QtWidgets
 from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt, pyqtSlot
 
-from varda.common.widgets.detachable_tab_widget import DetachableTabWidget
+from varda.common.widgets import DetachableTabWidget
 from varda.project import ProjectContext
 
 from varda.workspaces import GeneralImageAnalysisWorkflow
@@ -17,7 +17,7 @@ from varda.workspaces.dual_image_view.dual_image_types import DualImageMode
 from varda.workspaces.dual_image_view.dual_image_selection_dialog import (
     DualImageSelectionDialog,
 )
-from varda.common.widgets import all_images_view_list
+from varda.all_images_view_list import all_images_view_list
 
 logger = logging.getLogger(__name__)
 
@@ -165,10 +165,6 @@ class MainGUI(QtWidgets.QMainWindow):
     def showDualImageSelectionDialog(self):
         """Show dialog to select images for dual view"""
         try:
-            from varda.features.dual_image_view.dual_image_selection_dialog import (
-                DualImageSelectionDialog,
-            )
-
             # Create and show selection dialog
             dialog = DualImageSelectionDialog(self.proj, self)
 

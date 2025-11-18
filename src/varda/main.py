@@ -15,7 +15,8 @@ from PyQt6.QtWidgets import QApplication, QSplashScreen
 # local imports
 import varda
 from varda.common.observable_list import ObservableList
-from varda.common.widgets import StatusBar, VardaMenuBar
+from varda.status_bar import StatusBar
+from varda.main_menu_bar import VardaMenuBar
 from varda.image_loading import ImageLoadingService
 from varda.maingui import MainGUI
 from varda.workspaces.dual_image_workspace.workspace_initializer import (

@@ -4,8 +4,9 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 
-from varda.common.entities import Image, Stretch, Band
-from varda.image_rendering.image_renderer import ImageRenderer
+
+from varda.image_rendering import Image
+from varda.image_rendering import ImageRenderer
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import (
     ViewportTool,
 )
@@ -56,14 +57,6 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
     def enableSelfUpdating(self):
         """Enable self-updating of the image item."""
         self.selfUpdating = True
-
-    def setBand(self, band: Band, update=True):
-        """Set the band for the image item."""
-        self._imageItem.setBand(band, update)
-
-    def setStretch(self, stretch: Stretch, update=True):
-        """Set the stretch for the image item."""
-        self._imageItem.setStretch(stretch, update)
 
     def refresh(self):
         """Refresh the image display with current settings."""

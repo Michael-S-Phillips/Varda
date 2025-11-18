@@ -20,12 +20,6 @@ class Viewport(Protocol):
     def disableSelfUpdating(self):
         """Disable self-updating of the image item."""
 
-    def setBand(self, band):
-        """Set the band for the image item."""
-
-    def setStretch(self, stretch):
-        """Set the stretch for the image item."""
-
     def refresh(self):
         """Refresh the image display with current settings."""
 

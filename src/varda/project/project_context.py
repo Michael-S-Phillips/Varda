@@ -12,22 +12,24 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 import numpy as np
+from varda.common.entities import Image
 from varda.common.image_repository import ImageRepository
 
 from varda.project.project_io import ProjectIO
 from varda.project.project_loader import ProjectLoader
 
 # local imports
-from varda.common.entities import Image, Metadata, Band, Stretch, Plot
+from varda.common._old_entities import Stretch, Band
+from varda.common.entities import Metadata, Plot
 from varda.project.project_entity import Project
 
-# TODO: Update these imports when components are moved
 from varda.image_loading import ImageLoadingService
 from varda.utilities.signal_utils import guard_signals
 
 logger = logging.getLogger(__name__)
 
 
+### DEPRECATED FOR NOW ###
 class ProjectContext(QObject):
     """
     Central data manager for the Varda application.

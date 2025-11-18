@@ -4,8 +4,9 @@ from typing import Dict, Any, Tuple
 import numpy as np
 from scipy import stats
 
+from varda.common.entities import Image
 from varda.utilities import roi_utils
-from varda.common.entities import ROI, Image
+from varda.common.entities import ROI
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,9 @@ class ROIStatistics:
             Dict with statistics for the specified band
         """
         if band_idx < 0 or band_idx >= self.n_bands:
-            raise ValueError(f"Band index {band_idx} out of range (0-{self.n_bands-1})")
+            raise ValueError(
+                f"Band index {band_idx} out of range (0-{self.n_bands - 1})"
+            )
 
         return {
             "mean": float(self.mean[band_idx]),
@@ -161,7 +164,7 @@ class ROIStatistics:
             or band2_idx < 0
             or band2_idx >= self.n_bands
         ):
-            raise ValueError(f"Band indices out of range (0-{self.n_bands-1})")
+            raise ValueError(f"Band indices out of range (0-{self.n_bands - 1})")
 
         # Get valid data for both bands
         valid_mask = ~np.isnan(self.data[:, band1_idx]) & ~np.isnan(
@@ -200,7 +203,9 @@ class ROIStatistics:
             Tuple of (bin_centers, histogram_values)
         """
         if band_idx < 0 or band_idx >= self.n_bands:
-            raise ValueError(f"Band index {band_idx} out of range (0-{self.n_bands-1})")
+            raise ValueError(
+                f"Band index {band_idx} out of range (0-{self.n_bands - 1})"
+            )
 
         band_data = self.data[:, band_idx]
         valid_data = band_data[~np.isnan(band_data)]

@@ -30,10 +30,10 @@ class VardaMenuBar(QMenuBar):
     def registerAction(self, path: str, action: QAction):
         """Register an action to be added to the main menu."""
         pathElements = path.split("/")
-        menu = self
+        menu: VardaMenuBar | QMenu = self
         for item in pathElements:
             # Try to find an existing submenu with this title
-            submenu = None
+            submenu: QMenu | None = None
             for child_action in menu.actions():
                 sub = child_action.menu()
                 if sub and sub.title() == item:
@@ -45,7 +45,10 @@ class VardaMenuBar(QMenuBar):
                 submenu = menu.addMenu(item)
 
             # Descend
-            menu = submenu
+            if submenu is not None:
+                menu = submenu
+            else:
+                raise RuntimeError("Menu creation failed unexpectedly.")
 
         # Add the final action
         menu.addAction(action)
@@ -79,7 +82,9 @@ class VectroscopyWidget(QWidget):
             # Populate the combobox with image names
             for i, img in enumerate(all_images):
                 name = img.metadata.name or f"Image {i}"
-                self.image_combobox.addItem(name, i)  # Store the image index as user data
+                self.image_combobox.addItem(
+                    name, i
+                )  # Store the image index as user data
 
             # Set the current image as the selected item if it exists
             self.image_combobox.setCurrentIndex(0)

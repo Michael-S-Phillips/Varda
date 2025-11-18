@@ -4,7 +4,6 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter
 
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.rois.varda_roi import VardaROIItem
-from varda.common.entities import Band, Stretch
 from varda.image_rendering.raster_view.viewport import ImageViewport
 from varda.image_rendering.raster_view.region_controller import (
     RegionController,
@@ -71,18 +70,6 @@ class TripleRasterView(QWidget):
         self.zoomController = RegionController(
             self.viewport2, self.viewport3, self.roi2, self.mainController
         )
-
-    def setStretch(self, stretch: Stretch):
-        self.viewport1.setStretch(stretch, update=False)
-        self.viewport2.setStretch(stretch, update=False)
-        self.viewport3.setStretch(stretch, update=False)
-        self.viewport1.refresh()  # will cascade to others because of the ROIRegionControllers
-
-    def setBand(self, band: Band):
-        self.viewport1.setBand(band, update=False)
-        self.viewport2.setBand(band, update=False)
-        self.viewport3.setBand(band, update=False)
-        self.viewport1.refresh()  # will cascade to others because of the ROIRegionControllers
 
     def addToolbarToViewport(self, viewport, toolbar):
         """Add a toolbar to a specific viewport."""

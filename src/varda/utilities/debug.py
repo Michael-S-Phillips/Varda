@@ -10,7 +10,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 import numpy as np
 
-from varda.common.entities import Metadata, Image, Band
+from varda.common.entities import Metadata
+from varda.common.entities import Image
 
 DEBUG = True
 

@@ -1,6 +1,6 @@
 from PyQt6.QtCore import QObject
 
-from varda.common.entities import Image
+from varda.common.entities.Image_1 import Image
 
 
 class Project(QObject):

@@ -5,15 +5,14 @@ HDF5 Image Loader implementation.
 # standard library
 import time
 import logging
+from typing import Any
 
 # third party imports
 import h5py
 import numpy as np
-import rasterio as rio
 
 # local imports
 from varda.common.entities import Metadata
-from varda.common.entities import Band
 from varda.image_loading import register_image_loader
 from varda.image_loading import ImageLoaderProtocol
 from varda.utilities import debug
@@ -37,16 +36,6 @@ class HDF5ImageLoader(ImageLoaderProtocol):
             np.ndarray: The raster data
         """
         timeStarted = time.time()
-        # try:
-        #     with rio.open(filePath) as src:
-        #         try:
-        #             data = src.read()
-        #         except Exception as e:
-        #             logger.error(
-        #                 f"Error reading raster data using rasterio from {filePath}: {e}"
-        #             )
-        # except Exception as e:
-        #     logger.error(f"Error opening raster file using rasterio for reading: {e}")
 
         try:
             with h5py.File(filePath, "r") as hdf:
@@ -264,7 +253,7 @@ class HDF5ImageLoader(ImageLoaderProtocol):
                     metadata_dict["defaultBand"] = [0, 0, 0]
 
                 # Add any other metadata that might be useful
-                extraMetadata = {}
+                extraMetadata: dict[str, Any] = {}
 
                 # Look for metadata about the dataset
                 for path in ["Metadata", "SERC/Reflectance/Metadata"]:

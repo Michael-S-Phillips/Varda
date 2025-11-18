@@ -1,8 +1,7 @@
 # standard library
-from typing import override
 
 # third party imports
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSplitter
+from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import Qt
 
 # local imports

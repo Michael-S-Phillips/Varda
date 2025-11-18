@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
 )
 from pyqtgraph.dockarea import DockArea, Dock
 
-from varda.common.entities.image import Image
+from varda.common.entities import Image
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.stretch_management_and_histogram.new_histogram_view import (
     NewHistogramView,
@@ -92,7 +92,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # self.stretchManager = StretchManager(self.proj, self.imageIndex, self)
 
         # Initialize metadata editor
-        self.metadataEditor = MetadataEditor(self.image, self)
+        # self.metadataEditor = MetadataEditor(self.image, self)
 
         # TODO: Commented out until I refactor to not rely on ProjectContext/ROIManager
         # Initialize ROI view/table
@@ -142,8 +142,8 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # stretchDock = VardaDockWidget("Stretch Manager", self.stretchManager, loc, self)
         # docks.append(stretchDock)
 
-        metadataDockNew = Dock("Metadata Dock", widget=self.metadataEditor)
-        docks.append(metadataDockNew)
+        # metadataDockNew = Dock("Metadata Dock", widget=self.metadataEditor)
+        # docks.append(metadataDockNew)
         # metadataDock = VardaDockWidget("Metadata", self.metadataEditor, loc, self)
         # docks.append(metadataDock)
 

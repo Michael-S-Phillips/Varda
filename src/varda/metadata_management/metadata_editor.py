@@ -24,8 +24,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QDoubleValidator
 
-from varda.common.entities import Metadata, Band
-from varda.project import ProjectContext
+from varda.common.entities import Metadata
+from varda.common._old_entities import Band
 
 logger = logging.getLogger(__name__)
 
@@ -227,11 +227,11 @@ class MetadataEditor(QWidget):
             bands.append(self.metadata.defaultBand)
 
         # If this is from an existing image, get all bands
-        bands = self.image.band
+        bands = self.image.metadata.defaultBand
 
         # If no bands, create a default one
         if not bands:
-            bands = [Band.createDefault()]
+            bands = [[0, 0, 0]]
 
         # Populate table with bands
         self.bandTable.setRowCount(len(bands))
@@ -311,7 +311,9 @@ class MetadataEditor(QWidget):
 
             # Update the table
             for i in range(min(count, self.wavelengthTable.rowCount())):
-                self.wavelengthTable.setItem(i, 1, QTableWidgetItem(str(wavelengths[i])))
+                self.wavelengthTable.setItem(
+                    i, 1, QTableWidgetItem(str(wavelengths[i]))
+                )
 
             # If the table has fewer rows than the new count, add more
             if self.wavelengthTable.rowCount() < count:

@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
 )
-from varda.common.entities.geo_referencer import GeoReferencer
+from varda.common.entities import GeoReferencer
 from .protocols import ImageLoaderProtocol
 from ..common.entities import Image
 
@@ -121,7 +121,9 @@ class ImageLoadingService:
             )
 
             # Show progress dialog for large files
-            progress_dialog = self._show_large_file_loading_dialog(file_path, timeout_ms)
+            progress_dialog = self._show_large_file_loading_dialog(
+                file_path, timeout_ms
+            )
         try:
             loader = self._get_loader(file_path)
 
@@ -237,7 +239,9 @@ class ImageLoadingService:
         # Add options
         option_group = QButtonGroup(dialog)
 
-        preview_option = QRadioButton("Load a downsampled preview (faster, less memory)")
+        preview_option = QRadioButton(
+            "Load a downsampled preview (faster, less memory)"
+        )
         preview_option.setChecked(True)
         option_group.addButton(preview_option)
         layout.addWidget(preview_option)
