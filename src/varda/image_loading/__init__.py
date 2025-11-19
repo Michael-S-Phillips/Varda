@@ -3,5 +3,5 @@ from .protocols import ImageLoaderProtocol
 
 
 from . import (
-    _loader_implementations,
+    loader_implementations,
 )  # We import this so that the loaders get registered.

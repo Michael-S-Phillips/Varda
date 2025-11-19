@@ -15,7 +15,7 @@ from pyqtgraph.dockarea import DockArea, Dock
 
 from varda.common.entities import Image
 from varda.image_rendering.image_renderer import ImageRenderer
-from varda.image_rendering.stretch_management_and_histogram.new_histogram_view import (
+from varda.image_rendering.new_histogram_view import (
     NewHistogramView,
 )
 from varda.metadata_management.metadata_editor import MetadataEditor

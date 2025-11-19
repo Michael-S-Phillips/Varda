@@ -20,7 +20,7 @@ import numpy as np
 
 from varda.common.entities import Image
 import varda.utilities.debug
-from varda.image_rendering.stretch_histogram.stretch_algorithms import (
+from varda.image_rendering.stretch_algorithms import (
     stretchAlgorithmRegistry,
     StretchAlgorithm,
 )
