@@ -72,7 +72,7 @@ class NewHistogramView(QWidget):
 
         def plotHistogram(arr, plotWidget, pen, brush):
             if arr.size:
-                vmin, vmax = arr.min(), arr.max()
+                vmin, vmax = np.nanmin(arr), np.nanmax(arr)
 
                 if vmin == vmax:
                     vmin -= 0.5
