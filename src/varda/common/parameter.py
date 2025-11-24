@@ -1,4 +1,6 @@
-from typing import Generic
+from typing_extensions import override
+from enum import Enum
+from typing import Type, TypeVar, Generic
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QSignalBlocker, Qt, QObject
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -14,7 +16,6 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
 )
 
-from typing_extensions import override
 
 from varda.common.entities import Image
 
@@ -281,6 +282,47 @@ class BoolParameter(Parameter[bool]):
             self.param.set(state == Qt.CheckState.Checked)
 
 
+class EnumParameter(Parameter[Enum]):
+    def __init__(
+        self,
+        name: str,
+        enumType: Type[Enum],
+        default: Enum | None = None,
+        description=None,
+        parent=None,
+    ):
+        # store the enum type so we can derive members and validation at runtime
+        self.enumType = enumType
+        if default is None:
+            # pick the first enum member as default
+            default = list(enumType)[0]
+        if default not in enumType:
+            raise ValueError("Default value must be a member of the enum")
+
+        super().__init__(name, default, description, parent)
+
+    def getWidget(self, parent=None) -> QWidget:
+        return self.EnumParameterWidget(self, parent)
+
+    class EnumParameterWidget(QWidget):
+        def __init__(self, param: "EnumParameter", parent=None):
+            super().__init__(parent)
+            self.param = param
+            self.comboBox = QComboBox(self)
+            self.comboBox.addItems([e.name for e in self.param.enumType])
+            self.comboBox.setCurrentIndex(
+                list(self.param.enumType).index(self.param.get())
+            )
+            self.comboBox.currentIndexChanged.connect(self.enumSelectionChanged)
+            paramLayout = paramLayoutDefault()
+            paramLayout.addWidget(self.comboBox)
+            self.setLayout(paramLayout)
+
+        def enumSelectionChanged(self, index):
+            enumMember = list(self.param.enumType)[index]
+            self.param.set(enumMember)
+
+
 class ImageParameter(Parameter[Image]):
     def __init__(
         self, name: str, imageList: list[Image], description=None, parent=None
@@ -350,8 +392,29 @@ if __name__ == "__main__":
         [debug.generate_random_image(), debug.generate_random_image()],
         "A test image parameter",
     )
+
+    class TestEnum(Enum):
+        OPTION_A = 1
+        OPTION_B = 2
+        OPTION_C = 3
+
+    class TestEnum2(Enum):
+        OPTION_X = "x"
+        OPTION_Y = "y"
+        OPTION_Z = "z"
+
+    enumParam0 = EnumParameter(
+        "EnumVal",
+        TestEnum,
+        TestEnum.OPTION_C,
+        "A test enum parameter",
+    )
+
     paramGroup = ParameterGroup(
-        [intParam0, floatParam0, boolParam0, stringParam0, imageParam0]
+        [intParam0, floatParam0, boolParam0, stringParam0, imageParam0, enumParam0]
+    )
+    paramGroup.sigParameterChanged.connect(
+        lambda: print("Parameter Group Changed:", paramGroup)
     )
     layout.addWidget(paramGroup)
 
