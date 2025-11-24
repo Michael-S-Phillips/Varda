@@ -323,7 +323,10 @@ class DualImageSelectionDialog(QDialog):
         if primary_index is not None and primary_index < self.primaryCombo.count():
             self.primaryCombo.setCurrentIndex(primary_index)
 
-        if secondary_index is not None and secondary_index < self.secondaryCombo.count():
+        if (
+            secondary_index is not None
+            and secondary_index < self.secondaryCombo.count()
+        ):
             self.secondaryCombo.setCurrentIndex(secondary_index)
 
 

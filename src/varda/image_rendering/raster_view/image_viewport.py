@@ -33,7 +33,8 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         super().__init__(parent)
         self.selfUpdating = True
         self._imageRenderer = imageRenderer
-        self._imageItem = VardaImageItem(self._imageRenderer)
+        self._imageItem: VardaImageItem = VardaImageItem(self._imageRenderer)
+        self._overlayImageItem: VardaImageItem | None = None
         self._vb = pg.ViewBox(lockAspect=True, invertY=True)
         self._vb.setMouseEnabled(x=False, y=False)
 
@@ -49,6 +50,21 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         self._imageRenderer.sigShouldRefresh.connect(
             lambda: self.refresh() if self.selfUpdating else None
         )
+
+    def overlayImage(self, overlayImageRenderer: ImageRenderer):
+        """Overlay an image on top of the current image."""
+        if self._overlayImageItem:
+            self.removeOverlayImage()
+        self._overlayImageItem = VardaImageItem(overlayImageRenderer)
+        self._vb.addItem(self._overlayImageItem)
+
+    def removeOverlayImage(self):
+        """Remove the overlay image."""
+        if self._overlayImageItem:
+            self._vb.removeItem(self._overlayImageItem)
+            self._overlayImageItem = None
+        else:
+            logger.warning("No overlay image to remove.")
 
     def disableSelfUpdating(self):
         """Disable self-updating of the image item."""

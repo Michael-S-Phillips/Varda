@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
+    QGroupBox,
     QWidget,
     QSplitter,
     QLayout,
@@ -61,6 +62,12 @@ class HBoxBuilder(QHBoxLayout):
 
     def wrapped(self) -> WrapperWidget:
         return WrapperWidget(self)
+
+
+class GroupBoxBuilder(QGroupBox):
+    def __init__(self, title: str, layout: QLayout):
+        super().__init__(title)
+        self.setLayout(layout)
 
 
 class SplitterBuilder(QSplitter):

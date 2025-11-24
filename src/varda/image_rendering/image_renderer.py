@@ -32,8 +32,8 @@ class RendererSettings:
     mode: str
     bands: np.ndarray[tuple[int], np.dtype[np.uint]]
     stretch: StretchAlgorithm
-    # default to a simple black-to-white gradient
     colorMap: ColorMap
+    opacity: float
 
     @staticmethod
     def new(image):
@@ -42,7 +42,8 @@ class RendererSettings:
             mode="mono",
             bands=image.metadata.defaultBand,
             stretch=stretchAlgorithmRegistry["Min-Max (Full Range)"](),
-            colorMap=pg.ColorMap(None, color=[0.0, 1.0]),
+            colorMap=pg.ColorMap(None, color=[0.0, 1.0]),  # simple black to white map
+            opacity=1.0,
         )
 
     def __repr__(self):
@@ -80,34 +81,43 @@ class ImageRenderer(QObject):
         # Extract the raster data for the specified band
         if self.settings.mode == "mono":
             # maintain 3D shape so stretch algorithms don't need to account for both 2d and 3d arrays
-            rgbData = self.image.raster[:, :, self.settings.bands[0]][:, :, np.newaxis]
+            rgb = self.image.raster[:, :, self.settings.bands[0]][:, :, np.newaxis]
         else:
-            rgbData = self.image.raster[:, :, self.settings.bands[:3]]
-        self._rawBandData = rgbData
+            rgb = self.image.raster[:, :, self.settings.bands[:3]]
+        self._rawBandData = rgb
 
         # if array is masked, convert to regular array with nans
-        if np.ma.isMaskedArray(rgbData):
-            rgbData = rgbData.filled(np.nan)
+        if np.ma.isMaskedArray(rgb):
+            rgb = rgb.filled(np.nan)
 
         # Run the stretch algorithm
-        rgbData = self.settings.stretch.apply(rgbData)
+        rgb = self.settings.stretch.apply(rgb)
 
         # save the stretched data pre-colormap; expand mono image to RGB image
-        self._stretchedData = rgbData
+        self._stretchedData = rgb
 
         # convert NaNs to zeros before color mapping and outputting
-        rgbData[np.isnan(rgbData)] = 0
+        rgb[np.isnan(rgb)] = 0
 
         # Apply color map
         if self.settings.mode == "mono":
-            rgbData = np.squeeze(rgbData)  # go back to 2D because ColorMap expects it
-            rgbData = self.settings.colorMap.mapToByte(rgbData)
+            rgb = np.squeeze(rgb)  # go back to 2D because ColorMap expects it
+            rgb = self.settings.colorMap.mapToByte(rgb)
         else:
             # convert the image to byte values, since it's faster to display I think.
             # (ColorMap already does this for mono images)
-            rgbData = (rgbData * 255).astype(np.uint8)
-        self.cachedRender = rgbData
-        return rgbData
+            rgb = (rgb * 255).astype(np.uint8)
+
+        # add 4th channel with opacity values
+        alpha = np.full(
+            (rgb.shape[0], rgb.shape[1], 1),
+            int(self.settings.opacity * 255),
+            dtype=np.uint8,
+        )
+        rgba = np.concatenate((rgb, alpha), axis=2)
+
+        self.cachedRender = rgba
+        return rgba
 
     def getStretchedData(self):
         if self._stretchedData is None:
@@ -256,6 +266,8 @@ class RendererSettingsPanel(QWidget):
 
         layout.addWidget(QLabel("Stretch Algorithm:"))
         layout.addLayout(stretchLayout)
+
+        # opacity UI
 
         ### Finish Init UI ###
         self.setLayout(layout)
