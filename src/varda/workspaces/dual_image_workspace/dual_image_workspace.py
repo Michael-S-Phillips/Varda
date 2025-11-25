@@ -39,8 +39,8 @@ class DualImageWorkspace(QWidget):
         self.image2 = config.image2Param.get()
 
         # Init UI
-        self.primaryRenderer = ImageRenderer(self.image1)
-        self.secondaryRenderer = ImageRenderer(self.image2)
+        self.primaryRenderer = ImageRenderer(image=self.image1)
+        self.secondaryRenderer = ImageRenderer(image=self.image2)
         self.primarySettings = self.primaryRenderer.getSettingsPanel()
         self.secondarySettings = self.secondaryRenderer.getSettingsPanel()
 

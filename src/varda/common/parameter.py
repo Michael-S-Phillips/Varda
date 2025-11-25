@@ -1,6 +1,5 @@
-from typing_extensions import override
 from enum import Enum
-from typing import Type, TypeVar, Generic
+from typing import Type
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QSignalBlocker, Qt, QObject
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -16,7 +15,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
 )
 
-
+from varda.common.widgets import FloatSlider
 from varda.common.entities import Image
 
 
@@ -51,10 +50,12 @@ class ParameterGroup(QWidget):
         super().__init__(parent)
         self.params = params
         formLayout = QFormLayout()
+        formLayout.setContentsMargins(0, 0, 0, 0)
+        formLayout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         # formLayout.setSpacing(0)
-        # formLayout.setFieldGrowthPolicy(di
-        #     formLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
-        # )
+        formLayout.setFieldGrowthPolicy(
+            formLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
+        )
         for param in self.params:
             label = QLabel(param.name)
             widget = param.getWidget(self)
@@ -190,7 +191,7 @@ class FloatParameter(Parameter[float]):
                 paramLayout.addWidget(self.unitLabel)
 
             if self.param.valueRange is not None:
-                self.slider = self.FloatSlider(parent=self)
+                self.slider = FloatSlider(parent=self)
                 self.slider.setOrientation(Qt.Orientation.Horizontal)
                 self.slider.setRange(self.param.valueRange[0], self.param.valueRange[1])
                 self.slider.setValue(self.param.get())
@@ -209,28 +210,6 @@ class FloatParameter(Parameter[float]):
                     self.slider.setValue(value)
 
             self.param.set(value)
-
-        class FloatSlider(QSlider):
-            sigFloatValueChanged: pyqtSignal = pyqtSignal(float)
-
-            def __init__(self, precision=3, parent=None):
-                super().__init__(parent)
-                self.precision = precision
-                self.valueChanged.connect(self.onValueChanged)
-
-            @override
-            def setRange(self, min: float, max: float) -> None:
-                min = min * pow(10, self.precision)
-                max = max * pow(10, self.precision)
-                super().setRange(int(min), int(max))
-
-            @override
-            def setValue(self, a0: float) -> None:
-                super().setValue(int(a0 * pow(10, self.precision)))
-
-            def onValueChanged(self, value):
-                floatVal = value / pow(10, self.precision)
-                self.sigFloatValueChanged.emit(floatVal)
 
 
 class StringParameter(Parameter[str]):

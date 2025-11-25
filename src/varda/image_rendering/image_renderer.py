@@ -18,6 +18,8 @@ import pyqtgraph as pg
 from pyqtgraph import ColorMap
 import numpy as np
 
+from varda.common.parameter import FloatParameter, ParameterGroup
+from varda.common.widgets import VBoxBuilder
 from varda.common.entities import Image
 import varda.utilities.debug
 from varda.image_rendering.stretch_algorithms import (
@@ -47,18 +49,22 @@ class RendererSettings:
         )
 
     def __repr__(self):
-        return f"RendererSettings (\n    mode={self.mode},\n    bands={self.bands},\n    stretch={self.stretch},\n    colorMap={self.colorMap}\n)"
+        return f"RendererSettings (\n    image={self.image},\n    mode={self.mode},\n    bands={self.bands},\n    stretch={self.stretch},\n    colorMap={self.colorMap},\n    opacity={self.opacity}\n)"
 
 
 class ImageRenderer(QObject):
     sigShouldRefresh: pyqtSignal = pyqtSignal()
 
-    def __init__(self, image: Image, settings: Optional[RendererSettings] = None):
+    def __init__(
+        self, image: Image | None = None, settings: Optional[RendererSettings] = None
+    ):
         super().__init__()
-        self.image = image
+        if settings is None and image is None:
+            raise ValueError("Either image or settings must be provided.")
         self.settings = (
             settings if settings is not None else RendererSettings.new(image)
         )
+        self.image = self.settings.image
 
         self.cachedRender = None
         self._stretchedData = (
@@ -81,42 +87,43 @@ class ImageRenderer(QObject):
         # Extract the raster data for the specified band
         if self.settings.mode == "mono":
             # maintain 3D shape so stretch algorithms don't need to account for both 2d and 3d arrays
-            rgb = self.image.raster[:, :, self.settings.bands[0]][:, :, np.newaxis]
+            data = self.image.raster[:, :, self.settings.bands[0]][:, :, np.newaxis]
         else:
-            rgb = self.image.raster[:, :, self.settings.bands[:3]]
-        self._rawBandData = rgb
+            data = self.image.raster[:, :, self.settings.bands[:3]]
+        self._rawBandData = data
 
         # if array is masked, convert to regular array with nans
-        if np.ma.isMaskedArray(rgb):
-            rgb = rgb.filled(np.nan)
+        if np.ma.isMaskedArray(data):
+            data = data.filled(np.nan)
 
         # Run the stretch algorithm
-        rgb = self.settings.stretch.apply(rgb)
+        data = self.settings.stretch.apply(data)
 
         # save the stretched data pre-colormap; expand mono image to RGB image
-        self._stretchedData = rgb
+        self._stretchedData = data
 
         # convert NaNs to zeros before color mapping and outputting
-        rgb[np.isnan(rgb)] = 0
+        data[np.isnan(data)] = 0
 
         # Apply color map
         if self.settings.mode == "mono":
-            rgb = np.squeeze(rgb)  # go back to 2D because ColorMap expects it
-            rgb = self.settings.colorMap.mapToByte(rgb)
+            data = np.squeeze(data)  # go back to 2D because ColorMap expects it
+            rgba = self.settings.colorMap.mapToByte(data)
+            rgba[:, :, 3] = self.settings.opacity * 255  # replace alpha channel
         else:
             # convert the image to byte values, since it's faster to display I think.
             # (ColorMap already does this for mono images)
-            rgb = (rgb * 255).astype(np.uint8)
-
-        # add 4th channel with opacity values
-        alpha = np.full(
-            (rgb.shape[0], rgb.shape[1], 1),
-            int(self.settings.opacity * 255),
-            dtype=np.uint8,
-        )
-        rgba = np.concatenate((rgb, alpha), axis=2)
+            data = (data * 255).astype(np.uint8)
+            # add 4th channel with opacity values
+            alpha = np.full(
+                (data.shape[0], data.shape[1], 1),
+                int(self.settings.opacity * 255),
+                dtype=np.uint8,
+            )
+            rgba = np.concatenate((data, alpha), axis=2)
 
         self.cachedRender = rgba
+
         return rgba
 
     def getStretchedData(self):
@@ -143,7 +150,6 @@ class ImageRenderer(QObject):
         )
 
     def updateSettings(self, settings: RendererSettings):
-        print(f"ImageRenderer: Received new settings. {settings}")
         self.settings = settings
         # delete cache so new image is generated
         self.cachedRender = None
@@ -268,7 +274,17 @@ class RendererSettingsPanel(QWidget):
         layout.addLayout(stretchLayout)
 
         # opacity UI
+        opacityParam = FloatParameter(
+            name="Opacity",
+            default=self.settings.opacity,
+            description="Opacity of the rendered image.",
+            units="%",
+            valueRange=(0.0, 1.0),
+            parent=self,
+        )
+        opacityParam.sigValueChanged.connect(self._onOpacityChanged)
 
+        layout.addWidget(ParameterGroup([opacityParam], self))
         ### Finish Init UI ###
         self.setLayout(layout)
 
@@ -332,13 +348,17 @@ class RendererSettingsPanel(QWidget):
         self.settings.colorMap = colorMap.colorMap()
         self.sigSettingsChanged.emit(self.settings)
 
+    def _onOpacityChanged(self, value: float):
+        self.settings.opacity = value
+        self.sigSettingsChanged.emit(self.settings)
+
 
 if __name__ == "__main__":
     q_app = QApplication(sys.argv)
     image = varda.utilities.debug.generate_random_image((100, 100, 10), (10, 10, 10))
     settings = RendererSettings.new(image)
-    renderer = ImageRenderer(image, settings)
-    settingsPanel = RendererSettingsPanel(image, settings)
+    renderer = ImageRenderer(settings)
+    settingsPanel = RendererSettingsPanel(settings)
     settingsPanel.sigSettingsChanged.connect(renderer.updateSettings)
     settingsPanel.show()
     q_app.exec()

@@ -1,6 +1,7 @@
 from __future__ import annotations
+from typing_extensions import override
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
@@ -18,6 +19,7 @@ from PyQt6.QtWidgets import (
     QDialog,
     QTabBar,
     QTabWidget,
+    QSlider,
 )
 
 
@@ -258,3 +260,31 @@ class DetachableTabWidget(QTabWidget):
             # Reattach the widget back into the main tab widget
             self.tabWidget.reattachTab(self.widget, self.label)
             super().closeEvent(event)
+
+
+class FloatSlider(QSlider):
+    sigFloatValueChanged: pyqtSignal = pyqtSignal(float)
+
+    def __init__(
+        self, precision=3, range: tuple[float, float] | None = None, parent=None
+    ):
+        super().__init__(parent)
+        self.precision = precision
+        self.valueChanged.connect(self.onValueChanged)
+
+        if range is not None:
+            self.setRange(range[0], range[1])
+
+    @override
+    def setRange(self, min: float, max: float) -> None:
+        min = min * pow(10, self.precision)
+        max = max * pow(10, self.precision)
+        super().setRange(int(min), int(max))
+
+    @override
+    def setValue(self, a0: float) -> None:
+        super().setValue(int(a0 * pow(10, self.precision)))
+
+    def onValueChanged(self, value):
+        floatVal = value / pow(10, self.precision)
+        self.sigFloatValueChanged.emit(floatVal)

@@ -66,7 +66,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         """Initialize all workflow components"""
 
         # Initialize raster view
-        self.imageRenderer = ImageRenderer(self.image)
+        self.imageRenderer = ImageRenderer(image=self.image)
 
         self.rendererSettingsPanel = self.imageRenderer.getSettingsPanel()
 
