@@ -40,8 +40,12 @@ class VBoxBuilder(QVBoxLayout):
         self.addWidget(widget, stretch, alignment)
         return self
 
-    def withLayout(self, layout: QVBoxLayout, stretch: int = 0) -> VBoxBuilder:
+    def withLayout(self, layout: QLayout, stretch: int = 0) -> VBoxBuilder:
         self.addLayout(layout, stretch)
+        return self
+
+    def withStretch(self, stretch: int = 0) -> VBoxBuilder:
+        self.addStretch(stretch)
         return self
 
     def wrapped(self) -> WrapperWidget:
@@ -58,8 +62,12 @@ class HBoxBuilder(QHBoxLayout):
         self.addWidget(widget, stretch, alignment)
         return self
 
-    def withLayout(self, layout: QHBoxLayout, stretch: int = 0) -> HBoxBuilder:
+    def withLayout(self, layout: QLayout, stretch: int = 0) -> HBoxBuilder:
         self.addLayout(layout, stretch)
+        return self
+
+    def withStretch(self, stretch: int = 0) -> HBoxBuilder:
+        self.addStretch(stretch)
         return self
 
     def wrapped(self) -> WrapperWidget:
@@ -99,6 +107,19 @@ class FormBuilder(QFormLayout):
 
     def wrapped(self) -> WrapperWidget:
         return WrapperWidget(self)
+
+
+class ButtonBuilder(QPushButton):
+    def __init__(self, label: str):
+        super().__init__(label)
+
+    def onClick(self, callback) -> ButtonBuilder:
+        self.clicked.connect(callback)
+        return self
+
+    def default(self) -> ButtonBuilder:
+        self.setDefault(True)
+        return self
 
 
 class VardaDockWidget(QDockWidget):

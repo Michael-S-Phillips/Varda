@@ -1,3 +1,4 @@
+import re
 from enum import Enum
 from typing import Type
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QSignalBlocker, Qt, QObject
@@ -280,6 +281,23 @@ class EnumParameter(Parameter[Enum]):
 
         super().__init__(name, default, description, parent)
 
+        self.enumNames: list[str] = []
+
+        def makeUpper(match):
+            if match.group() is not None:
+                return match.group().upper()
+
+        for enum in enumType:
+            name = enum.name
+            # convert snake_case and/or camelCase notation into space-seperated words.
+            name = re.sub(r"_", r" ", name)
+            name = re.sub(r"(?<=[a-z])(?=[A-Z]|[0-9])", r" ", name)
+            # Make only the start of words be uppercase
+            name = name.lower()
+            name = re.sub(r"(?<=[ ])([a-z])", makeUpper, name)
+            name = re.sub(r"^([a-z])", makeUpper, name)
+            self.enumNames.append(name)
+
     def getWidget(self, parent=None) -> QWidget:
         return self.EnumParameterWidget(self, parent)
 
@@ -288,7 +306,13 @@ class EnumParameter(Parameter[Enum]):
             super().__init__(parent)
             self.param = param
             self.comboBox = QComboBox(self)
-            self.comboBox.addItems([e.name for e in self.param.enumType])
+
+            def makeUpper(match):
+                if match.group() is not None:
+                    return match.group().upper()
+
+            self.comboBox.addItems(param.enumNames)
+
             self.comboBox.setCurrentIndex(
                 list(self.param.enumType).index(self.param.get())
             )

@@ -1,10 +1,11 @@
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QPushButton, QHBoxLayout
+from PyQt6.QtWidgets import QDialog, QMessageBox
 from PyQt6.QtCore import pyqtSignal
 from varda.workspaces.dual_image_workspace.dual_image_workspace import (
-    NewDualImageWorkspaceConfig,
+    DualImageWorkspaceConfig,
     DualImageWorkspace,
 )
 from varda import log
+from varda.common.widgets import VBoxBuilder, HBoxBuilder, ButtonBuilder
 
 
 class NewDualImageWorkspaceDialog(QDialog):
@@ -12,34 +13,29 @@ class NewDualImageWorkspaceDialog(QDialog):
 
     def __init__(self, imageList, parent=None):
         super().__init__(parent)
-        log.debug("Initializing New Dual Image Workspace Dialog")
-
         self.setWindowTitle("Create New Dual Image Workspace")
-        self.dualImageWorkspaceConfig = NewDualImageWorkspaceConfig(imageList)
-        params = self.dualImageWorkspaceConfig.getParameters()
-        mainLayout = QVBoxLayout()
-        mainLayout.addWidget(params)
-
-        mainLayout.addStretch()
-
-        buttonLayout = QHBoxLayout()
-        self.finishButton = QPushButton("Finish")
-        self.finishButton.clicked.connect(self.accept)
-        self.finishButton.setDefault(True)
-        buttonLayout.addWidget(self.finishButton)
-
-        buttonLayout.addStretch()
-
-        self.cancelButton = QPushButton("Cancel")
-        self.cancelButton.clicked.connect(self.reject)
-        buttonLayout.addWidget(self.cancelButton)
-
-        mainLayout.addLayout(buttonLayout)
-        self.setLayout(mainLayout)
-
+        if len(imageList) == 0:
+            QMessageBox.warning(
+                self, "No Images", "No images available to create a workspace."
+            )
+            self.reject()
+            return
+        self.dualImageWorkspaceConfig = DualImageWorkspaceConfig(imageList)
         self.accepted.connect(
             lambda: self.sigCreateWorkspace.emit(
                 DualImageWorkspace(self.dualImageWorkspaceConfig)
+            )
+        )
+
+        self.setLayout(
+            VBoxBuilder()
+            .withWidget(self.dualImageWorkspaceConfig.getParameters())
+            .withStretch()
+            .withLayout(
+                HBoxBuilder()
+                .withWidget(ButtonBuilder("Finish").onClick(self.accept))
+                .withStretch()
+                .withWidget(ButtonBuilder("Cancel").onClick(self.reject))
             )
         )
 
@@ -55,5 +51,6 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
     dialog = NewDualImageWorkspaceDialog([debug.generate_random_image()])
+    dialog.connectOnAccept(lambda workspace: workspace.show())
     dialog.show()
     sys.exit(app.exec())

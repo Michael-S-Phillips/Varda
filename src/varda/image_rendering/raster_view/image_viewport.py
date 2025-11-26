@@ -1,10 +1,8 @@
-import logging
-
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 
-
+from varda import log
 from varda.image_rendering import Image
 from varda.image_rendering import ImageRenderer
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import (
@@ -14,8 +12,6 @@ from varda.image_rendering.raster_view.protocols import Viewport
 from varda.image_rendering.raster_view.image_region_item import (
     VardaImageItem,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class ViewportMeta(type(QWidget), type(Viewport)):
@@ -32,9 +28,13 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
     def __init__(self, imageRenderer: ImageRenderer, parent=None):
         super().__init__(parent)
         self.selfUpdating = True
+
         self._imageRenderer = imageRenderer
         self._imageItem: VardaImageItem = VardaImageItem(self._imageRenderer)
+
+        self._overlayImageRenderer: ImageRenderer | None = None
         self._overlayImageItem: VardaImageItem | None = None
+
         self._vb = pg.ViewBox(lockAspect=True, invertY=True)
         self._vb.setMouseEnabled(x=False, y=False)
 
@@ -47,24 +47,31 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         self.setLayout(layout)
 
         self._imageItem.sigImageChanged.connect(self.sigImageChanged)
-        self._imageRenderer.sigShouldRefresh.connect(
-            lambda: self.refresh() if self.selfUpdating else None
-        )
+        self._imageRenderer.sigShouldRefresh.connect(self.autoRefresh)
 
     def overlayImage(self, overlayImageRenderer: ImageRenderer):
-        """Overlay an image on top of the current image."""
-        if self._overlayImageItem:
+        """Overlay an image on top of the current image.
+        It's possible that we may want to support multiple overlay images in the future, or overlay with different blending modes,
+        but for now we'll just support one.
+        """
+        self._overlayImageRenderer = overlayImageRenderer
+        if self._overlayImageItem is not None:
+            log.info("An image is already overlayed. Replacing it with the new one.")
             self.removeOverlayImage()
         self._overlayImageItem = VardaImageItem(overlayImageRenderer)
         self._vb.addItem(self._overlayImageItem)
 
+        overlayImageRenderer.sigShouldRefresh.connect(self.autoRefresh)
+
     def removeOverlayImage(self):
         """Remove the overlay image."""
-        if self._overlayImageItem:
+        if self._overlayImageItem is not None:
             self._vb.removeItem(self._overlayImageItem)
             self._overlayImageItem = None
+            self._overlayImageRenderer.sigShouldRefresh.disconnect(self.autoRefresh)
+            self._overlayImageRenderer = None
         else:
-            logger.warning("No overlay image to remove.")
+            log.warning("No overlay image to remove.")
 
     def disableSelfUpdating(self):
         """Disable self-updating of the image item."""
@@ -74,9 +81,15 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         """Enable self-updating of the image item."""
         self.selfUpdating = True
 
+    def autoRefresh(self):
+        if self.selfUpdating:
+            self.refresh()
+
     def refresh(self):
         """Refresh the image display with current settings."""
         self._imageItem.refresh()
+        if self._overlayImageItem is not None:
+            self._overlayImageItem.refresh()
 
     def addItem(self, item):
         """Add a graphics item to the viewport."""

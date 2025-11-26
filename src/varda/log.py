@@ -28,7 +28,6 @@ def critical(msg, *args, **kwargs):
 
 
 def _getCallerName(depth: int = 1) -> str | None:
-
     frame = sys._getframe(depth + 1)
     return frame.f_globals.get("__name__")
 
