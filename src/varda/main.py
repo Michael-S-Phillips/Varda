@@ -19,8 +19,10 @@ from varda.status_bar import StatusBar
 from varda.main_menu_bar import VardaMenuBar
 from varda.image_loading import ImageLoadingService
 from varda.maingui import MainGUI
-from varda.workspaces.dual_image_workspace.workspace_initializer import (
-    NewDualImageWorkspaceDialog,
+from varda.workspaces.dual_image_workspace import NewDualImageWorkspaceDialog
+from varda.workspaces.general_image_analysis import (
+    GeneralImageAnalysisWorkflow,
+    NewGeneralImageAnalysisWorkspaceDialog,
 )
 from varda.plugins import VardaPluginManager
 from varda.project import ProjectContext
@@ -81,21 +83,33 @@ def initMenuBar(app):
         lambda: varda.utilities.debug.loadRandomImageIntoProject(app),
         "F11",
     )
-    newWorkspaceCreator = createAction(
-        "New Workspace Creator",
+    newDualWorkspaceCreator = createAction(
+        "New Dual Image Workspace",
         lambda: NewDualImageWorkspaceDialog(app.images)
         .connectOnAccept(
             lambda workspace: app.maingui.addTab(workspace, "Dual Image Workspace")
         )
         .open(),
     )
+    newGeneralWorkspaceCreator = createAction(
+        "New General Image Analysis Workspace",
+        lambda: NewGeneralImageAnalysisWorkspaceDialog(app.images)
+        .connectOnAccept(
+            lambda workspace: app.maingui.addTab(
+                workspace, "General Image Analysis Workspace"
+            )
+        )
+        .open(),
+    )
+
     actions.append(importImageAction)
     actions.append(saveProjectAction)
     actions.append(openProjectAction)
     actions.append(exitAppAction)
     actions.append(dumpProjectDataAction)
     actions.append(loadDummyImageAction)
-    actions.append(newWorkspaceCreator)
+    actions.append(newDualWorkspaceCreator)
+    actions.append(newGeneralWorkspaceCreator)
     ### Initialize MenuBar ###
     menuBar = app.maingui.menuBar()
     menuBar.registerAction("File", importImageAction)
@@ -104,7 +118,8 @@ def initMenuBar(app):
     menuBar.registerAction("File", exitAppAction)
     menuBar.registerAction("Debug", dumpProjectDataAction)
     menuBar.registerAction("Debug", loadDummyImageAction)
-    menuBar.registerAction("Debug", newWorkspaceCreator)
+    menuBar.registerAction("Workspace", newDualWorkspaceCreator)
+    menuBar.registerAction("Workspace", newGeneralWorkspaceCreator)
     return menuBar
 
 

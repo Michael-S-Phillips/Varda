@@ -80,8 +80,6 @@ class MainGUI(QtWidgets.QMainWindow):
             int, ProjectContext.ChangeType, ProjectContext.ChangeModifier
         ].connect(self.onProjectDataChanged)
 
-        self.app.images.sigDataChanged.connect(self.onImageListChanged)
-
     def onSelectedImageChanged(self, item):
         if item is None:
             self.selectedImage = None
@@ -307,32 +305,6 @@ class MainGUI(QtWidgets.QMainWindow):
         except Exception as e:
             logger.error(f"Error applying dual image config: {e}")
 
-    # Add cleanup to exitApp method
-    def exitApp(self):
-        """Clean up and exit the application."""
-        # Close dual image view
-        if self.dualImageView:
-            self.closeDualImageView()
-
-        # Close all child windows
-        for window in self.childWindows[
-            :
-        ]:  # Copy list to avoid modification during iteration
-            try:
-                window.close()
-            except Exception as e:
-                logger.warning(f"Error closing child window: {e}")
-
-        self.close()
-
-    def removeChildWindow(self, window):
-        """Remove a window from tracking when it's closed."""
-        if window in self.childWindows:
-            self.childWindows.remove(window)
-            logger.debug(
-                f"Removed window from tracking. Remaining windows: {len(self.childWindows)}"
-            )
-
     def openProcessingMenu(self):
         """Open the image processing menu for the currently selected image."""
         if self.selectedImage is None:
@@ -383,14 +355,9 @@ class MainGUI(QtWidgets.QMainWindow):
                 GeneralImageAnalysisWorkflow(image), image.metadata.name
             )
 
-    def onImageListChanged(self, list):
-        """Handle when project data changes (like new images being added)."""
-
-        image = list[len(list) - 1]
-        self.addTab(GeneralImageAnalysisWorkflow(image), image.metadata.name)
-
     def addTab(self, widget, title=None):
         """Add a new tab to the central tab widget."""
+        self.childWindows.append(widget)
         self.centralTabs.addTab(widget, title)
 
     def closeAllChildWindows(self):

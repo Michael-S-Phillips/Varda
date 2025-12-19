@@ -20,6 +20,7 @@ class NewDualImageWorkspaceDialog(QDialog):
             )
             self.reject()
             return
+
         self.dualImageWorkspaceConfig = DualImageWorkspaceConfig(imageList)
         self.accepted.connect(
             lambda: self.sigCreateWorkspace.emit(

@@ -23,8 +23,23 @@ from varda.metadata_management.metadata_editor import MetadataEditor
 
 from varda.image_rendering.raster_view import TripleRasterView
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
+from varda.common.parameter import ImageParameter, ParameterGroup
 
 logger = logging.getLogger(__name__)
+
+
+class GeneralImageAnalysisConfig:
+    image: ImageParameter
+
+    def __init__(self, imageList: list[Image]) -> None:
+        self.imageParam: ImageParameter = ImageParameter(
+            "Image",
+            imageList,
+            "Image to view.",
+        )
+
+    def getParameters(self):
+        return ParameterGroup([self.imageParam])
 
 
 class GeneralImageAnalysisWorkflow(QMainWindow):
@@ -39,12 +54,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     - Metadata editing
     """
 
-    def __init__(self, image: Image, parent=None):
+    def __init__(self, config: GeneralImageAnalysisConfig, parent=None):
         super().__init__(parent)
-        # self.viewModel = GeneralPurposeImageViewModel(self)
-        # self.viewModel.imageIndex = imageIndex
-        # self.image = self.viewModel.getImage()
-        self.image = image
+        self.image = config.imageParam.get()
 
         # Initialize core components
         self.rasterView = None
