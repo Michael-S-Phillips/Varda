@@ -6,7 +6,7 @@ from PyQt6 import QtWidgets
 from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt, pyqtSlot
 
-from varda.common.widgets import DetachableTabWidget
+from varda.common.ui import DetachableTabWidget
 from varda.project import ProjectContext
 
 from varda.workspaces import GeneralImageAnalysisWorkflow

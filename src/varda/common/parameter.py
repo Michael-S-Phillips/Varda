@@ -283,9 +283,8 @@ class EnumParameter(Parameter[Enum]):
 
         self.enumNames: list[str] = []
 
-        def makeUpper(match):
-            if match.group() is not None:
-                return match.group().upper()
+        def makeUpper(match: re.Match[str]) -> str:
+            return match.group().upper() if match.group() is not None else ""
 
         for enum in enumType:
             name = enum.name

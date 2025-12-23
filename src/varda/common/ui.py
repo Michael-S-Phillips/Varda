@@ -140,16 +140,17 @@ class VardaDockWidget(QDockWidget):
 
 
 class FilePathBox(QWidget):
-    def __init__(self, defaultPath="", fileFilter=None, parent=None):
-        super().__init__()
+    def __init__(
+        self,
+        defaultPath: str = "",
+        fileFilter: str | None = None,
+        parent: QWidget | None = None,
+    ):
+        super().__init__(parent)
         self.fileFilter = fileFilter
-        self.result = None
-        self.filePathText = None
-        self.openFileSelectorButton = None
-        self._initUI(defaultPath)
-        self._connectSignals()
+        self.result: str | None
 
-    def _initUI(self, defaultPath):
+        # setup UI
         self.filePathText = QLineEdit(defaultPath)
         self.openFileSelectorButton = QPushButton("Browse Files...")
         layout = QHBoxLayout()
@@ -157,7 +158,7 @@ class FilePathBox(QWidget):
         layout.addWidget(self.openFileSelectorButton)
         self.setLayout(layout)
 
-    def _connectSignals(self):
+        # connect signals
         self.openFileSelectorButton.clicked.connect(self.getFilePath)
         self.filePathText.textChanged.connect(self.onTextChanged)
 

@@ -10,7 +10,7 @@ from varda.common.parameter import ImageParameter, ParameterGroup, EnumParameter
 from varda.common.entities import Image
 from varda.image_rendering.raster_view import ImageViewport
 from varda.image_rendering.image_renderer import ImageRenderer
-from varda.common.widgets import VBoxBuilder, SplitterBuilder, HBoxBuilder
+from varda.common.ui import VBoxBuilder, SplitterBuilder, HBoxBuilder
 
 
 class DualImageWorkspaceConfig:

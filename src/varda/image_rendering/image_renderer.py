@@ -19,7 +19,7 @@ from pyqtgraph import ColorMap
 import numpy as np
 
 from varda.common.parameter import FloatParameter, ParameterGroup
-from varda.common.widgets import VBoxBuilder
+from varda.common.ui import VBoxBuilder
 from varda.common.entities import Image
 import varda.utilities.debug
 from varda.image_rendering.stretch_algorithms import (

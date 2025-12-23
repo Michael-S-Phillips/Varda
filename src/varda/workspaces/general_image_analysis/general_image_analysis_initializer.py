@@ -5,7 +5,7 @@ from varda.workspaces.general_image_analysis import (
     GeneralImageAnalysisWorkflow,
     GeneralImageAnalysisConfig,
 )
-from varda.common.widgets import VBoxBuilder, HBoxBuilder, ButtonBuilder
+from varda.common.ui import VBoxBuilder, HBoxBuilder, ButtonBuilder
 
 
 class NewGeneralImageAnalysisWorkspaceDialog(QDialog):

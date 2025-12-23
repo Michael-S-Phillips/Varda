@@ -5,7 +5,7 @@ from varda.workspaces.dual_image_workspace.dual_image_workspace import (
     DualImageWorkspace,
 )
 from varda import log
-from varda.common.widgets import VBoxBuilder, HBoxBuilder, ButtonBuilder
+from varda.common.ui import VBoxBuilder, HBoxBuilder, ButtonBuilder
 
 
 class NewDualImageWorkspaceDialog(QDialog):
