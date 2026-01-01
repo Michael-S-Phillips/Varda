@@ -2,6 +2,8 @@ import re
 from enum import Enum
 from typing import Type
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QSignalBlocker, Qt, QObject
+from PyQt6.QtGui import QColor
+
 from PyQt6.QtWidgets import (
     QCheckBox,
     QLineEdit,
@@ -14,9 +16,11 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QSizePolicy,
+    QColorDialog,
+    QPushButton,
 )
 
-from varda.common.widgets import FloatSlider
+from varda.common.ui import FloatSlider
 from varda.common.entities import Image
 
 
@@ -30,6 +34,7 @@ class Parameter[T](QObject):
     ):
         super().__init__(parent)
         self.name = name
+        self.default = default
         self.value = default
         self.description = description
 
@@ -39,6 +44,9 @@ class Parameter[T](QObject):
 
     def get(self) -> T:
         return self.value
+
+    def resetToDefault(self) -> None:
+        self.set(self.default)
 
     def getWidget(self, parent=None) -> QWidget:
         raise NotImplementedError("Subclasses must implement getWidget")
@@ -69,6 +77,36 @@ class ParameterGroup(QWidget):
 
     def __repr__(self):
         return f"ParameterGroup({[p.get() for p in self.params]})"
+
+    def editParams(self):
+        """
+        returns a context manager that blocks signals on the param group while editing multiple parameters within the group.
+        Once you're done editing, exiting the context will emit a single sigParameterChanged event.
+        Usage:
+            with paramGroup.editParams():
+                param1.set(value1)
+                param2.set(value2)
+        """
+        return self.ParamGroupEditContext(self)
+
+    def resetToDefaults(self) -> None:
+        """
+        Resets all parameters in the group to their default values.
+        """
+        with self.editParams():
+            for param in self.params:
+                param.resetToDefault()
+
+    class ParamGroupEditContext:
+        def __init__(self, group: "ParameterGroup"):
+            self.group = group
+
+        def __enter__(self):
+            self.group.blockSignals(True)
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            self.group.blockSignals(False)
+            self.group.sigParameterChanged.emit()
 
 
 def paramLayoutDefault():
@@ -172,6 +210,7 @@ class FloatParameter(Parameter[float]):
         def __init__(self, param: "FloatParameter", parent=None):
             super().__init__(parent)
             self.param = param
+            self.param.sigValueChanged.connect(self.onParamChanged)
             # initialize widget
 
             paramLayout = paramLayoutDefault()
@@ -184,7 +223,7 @@ class FloatParameter(Parameter[float]):
             else:
                 self.spinBox.setRange(-100000, 100000)
             self.spinBox.setValue(self.param.get())
-            self.spinBox.valueChanged.connect(self.valueChanged)
+            self.spinBox.valueChanged.connect(self.onWidgetChanged)
             paramLayout.addWidget(self.spinBox)
 
             if self.param.units is not None:
@@ -196,21 +235,32 @@ class FloatParameter(Parameter[float]):
                 self.slider.setOrientation(Qt.Orientation.Horizontal)
                 self.slider.setRange(self.param.valueRange[0], self.param.valueRange[1])
                 self.slider.setValue(self.param.get())
-                self.slider.sigFloatValueChanged.connect(self.valueChanged)
+                self.slider.sigFloatValueChanged.connect(self.onWidgetChanged)
                 paramLayout.addWidget(self.slider)
-
+            else:
+                self.slider = None
             self.setLayout(paramLayout)
 
-        @pyqtSlot(float)
-        def valueChanged(self, value):
+        def onWidgetChanged(self, value):
+            # # syncronize spinbox and slider
+            # if self.spinBox.value() != value:
+            #     with QSignalBlocker(self.spinBox):
+            #         self.spinBox.setValue(value)
+            # if self.slider is not None and self.slider.value() != value:
+            #     with QSignalBlocker(self.slider):
+            #         self.slider.setValue(value)
+
+            # update parameter value -- this will trigger onParamChanged to run, which will synchronize the slider and spinbox
+            self.param.set(value)
+
+        @pyqtSlot(object)
+        def onParamChanged(self, value: float):
             if self.spinBox.value() != value:
                 with QSignalBlocker(self.spinBox):
                     self.spinBox.setValue(value)
             if self.slider is not None and self.slider.value() != value:
                 with QSignalBlocker(self.slider):
                     self.slider.setValue(value)
-
-            self.param.set(value)
 
 
 class StringParameter(Parameter[str]):
@@ -306,10 +356,6 @@ class EnumParameter(Parameter[Enum]):
             self.param = param
             self.comboBox = QComboBox(self)
 
-            def makeUpper(match):
-                if match.group() is not None:
-                    return match.group().upper()
-
             self.comboBox.addItems(param.enumNames)
 
             self.comboBox.setCurrentIndex(
@@ -323,6 +369,53 @@ class EnumParameter(Parameter[Enum]):
         def enumSelectionChanged(self, index):
             enumMember = list(self.param.enumType)[index]
             self.param.set(enumMember)
+
+
+class ColorParameter(Parameter[QColor]):
+    def __init__(
+        self,
+        name: str,
+        default: QColor | str = QColor(255, 255, 255),
+        description=None,
+        parent=None,
+    ):
+        # convert string to QColor if needed, This way we can input hex strings like "#ff0000"
+        if isinstance(default, str):
+            default = QColor(default)
+        super().__init__(name, default, description, parent)
+
+    def getWidget(self, parent=None) -> QWidget:
+        return self.ColorParameterWidget(self, parent)
+
+    class ColorParameterWidget(QWidget):
+        def __init__(self, param: "ColorParameter", parent=None):
+            super().__init__(parent)
+            self.param = param
+            self.param.sigValueChanged.connect(self.onParamChanged)
+            self.colorButton = QPushButton(self)
+            self.colorButton.setFixedSize(40, 40)
+            self.updateColorDisplay()
+            self.colorButton.clicked.connect(self.openColorDialog)
+
+            paramLayout = paramLayoutDefault()
+            paramLayout.addWidget(self.colorButton)
+            self.setLayout(paramLayout)
+
+        def updateColorDisplay(self):
+            color = self.param.get()
+            self.colorButton.setStyleSheet(
+                f"background-color: {color.name()}; border: 1px solid #000000; border-radius: 4px;"
+            )
+
+        def openColorDialog(self):
+            color = QColorDialog.getColor(self.param.get(), self, "Select Color")
+            if color.isValid():
+                self.param.set(color)
+                self.updateColorDisplay()
+
+        @pyqtSlot(object)
+        def onParamChanged(self, color: QColor):
+            self.updateColorDisplay()
 
 
 class ImageParameter(Parameter[Image]):

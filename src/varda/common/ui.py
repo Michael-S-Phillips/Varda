@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing_extensions import override
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QRect, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QTabBar,
     QTabWidget,
     QSlider,
+    QFrame,
 )
 
 
@@ -31,8 +32,9 @@ class WrapperWidget(QWidget):
 
 
 class VBoxBuilder(QVBoxLayout):
-    def __init__(self):
+    def __init__(self, alignment=Qt.AlignmentFlag(0)):
         super().__init__()
+        self.setAlignment(alignment)
 
     def withWidget(
         self, widget: QWidget, stretch: int = 0, alignment=Qt.AlignmentFlag(0)
@@ -48,13 +50,11 @@ class VBoxBuilder(QVBoxLayout):
         self.addStretch(stretch)
         return self
 
-    def wrapped(self) -> WrapperWidget:
-        return WrapperWidget(self)
-
 
 class HBoxBuilder(QHBoxLayout):
-    def __init__(self):
+    def __init__(self, alignment=Qt.AlignmentFlag(0)):
         super().__init__()
+        self.setAlignment(alignment)
 
     def withWidget(
         self, widget: QWidget, stretch: int = 0, alignment=Qt.AlignmentFlag(0)
@@ -69,9 +69,6 @@ class HBoxBuilder(QHBoxLayout):
     def withStretch(self, stretch: int = 0) -> HBoxBuilder:
         self.addStretch(stretch)
         return self
-
-    def wrapped(self) -> WrapperWidget:
-        return WrapperWidget(self)
 
 
 class GroupBoxBuilder(QGroupBox):
@@ -105,9 +102,6 @@ class FormBuilder(QFormLayout):
         self.addRow(label, widget)
         return self
 
-    def wrapped(self) -> WrapperWidget:
-        return WrapperWidget(self)
-
 
 class ButtonBuilder(QPushButton):
     def __init__(self, label: str):
@@ -120,6 +114,32 @@ class ButtonBuilder(QPushButton):
     def default(self) -> ButtonBuilder:
         self.setDefault(True)
         return self
+
+
+class SectionBox(QWidget):
+    def __init__(self, name=None, inside=None, parent=None):
+        super().__init__(parent)
+        self.frame = QFrame(parent)
+        self.frame.setFrameShape(QFrame.Shape.NoFrame)
+        self.frame.setMinimumSize(40, 40)
+        self.frame.setObjectName("SectionBox")
+        self.frame.setStyleSheet("""
+        QFrame#SectionBox {
+            border: 2px solid palette(mid); 
+            border-radius: 6px;
+        }
+        """)
+        if isinstance(inside, QLayout):
+            self.frame.setLayout(inside)
+        elif isinstance(inside, QWidget):
+            self.frame.setLayout(VBoxBuilder().withWidget(inside))
+        elif inside is not None:
+            raise TypeError("FrameBuilder requires a QWidget or QLayout")
+        self.setLayout(
+            VBoxBuilder()
+            .withWidget(QLabel(name) if name else None)
+            .withWidget(self.frame)
+        )
 
 
 class VardaDockWidget(QDockWidget):

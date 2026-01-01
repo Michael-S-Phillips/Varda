@@ -10,7 +10,7 @@ authors = [{"name" = "Michael Phillips", "email" = "phillipsm@arizona.edu"},
            {"name" = "Hamad Ayaz", "email" = "hamadayaz@arizona.edu"}]
 
 dependencies = [
-    "PyQt6>=6.7.1",
+    "PyQt6>=6.7.1 ; sys_platform != 'linux'", # linux users probably want to install pyqt6 to their system via their package manager and use that. So that any system themes are applied."
     "numpy>=2.1.1",
     "matplotlib>=3.9.2",
     "spectral>=0.23.1",
