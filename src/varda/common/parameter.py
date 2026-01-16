@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
 )
 
-from varda.common.ui import FloatSlider
+from varda.common.ui import FloatSlider, VBoxBuilder
 from varda.common.entities import Image
 from varda.common.vec2 import Vec2
 
@@ -41,42 +41,58 @@ class ParameterGroup(QObject):
         super().__init__(parent)
 
         # used to store all parameters in a list, for generating UI later.
-        self.params: list[Parameter] = []
+        self.params: dict[str, Parameter | ParameterGroup] = {}
 
         # find all Parameter attributes defined in the class and create unique copies of them for this instance
         for name, attr in self.__class__.__dict__.items():
-            if isinstance(attr, Parameter):
+            if isinstance(attr, Parameter) or isinstance(attr, ParameterGroup):
                 instanceParam = attr.clone(parent=self)
                 # link the parameter's change signal to the collection's change signal. lambda is to discard the value sent by the parameter
-                instanceParam.sigValueChanged.connect(
+                instanceParam.sigParameterChanged.connect(
                     lambda _: self.sigParameterChanged.emit()
                 )
                 setattr(
                     self, name, instanceParam
                 )  # create an instance attribute for this parameter.
-                self.params.append(instanceParam)
+                self.params[name] = instanceParam
 
     def createWidget(self, parent=None) -> QWidget:
+        def createForm(baseLayout: QFormLayout, paramGroup: ParameterGroup):
+            for param in paramGroup.params.values():
+                if isinstance(param, Parameter):
+                    label = QLabel(param.name)
+                    widget = param.getWidget()
+                    label.setToolTip(param.description)
+                    widget.setToolTip(param.description)
+                    formLayout.addRow(label, widget)
+                elif isinstance(param, ParameterGroup):
+                    # recursive call to create ui for subgroup
+                    createForm(baseLayout, param)
+
         formLayout = QFormLayout()
         formLayout.setContentsMargins(0, 0, 0, 0)
         formLayout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         formLayout.setFieldGrowthPolicy(
             formLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
         )
-        for param in self.params:
-            label = QLabel(param.name)
-            widget = param.getWidget()
-            label.setToolTip(param.description)
-            widget.setToolTip(param.description)
-            formLayout.addRow(label, widget)
+        createForm(formLayout, self)
 
         widget = QWidget(parent)
         widget.setLayout(formLayout)
         return widget
 
+    def clone(self, parent: QObject | None = None) -> ParameterGroup:
+        """
+        Instantiates a new ParameterGroup based on the current group's state.
+        """
+        newGroup = self.__class__(parent)
+        for name, param in self.params.items():
+            setattr(newGroup, name, param.clone(parent=newGroup))
+        return newGroup
+
 
 class Parameter[T](QObject):
-    sigValueChanged: pyqtSignal = pyqtSignal(object)
+    sigParameterChanged: pyqtSignal = pyqtSignal(object)
 
     def __init__(
         self, name: str, default: T, description: str | None = None, parent=None
@@ -89,7 +105,7 @@ class Parameter[T](QObject):
 
     def set(self, value: T) -> None:
         self.value = value
-        self.sigValueChanged.emit(self.value)
+        self.sigParameterChanged.emit(self.value)
 
     def get(self) -> T:
         return self.value
@@ -104,7 +120,9 @@ class Parameter[T](QObject):
         """
         Instantiates a new Parameter based on the current parameter's state.
         """
-        raise NotImplementedError("Subclasses must implement clone()")
+        raise NotImplementedError(
+            f"Subclass {self.__class__.__name__} must implement clone()"
+        )
 
 
 class ParameterGroupWidget(QWidget):
@@ -127,7 +145,7 @@ class ParameterGroupWidget(QWidget):
                 label.setToolTip(param.description)
                 widget.setToolTip(param.description)
             formLayout.addRow(label, widget)
-            param.sigValueChanged.connect(self.sigParameterChanged)
+            param.sigParameterChanged.connect(self.sigParameterChanged)
         self.setLayout(formLayout)
 
     def __repr__(self):
@@ -189,6 +207,16 @@ class IntParameter(Parameter[int]):
 
     def getWidget(self, parent=None) -> QWidget:
         return self.IntParameterWidget(self, parent)
+
+    def clone(self, parent=None) -> IntParameter:
+        return IntParameter(
+            name=self.name,
+            default=self.default,
+            range=self.range,
+            units=self.units,
+            description=self.description,
+            parent=parent,
+        )
 
     class IntParameterWidget(QWidget):
         def __init__(self, param: "IntParameter", parent=None):
@@ -273,7 +301,7 @@ class FloatParameter(Parameter[float]):
         def __init__(self, param: "FloatParameter", parent=None):
             super().__init__(parent)
             self.param = param
-            self.param.sigValueChanged.connect(self.onParamChanged)
+            self.param.sigParameterChanged.connect(self.onParamChanged)
             # initialize widget
 
             paramLayout = paramLayoutDefault()
@@ -320,8 +348,8 @@ class Vec2Parameter(Parameter[Vec2]):
     def __init__(
         self,
         name: str,
-        valueNames: tuple[str, str] = ("X", "Y"),
         default: Vec2 | None = None,
+        valueNames: tuple[str, str] = ("X", "Y"),
         description=None,
         parent=None,
     ):
@@ -332,6 +360,15 @@ class Vec2Parameter(Parameter[Vec2]):
 
     def getWidget(self, parent=None) -> QWidget:
         return self.Vec2ParameterWidget(self, parent)
+
+    def clone(self, parent=None) -> Vec2Parameter:
+        return Vec2Parameter(
+            self.name,
+            self.default,
+            self.valueNames,
+            self.description,
+            parent,
+        )
 
     class Vec2ParameterWidget(QWidget):
         def __init__(self, param: "Vec2Parameter", parent=None):
@@ -375,6 +412,14 @@ class StringParameter(Parameter[str]):
     def getWidget(self, parent=None) -> QWidget:
         return self.StringParameterWidget(self, parent)
 
+    def clone(self, parent=None) -> StringParameter:
+        return StringParameter(
+            name=self.name,
+            default=self.default,
+            description=self.description,
+            parent=parent,
+        )
+
     class StringParameterWidget(QWidget):
         def __init__(self, param: "StringParameter", parent=None):
             super().__init__(parent)
@@ -399,6 +444,14 @@ class BoolParameter(Parameter[bool]):
 
     def getWidget(self, parent=None) -> QWidget:
         return self.BoolParameterWidget(self, parent)
+
+    def clone(self, parent=None) -> BoolParameter:
+        return BoolParameter(
+            name=self.name,
+            default=self.default,
+            description=self.description,
+            parent=parent,
+        )
 
     class BoolParameterWidget(QWidget):
         def __init__(self, param: "BoolParameter", parent=None):
@@ -504,7 +557,7 @@ class ColorParameter(Parameter[QColor]):
         def __init__(self, param: "ColorParameter", parent=None):
             super().__init__(parent)
             self.param = param
-            self.param.sigValueChanged.connect(self.onParamChanged)
+            self.param.sigParameterChanged.connect(self.onParamChanged)
             self.colorButton = QPushButton(self)
             self.colorButton.setFixedSize(40, 40)
             self.updateColorDisplay()

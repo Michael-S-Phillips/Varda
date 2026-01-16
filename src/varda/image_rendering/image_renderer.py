@@ -173,6 +173,11 @@ def getComboBox():
 
 
 class RendererSettingsPanel(QWidget):
+    """
+    Panel for adjusting image rendering settings.
+    TODO: Update to use new Parameter system
+    """
+
     sigSettingsChanged: pyqtSignal = pyqtSignal(RendererSettings)
 
     def __init__(self, settings: RendererSettings, parent=None):
@@ -266,7 +271,7 @@ class RendererSettingsPanel(QWidget):
             parameters.sigParameterChanged.connect(
                 lambda: self.sigSettingsChanged.emit(self.settings)
             )
-            self.stretchParameters.addWidget(parameters)
+            self.stretchParameters.addWidget(parameters.createWidget())
             self.stretchInstances.append(instance)
         stretchLayout.addLayout(self.stretchParameters)
 
@@ -282,7 +287,7 @@ class RendererSettingsPanel(QWidget):
             description="Opacity of the rendered image.",
             parent=self,
         )
-        opacityParam.sigValueChanged.connect(self._onOpacityChanged)
+        opacityParam.sigParameterChanged.connect(self._onOpacityChanged)
 
         layout.addWidget(ParameterGroupWidget([opacityParam], self))
         ### Finish Init UI ###
@@ -356,9 +361,8 @@ class RendererSettingsPanel(QWidget):
 if __name__ == "__main__":
     q_app = QApplication(sys.argv)
     image = varda.utilities.debug.generate_random_image((100, 100, 10), (10, 10, 10))
-    settings = RendererSettings.new(image)
-    renderer = ImageRenderer(settings)
-    settingsPanel = RendererSettingsPanel(settings)
+    renderer = ImageRenderer(image)
+    settingsPanel = RendererSettingsPanel(renderer.settings)
     settingsPanel.sigSettingsChanged.connect(renderer.updateSettings)
     settingsPanel.show()
     q_app.exec()

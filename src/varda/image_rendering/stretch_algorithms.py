@@ -1,8 +1,8 @@
 from typing import Type
 import numpy as np
 from PyQt6.QtCore import QObject
-
-from varda.common.parameter import IntParameter, ParameterGroupWidget
+from PyQt6.QtWidgets import QWidget
+from varda.common.parameter import IntParameter, ParameterGroup
 
 
 # TODO: Implement the other stretch algorithms:
@@ -34,12 +34,12 @@ def validateArrayShape(image):
 
 
 class StretchAlgorithm(QObject):
-    def parameters(self) -> ParameterGroupWidget:
+    def parameters(self) -> ParameterGroup:
         """
         Returns a ParameterGroup object containing parameters for this stretch algorithm.
         If an algorithm has no parameters, they do not need to reimplement this method.
         """
-        return ParameterGroupWidget([])
+        return ParameterGroup()
 
     def apply(self, image: np.ndarray) -> np.ndarray:
         raise NotImplementedError("Subclasses classes must implement this method.")
@@ -74,9 +74,6 @@ class MinMaxStretch(StretchAlgorithm):
         super().__init__()
         self.minVals = None
         self.maxVals = None
-
-    def parameters(self):
-        return ParameterGroupWidget([])
 
     def apply(self, image):
         """Compute min/max values for the full range of data."""
@@ -120,29 +117,36 @@ class MinMaxStretch(StretchAlgorithm):
 
 @registerStretchAlgorithm("Linear Percentile")
 class LinearPercentileStretch(StretchAlgorithm):
-    def __init__(self) -> None:
-        super().__init__()
-        self.lowPercent = IntParameter(
-            "Low Percent", 1, "lower percentile of data to cut off", "%", [0, 100], self
-        )
-        self.highPercent = IntParameter(
+    class Config(ParameterGroup):
+        highPercent = IntParameter(
             "High Percent",
             99,
-            "upper percentile of data to cut off",
+            (0, 100),
             "%",
-            [0, 100],
-            self,
+            "upper percentile of data to cut off",
         )
+        lowPercent = IntParameter(
+            "Low Percent",
+            1,
+            (0, 100),
+            "%",
+            "lower percentile of data to cut off",
+        )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.config = self.Config()
+
         self.minVals: np.ndarray | None = None
         self.maxVals: np.ndarray | None = None
 
-    def parameters(self) -> ParameterGroupWidget:
-        return ParameterGroupWidget([self.lowPercent, self.highPercent])
+    def parameters(self) -> ParameterGroup:
+        return self.config
 
     def apply(self, image: np.ndarray) -> np.ndarray:
         """Compute min/max values based on percentiles."""
-        lowPercent = self.lowPercent.get()
-        highPercent = self.highPercent.get()
+        lowPercent = self.config.lowPercent.value
+        highPercent = self.config.highPercent.value
 
         validateArrayShape(image)
 

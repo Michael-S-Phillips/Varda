@@ -1,9 +1,6 @@
-from dataclasses import dataclass, field
-from unicodedata import name
-
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from PyQt6.QtCore import Qt, QSignalBlocker, QObject, pyqtSignal
-from PyQt6.QtGui import QPen, QColor
+from PyQt6.QtWidgets import QWidget
+from PyQt6.QtCore import Qt, QObject, pyqtSignal
+from PyQt6.QtGui import QColor
 import pyqtgraph as pg
 
 from varda.common.ui import VBoxBuilder, HBoxBuilder, SectionBox
@@ -87,6 +84,20 @@ class Curve(QObject):
         return cls(plotItem, defaultConfig)
 
 
+class WindowConfig(ParameterGroup):
+    backgroundColor = ColorParameter("Background Color", "#000000")
+    autoViewRange = BoolParameter(
+        "Auto Range",
+        True,
+        "Should view range be manually set or automatically adjust?",
+    )
+
+
+class RangeConfig(ParameterGroup):
+    viewRangeX = Vec2Parameter("X View Range", valueNames=("Min", "Max"))
+    viewRangeY = Vec2Parameter("Y View Range", valueNames=("Min", "Max"))
+
+
 class VardaPlotWidget(QWidget):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -101,39 +112,17 @@ class VardaPlotWidget(QWidget):
         self.plotItem.setMouseEnabled(x=False, y=False)
         self.gv.setCentralItem(self.plotItem)
 
-        self.backgroundColor = ColorParameter(
-            name="Background Color",
-            default="#000000",
-            description=None,
-        )
-        self.autoViewRange = BoolParameter(
-            name="Automatically Calculate Range",
-            default=True,
-            description="Whether view range should be automatically calculated based on the plotted data, or manually set.",
-        )
-        self.viewRangeX = Vec2Parameter(
-            name="X View Range",
-            default=None,
-            description=None,
-            valueNames=("Min", "Max"),
-        )
-        self.viewRangeY = Vec2Parameter(
-            name="Y View Range",
-            default=None,
-            description=None,
-            valueNames=("Min", "Max"),
-        )
+        self.windowConfig = WindowConfig()
+        self.windowConfig.sigParameterChanged.connect(self.onWindowParamsChanged)
 
-        self.windowParams = ParameterGroupWidget(
-            [self.backgroundColor, self.autoViewRange]
-        )
-        self.windowParams.sigParameterChanged.connect(self.onWindowParamsChanged)
-
-        self.rangeParams = ParameterGroupWidget([self.viewRangeX, self.viewRangeY])
-        self.rangeParams.sigParameterChanged.connect(self.onRangeParamsChanged)
-        self.rangeParams.hide()
+        self.rangeConfig = RangeConfig()
+        self.rangeConfig.sigParameterChanged.connect(self.onRangeParamsChanged)
 
         self.curveSettingsBox = SectionBox("Curve Settings")
+
+        self.windowConfigWidget = self.windowConfig.createWidget()
+        self.rangeConfigWidget = self.rangeConfig.createWidget()
+        self.rangeConfigWidget.hide()
         self.setLayout(
             HBoxBuilder()
             .withWidget(self.gv)
@@ -144,29 +133,28 @@ class VardaPlotWidget(QWidget):
                     SectionBox(
                         "Window Settings",
                         VBoxBuilder()
-                        .withWidget(self.windowParams)
-                        .withWidget(self.rangeParams),
+                        .withWidget(self.windowConfigWidget)
+                        .withWidget(self.rangeConfigWidget),
                     )
                 )
             )
         )
 
     def onWindowParamsChanged(self):
-        color = QColor(self.backgroundColor.value)
-        self.gv.setBackground(color)
+        self.gv.setBackground(self.windowConfig.backgroundColor.value)
 
-        if self.autoViewRange.get():
+        if self.windowConfig.autoViewRange.value:
             self.plotItem.enableAutoRange()
-            self.rangeParams.hide()
+            self.rangeConfigWidget.hide()
         else:
             self.plotItem.disableAutoRange()
-            self.rangeParams.show()
+            self.rangeConfigWidget.show()
             self.onRangeParamsChanged()
 
     def onRangeParamsChanged(self):
-        if not self.autoViewRange.get():
-            xRange = self.viewRangeX.get()
-            yRange = self.viewRangeY.get()
+        if not self.windowConfig.autoViewRange.value:
+            xRange = self.rangeConfig.viewRangeX.value
+            yRange = self.rangeConfig.viewRangeY.value
             self.plotItem.setXRange(xRange.x, xRange.y)
             self.plotItem.setYRange(yRange.x, yRange.y)
 
