@@ -2,7 +2,7 @@ from typing import Type
 import numpy as np
 from PyQt6.QtCore import QObject
 
-from varda.common.parameter import IntParameter, ParameterGroup
+from varda.common.parameter import IntParameter, ParameterGroupWidget
 
 
 # TODO: Implement the other stretch algorithms:
@@ -34,12 +34,12 @@ def validateArrayShape(image):
 
 
 class StretchAlgorithm(QObject):
-    def parameters(self) -> ParameterGroup:
+    def parameters(self) -> ParameterGroupWidget:
         """
         Returns a ParameterGroup object containing parameters for this stretch algorithm.
         If an algorithm has no parameters, they do not need to reimplement this method.
         """
-        return ParameterGroup([])
+        return ParameterGroupWidget([])
 
     def apply(self, image: np.ndarray) -> np.ndarray:
         raise NotImplementedError("Subclasses classes must implement this method.")
@@ -76,7 +76,7 @@ class MinMaxStretch(StretchAlgorithm):
         self.maxVals = None
 
     def parameters(self):
-        return ParameterGroup([])
+        return ParameterGroupWidget([])
 
     def apply(self, image):
         """Compute min/max values for the full range of data."""
@@ -136,8 +136,8 @@ class LinearPercentileStretch(StretchAlgorithm):
         self.minVals: np.ndarray | None = None
         self.maxVals: np.ndarray | None = None
 
-    def parameters(self) -> ParameterGroup:
-        return ParameterGroup([self.lowPercent, self.highPercent])
+    def parameters(self) -> ParameterGroupWidget:
+        return ParameterGroupWidget([self.lowPercent, self.highPercent])
 
     def apply(self, image: np.ndarray) -> np.ndarray:
         """Compute min/max values based on percentiles."""

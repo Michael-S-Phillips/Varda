@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import Qt
 
 # local imports
-from varda.common.parameter import ImageParameter, ParameterGroup, EnumParameter
+from varda.common.parameter import ImageParameter, ParameterGroupWidget, EnumParameter
 from varda.common.entities import Image
 from varda.image_rendering.raster_view import ImageViewport
 from varda.image_rendering.image_renderer import ImageRenderer
@@ -52,7 +52,7 @@ class DualImageWorkspaceConfig:
         )
 
     def getParameters(self):
-        return ParameterGroup(
+        return ParameterGroupWidget(
             [
                 self.image1Param,
                 self.image2Param,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing_extensions import override
 
-from PyQt6.QtCore import QRect, Qt, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
@@ -37,12 +37,12 @@ class VBoxBuilder(QVBoxLayout):
         self.setAlignment(alignment)
 
     def withWidget(
-        self, widget: QWidget, stretch: int = 0, alignment=Qt.AlignmentFlag(0)
+        self, widget: QWidget | None, stretch: int = 0, alignment=Qt.AlignmentFlag(0)
     ) -> VBoxBuilder:
         self.addWidget(widget, stretch, alignment)
         return self
 
-    def withLayout(self, layout: QLayout, stretch: int = 0) -> VBoxBuilder:
+    def withLayout(self, layout: QLayout | None, stretch: int = 0) -> VBoxBuilder:
         self.addLayout(layout, stretch)
         return self
 
@@ -57,12 +57,12 @@ class HBoxBuilder(QHBoxLayout):
         self.setAlignment(alignment)
 
     def withWidget(
-        self, widget: QWidget, stretch: int = 0, alignment=Qt.AlignmentFlag(0)
+        self, widget: QWidget | None, stretch: int = 0, alignment=Qt.AlignmentFlag(0)
     ) -> HBoxBuilder:
         self.addWidget(widget, stretch, alignment)
         return self
 
-    def withLayout(self, layout: QLayout, stretch: int = 0) -> HBoxBuilder:
+    def withLayout(self, layout: QLayout | None, stretch: int = 0) -> HBoxBuilder:
         self.addLayout(layout, stretch)
         return self
 
@@ -82,12 +82,16 @@ class SplitterBuilder(QSplitter):
         super().__init__()
         self.setOrientation(orientation)
 
-    def withWidget(self, widget: QWidget, stretchFactor: int = 1) -> SplitterBuilder:
+    def withWidget(
+        self, widget: QWidget | None, stretchFactor: int = 1
+    ) -> SplitterBuilder:
         self.addWidget(widget)
         self.setStretchFactor(self.indexOf(widget), stretchFactor)
         return self
 
-    def withLayout(self, layout: QLayout, stretchFactor: int = 1) -> SplitterBuilder:
+    def withLayout(
+        self, layout: QLayout | None, stretchFactor: int = 1
+    ) -> SplitterBuilder:
         wrapper = WrapperWidget(layout)
         self.addWidget(wrapper)
         self.setStretchFactor(self.indexOf(wrapper), stretchFactor)
@@ -117,9 +121,14 @@ class ButtonBuilder(QPushButton):
 
 
 class SectionBox(QWidget):
-    def __init__(self, name=None, inside=None, parent=None):
+    def __init__(
+        self,
+        name: str | None = None,
+        content: QWidget | QLayout | None = None,
+        parent: QWidget | None = None,
+    ):
         super().__init__(parent)
-        self.frame = QFrame(parent)
+        self.frame = QFrame()
         self.frame.setFrameShape(QFrame.Shape.NoFrame)
         self.frame.setMinimumSize(40, 40)
         self.frame.setObjectName("SectionBox")
@@ -129,17 +138,42 @@ class SectionBox(QWidget):
             border-radius: 6px;
         }
         """)
-        if isinstance(inside, QLayout):
-            self.frame.setLayout(inside)
-        elif isinstance(inside, QWidget):
-            self.frame.setLayout(VBoxBuilder().withWidget(inside))
-        elif inside is not None:
-            raise TypeError("FrameBuilder requires a QWidget or QLayout")
+        self.currentContent = None
+        self.frameLayout = QVBoxLayout()
+        if isinstance(content, QLayout):
+            self.frameLayout.addLayout(content)
+        elif isinstance(content, QWidget):
+            self.frameLayout.addWidget(content)
+        elif content is not None:
+            raise TypeError("SectionBox requires a QWidget or QLayout (or None)")
+        self.frame.setLayout(self.frameLayout)
+
         self.setLayout(
             VBoxBuilder()
             .withWidget(QLabel(name) if name else None)
             .withWidget(self.frame)
         )
+
+    def setContent(self, content: QWidget | QLayout | None):
+        # clear existing items
+        self._clearLayout(self.frameLayout)
+        # now set new layout
+        if content is None:
+            return
+        elif isinstance(content, QLayout):
+            self.frameLayout.addLayout(content)
+        elif isinstance(content, QWidget):
+            self.frameLayout.addWidget(content)
+        else:
+            raise TypeError("SectionBox requires a QWidget or QLayout (or None)")
+
+    def _clearLayout(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            if w := item.widget():
+                w.setParent(None)
+            elif l := item.layout():
+                self._clearLayout(l)
 
 
 class VardaDockWidget(QDockWidget):

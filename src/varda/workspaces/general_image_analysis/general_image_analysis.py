@@ -23,7 +23,7 @@ from varda.metadata_management.metadata_editor import MetadataEditor
 
 from varda.image_rendering.raster_view import TripleRasterView
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
-from varda.common.parameter import ImageParameter, ParameterGroup
+from varda.common.parameter import ImageParameter, ParameterGroupWidget
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class GeneralImageAnalysisConfig:
         )
 
     def getParameters(self):
-        return ParameterGroup([self.imageParam])
+        return ParameterGroupWidget([self.imageParam])
 
 
 class GeneralImageAnalysisWorkflow(QMainWindow):

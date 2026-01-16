@@ -18,7 +18,7 @@ import pyqtgraph as pg
 from pyqtgraph import ColorMap
 import numpy as np
 
-from varda.common.parameter import FloatParameter, ParameterGroup
+from varda.common.parameter import FloatParameter, ParameterGroupWidget
 from varda.common.ui import VBoxBuilder
 from varda.common.entities import Image
 import varda.utilities.debug
@@ -277,14 +277,14 @@ class RendererSettingsPanel(QWidget):
         opacityParam = FloatParameter(
             name="Opacity",
             default=self.settings.opacity,
-            description="Opacity of the rendered image.",
+            range=(0.0, 1.0),
             units="%",
-            valueRange=(0.0, 1.0),
+            description="Opacity of the rendered image.",
             parent=self,
         )
         opacityParam.sigValueChanged.connect(self._onOpacityChanged)
 
-        layout.addWidget(ParameterGroup([opacityParam], self))
+        layout.addWidget(ParameterGroupWidget([opacityParam], self))
         ### Finish Init UI ###
         self.setLayout(layout)
 

@@ -1,119 +1,195 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from unicodedata import name
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from PyQt6.QtCore import Qt, QSignalBlocker
+from PyQt6.QtCore import Qt, QSignalBlocker, QObject, pyqtSignal
 from PyQt6.QtGui import QPen, QColor
 import pyqtgraph as pg
 
 from varda.common.ui import VBoxBuilder, HBoxBuilder, SectionBox
-from varda.common.parameter import ParameterGroup, FloatParameter, ColorParameter
+from varda.common.parameter import (
+    ParameterGroup,
+    ParameterGroupWidget,
+    FloatParameter,
+    Vec2Parameter,
+    ColorParameter,
+    BoolParameter,
+)
 
 
-@dataclass
-class PlotData:
-    data: pg.PlotDataItem
-    offset: tuple[float, float] = (0.0, 0.0)
-    scale: float = 1.0
-    thickness: float = 2.0
-    color: str = "r"
+class CurveConfig(ParameterGroup):
+    width = FloatParameter(
+        "Curve Width",
+        default=2.0,
+        range=(0.1, 10.0),
+        units="px",
+        description="Width of the curve in pixels",
+    )
+    color = ColorParameter(
+        "Curve Color",
+        default="#ff0000",
+        description="Color of the curve",
+    )
+    offset = FloatParameter(
+        "Y Offset",
+        default=0.0,
+        units="y",
+        description="Vertical offset of the curve",
+    )
+    scale = FloatParameter(
+        "Y Scale",
+        default=1.0,
+        units="y",
+        description="Vertical scale of the curve",
+    )
+
+
+class Curve(QObject):
+    sigClicked = pyqtSignal(object)  # emits self when clicked
+
+    def __init__(
+        self,
+        plotDataItem: pg.PlotDataItem,
+        config: CurveConfig,
+        parent: QObject | None = None,
+    ):
+        super().__init__(parent)
+        self.plotDataItem = plotDataItem
+        self.plotDataItem.sigClicked.connect(lambda: self.sigClicked.emit(self))
+        self.config = config
+
+        self.config.sigParameterChanged.connect(self.onConfigChanged)
+
+        self.onConfigChanged()
+
+    def onConfigChanged(self):
+        pen = pg.mkPen(color=self.config.color.value, width=self.config.width.value)
+        self.plotDataItem.setPen(pen)
+        self.plotDataItem.setTransform(
+            pg.QtGui.QTransform()
+            .scale(1.0, self.config.scale.value)
+            .translate(0.0, self.config.offset.value)
+        )
+
+    def setClickable(self, clickable: bool):
+        self.plotDataItem.setCurveClickable(clickable, width=20)
+
+    def setHighlighted(self, highlighted: bool):
+        if highlighted:
+            self.plotDataItem.setShadowPen(pg.mkPen("#ffff0088", width=10))
+        else:
+            self.plotDataItem.setShadowPen(None)
+
+    @classmethod
+    def fromData(cls, x, y, **kwargs):
+        plotItem = pg.PlotDataItem(x, y, **kwargs)
+        defaultConfig = CurveConfig()
+        return cls(plotItem, defaultConfig)
 
 
 class VardaPlotWidget(QWidget):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.selectedPlot = None
+        self.selectedCurve: Curve | None = None
 
-        self.plots: list[pg.PlotDataItem] = []
-        self.plotMetadata: list[PlotData] = []
+        self.plots: list[Curve] = []
         self.gv = pg.GraphicsView()
         # if the user clicks on the plot area and none of the plots catch the click (therefore selecting it), deselect any selected plot
         self.gv.scene().sigMouseClicked.connect(self.onSceneClicked)
         self.plotItem = pg.PlotItem()
         self.plotItem.addLegend()
-        self
         self.plotItem.setMouseEnabled(x=False, y=False)
         self.gv.setCentralItem(self.plotItem)
-
-        self.lineWidth = FloatParameter(
-            name="Line Width",
-            default=1.0,
-            description=None,
-            units="px",
-            valueRange=(0.1, 10.0),
-        )
-        self.lineColor = ColorParameter(
-            name="Line Color",
-            default="#ff0000",
-            description=None,
-        )
-        self.offset = FloatParameter(
-            name="Offset",
-            default=0.0,
-            description=None,
-            units="units",
-        )
-        self.scale = FloatParameter(
-            name="Scale",
-            default=1.0,
-            description=None,
-            units="x",
-        )
-        self.lineParams = ParameterGroup(
-            [self.lineWidth, self.lineColor, self.offset, self.scale]
-        )
-        self.lineParams.sigParameterChanged.connect(self.onLineParamsChanged)
 
         self.backgroundColor = ColorParameter(
             name="Background Color",
             default="#000000",
             description=None,
         )
-        self.windowParams = ParameterGroup([self.backgroundColor])
+        self.autoViewRange = BoolParameter(
+            name="Automatically Calculate Range",
+            default=True,
+            description="Whether view range should be automatically calculated based on the plotted data, or manually set.",
+        )
+        self.viewRangeX = Vec2Parameter(
+            name="X View Range",
+            default=None,
+            description=None,
+            valueNames=("Min", "Max"),
+        )
+        self.viewRangeY = Vec2Parameter(
+            name="Y View Range",
+            default=None,
+            description=None,
+            valueNames=("Min", "Max"),
+        )
+
+        self.windowParams = ParameterGroupWidget(
+            [self.backgroundColor, self.autoViewRange]
+        )
         self.windowParams.sigParameterChanged.connect(self.onWindowParamsChanged)
+
+        self.rangeParams = ParameterGroupWidget([self.viewRangeX, self.viewRangeY])
+        self.rangeParams.sigParameterChanged.connect(self.onRangeParamsChanged)
+        self.rangeParams.hide()
+
+        self.curveSettingsBox = SectionBox("Curve Settings")
         self.setLayout(
             HBoxBuilder()
             .withWidget(self.gv)
             .withLayout(
                 VBoxBuilder(Qt.AlignmentFlag.AlignTop)
-                .withWidget(SectionBox("Curve Settings", self.lineParams))
-                .withWidget(SectionBox("Window Settings", self.windowParams))
+                .withWidget(self.curveSettingsBox)
+                .withWidget(
+                    SectionBox(
+                        "Window Settings",
+                        VBoxBuilder()
+                        .withWidget(self.windowParams)
+                        .withWidget(self.rangeParams),
+                    )
+                )
             )
         )
-
-    def onLineParamsChanged(self):
-        if self.selectedPlot is not None:
-            pen = pg.mkPen(color=self.lineColor.value, width=self.lineWidth.value)
-            self.selectedPlot.setPen(pen)
-            self.selectedPlot.setTransform(
-                pg.QtGui.QTransform()
-                .scale(1.0, self.scale.value)
-                .translate(0.0, self.offset.value)
-            )
 
     def onWindowParamsChanged(self):
         color = QColor(self.backgroundColor.value)
         self.gv.setBackground(color)
 
-    def plot(self, x, y, **kwargs) -> pg.PlotDataItem:
-        plot = pg.PlotDataItem(x, y, **kwargs)
-        plot.setCurveClickable(True, width=20)
-        plot.sigClicked.connect(self.selectPlot)
+        if self.autoViewRange.get():
+            self.plotItem.enableAutoRange()
+            self.rangeParams.hide()
+        else:
+            self.plotItem.disableAutoRange()
+            self.rangeParams.show()
+            self.onRangeParamsChanged()
 
-        self.addPlot(plot)
-        return plot
+    def onRangeParamsChanged(self):
+        if not self.autoViewRange.get():
+            xRange = self.viewRangeX.get()
+            yRange = self.viewRangeY.get()
+            self.plotItem.setXRange(xRange.x, xRange.y)
+            self.plotItem.setYRange(yRange.x, yRange.y)
 
-    def selectPlot(self, plot: pg.PlotDataItem):
+    def plot(self, x, y, **kwargs):
+        """
+        TODO: Maybe give each new plot a different starting color?
+
+        :param self: Description
+        :param x: Description
+        :param y: Description
+        :param kwargs: Description
+        """
+        curve = Curve.fromData(x, y, **kwargs)
+        curve.setClickable(True)
+        curve.sigClicked.connect(self.selectPlot)
+        self.plots.append(curve)
+        self.plotItem.addItem(curve.plotDataItem)
+
+    def selectPlot(self, curve: Curve):
         self.deselectPlot()
-        self.selectedPlot = plot
-        plot.setShadowPen(pg.mkPen("#ffff0088", width=10))
-
-        with self.lineParams.editParams():
-            self.offset.set(plot.transform().dy())
-            self.scale.set(plot.transform().m22())
-            currentPen: QPen = plot.opts["pen"]
-            if currentPen is not None:
-                self.lineColor.set(currentPen.color())
-                self.lineWidth.set(currentPen.widthF())
+        self.selectedCurve = curve
+        curve.setHighlighted(True)
+        self.curveSettingsBox.setContent(curve.config.createWidget())
 
     def onSceneClicked(self, event):
         if event.isAccepted():
@@ -121,14 +197,10 @@ class VardaPlotWidget(QWidget):
         self.deselectPlot()
 
     def deselectPlot(self):
-        if self.selectedPlot is not None:
-            self.selectedPlot.setShadowPen(None)
-        self.selectedPlot = None
-        self.lineParams.resetToDefaults()
-
-    def addPlot(self, plot: pg.PlotDataItem):
-        self.plots.append(plot)
-        self.plotItem.addItem(plot)
+        if self.selectedCurve is not None:
+            self.selectedCurve.setHighlighted(False)
+            self.curveSettingsBox.setContent(None)
+        self.selectedCurve = None
 
     def removePlot(self, plot: pg.PlotDataItem):
         if plot in self.plots:
@@ -150,22 +222,11 @@ if __name__ == "__main__":
     w = VardaPlotWidget()
     x = np.linspace(0, 10, 100)
     y = np.sin(x)
-    p1 = w.plot(
-        x, y, pen=pg.mkPen(color="g", width=2), name="Sine Wave", antialias=True
-    )
+    w.plot(x, y, pen=pg.mkPen(color="g", width=2), name="Sine Wave", antialias=True)
 
     x2 = np.linspace(0, 10, 100)
     y2 = np.cos(x2)
-    p2 = w.plot(
-        x2, y2, pen=pg.mkPen(color="r", width=2), name="Cosine Wave", antialias=True
-    )
+    w.plot(x2, y2, pen=pg.mkPen(color="r", width=2), name="Cosine Wave", antialias=True)
     w.show()
-
-    # when user presses F, remove p1
-    def keyPressEvent(event):
-        if event.key() == Qt.Key.Key_F:
-            w.removePlot(p1)
-
-    w.keyPressEvent = keyPressEvent
 
     app.exec()
