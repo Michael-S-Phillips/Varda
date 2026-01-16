@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QLabel,
     QApplication,
+    QMessageBox,
 )
 import pyqtgraph as pg
 from pyqtgraph import ColorMap
@@ -350,8 +351,16 @@ class RendererSettingsPanel(QWidget):
         self.sigSettingsChanged.emit(self.settings)
 
     def _onColorMapChanged(self, colorMap: pg.GradientEditorItem):
-        self.settings.colorMap = colorMap.colorMap()
-        self.sigSettingsChanged.emit(self.settings)
+        try:
+            newColorMap = colorMap.colorMap()  # may raise NotImplementedError
+            self.settings.colorMap = newColorMap
+            self.sigSettingsChanged.emit(self.settings)
+        except NotImplementedError:
+            QMessageBox.warning(
+                self, "Unsupported Color Map", "HSV color maps are not supported yet."
+            )
+            # revert to previous colormap
+            colorMap.setColorMap(self.settings.colorMap)
 
     def _onOpacityChanged(self, value: float):
         self.settings.opacity = value

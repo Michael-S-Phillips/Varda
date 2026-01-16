@@ -1,7 +1,7 @@
 from __future__ import annotations
 import re
 from enum import Enum
-from typing import Type
+from typing import Type, Callable
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QSignalBlocker, Qt, QObject
 from PyQt6.QtGui import QColor
 
@@ -508,6 +508,15 @@ class EnumParameter(Parameter[Enum]):
     def getWidget(self, parent=None) -> QWidget:
         return self.EnumParameterWidget(self, parent)
 
+    def clone(self, parent=None) -> EnumParameter:
+        return EnumParameter(
+            self.name,
+            self.enumType,
+            self.default,
+            self.description,
+            parent,
+        )
+
     class EnumParameterWidget(QWidget):
         def __init__(self, param: "EnumParameter", parent=None):
             super().__init__(parent)
@@ -585,23 +594,42 @@ class ColorParameter(Parameter[QColor]):
 
 
 class ImageParameter(Parameter[Image]):
-    def __init__(
-        self, name: str, imageList: list[Image], description=None, parent=None
-    ) -> None:
-        self.imageList = imageList
-        if len(self.imageList) == 0:
-            raise ValueError("ImageParameter requires a non-empty imageList")
-        default = self.imageList[0]
+    """
+    Parameter that allows selection from a list of images.
+    For now it just displays the name, but in the future it could potentially show image previews or maybe filtering options.
+
+    This parameter works different, because it needs a list of images to work with, which is only known at runtime.
+    So, the parameter must be manually given a callable "image provider" after initialization, but before use.
+    """
+
+    def __init__(self, name: str, description=None, parent=None) -> None:
+        self.imageProvider: Callable[[], list[Image]] = lambda: []
+        default = None
         super().__init__(name, default, description, parent)
+
+    def setProvider(self, imageProvider: Callable[[], list[Image]]) -> None:
+        """
+        Sets the callable image provider that returns the list of images to choose from.
+        This must be set before using the parameter for anything else.
+        """
+        self.imageProvider = imageProvider
+        images = imageProvider()
+        if len(images) > 0:
+            self.set(images[0])
 
     def getWidget(self, parent=None) -> QWidget:
         return self.ImageParameterWidget(self, parent)
+
+    def clone(self, parent=None) -> ImageParameter:
+        newParam = ImageParameter(self.name, self.description, parent)
+        newParam.setProvider(self.imageProvider)
+        return newParam
 
     class ImageParameterWidget(QWidget):
         def __init__(self, param: "ImageParameter", parent=None):
             super().__init__(parent)
             self.param = param
-            self.imageList = param.imageList
+            self.imageList = param.imageProvider()
             self.comboBox = QComboBox(self)
             if len(self.imageList) == 0:
                 self.comboBox.addItem("No Images Available!")
@@ -616,21 +644,12 @@ class ImageParameter(Parameter[Image]):
             self.setLayout(paramLayout)
 
         def imageSelectionChanged(self, index):
+            if len(self.imageList) == 0:
+                # do nothing if the list is empty. This might happen if user selects the "No Images Available!" item.
+                return
             self.param.set(self.imageList[index])
 
 
-# if __name__ == "__main__":
-#     q_app = pg.mkQApp()
-#     paramGroup = ParameterGroup(
-#         [
-#             IntParameter("test", "test units", 10, (0, 100)),
-#             IntParameter("test2", "test units", 7, (0, 10)),
-#         ]
-#     )
-#     paramGroup.show()
-#     q_app.exec()
-#
-#
 if __name__ == "__main__":
     import sys
     from PyQt6.QtWidgets import QApplication, QVBoxLayout, QWidget
@@ -654,7 +673,7 @@ if __name__ == "__main__":
     )
     imageParam0 = ImageParameter(
         "ImageVal",
-        [debug.generate_random_image(), debug.generate_random_image()],
+        lambda: [debug.generate_random_image(), debug.generate_random_image()],
         "A test image parameter",
     )
 

@@ -29,7 +29,7 @@ class NewGeneralImageAnalysisWorkspaceDialog(QDialog):
 
         self.setLayout(
             VBoxBuilder()
-            .withWidget(self.config.getParameters())
+            .withWidget(self.config.createWidget())
             .withStretch()
             .withLayout(
                 HBoxBuilder()

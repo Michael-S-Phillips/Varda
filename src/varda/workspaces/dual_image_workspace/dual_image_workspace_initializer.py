@@ -30,7 +30,7 @@ class NewDualImageWorkspaceDialog(QDialog):
 
         self.setLayout(
             VBoxBuilder()
-            .withWidget(self.dualImageWorkspaceConfig.getParameters())
+            .withWidget(self.dualImageWorkspaceConfig.createWidget())
             .withStretch()
             .withLayout(
                 HBoxBuilder()

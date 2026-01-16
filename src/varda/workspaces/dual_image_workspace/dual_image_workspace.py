@@ -1,55 +1,63 @@
 # standard library
 from enum import Enum
+from typing import override
 
 # third party imports
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import Qt
 
 # local imports
-from varda.common.parameter import ImageParameter, ParameterGroupWidget, EnumParameter
+from varda.common.parameter import (
+    ImageParameter,
+    ParameterGroup,
+    ParameterGroupWidget,
+    EnumParameter,
+)
 from varda.common.entities import Image
 from varda.image_rendering.raster_view import ImageViewport
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.common.ui import VBoxBuilder, SplitterBuilder, HBoxBuilder
 
 
-class DualImageWorkspaceConfig:
-    image1Param: ImageParameter
-    image2Param: ImageParameter
-    displayModeParam: EnumParameter
-    linkModeParam: EnumParameter
+class DisplayMode(Enum):
+    SIDE_BY_SIDE = 1
+    OVERLAY = 2
 
-    class DisplayMode(Enum):
-        SIDE_BY_SIDE = 1
-        OVERLAY = 2
 
-    class LinkMode(Enum):
-        PIXEL = 1
-        GEO = 2
+class LinkMode(Enum):
+    PIXEL = 1
+    GEO = 2
+
+
+class DualImageWorkspaceConfig(ParameterGroup):
+    imageList: list[Image]
+
+    image1Param: ImageParameter = ImageParameter(
+        "Primary Image",
+        "Primary Image for Workspace (Usually a Spectral Image)",
+    )
+    image2Param: ImageParameter = ImageParameter(
+        "Secondary Image",
+        "Secondary Image for Workspace (Usually a Band Parameter Image)",
+    )
+    displayModeParam: EnumParameter = EnumParameter(
+        "Display Mode",
+        DisplayMode,
+        DisplayMode.SIDE_BY_SIDE,
+        "Display Mode for Dual Image Workspace",
+    )
+    linkModeParam: EnumParameter = EnumParameter(
+        "Sync Mode",
+        LinkMode,
+        LinkMode.PIXEL,
+        "Whether to link the images by pixel or geographic coordinates.",
+    )
 
     def __init__(self, imageList: list[Image]) -> None:
-        self.image1Param: ImageParameter = ImageParameter(
-            "Primary Image",
-            imageList,
-            "Primary Image for Workspace (Usually a Spectral Image)",
-        )
-        self.image2Param: ImageParameter = ImageParameter(
-            "Secondary Image",
-            imageList,
-            "Secondary Image for Workspace (Usually a Band Parameter Image)",
-        )
-        self.displayModeParam: EnumParameter = EnumParameter(
-            "Display Mode",
-            self.DisplayMode,
-            self.DisplayMode.SIDE_BY_SIDE,
-            "Display Mode for Dual Image Workspace",
-        )
-        self.linkModeParam: EnumParameter = EnumParameter(
-            "Sync Mode",
-            self.LinkMode,
-            self.LinkMode.PIXEL,
-            "Whether to link the images by pixel or geographic coordinates.",
-        )
+        super().__init__()
+        self.imageList = imageList
+        self.image1Param.setProvider(lambda: self.imageList)
+        self.image2Param.setProvider(lambda: self.imageList)
 
     def getParameters(self):
         return ParameterGroupWidget(
@@ -72,9 +80,9 @@ class DualImageWorkspace(QWidget):
         self.primaryRenderer = ImageRenderer(image=self.image1)
         self.secondaryRenderer = ImageRenderer(image=self.image2)
 
-        if config.displayModeParam.get() == config.DisplayMode.SIDE_BY_SIDE:
+        if config.displayModeParam.get() == DisplayMode.SIDE_BY_SIDE:
             self.setLayout(self._sideBySideLayout())
-        elif config.displayModeParam.get() == config.DisplayMode.OVERLAY:
+        elif config.displayModeParam.get() == DisplayMode.OVERLAY:
             self.setLayout(self._overlayLayout())
 
     def _sideBySideLayout(self):

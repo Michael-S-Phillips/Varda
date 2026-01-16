@@ -6,7 +6,6 @@ import pyqtgraph as pg
 from varda.common.ui import VBoxBuilder, HBoxBuilder, SectionBox
 from varda.common.parameter import (
     ParameterGroup,
-    ParameterGroupWidget,
     FloatParameter,
     Vec2Parameter,
     ColorParameter,

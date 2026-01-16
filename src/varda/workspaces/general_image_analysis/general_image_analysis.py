@@ -23,23 +23,21 @@ from varda.metadata_management.metadata_editor import MetadataEditor
 
 from varda.image_rendering.raster_view import TripleRasterView
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
-from varda.common.parameter import ImageParameter, ParameterGroupWidget
+from varda.common.parameter import ImageParameter, ParameterGroup
 
 logger = logging.getLogger(__name__)
 
 
-class GeneralImageAnalysisConfig:
-    image: ImageParameter
+class GeneralImageAnalysisConfig(ParameterGroup):
+    image = ImageParameter(
+        "Image",
+        "The image to view.",
+    )
 
     def __init__(self, imageList: list[Image]) -> None:
-        self.imageParam: ImageParameter = ImageParameter(
-            "Image",
-            imageList,
-            "Image to view.",
-        )
-
-    def getParameters(self):
-        return ParameterGroupWidget([self.imageParam])
+        super().__init__()
+        self.imageList = imageList
+        self.image.setProvider(lambda: self.imageList)
 
 
 class GeneralImageAnalysisWorkflow(QMainWindow):
@@ -56,7 +54,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
     def __init__(self, config: GeneralImageAnalysisConfig, parent=None):
         super().__init__(parent)
-        self.image = config.imageParam.get()
+        self.config = config
 
         # Initialize core components
         self.rasterView = None
@@ -78,7 +76,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         """Initialize all workflow components"""
 
         # Initialize raster view
-        self.imageRenderer = ImageRenderer(image=self.image)
+        self.imageRenderer = ImageRenderer(image=self.config.image.value)
 
         self.rendererSettingsPanel = self.imageRenderer.getSettingsPanel()
 
@@ -119,7 +117,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     def _initUI(self):
         """Initialize the user interface for the workflow"""
         self.setWindowTitle(
-            f"General Image Analysis - Image {self.image.metadata.name}"
+            f"General Image Analysis - Image {self.config.image.value.metadata.name}"
         )
 
         self._setupDocks()
