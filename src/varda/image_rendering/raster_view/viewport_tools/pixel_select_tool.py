@@ -1,8 +1,9 @@
 import logging
 from typing import override
 
-from PyQt6.QtCore import Qt, pyqtSignal, QPointF
 import pyqtgraph as pg
+import numpy as np
+from PyQt6.QtCore import Qt, pyqtSignal, QPointF
 from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
@@ -125,7 +126,11 @@ class PixelSelectTool(ViewportTool):
             return
 
         image = self.viewport.imageEntity
-        wavelengths = image.metadata.wavelengths
+        wavelengths = (
+            image.metadata.wavelengths
+            if image.metadata.wavelengths_type is not str
+            else np.arange(image.raster.shape[2])
+        )
 
         spectra = image.raster[y, x, :]
         self.plotWidget = VardaPlotWidget()

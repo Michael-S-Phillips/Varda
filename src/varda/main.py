@@ -21,7 +21,6 @@ from varda.image_loading import ImageLoadingService
 from varda.maingui import MainGUI
 from varda.workspaces.dual_image_workspace import NewDualImageWorkspaceDialog
 from varda.workspaces.general_image_analysis import (
-    GeneralImageAnalysisWorkflow,
     NewGeneralImageAnalysisWorkspaceDialog,
 )
 from varda.plugins import VardaPluginManager
