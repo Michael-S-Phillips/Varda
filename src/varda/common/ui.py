@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QSpinBox,
     QSizePolicy,
+    QCheckBox,
 )
 
 
@@ -375,6 +376,10 @@ class FloatSlider(QSlider):
 
 
 class SpinBoxBuilder:
+    """Convenience class for building QSpinBox widgets in a declarative style.
+
+    Chain together methods to configure the QSpinBox, and call build() to get the final widget."""
+
     def __init__(self, parent: QWidget | None = None) -> None:
         self.widget = QSpinBox(parent)
 
@@ -405,6 +410,11 @@ class SpinBoxBuilder:
 
 
 class SliderBuilder:
+    """Convenience class for building QSlider widgets in a declarative style.
+
+    Chain together methods to configure the QSlider, and call build() to get the final widget.
+    """
+
     def __init__(self, parent=None):
         self.widget = QSlider(parent)
 

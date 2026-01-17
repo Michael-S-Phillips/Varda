@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
 from varda.image_rendering.raster_view.protocols import Viewport
-from varda.plotting.pixel_plot import PixelPlot
+from varda.plotting.plot import VardaPlotWidget
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,9 @@ class PixelSelectTool(ViewportTool):
         self.hCrosshair.hide()
         self.isDragging = False
 
-        self.sigPixelSelected.connect(self.plotPixel)  # TODO: This is probably temp
+        self.sigPixelSelected.connect(
+            self.onPixelSelected
+        )  # TODO: This is probably temp
         self.activate()
 
     def activate(self):
@@ -108,7 +110,30 @@ class PixelSelectTool(ViewportTool):
             imagePos = pg.Point(self.viewport.imageItem.localToImage(pos))
             self.sigPixelSelected.emit(imagePos)
 
-    def plotPixel(self, pixelCoords):
+    def onPixelSelected(self, pixelCoords):
         # TODO: This is prob temp. Should somehow integrate with the more complex plotting system Michael was working on.
-        self.pixelPlot = PixelPlot()
-        self.pixelPlot.plot(self.viewport.imageEntity, pixelCoords)
+        # check that coordinates are within range
+        x = int(pixelCoords.x())
+        y = int(pixelCoords.y())
+        if (
+            x < 0
+            or y < 0
+            or x >= self.viewport.imageEntity.raster.shape[1]
+            or y >= self.viewport.imageEntity.raster.shape[0]
+        ):
+            logger.warning(f"Selected pixel ({x}, {y}) is out of image bounds")
+            return
+
+        image = self.viewport.imageEntity
+        wavelengths = image.metadata.wavelengths
+
+        spectra = image.raster[y, x, :]
+        self.plotWidget = VardaPlotWidget()
+        self.plotWidget.plot(
+            wavelengths,
+            spectra,
+            name=f"Pixel ({x}, {y})",
+        )
+        self.plotWidget.show()
+        # self.pixelPlot = PixelPlot()
+        # self.pixelPlot.plot(self.viewport.imageEntity, pixelCoords)

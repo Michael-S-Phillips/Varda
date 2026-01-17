@@ -5,6 +5,7 @@ import rasterio
 from pyproj import Transformer, CRS
 
 from varda.common.entities import Image
+from varda.utilities.bounds_validator import BoundsValidator
 
 logger = logging.getLogger(__name__)
 

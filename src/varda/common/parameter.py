@@ -9,10 +9,7 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QLineEdit,
     QComboBox,
-    QSpinBox,
     QWidget,
-    QSlider,
-    QHBoxLayout,
     QLabel,
     QDoubleSpinBox,
     QFormLayout,
@@ -476,7 +473,6 @@ class BoolParameter(Parameter[bool]):
         def __init__(self, param: "BoolParameter", parent=None):
             super().__init__(parent)
             self.param = param
-
             self.checkBox = QCheckBox(self)
             self.checkBox.setChecked(self.param.get())
             self.checkBox.checkStateChanged.connect(self.stateChanged)
