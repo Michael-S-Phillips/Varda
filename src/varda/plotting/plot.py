@@ -1,6 +1,5 @@
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import Qt, QObject, pyqtSignal
-from PyQt6.QtGui import QColor
 import pyqtgraph as pg
 
 from varda.common.ui import VBoxBuilder, HBoxBuilder, SectionBox

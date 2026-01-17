@@ -21,7 +21,12 @@ from PyQt6.QtWidgets import (
     QPushButton,
 )
 
-from varda.common.ui import FloatSlider, VBoxBuilder
+from varda.common.ui import (
+    FloatSlider,
+    HBoxBuilder,
+    SliderBuilder,
+    SpinBoxBuilder,
+)
 from varda.common.entities import Image
 from varda.common.vec2 import Vec2
 
@@ -183,10 +188,9 @@ class ParameterGroupWidget(QWidget):
 
 
 def paramLayoutDefault():
-    paramLayout = QHBoxLayout()
-    paramLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-    paramLayout.setContentsMargins(0, 0, 0, 0)
-    return paramLayout
+    return HBoxBuilder(
+        alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, margins=0
+    )
 
 
 class IntParameter(Parameter[int]):
@@ -223,38 +227,49 @@ class IntParameter(Parameter[int]):
             super().__init__(parent)
             self.param = param
             # init UI
-            paramLayout = paramLayoutDefault()
-
-            self.spinBox = QSpinBox(parent=self)
-            self.spinBox.setSizePolicy(
-                QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
+            self.spinBox = SpinBoxBuilder(
+                sizePolicy=(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed),
+                minimumSize=(60, 30),
+                range=self.param.range
+                if self.param.range is not None
+                else (-100000, 100000),
+                default=self.param.get(),
+                onValueChanged=self.valueChanged,
+                parent=self,
             )
-            self.spinBox.setMinimumSize(60, 30)
-            if self.param.range is not None:
-                self.spinBox.setRange(self.param.range[0], self.param.range[1])
-            else:
-                self.spinBox.setRange(-100000, 100000)
-            self.spinBox.setValue(self.param.get())
-            self.spinBox.valueChanged.connect(self.valueChanged)
-
-            paramLayout.addWidget(self.spinBox)
+            # self.spinBox = QSpinBox(parent=self)
+            # self.spinBox.setSizePolicy(
+            #     QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
+            # )
+            # self.spinBox.setMinimumSize(60, 30)
+            # if self.param.range is not None:
+            #     self.spinBox.setRange(self.param.range[0], self.param.range[1])
+            # else:
+            #     self.spinBox.setRange(-100000, 100000)
+            # self.spinBox.setValue(self.param.get())
+            # self.spinBox.valueChanged.connect(self.valueChanged)
 
             if self.param.units is not None:
                 self.unitLabel = QLabel(self.param.units)
-                paramLayout.addWidget(self.unitLabel)
+            else:
+                self.unitLabel = None
 
             if self.param.range is not None:
-                self.slider = QSlider(parent=self)
-                self.slider.setOrientation(Qt.Orientation.Horizontal)
-                # self.slider.setSizePolicy(
-                #     QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-                # )
-                self.slider.setRange(self.param.range[0], self.param.range[1])
-                self.slider.setValue(self.param.get())
-                self.slider.valueChanged.connect(self.valueChanged)
-                paramLayout.addWidget(self.slider)
-
-            self.setLayout(paramLayout)
+                self.slider = SliderBuilder(
+                    orientation=Qt.Orientation.Horizontal,
+                    range=self.param.range,
+                    default=self.param.get(),
+                    onValueChanged=self.valueChanged,
+                    parent=self,
+                )
+            else:
+                self.slider = None
+            self.setLayout(
+                paramLayoutDefault()
+                .withWidget(self.spinBox)
+                .withWidget(self.unitLabel)
+                .withWidget(self.slider)
+            )
 
         @pyqtSlot(int)
         def valueChanged(self, value):

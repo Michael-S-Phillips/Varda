@@ -1,7 +1,9 @@
 from __future__ import annotations
-from typing_extensions import override
 
-from PyQt6.QtCore import QObject, Qt, pyqtSignal
+from typing_extensions import override
+from typing import Callable
+
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
@@ -21,6 +23,8 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QSlider,
     QFrame,
+    QSpinBox,
+    QSizePolicy,
 )
 
 
@@ -32,9 +36,11 @@ class WrapperWidget(QWidget):
 
 
 class VBoxBuilder(QVBoxLayout):
-    def __init__(self, alignment=Qt.AlignmentFlag(0)):
+    def __init__(self, alignment=Qt.AlignmentFlag(0), margins=None):
         super().__init__()
         self.setAlignment(alignment)
+        if margins is not None:
+            self.setContentsMargins(margins, margins, margins, margins)
 
     def withWidget(
         self, widget: QWidget | None, stretch: int = 0, alignment=Qt.AlignmentFlag(0)
@@ -52,9 +58,11 @@ class VBoxBuilder(QVBoxLayout):
 
 
 class HBoxBuilder(QHBoxLayout):
-    def __init__(self, alignment=Qt.AlignmentFlag(0)):
+    def __init__(self, alignment=Qt.AlignmentFlag(0), margins=None):
         super().__init__()
         self.setAlignment(alignment)
+        if margins is not None:
+            self.setContentsMargins(margins, margins, margins, margins)
 
     def withWidget(
         self, widget: QWidget | None, stretch: int = 0, alignment=Qt.AlignmentFlag(0)
@@ -364,3 +372,53 @@ class FloatSlider(QSlider):
     def onValueChanged(self, value):
         floatVal = value / pow(10, self.precision)
         self.sigFloatValueChanged.emit(floatVal)
+
+
+class SpinBoxBuilder(QSpinBox):
+    def __init__(
+        self,
+        sizePolicy: tuple[QSizePolicy.Policy, QSizePolicy.Policy] | None = None,
+        minimumSize: tuple[int, int] | None = None,
+        range: tuple[int, int] | None = None,
+        default: int | None = None,
+        onValueChanged: Callable[[int], None] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        if sizePolicy is not None:
+            if isinstance(sizePolicy, QSizePolicy):
+                self.setSizePolicy(sizePolicy)
+            elif isinstance(sizePolicy, tuple) and len(sizePolicy) == 2:
+                self.setSizePolicy(QSizePolicy(*sizePolicy))
+            else:
+                raise ValueError(
+                    "sizePolicy must be a QSizePolicy or a tuple of two QSizePolicy.Policy values"
+                )
+        if minimumSize is not None:
+            self.setMinimumSize(minimumSize[0], minimumSize[1])
+        if range is not None:
+            self.setRange(range[0], range[1])
+        if default is not None:
+            self.setValue(default)
+        if onValueChanged is not None:
+            self.valueChanged.connect(onValueChanged)
+
+
+class SliderBuilder(QSlider):
+    def __init__(
+        self,
+        orientation: Qt.Orientation | None = None,
+        range: tuple[int, int] | None = None,
+        default: int | None = None,
+        onValueChanged: Callable[[int], None] | None = None,
+        parent=None,
+    ):
+        super().__init__(parent)
+        if orientation is not None:
+            self.setOrientation(orientation)
+        if range is not None:
+            self.setRange(range[0], range[1])
+        if default is not None:
+            self.setValue(default)
+        if onValueChanged is not None:
+            self.valueChanged.connect(onValueChanged)
