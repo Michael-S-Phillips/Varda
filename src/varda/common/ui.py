@@ -374,51 +374,55 @@ class FloatSlider(QSlider):
         self.sigFloatValueChanged.emit(floatVal)
 
 
-class SpinBoxBuilder(QSpinBox):
-    def __init__(
-        self,
-        sizePolicy: tuple[QSizePolicy.Policy, QSizePolicy.Policy] | None = None,
-        minimumSize: tuple[int, int] | None = None,
-        range: tuple[int, int] | None = None,
-        default: int | None = None,
-        onValueChanged: Callable[[int], None] | None = None,
-        parent: QWidget | None = None,
-    ) -> None:
-        super().__init__(parent)
-        if sizePolicy is not None:
-            if isinstance(sizePolicy, QSizePolicy):
-                self.setSizePolicy(sizePolicy)
-            elif isinstance(sizePolicy, tuple) and len(sizePolicy) == 2:
-                self.setSizePolicy(QSizePolicy(*sizePolicy))
-            else:
-                raise ValueError(
-                    "sizePolicy must be a QSizePolicy or a tuple of two QSizePolicy.Policy values"
-                )
-        if minimumSize is not None:
-            self.setMinimumSize(minimumSize[0], minimumSize[1])
-        if range is not None:
-            self.setRange(range[0], range[1])
-        if default is not None:
-            self.setValue(default)
-        if onValueChanged is not None:
-            self.valueChanged.connect(onValueChanged)
+class SpinBoxBuilder:
+    def __init__(self, parent: QWidget | None = None) -> None:
+        self.widget = QSpinBox(parent)
+
+    def sizePolicy(
+        self, horizontal: QSizePolicy.Policy, vertical: QSizePolicy.Policy
+    ) -> SpinBoxBuilder:
+        self.widget.setSizePolicy(horizontal, vertical)
+        return self
+
+    def minimumSize(self, width: int, height: int) -> SpinBoxBuilder:
+        self.widget.setMinimumSize(width, height)
+        return self
+
+    def range(self, range: tuple[int, int]) -> SpinBoxBuilder:
+        self.widget.setRange(range[0], range[1])
+        return self
+
+    def default(self, value: int) -> SpinBoxBuilder:
+        self.widget.setValue(value)
+        return self
+
+    def binding(self, onValueChanged: Callable[[int], None]) -> SpinBoxBuilder:
+        self.widget.valueChanged.connect(onValueChanged)
+        return self
+
+    def build(self) -> QSpinBox:
+        return self.widget
 
 
-class SliderBuilder(QSlider):
-    def __init__(
-        self,
-        orientation: Qt.Orientation | None = None,
-        range: tuple[int, int] | None = None,
-        default: int | None = None,
-        onValueChanged: Callable[[int], None] | None = None,
-        parent=None,
-    ):
-        super().__init__(parent)
-        if orientation is not None:
-            self.setOrientation(orientation)
-        if range is not None:
-            self.setRange(range[0], range[1])
-        if default is not None:
-            self.setValue(default)
-        if onValueChanged is not None:
-            self.valueChanged.connect(onValueChanged)
+class SliderBuilder:
+    def __init__(self, parent=None):
+        self.widget = QSlider(parent)
+
+    def orientation(self, orientation: Qt.Orientation) -> SliderBuilder:
+        self.widget.setOrientation(orientation)
+        return self
+
+    def range(self, range: tuple[int, int]) -> SliderBuilder:
+        self.widget.setRange(range[0], range[1])
+        return self
+
+    def default(self, value: int) -> SliderBuilder:
+        self.widget.setValue(value)
+        return self
+
+    def binding(self, onValueChanged: Callable[[int], None]) -> SliderBuilder:
+        self.widget.valueChanged.connect(onValueChanged)
+        return self
+
+    def build(self) -> QSlider:
+        return self.widget

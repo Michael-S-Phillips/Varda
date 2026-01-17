@@ -227,15 +227,18 @@ class IntParameter(Parameter[int]):
             super().__init__(parent)
             self.param = param
             # init UI
-            self.spinBox = SpinBoxBuilder(
-                sizePolicy=(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed),
-                minimumSize=(60, 30),
-                range=self.param.range
-                if self.param.range is not None
-                else (-100000, 100000),
-                default=self.param.get(),
-                onValueChanged=self.valueChanged,
-                parent=self,
+            self.spinBox = (
+                SpinBoxBuilder(self)
+                .sizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+                .minimumSize(60, 30)
+                .range(
+                    self.param.range
+                    if self.param.range is not None
+                    else (-100000, 100000)
+                )
+                .default(self.param.get())
+                .binding(self.valueChanged)
+                .build()
             )
             # self.spinBox = QSpinBox(parent=self)
             # self.spinBox.setSizePolicy(
@@ -255,12 +258,13 @@ class IntParameter(Parameter[int]):
                 self.unitLabel = None
 
             if self.param.range is not None:
-                self.slider = SliderBuilder(
-                    orientation=Qt.Orientation.Horizontal,
-                    range=self.param.range,
-                    default=self.param.get(),
-                    onValueChanged=self.valueChanged,
-                    parent=self,
+                self.slider = (
+                    SliderBuilder()
+                    .orientation(Qt.Orientation.Horizontal)
+                    .range(self.param.range)
+                    .default(self.param.get())
+                    .binding(self.valueChanged)
+                    .build()
                 )
             else:
                 self.slider = None
