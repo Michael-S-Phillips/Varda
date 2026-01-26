@@ -40,6 +40,13 @@ class ParameterGroup(QObject):
     sigParameterChanged: pyqtSignal = pyqtSignal()
 
     def __init__(self, parent: QObject | None = None) -> None:
+        """
+        Sets up fresh copies of all parameters to be used by this instance.
+
+        The way this works is by searching through the class-level attributes for Parameters/ParameterGroups,
+        and then cloning them and assigning them to instance-level attributes with the same names.
+        This way when you do object.paramName, you get the instance-specific parameter, not the class-level one.
+        """
         super().__init__(parent)
 
         # used to store all parameters in a list, for generating UI later.

@@ -12,6 +12,7 @@ import uuid
 from enum import Enum
 
 # third party imports
+import attrs
 import affine
 from affine import Affine
 import numpy as np
@@ -23,6 +24,25 @@ from pyproj.exceptions import CRSError
 
 
 logger = logging.getLogger(__name__)
+
+
+@attrs.frozen(slots=True)
+class Spectrum:
+    """data container representing a Spectrum object in Varda
+
+    Attributes:
+        values (np.ndarray): a 1d array storing the spectral values.
+        wavelengths (np.ndarray): a 1d array storing the wavelengths corresponding to the spectral values.
+        index: A unique identifier for the spectrum. Mainly to be used for comparisons.
+    """
+
+    values: np.ndarray = attrs.field(converter=np.asarray)
+    wavelengths: np.ndarray | list[str] = attrs.field(converter=np.asarray)
+
+    @values.validator
+    def _check_values(self, attribute, value):
+        if value.ndim != 1:
+            raise ValueError(f"values must be a 1d array, got {value.ndim}d array")
 
 
 @dataclass
@@ -45,6 +65,14 @@ class Image:
     @property
     def width(self):
         return self.raster.shape[1]
+
+    def getSpectrum(self, x: int, y: int) -> Spectrum:
+        """Get the spectrum at a specific pixel location (x, y)"""
+        if x < 0 or x >= self.width or y < 0 or y >= self.height:
+            raise IndexError("Pixel coordinates out of bounds")
+        values = self.raster[y, x, :]
+        wavelengths = self.metadata.wavelengths
+        return Spectrum(values=values, wavelengths=wavelengths)
 
 
 # standard library

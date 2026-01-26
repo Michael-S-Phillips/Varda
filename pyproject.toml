@@ -29,6 +29,7 @@ dependencies = [
     "geopandas>=1.1.1",
     "pydantic>=2.11.7",
     "numpydantic>=1.6.11",
+    "attrs>=25.4.0",
 ]
 
 [dependency-groups]

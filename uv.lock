@@ -1383,6 +1383,7 @@ source = { editable = "." }
 dependencies = [
     { name = "affine" },
     { name = "appdirs" },
+    { name = "attrs" },
     { name = "geopandas" },
     { name = "h5py" },
     { name = "matplotlib" },
@@ -1415,6 +1416,7 @@ dev = [
 requires-dist = [
     { name = "affine", specifier = ">=2.4.0" },
     { name = "appdirs", specifier = ">=1.4.4" },
+    { name = "attrs", specifier = ">=25.4.0" },
     { name = "geopandas", specifier = ">=1.1.1" },
     { name = "h5py", specifier = ">=3.15.1" },
     { name = "matplotlib", specifier = ">=3.9.2" },
