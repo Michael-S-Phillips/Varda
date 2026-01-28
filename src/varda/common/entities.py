@@ -10,6 +10,7 @@ from typing import Any, Dict, Tuple, Type, Optional
 from datetime import datetime
 import uuid
 from enum import Enum
+from functools import lru_cache
 
 # third party imports
 import attrs
@@ -18,7 +19,8 @@ from affine import Affine
 import numpy as np
 import geopandas as gpd
 from PyQt6.QtGui import QColor
-import rasterio
+import rasterio as rio
+from rasterio.windows import Window
 from pyproj import CRS, Transformer
 from pyproj.exceptions import CRSError
 
@@ -43,6 +45,96 @@ class Spectrum:
     def _check_values(self, attribute, value):
         if value.ndim != 1:
             raise ValueError(f"values must be a 1d array, got {value.ndim}d array")
+
+
+class RasterioDataSource:
+    def __init__(self, filePath: str):
+        self.filePath = filePath
+        self.src = rio.open(filePath)
+        if "wavelengths" in self.src.tags():
+            self.wavelengths = np.array(
+                [float(wl) for wl in self.src.tags()["wavelengths"].split(",")]
+            )
+        else:
+            self.wavelengths = np.arange(self.src.count)
+
+    def readSpectrum(self, x: int, y: int) -> Spectrum:
+        if x < 0 or x >= self.src.width or y < 0 or y >= self.src.height:
+            raise IndexError("Pixel coordinates out of bounds")
+
+        return Spectrum(
+            self._getRawSpectrumValues(x, y),
+            self.wavelengths,
+        )
+
+    @lru_cache(maxsize=128)
+    def _getRawSpectrumValues(self, x: int, y: int) -> np.ndarray:
+        return (
+            self.src.read(window=Window(x, y, 1, 1), masked=True)
+            .filled(np.nan)
+            .squeeze()
+        )
+
+    def getWindow(self, x1, y1, x2, y2) -> np.ndarray:
+        return self.src.read(window=Window(x1, y1, x2 - x1, y2 - y1))
+
+    def readBands(self, bandIndices: list[int]) -> np.ndarray:
+        if len(bandIndices) == 1:
+            return self.src.read(bandIndices[0] + 1)
+        else:
+            return self.src.read([i + 1 for i in bandIndices])
+
+    def shape(self) -> tuple[int, int, int]:
+        return (self.src.height, self.src.width, self.src.count)
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+    from varda.utilities.debug import Profiler
+
+    logging.getLogger("rasterio").setLevel(logging.CRITICAL)
+
+    filepath = (
+        "~/PycharmProjects/Varda/testImages/Data/CRISM/frt00012dfa_07_if164j_mtr3.img"
+    )
+    filepath = str(Path(filepath).expanduser())
+    profile = Profiler()
+    datasource = RasterioDataSource(filepath)
+    profile("time to open image")
+    spectrum = datasource.readSpectrum(774, 766)
+    profile("time to get a pixel spectrum")
+
+    spectrum2 = datasource.readSpectrum(774, 766)
+    profile("time to get the same pixel spectrum again")
+    spectrum3 = datasource.readSpectrum(700, 700)
+    profile("time to get a closeby pixel spectrum")
+    spectrum4 = datasource.readSpectrum(0, 0)
+    profile("time to get a very different pixel spectrum")
+    print(spectrum)
+    print(datasource.shape())
+
+
+@attrs.define(slots=True)
+class VardaImage:
+    _dataSource: "VardaDataSource"
+
+    def readSpectrum(self, x: int, y: int) -> Spectrum:
+        """Get the spectrum at a specific pixel location (x, y)"""
+        return self._dataSource.readSpectrum(x, y)
+
+    def getBands(self, bandIndices: list[int]): ...
+
+    @property
+    def height(self):
+        return self._dataSource.height
+
+    @property
+    def width(self):
+        return self._dataSource.width
+
+    @property
+    def wavelengths(self):
+        return self._dataSource.wavelengths
 
 
 @dataclass
@@ -545,7 +637,7 @@ class GeoReferencer:
             raise RuntimeError("Geographic transformation not available")
 
         # Convert pixel coordinates to map coordinates (x, y)
-        x, y = rasterio.transform.xy(self.transform, px, py)
+        x, y = rio.transform.xy(self.transform, px, py)
         # Transform map coordinates to geographic coordinates
         lon, lat = self.toGeo.transform(x, y)
         return lon, lat
@@ -570,7 +662,7 @@ class GeoReferencer:
         # Transform geographic coordinates to map coordinates (x, y)
         x, y = self.fromGeo.transform(lon, lat)
         # Convert map coordinates to pixel coordinates
-        py, px = rasterio.transform.rowcol(self.transform, x, y)
+        py, px = rio.transform.rowcol(self.transform, x, y)
         return int(px), int(py)
 
 
