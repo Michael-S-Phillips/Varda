@@ -6,7 +6,7 @@ entities.py: data structures used throughout Varda
 from __future__ import annotations
 from dataclasses import dataclass, field
 import logging
-from typing import Any, Dict, Protocol, Tuple, Type, Optional
+from typing import Any, Dict, Protocol, Tuple, Type, Optional, override
 from datetime import datetime
 import uuid
 from enum import Enum
@@ -48,11 +48,17 @@ class Spectrum:
 
 
 class DataSource(Protocol):
-    def getPixelSpectrum(self, x: int, y: int) -> Spectrum: ...
+    def getPixelSpectrum(self, x: int, y: int) -> np.ndarray: ...
 
     def getWindow(self, x1, y1, x2, y2) -> np.ndarray: ...
 
     def getBands(self, bandIndices: list[int]) -> np.ndarray: ...
+
+    def getData(
+        self,
+        bandIndices: list[int] | None = None,
+        window: Tuple[int, int, int, int] | None = None,
+    ) -> np.ndarray: ...
 
     @property
     def width(self) -> int: ...
@@ -67,7 +73,10 @@ class DataSource(Protocol):
     def bandNames(self) -> list[str]: ...
 
     @property
-    def wavelengths(self) -> np.ndarray: ...
+    def wavelengthUnits(self) -> str: ...
+
+    @property
+    def isParameterized(self) -> bool: ...
 
 
 class RasterioDataSource(DataSource):
@@ -76,17 +85,10 @@ class RasterioDataSource(DataSource):
         self.src = rio.open(filePath)
 
     @lru_cache(maxsize=128)
-    def getPixelSpectrum(self, x: int, y: int) -> Spectrum:
+    def getPixelSpectrum(self, x: int, y: int) -> np.ndarray:
         if x < 0 or x >= self.src.width or y < 0 or y >= self.src.height:
             raise IndexError("Pixel coordinates out of bounds")
 
-        return Spectrum(
-            self._getRawSpectrumValues(x, y),
-            self.wavelengths,
-        )
-
-    @lru_cache(maxsize=128)
-    def _getRawSpectrumValues(self, x: int, y: int) -> np.ndarray:
         return (
             self.src.read(window=Window(x, y, 1, 1), masked=True)
             .filled(np.nan)
@@ -101,6 +103,22 @@ class RasterioDataSource(DataSource):
             return self.src.read(bandIndices[0] + 1)
         else:
             return self.src.read([i + 1 for i in bandIndices])
+
+    def getData(
+        self,
+        bandIndices: list[int] | None = None,
+        window: Tuple[int, int, int, int] | None = None,
+    ) -> np.ndarray:
+        """get raster data, with optional constraints on bands and window"""
+        bands: int | list[int] | None
+        if bandIndices is None:
+            bands = None
+        elif len(bandIndices) == 1:
+            bands = bandIndices[0] + 1
+        else:
+            bands = [i + 1 for i in bandIndices]
+
+        return self.src.read(bands, window=window)
 
     @property
     def width(self):
@@ -119,47 +137,26 @@ class RasterioDataSource(DataSource):
         return [wl.strip() for wl in self.src.tags()["wavelengths"].split(",")]
 
     @cached_property
-    def wavelengths(self):
-        if "wavelengths" in self.src.tags():
-            return np.array(
-                [float(wl) for wl in self.src.tags()["wavelengths"].split(",")]
-            )
-        else:
-            return np.arange(self.src.count)
+    def wavelengthUnits(self):
+        return self.src.tags().get("wavelength_units", "Unknown")
+
+    @property
+    def isParameterized(self):
+        """I'm making the assumption for now that parameter images will always be in ENVI format."""
+        return False
 
 
-class ENVIDataSource(DataSource):
+class ENVIDataSource(RasterioDataSource):
     def __init__(self, filepath: str):
-        self.source = RasterioDataSource(filepath)
-        self.envi_metadata = self.source.src.tags(ns="ENVI")
-
-    def getPixelSpectrum(self, x: int, y: int) -> Spectrum:
-        return self.source.getPixelSpectrum(x, y)
-
-    def getWindow(self, x1, y1, x2, y2) -> np.ndarray:
-        return self.source.getWindow(x1, y1, x2, y2)
-
-    def getBands(self, bandIndices: list[int]) -> np.ndarray:
-        return self.source.getBands(bandIndices)
-
-    @property
-    def width(self):
-        return self.source.width
-
-    @property
-    def height(self):
-        return self.source.height
-
-    @property
-    def bandCount(self):
-        return self.source.bandCount
+        super().__init__(filepath)
+        self.envi_metadata = self.src.tags(ns="ENVI")
 
     @cached_property
     def bandNames(self) -> list[str]:
-        if "band names" in self.envi_metadata:
+        if "band_names" in self.envi_metadata:
             return [
                 name.strip()
-                for name in self.envi_metadata["band names"].strip("{}").split(",")
+                for name in self.envi_metadata["band_names"].strip("{}").split(",")
             ]
         elif "wavelength" in self.envi_metadata:
             return [
@@ -167,23 +164,15 @@ class ENVIDataSource(DataSource):
                 for w in self.envi_metadata["wavelength"].strip("{}").split(",")
             ]
         else:
-            return [f"Band {i + 1}" for i in range(self.source.src.count)]
-
-    @cached_property
-    def wavelengths(self) -> np.ndarray:
-        if "wavelength" in self.envi_metadata:
-            return np.array(
-                [
-                    float(w)
-                    for w in self.envi_metadata["wavelength"].strip("{}").split(",")
-                ]
-            )
-        else:
-            return self.source.wavelengths
+            return [f"Band {i + 1}" for i in range(self.src.count)]
 
     @cached_property
     def wavelengthUnits(self) -> str:
-        return self.envi_metadata.get("wavelength units", "Unknown")
+        return self.envi_metadata.get("wavelength_units", "Unknown")
+
+    @cached_property
+    def isParameterized(self) -> bool:
+        return "band_names" in self.envi_metadata
 
 
 if __name__ == "__main__":
@@ -209,20 +198,46 @@ if __name__ == "__main__":
     spectrum4 = datasource.getPixelSpectrum(0, 0)
     profile("time to get a very different pixel spectrum")
     print(spectrum)
-    print(datasource.shape())
+    print((datasource.height, datasource.width, datasource.bandCount))
 
 
 @attrs.define(slots=True)
-class VardaImage:
+class VardaRaster:
     _dataSource: DataSource
 
     def getPixelSpectrum(self, x: int, y: int) -> Spectrum:
         """Get the spectrum at a specific pixel location (x, y)"""
-        return self._dataSource.getPixelSpectrum(x, y)
+        if x < 0 or x >= self.width or y < 0 or y >= self.height:
+            raise IndexError("Pixel coordinates out of bounds")
+        return Spectrum(
+            values=self._dataSource.getPixelSpectrum(x, y),
+            wavelengths=self.bandWavelengths,
+        )
 
     def getBands(self, bandIndices: list[int]) -> np.ndarray:
         """Get the raster data for specific bands"""
+        if np.any(np.asarray(bandIndices) >= self.bandCount):
+            raise IndexError("Requested band indices are out of bounds")
         return self._dataSource.getBands(bandIndices)
+
+    def getData(
+        self,
+        bandIndices: list[int] | None = None,
+        window: Tuple[int, int, int, int] | None = None,
+    ) -> np.ndarray:
+        """get raster data, with optional constraints on bands and window"""
+        if bandIndices is not None and np.any(
+            np.asarray(bandIndices) >= self.bandCount
+        ):
+            raise IndexError("Requested band indices are out of bounds")
+        if window is not None and (
+            window[0] < 0
+            or window[1] < 0
+            or window[2] > self.width
+            or window[3] > self.height
+        ):
+            raise ValueError("Requested window is out of bounds")
+        return self._dataSource.getData(bandIndices, window)
 
     @property
     def height(self):
@@ -233,8 +248,101 @@ class VardaImage:
         return self._dataSource.width
 
     @property
-    def wavelengths(self):
-        return self._dataSource.wavelengths
+    def bandCount(self):
+        return self._dataSource.bandCount
+
+    @property
+    def bandNames(self):
+        return self._dataSource.bandNames
+
+    @property
+    def bandWavelengths(self):
+        if self.bandMask is not None:
+            return self._dataSource.bandWavelengths[self.bandMask]
+        else:
+            return self._dataSource.bandWavelengths
+
+    @property
+    def wavelengthUnits(self):
+        return self._dataSource.wavelengthUnits
+
+    @property
+    def isParameterImage(self):
+        return self._dataSource.bandNames
+
+
+@attrs.define(slots=True)
+class VardaSubsetRaster(VardaRaster):
+    _dataSource: DataSource
+    # window format: (x1, y1, x2, y2)
+    window: tuple[int, int, int, int] | None = attrs.field(default=None)
+    # indices of bands to include
+    bandMask: np.ndarray | None = attrs.field(default=None)
+
+    @window.validator
+    def _check_window(self, attribute, value):
+        if value is None:
+            return
+        x1, y1, x2, y2 = value
+        if (
+            x1 < 0
+            or y1 < 0
+            or x2 > self._dataSource.width
+            or y2 > self._dataSource.height
+        ):
+            raise ValueError("window is out of bounds of the raster dimensions")
+        if x2 <= x1 or y2 <= y1:
+            raise ValueError("window cannot have non-positive width or height")
+
+    @bandMask.validator
+    def _check_bandMask(self, attribute, value):
+        if value is None:
+            return
+        if np.any(value < 0) or np.any(value >= self._dataSource.bandCount):
+            raise ValueError("bandMask contains invalid band indices")
+
+    def getPixelSpectrum(self, x: int, y: int) -> Spectrum:
+        """Get the spectrum at a specific pixel location (x, y) in the subset raster"""
+        if x < self.xStart or x >= self.xEnd or y < self.yStart or y >= self.yEnd:
+            raise IndexError("Pixel coordinates out of bounds")
+        return super().getPixelSpectrum(x, y)
+
+    def getBands(self, bandIndices: list[int]) -> np.ndarray:
+        """Get the raster data for specific bands in the subset raster"""
+        if self.bandMask is not None and not np.isin(bandIndices, self.bandMask).all():
+            raise IndexError("Requested band indices are not in the band mask")
+        return self._dataSource.getData(bandIndices, self.window)
+
+    @property
+    def bandCount(self):
+        if self.bandMask is not None:
+            return len(self.bandMask)
+        else:
+            return self._dataSource.bandCount
+
+    @property
+    def height(self):
+        return self.yEnd - self.yStart
+
+    @property
+    def width(self):
+        return self.xEnd - self.xStart
+
+    @property
+    def xStart(self):
+        return self.window[0]
+
+    @property
+    def xEnd(self):
+        return self.window[2]
+
+    @property
+    def yStart(self):
+        return self.window[1]
+
+    @property
+    def yEnd(self):
+        return self.window[3]
 
 
 @dataclass
