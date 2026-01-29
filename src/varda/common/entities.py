@@ -10,7 +10,7 @@ from typing import Any, Dict, Protocol, Tuple, Type, Optional
 from datetime import datetime
 import uuid
 from enum import Enum
-from functools import lru_cache
+from functools import lru_cache, cached_property
 
 # third party imports
 import attrs
@@ -54,19 +54,26 @@ class DataSource(Protocol):
 
     def getBands(self, bandIndices: list[int]) -> np.ndarray: ...
 
-    def shape(self) -> tuple[int, int, int]: ...
+    @property
+    def width(self) -> int: ...
+
+    @property
+    def height(self) -> int: ...
+
+    @property
+    def bandCount(self) -> int: ...
+
+    @property
+    def bandNames(self) -> list[str]: ...
+
+    @property
+    def wavelengths(self) -> np.ndarray: ...
 
 
 class RasterioDataSource(DataSource):
     def __init__(self, filePath: str):
         self.filePath = filePath
         self.src = rio.open(filePath)
-        if "wavelengths" in self.src.tags():
-            self.wavelengths = np.array(
-                [float(wl) for wl in self.src.tags()["wavelengths"].split(",")]
-            )
-        else:
-            self.wavelengths = np.arange(self.src.count)
 
     @lru_cache(maxsize=128)
     def getPixelSpectrum(self, x: int, y: int) -> Spectrum:
@@ -95,8 +102,30 @@ class RasterioDataSource(DataSource):
         else:
             return self.src.read([i + 1 for i in bandIndices])
 
-    def shape(self) -> tuple[int, int, int]:
-        return (self.src.height, self.src.width, self.src.count)
+    @property
+    def width(self):
+        return self.src.width
+
+    @property
+    def height(self):
+        return self.src.height
+
+    @property
+    def bandCount(self):
+        return self.src.count
+
+    @cached_property
+    def bandNames(self):
+        return [wl.strip() for wl in self.src.tags()["wavelengths"].split(",")]
+
+    @cached_property
+    def wavelengths(self):
+        if "wavelengths" in self.src.tags():
+            return np.array(
+                [float(wl) for wl in self.src.tags()["wavelengths"].split(",")]
+            )
+        else:
+            return np.arange(self.src.count)
 
 
 class ENVIDataSource(DataSource):
@@ -113,9 +142,19 @@ class ENVIDataSource(DataSource):
     def getBands(self, bandIndices: list[int]) -> np.ndarray:
         return self.source.getBands(bandIndices)
 
-    def shape(self) -> tuple[int, int, int]:
-        return self.source.shape()
+    @property
+    def width(self):
+        return self.source.width
 
+    @property
+    def height(self):
+        return self.source.height
+
+    @property
+    def bandCount(self):
+        return self.source.bandCount
+
+    @cached_property
     def bandNames(self) -> list[str]:
         if "band names" in self.envi_metadata:
             return [
@@ -130,15 +169,19 @@ class ENVIDataSource(DataSource):
         else:
             return [f"Band {i + 1}" for i in range(self.source.src.count)]
 
-    def wavelengths(self) -> list[float]:
+    @cached_property
+    def wavelengths(self) -> np.ndarray:
         if "wavelength" in self.envi_metadata:
-            return [
-                float(w)
-                for w in self.envi_metadata["wavelength"].strip("{}").split(",")
-            ]
+            return np.array(
+                [
+                    float(w)
+                    for w in self.envi_metadata["wavelength"].strip("{}").split(",")
+                ]
+            )
         else:
-            return list(self.source.wavelengths)
+            return self.source.wavelengths
 
+    @cached_property
     def wavelengthUnits(self) -> str:
         return self.envi_metadata.get("wavelength units", "Unknown")
 
