@@ -6,7 +6,7 @@ entities.py: data structures used throughout Varda
 from __future__ import annotations
 from dataclasses import dataclass, field
 import logging
-from typing import Any, Dict, Tuple, Type, Optional
+from typing import Any, Dict, Protocol, Tuple, Type, Optional
 from datetime import datetime
 import uuid
 from enum import Enum
@@ -47,7 +47,17 @@ class Spectrum:
             raise ValueError(f"values must be a 1d array, got {value.ndim}d array")
 
 
-class RasterioDataSource:
+class DataSource(Protocol):
+    def getPixelSpectrum(self, x: int, y: int) -> Spectrum: ...
+
+    def getWindow(self, x1, y1, x2, y2) -> np.ndarray: ...
+
+    def getBands(self, bandIndices: list[int]) -> np.ndarray: ...
+
+    def shape(self) -> tuple[int, int, int]: ...
+
+
+class RasterioDataSource(DataSource):
     def __init__(self, filePath: str):
         self.filePath = filePath
         self.src = rio.open(filePath)
@@ -58,7 +68,8 @@ class RasterioDataSource:
         else:
             self.wavelengths = np.arange(self.src.count)
 
-    def readSpectrum(self, x: int, y: int) -> Spectrum:
+    @lru_cache(maxsize=128)
+    def getPixelSpectrum(self, x: int, y: int) -> Spectrum:
         if x < 0 or x >= self.src.width or y < 0 or y >= self.src.height:
             raise IndexError("Pixel coordinates out of bounds")
 
@@ -78,7 +89,7 @@ class RasterioDataSource:
     def getWindow(self, x1, y1, x2, y2) -> np.ndarray:
         return self.src.read(window=Window(x1, y1, x2 - x1, y2 - y1))
 
-    def readBands(self, bandIndices: list[int]) -> np.ndarray:
+    def getBands(self, bandIndices: list[int]) -> np.ndarray:
         if len(bandIndices) == 1:
             return self.src.read(bandIndices[0] + 1)
         else:
@@ -86,6 +97,50 @@ class RasterioDataSource:
 
     def shape(self) -> tuple[int, int, int]:
         return (self.src.height, self.src.width, self.src.count)
+
+
+class ENVIDataSource(DataSource):
+    def __init__(self, filepath: str):
+        self.source = RasterioDataSource(filepath)
+        self.envi_metadata = self.source.src.tags(ns="ENVI")
+
+    def getPixelSpectrum(self, x: int, y: int) -> Spectrum:
+        return self.source.getPixelSpectrum(x, y)
+
+    def getWindow(self, x1, y1, x2, y2) -> np.ndarray:
+        return self.source.getWindow(x1, y1, x2, y2)
+
+    def getBands(self, bandIndices: list[int]) -> np.ndarray:
+        return self.source.getBands(bandIndices)
+
+    def shape(self) -> tuple[int, int, int]:
+        return self.source.shape()
+
+    def bandNames(self) -> list[str]:
+        if "band names" in self.envi_metadata:
+            return [
+                name.strip()
+                for name in self.envi_metadata["band names"].strip("{}").split(",")
+            ]
+        elif "wavelength" in self.envi_metadata:
+            return [
+                w.strip()
+                for w in self.envi_metadata["wavelength"].strip("{}").split(",")
+            ]
+        else:
+            return [f"Band {i + 1}" for i in range(self.source.src.count)]
+
+    def wavelengths(self) -> list[float]:
+        if "wavelength" in self.envi_metadata:
+            return [
+                float(w)
+                for w in self.envi_metadata["wavelength"].strip("{}").split(",")
+            ]
+        else:
+            return list(self.source.wavelengths)
+
+    def wavelengthUnits(self) -> str:
+        return self.envi_metadata.get("wavelength units", "Unknown")
 
 
 if __name__ == "__main__":
@@ -101,14 +156,14 @@ if __name__ == "__main__":
     profile = Profiler()
     datasource = RasterioDataSource(filepath)
     profile("time to open image")
-    spectrum = datasource.readSpectrum(774, 766)
+    spectrum = datasource.getPixelSpectrum(774, 766)
     profile("time to get a pixel spectrum")
 
-    spectrum2 = datasource.readSpectrum(774, 766)
+    spectrum2 = datasource.getPixelSpectrum(774, 766)
     profile("time to get the same pixel spectrum again")
-    spectrum3 = datasource.readSpectrum(700, 700)
+    spectrum3 = datasource.getPixelSpectrum(700, 700)
     profile("time to get a closeby pixel spectrum")
-    spectrum4 = datasource.readSpectrum(0, 0)
+    spectrum4 = datasource.getPixelSpectrum(0, 0)
     profile("time to get a very different pixel spectrum")
     print(spectrum)
     print(datasource.shape())
@@ -116,13 +171,15 @@ if __name__ == "__main__":
 
 @attrs.define(slots=True)
 class VardaImage:
-    _dataSource: "VardaDataSource"
+    _dataSource: DataSource
 
-    def readSpectrum(self, x: int, y: int) -> Spectrum:
+    def getPixelSpectrum(self, x: int, y: int) -> Spectrum:
         """Get the spectrum at a specific pixel location (x, y)"""
-        return self._dataSource.readSpectrum(x, y)
+        return self._dataSource.getPixelSpectrum(x, y)
 
-    def getBands(self, bandIndices: list[int]): ...
+    def getBands(self, bandIndices: list[int]) -> np.ndarray:
+        """Get the raster data for specific bands"""
+        return self._dataSource.getBands(bandIndices)
 
     @property
     def height(self):
@@ -247,10 +304,10 @@ class Metadata:
         expected_fields = [f.name for f in self.__dataclass_fields__.values()]
 
         # Handle expected fields
-        for field in expected_fields:
-            if field in kwargs:
-                setattr(self, field, kwargs.pop(field))
-            elif field == "extraMetadata":
+        for f in expected_fields:
+            if f in kwargs:
+                setattr(self, f, kwargs.pop(f))
+            elif f == "extraMetadata":
                 # Initialize extraMetadata if not provided
                 self.extraMetadata = kwargs.pop("extraMetadata", {})
 
