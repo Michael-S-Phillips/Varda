@@ -602,7 +602,7 @@ class ROI:
         id: Unique identifier for the ROI
         name: User-friendly name for the ROI
         mode: Drawing mode for the ROI (e.g., freehand, rectangle)
-        sourceImageIndex: Index of the source image this ROI was created from
+        sourceImage: The source image this ROI was created from
         points: Points defining the ROI in pixel coordinates [x, y]
         geoPoints: Points in geographic coordinates (if available) [lon, lat]
         color: The ROI color in RGBA 0-255 format, in a QColor object
@@ -618,7 +618,7 @@ class ROI:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = "Unnamed ROI"
     mode: ROIMode = ROIMode.FREEHAND
-    sourceImageIndex: int = -1
+    sourceImage: Image = None
     points: np.ndarray = field(default_factory=lambda: np.empty((0, 2)))
     geoPoints: Optional[np.ndarray] = None
     color: QColor = field(default_factory=lambda: QColor(255, 0, 0, 128))
@@ -710,7 +710,7 @@ class ROI:
             "id": self.id,
             "name": self.name,
             "mode": self.mode.name,
-            "sourceImageIndex": self.sourceImageIndex,
+            "sourceImage": self.sourceImage,
             "points": points_list,
             "geoPoints": geo_points_list,
             "color": colorTuple,
@@ -733,8 +733,8 @@ class ROI:
             inputKwargs["name"] = data["name"]
         if data.get("mode"):
             inputKwargs["mode"] = ROIMode[data["mode"]]
-        if data.get("sourceImageIndex") is not None:
-            inputKwargs["sourceImageIndex"] = data["sourceImageIndex"]
+        if data.get("sourceImage") is not None:
+            inputKwargs["sourceImage"] = data["sourceImage"]
 
         points = data.get("points")
         if points is not None:

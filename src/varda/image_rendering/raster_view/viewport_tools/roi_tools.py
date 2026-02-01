@@ -58,7 +58,7 @@ class ROIDrawingTool(ViewportTool):
         """Reset the tool state"""
         self.isDrawing = False
         self.points = []
-        self.viewport.removeItem(self.roiItem)
+        # self.viewport.removeItem(self.roiItem)
         self.roiItem = None
         self.roiEntity = None
 
@@ -68,7 +68,7 @@ class ROIDrawingTool(ViewportTool):
         self.points = []  # Reset points
 
         # Create a new ROI entity
-        self.roiEntity = ROI(sourceImageIndex=self.imageEntity.index)
+        self.roiEntity = ROI(sourceImage=self.imageEntity)
 
         # Create a visual representation of the ROI
         self.roiItem = VardaROIItem(self.roiEntity)
@@ -118,7 +118,7 @@ class ROIDrawingTool(ViewportTool):
         self.sigROIDrawingComplete.emit(roiClone)
 
         # TODO: Possibly change this if we decide on a different way to store ROIs
-        varda.app.proj.roiManager.addROI(roiClone)
+        # varda.app.proj.roiManager.addROI(roiClone)
         self.stopDrawing()
 
     def keyPressEvent(self, event) -> bool:

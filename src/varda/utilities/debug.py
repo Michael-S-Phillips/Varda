@@ -36,6 +36,7 @@ class Profiler:  # pylint: disable=too-few-public-methods
         Initialize the profiler with the current time.
         """
         self.timeStarted = time.perf_counter()
+        self.currentTime = self.timeStarted
 
     def __call__(self, *args):
         """
@@ -50,12 +51,31 @@ class Profiler:  # pylint: disable=too-few-public-methods
         """
         if self.DISABLE:
             return
-        timeElapsed = (time.perf_counter() - self.timeStarted) * 1000
+        timeElapsed = (time.perf_counter() - self.currentTime) * 1000
         if len(args) > 0:
             print(f"{args[0]}: {timeElapsed: 0.4f} ms")
         else:
             print(f"Time elapsed: {timeElapsed: 0.4f} ms")
-        self.timeStarted = time.perf_counter()
+        self.currentTime = time.perf_counter()
+
+    def total(self, *args):
+        """
+        Measure and print the total time elapsed since initialization.
+
+        If the DISABLE flag is set to True, the function will return without doing
+        anything.
+
+        @param:
+            *args: Optional positional arguments. If provided, the first argument
+            will be used as the message prefix.
+        """
+        if self.DISABLE:
+            return
+        timeElapsed = (time.perf_counter() - self.timeStarted) * 1000
+        if len(args) > 0:
+            print(f"Total time to {args[0]}: {timeElapsed: 0.4f} ms")
+        else:
+            print(f"Total time elapsed: {timeElapsed: 0.4f} ms")
 
 
 class ProjectContextDataTable(QWidget):
@@ -155,8 +175,10 @@ def generate_random_image(shape=(100, 100, 100), res=(10, 10, 10)):
         wavelengths=np.array(
             ["wavelength " + num for num in map(str, range(shape[2]))]
         ),
+        wavelengths_type=str,
         defaultBand=[0, 0, 0],
     )
+    print(raster.dtype)
     randomImageNo += 1
     return Image(raster, metadata)
 

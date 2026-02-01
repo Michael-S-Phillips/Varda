@@ -17,6 +17,7 @@ from varda.common.entities import Image
 from varda.image_rendering.raster_view import ImageViewport
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.common.ui import VBoxBuilder, SplitterBuilder, HBoxBuilder
+from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 
 
 class DisplayMode(Enum):
@@ -59,16 +60,6 @@ class DualImageWorkspaceConfig(ParameterGroup):
         self.image1Param.setProvider(lambda: self.imageList)
         self.image2Param.setProvider(lambda: self.imageList)
 
-    def getParameters(self):
-        return ParameterGroupWidget(
-            [
-                self.image1Param,
-                self.image2Param,
-                self.displayModeParam,
-                self.linkModeParam,
-            ]
-        )
-
 
 class DualImageWorkspace(QWidget):
     def __init__(self, config: DualImageWorkspaceConfig, parent=None):
@@ -86,16 +77,24 @@ class DualImageWorkspace(QWidget):
             self.setLayout(self._overlayLayout())
 
     def _sideBySideLayout(self):
+        self.viewport1 = ImageViewport(self.primaryRenderer, self)
+        self.viewport2 = ImageViewport(self.secondaryRenderer, self)
+
+        self.toolManager1 = ToolManager(self.viewport1, self)
+        self.toolManager2 = ToolManager(self.viewport2, self)
+
+        self.viewport1.addToolBar(self.toolManager1.getToolbar())
+        self.viewport2.addToolBar(self.toolManager2.getToolbar())
         return HBoxBuilder().withWidget(
             SplitterBuilder(Qt.Orientation.Horizontal)
             .withLayout(
                 VBoxBuilder()
-                .withWidget(ImageViewport(self.primaryRenderer, self), 2)
+                .withWidget(self.viewport1, stretch=2)
                 .withWidget(self.primaryRenderer.getSettingsPanel(), 1)
             )
             .withLayout(
                 VBoxBuilder()
-                .withWidget(ImageViewport(self.secondaryRenderer, self), 2)
+                .withWidget(self.viewport2, stretch=2)
                 .withWidget(self.secondaryRenderer.getSettingsPanel(), 1)
             )
         )

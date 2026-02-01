@@ -3,14 +3,14 @@ name = "varda"
 version = "0.0.1"
 description = "An extensible GUI application for analyzing hyperspectral images."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = "~=3.13.0"
 authors = [{"name" = "Michael Phillips", "email" = "phillipsm@arizona.edu"},
            {"name" = "Jesse Oved", "email" = "jesseoved@arizona.edu"},
            {"name" = "Emma Elliott", "email" = "emmae@arizona.edu"},
            {"name" = "Hamad Ayaz", "email" = "hamadayaz@arizona.edu"}]
 
 dependencies = [
-    "PyQt6>=6.7.1 ; sys_platform != 'linux'", # linux users probably want to install pyqt6 to their system via their package manager and use that. So that any system themes are applied."
+    "PyQt6>=6.7.1", # ; sys_platform != 'linux' -- old modification so linux users could use system pyqt6 install. but it's hard to get it to work
     "numpy>=2.1.1",
     "matplotlib>=3.9.2",
     "spectral>=0.23.1",

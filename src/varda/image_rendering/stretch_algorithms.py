@@ -144,7 +144,11 @@ class LinearPercentileStretch(StretchAlgorithm):
         return self.config
 
     def apply(self, image: np.ndarray) -> np.ndarray:
-        """Compute min/max values based on percentiles."""
+        """Compute min/max values based on percentiles.
+
+        NOTE: This is an approximation, since we are sampling 1/4th of the pixels for better performance.
+            For visualization purposes that's probably fine, but maybe not for more specific analysis?
+            We can remove the optimization if so, or make it configurable."""
         lowPercent = self.config.lowPercent.value
         highPercent = self.config.highPercent.value
 
@@ -154,10 +158,11 @@ class LinearPercentileStretch(StretchAlgorithm):
         if not image.flags.writeable:
             image = image.copy()
 
+        sample = image[::2, ::2]  # 1/4th pixels
         if image.shape[2] == 1:
             # Handle grayscale
-            minVal = np.nanpercentile(image, lowPercent)
-            maxVal = np.nanpercentile(image, highPercent)
+            minVal = np.nanpercentile(sample, lowPercent)
+            maxVal = np.nanpercentile(sample, highPercent)
             # clip and stretch
             scale = maxVal - minVal
             scale = 1.0 if scale == 0 else scale  # prevent division by zero
@@ -166,20 +171,8 @@ class LinearPercentileStretch(StretchAlgorithm):
             return (np.clip(image, minVal, maxVal) - minVal) / scale
         else:
             # Compute percentiles for each channel
-            minVals = np.array(
-                [
-                    np.nanpercentile(image[:, :, 0], lowPercent),
-                    np.nanpercentile(image[:, :, 1], lowPercent),
-                    np.nanpercentile(image[:, :, 2], lowPercent),
-                ]
-            ).reshape((1, 1, 3))
-            maxVals = np.array(
-                [
-                    np.nanpercentile(image[:, :, 0], highPercent),
-                    np.nanpercentile(image[:, :, 1], highPercent),
-                    np.nanpercentile(image[:, :, 2], highPercent),
-                ]
-            ).reshape((1, 1, 3))
+            minVals = np.nanpercentile(sample, lowPercent, axis=(0, 1), keepdims=True)
+            maxVals = np.nanpercentile(sample, highPercent, axis=(0, 1), keepdims=True)
             # clip and stretch
             scale = maxVals - minVals
             scale[scale == 0] = 1.0  # prevent division by zero

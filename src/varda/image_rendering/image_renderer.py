@@ -22,7 +22,7 @@ import numpy as np
 from varda.common.parameter import FloatParameter, ParameterGroupWidget
 from varda.common.ui import VBoxBuilder
 from varda.common.entities import Image
-import varda.utilities.debug
+from varda.utilities import debug
 from varda.image_rendering.stretch_algorithms import (
     stretchAlgorithmRegistry,
     StretchAlgorithm,
@@ -66,7 +66,6 @@ class ImageRenderer(QObject):
             settings if settings is not None else RendererSettings.new(image)
         )
         self.image = self.settings.image
-
         self.cachedRender = None
         self._stretchedData = (
             None  # the data from the latest render post-stretch but pre-colormap.
@@ -84,7 +83,7 @@ class ImageRenderer(QObject):
 
         if self.image is None or self.settings is None:
             raise ValueError("Image and settings must be set before rendering.")
-
+        # profile = debug.Profiler()
         # Extract the raster data for the specified band
         if self.settings.mode == "mono":
             # maintain 3D shape so stretch algorithms don't need to account for both 2d and 3d arrays
@@ -93,12 +92,18 @@ class ImageRenderer(QObject):
             data = self.image.raster[:, :, self.settings.bands[:3]]
         self._rawBandData = data
 
+        # profile("Extract band data")
+
         # if array is masked, convert to regular array with nans
         if np.ma.isMaskedArray(data):
             data = data.filled(np.nan)
 
+        # profile("Handle masked array")
+
         # Run the stretch algorithm
         data = self.settings.stretch.apply(data)
+
+        # profile("Apply stretching")
 
         # save the stretched data pre-colormap; expand mono image to RGB image
         self._stretchedData = data
@@ -106,25 +111,32 @@ class ImageRenderer(QObject):
         # convert NaNs to zeros before color mapping and outputting
         data[np.isnan(data)] = 0
 
+        # profile("Handle NaNs")
+
         # Apply color map
         if self.settings.mode == "mono":
             data = np.squeeze(data)  # go back to 2D because ColorMap expects it
-            rgba = self.settings.colorMap.mapToByte(data)
-            rgba[:, :, 3] = self.settings.opacity * 255  # replace alpha channel
+
+            lut = self.settings.colorMap.getLookupTable(0, 1, 256, alpha=False)
+            data = lut[(data * 255).astype(np.uint8)]
         else:
             # convert the image to byte values, since it's faster to display I think.
             # (ColorMap already does this for mono images)
             data = (data * 255).astype(np.uint8)
-            # add 4th channel with opacity values
-            alpha = np.full(
-                (data.shape[0], data.shape[1], 1),
-                int(self.settings.opacity * 255),
-                dtype=np.uint8,
-            )
-            rgba = np.concatenate((data, alpha), axis=2)
+        # profile("Apply color map")
 
-        self.cachedRender = rgba
+        # add 4th channel with opacity values
+        alpha = np.full(
+            (data.shape[0], data.shape[1], 1),
+            int(self.settings.opacity * 255),
+            dtype=np.uint8,
+        )
+        rgba = np.concatenate((data, alpha), axis=2)
 
+        # profile("set opacity")
+
+        self.cachedRender = rgba  # cache the rendered image
+        # profile.total("Complete Image Render")
         return rgba
 
     def getStretchedData(self):
@@ -369,7 +381,7 @@ class RendererSettingsPanel(QWidget):
 
 if __name__ == "__main__":
     q_app = QApplication(sys.argv)
-    image = varda.utilities.debug.generate_random_image((100, 100, 10), (10, 10, 10))
+    image = debug.generate_random_image((100, 100, 10), (10, 10, 10))
     renderer = ImageRenderer(image)
     settingsPanel = RendererSettingsPanel(renderer.settings)
     settingsPanel.sigSettingsChanged.connect(renderer.updateSettings)
