@@ -1,15 +1,23 @@
 import logging
 from typing import Tuple, Optional
 
+import attrs
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QPolygonF, QPainterPath, QColor, QCloseEvent
 
 from varda.utilities.roi_utils import RegionCoordinateTransform
-from varda.common.entities import ROI, ROIMode
+from varda.common.entities import ROI, ROIMode, Image
 
 logger = logging.getLogger(__name__)
+
+
+@attrs.define
+class VardaROI:
+    sourceImage: Image
+    points: np.ndarray  # Nx2 array of (x, y) points
+    color: QColor
 
 
 class VardaROIItem(pg.ROI):
@@ -272,7 +280,7 @@ class VardaROIItem(pg.ROI):
         points = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
         entity = ROI(
             points=np.array(points),
-            sourceImageIndex=sourceImageIndex,
+            sourceImage=sourceImageIndex,
             color=color,
             mode=ROIMode.RECTANGLE,
         )
