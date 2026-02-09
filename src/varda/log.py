@@ -61,6 +61,11 @@ def _initializeFullLogging():
         level=logging.DEBUG,
         handlers=[logging.FileHandler(logName), logging.StreamHandler(sys.stdout)],
     )
+
+    # disable logging for some packages
+    import numba
+
+    logging.getLogger("numba").setLevel(logging.WARNING)
     debug("logging fully initialized, output file found in local appdata folder")
 
 
