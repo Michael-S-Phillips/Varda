@@ -20,7 +20,6 @@ from pyqtgraph import ColorMap
 import numpy as np
 
 from varda.common.parameter import FloatParameter, ParameterGroupWidget
-from varda.common.ui import VBoxBuilder
 from varda.common.entities import Image
 from varda.utilities import debug
 from varda.image_rendering.stretch_algorithms import (
@@ -383,7 +382,6 @@ if __name__ == "__main__":
     q_app = QApplication(sys.argv)
     image = debug.generate_random_image((100, 100, 10), (10, 10, 10))
     renderer = ImageRenderer(image)
-    settingsPanel = RendererSettingsPanel(renderer.settings)
-    settingsPanel.sigSettingsChanged.connect(renderer.updateSettings)
+    settingsPanel = renderer.getSettingsPanel()
     settingsPanel.show()
     q_app.exec()
