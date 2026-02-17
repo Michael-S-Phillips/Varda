@@ -10,7 +10,7 @@ import sys
 import pyqtgraph as pg
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QAction, QPixmap
-from PyQt6.QtWidgets import QApplication, QSplashScreen
+from PyQt6.QtWidgets import QApplication, QSplashScreen, QStatusBar
 
 # local imports
 import varda
@@ -24,17 +24,12 @@ from varda.workspaces.general_image_analysis import (
     NewGeneralImageAnalysisWorkspaceDialog,
 )
 from varda.plugins import VardaPluginManager
-from varda.project import ProjectContext
-from varda.project.project_io import ProjectJsonIO
-from varda.registries.registries import VardaRegistries
 
 
 class VardaApplicationContext(QObject):
-    def __init__(self, proj, pm, registry, maingui=None):
+    def __init__(self, pm, maingui=None):
         super().__init__()
-        self.proj = proj
         self.pm = pm
-        self.registry = registry
         self.maingui = maingui
         self.images = ObservableList()
 
@@ -45,10 +40,9 @@ class VardaApplicationContext(QObject):
             on_success_callback=self.images.append
         )
 
-
-def quitApp():
-    varda.log.info("Exiting application...")
-    QApplication.instance().quit()
+    def quit(self):
+        varda.log.info("Exiting application...")
+        QApplication.instance().quit()
 
 
 # temp thing for now. Eventually going to make an action registry / manager class
@@ -64,18 +58,18 @@ def createAction(name: str, callback, shortcut=None):
     return action
 
 
-def initMenuBar(app):
+def initMenuBar(app: VardaApplicationContext):
     ### Initialize Actions ###
     # This is probably not a long term solution, but it's vaguely in the realm of what we want
     # -- that being a centralized action registry seperate from any specific UI component, that can be injected into menubar and such.
     importImageAction = createAction("Import Image", app.loadNewImage, "Ctrl+N")
-    saveProjectAction = createAction("Save Project", app.proj.saveProject, "Ctrl+S")
-    openProjectAction = createAction("Open Project", app.proj.loadProject, "Ctrl+O")
-    exitAppAction = createAction("Exit", quitApp)
-    dumpProjectDataAction = createAction(
-        "Dump Project Data",
-        lambda: varda.utilities.debug.ProjectContextDataTable(app.proj, None),
-    )
+    # saveProjectAction = createAction("Save Project", app.saveProject, "Ctrl+S")
+    # openProjectAction = createAction("Open Project", app.loadProject, "Ctrl+O")
+    exitAppAction = createAction("Exit", app.quit, "Ctrl+Q")
+    # dumpProjectDataAction = createAction(
+    #     "Dump Project Data",
+    #     lambda: varda.utilities.debug.ProjectContextDataTable(app, None),
+    # )
     # debug actions
     loadDummyImageAction = createAction(
         "Load Dummy Image",
@@ -102,20 +96,20 @@ def initMenuBar(app):
     )
 
     actions.append(importImageAction)
-    actions.append(saveProjectAction)
-    actions.append(openProjectAction)
+    # actions.append(saveProjectAction)
+    # actions.append(openProjectAction)
     actions.append(exitAppAction)
-    actions.append(dumpProjectDataAction)
+    # actions.append(dumpProjectDataAction)
     actions.append(loadDummyImageAction)
     actions.append(newDualWorkspaceCreator)
     actions.append(newGeneralWorkspaceCreator)
     ### Initialize MenuBar ###
-    menuBar = app.maingui.menuBar()
+    menuBar = VardaMenuBar()
     menuBar.registerAction("File", importImageAction)
-    menuBar.registerAction("File", saveProjectAction)
-    menuBar.registerAction("File", openProjectAction)
+    # menuBar.registerAction("File", saveProjectAction)
+    # menuBar.registerAction("File", openProjectAction)
     menuBar.registerAction("File", exitAppAction)
-    menuBar.registerAction("Debug", dumpProjectDataAction)
+    # menuBar.registerAction("Debug", dumpProjectDataAction)
     menuBar.registerAction("Debug", loadDummyImageAction)
     menuBar.registerAction("Workspace", newDualWorkspaceCreator)
     menuBar.registerAction("Workspace", newGeneralWorkspaceCreator)
@@ -143,19 +137,19 @@ def initVarda() -> None:
     varda.log.debug("Configurations set")
 
     ### Initialize Application Components ###
-    app = VardaApplicationContext(
-        ProjectContext(io=ProjectJsonIO()), VardaPluginManager(), VardaRegistries()
-    )
+    app = VardaApplicationContext(VardaPluginManager(), None)
+
     # let plugins run their startup code
     app.pm.hook.onLoad(app=app)
+
+    ### build GUI ###
+    menuBar = initMenuBar(app)
+    app.maingui = MainGUI(app, menuBar, QStatusBar())
+    app.maingui.showMaximized()
 
     ### Initialization complete ###
     varda.log.info("Varda initialized successfully!")
 
-    ### start GUI ###
-    app.maingui = MainGUI(app, VardaMenuBar(), StatusBar(app.proj))
-    initMenuBar(app)
-    app.maingui.showMaximized()
     splash.finish(app.maingui)
     varda.log.info("starting the GUI event loop...")
     exitCode = q_app.exec()

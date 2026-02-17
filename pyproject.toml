@@ -31,6 +31,7 @@ dependencies = [
     "numpydantic>=1.6.11",
     "attrs>=25.4.0",
     "numba>=0.63.1",
+    "psygnal>=0.15.1",
 ]
 
 [dependency-groups]
@@ -54,9 +55,6 @@ varda = "varda.main:main"
 [tool.pytest.ini_options]
 pythonpath = ["varda"]
 testpaths = ["tests"]
-
-[tool.black]
-line-length = 90
 
 [tool.mypy]
 disable_error_code = ["import-untyped"]
