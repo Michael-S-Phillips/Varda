@@ -31,7 +31,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.setMenuBar(menubar)
         self.setStatusBar(statusbar)
         self.app = app
-        self.proj = app.proj
+        # self.proj = app.proj
         self.selectedImage = None
         self.imageList = None
         self.rasterViews = {}  # image index -> RasterView
@@ -76,9 +76,9 @@ class MainGUI(QtWidgets.QMainWindow):
     def connectSignals(self):
         self.imageList.itemClicked.connect(self.onSelectedImageChanged)
 
-        self.proj.sigDataChanged[
-            int, ProjectContext.ChangeType, ProjectContext.ChangeModifier
-        ].connect(self.onProjectDataChanged)
+        # self.proj.sigDataChanged[
+        #     int, ProjectContext.ChangeType, ProjectContext.ChangeModifier
+        # ].connect(self.onProjectDataChanged)
 
     def onSelectedImageChanged(self, item):
         if item is None:

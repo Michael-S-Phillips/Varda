@@ -79,6 +79,7 @@ The design goals of Varda are similar to **ENVI Classic**, and **Napari**. Consi
 ## Code Style and Conventions
 
 - **Use type hints** as much as possible, so that MyPy is useful.
+- **Avoid Lazy Importing**, as it worsens readability.
 - **Variable/Function Naming:** When subclassing classes from Qt, use camelCase for variables and functions. Modules that are completely independent of Qt may use snake_case.
 - **Tests** can be colocated with the modules they're testing, using the name test\_\*.py
 - **Formatter:** Black

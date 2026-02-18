@@ -20,7 +20,7 @@ from pyqtgraph import ColorMap
 import numpy as np
 
 from varda.common.parameter import FloatParameter, ParameterGroupWidget
-from varda.common.entities import Image
+from varda.image_loading.varda_raster import VardaRaster
 from varda.utilities import debug
 from varda.image_rendering.stretch_algorithms import (
     stretchAlgorithmRegistry,
@@ -30,7 +30,7 @@ from varda.image_rendering.stretch_algorithms import (
 
 @dataclass
 class RendererSettings:
-    image: Image
+    image: VardaRaster
     mode: str
     bands: np.ndarray[tuple[int], np.dtype[np.uint]]
     stretch: StretchAlgorithm
@@ -42,7 +42,7 @@ class RendererSettings:
         return RendererSettings(
             image=image,
             mode="mono",
-            bands=image.metadata.defaultBand,
+            bands=image.defaultBand,
             stretch=stretchAlgorithmRegistry["Min-Max (Full Range)"](),
             colorMap=pg.ColorMap(None, color=[0.0, 1.0]),  # simple black to white map
             opacity=1.0,
@@ -56,7 +56,7 @@ class ImageRenderer(QObject):
     sigShouldRefresh: pyqtSignal = pyqtSignal()
 
     def __init__(
-        self, image: Image | None = None, settings: Optional[RendererSettings] = None
+        self, image: VardaRaster | None = None, settings: Optional[RendererSettings] = None
     ):
         super().__init__()
         if settings is None and image is None:
@@ -83,12 +83,12 @@ class ImageRenderer(QObject):
         if self.image is None or self.settings is None:
             raise ValueError("Image and settings must be set before rendering.")
         # profile = debug.Profiler()
-        # Extract the raster data for the specified band
+        # Extract the raster data for the specified bands
         if self.settings.mode == "mono":
             # maintain 3D shape so stretch algorithms don't need to account for both 2d and 3d arrays
-            data = self.image.raster[:, :, self.settings.bands[0]][:, :, np.newaxis]
+            data = self.image.getBands([int(self.settings.bands[0])])
         else:
-            data = self.image.raster[:, :, self.settings.bands[:3]]
+            data = self.image.getBands([int(b) for b in self.settings.bands[:3]])
         self._rawBandData = data
 
         # profile("Extract band data")
@@ -224,7 +224,7 @@ class RendererSettingsPanel(QWidget):
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )
         # generate band layout for rgb mode
-        wavelengths = self.settings.image.metadata.wavelengths
+        wavelengths = self.settings.image.wavelengths
         for i in range(3):
             comboBox = getComboBox()
             comboBox.addItems([str(w) for w in wavelengths])

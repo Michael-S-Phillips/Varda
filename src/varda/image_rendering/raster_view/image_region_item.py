@@ -10,7 +10,7 @@ from affine import Affine
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.rois.varda_roi import VardaROIItem
 from varda.utilities import roi_utils
-from varda.common.entities import Image
+from varda.image_loading.varda_raster import VardaRaster
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ class VardaImageItem(pg.ImageItem):
 
     def getTransform(self):
         """Get the affine transform for the current region."""
-        return affine_to_qtransform(self.imageEntity.metadata.transform)
+        return affine_to_qtransform(self.imageEntity.transform)
 
     def _updateImage(self):
         """Update the displayed image data."""
@@ -142,7 +142,7 @@ class VardaImageItem(pg.ImageItem):
 
     def _buildImageQTransformFromAffine(self) -> QTransform:
         """Build a QTransform from the image's affine (pixel -> world)."""
-        affine = self._imageEntity.metadata.transform
+        affine = self._imageEntity.transform
 
         # Map: X = a*x + b*y + c; Y = d*x + e*y + f
         return QTransform(
@@ -208,7 +208,7 @@ class VardaImageItem(pg.ImageItem):
             self._coordinateTransform = None
 
     @property
-    def imageEntity(self) -> Image:
+    def imageEntity(self) -> VardaRaster:
         """Get the underlying hyperspectral image entity."""
         return self._imageEntity
 

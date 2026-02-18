@@ -10,8 +10,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 import numpy as np
 
-from varda.common.entities import Metadata
-from varda.common.entities import Image
+
+
 
 DEBUG = True
 
@@ -165,22 +165,23 @@ randomImageNo = 0
 
 
 def generate_random_image(shape=(100, 100, 100), res=(10, 10, 10)):
-    """Generate a random Image entity of the specified size."""
+    """Generate a random VardaRaster entity of the specified size."""
     global randomImageNo
     import numpy as np
+    from varda.image_loading.varda_raster import VardaRaster
+    from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
     raster = generate_perlin_noise_3d(shape, res)
-    metadata = Metadata(
-        name=f"random image {randomImageNo}",
-        wavelengths=np.array(
-            ["wavelength " + num for num in map(str, range(shape[2]))]
-        ),
-        wavelengths_type=str,
-        defaultBand=[0, 0, 0],
+    wavelengths = np.array(
+        ["wavelength " + num for num in map(str, range(shape[2]))]
     )
-    print(raster.dtype)
+    ds = ArrayDataSource(raster, wavelengths=wavelengths)
     randomImageNo += 1
-    return Image(raster, metadata)
+    return VardaRaster(
+        _dataSource=ds,
+        name=f"random image {randomImageNo}",
+        defaultBand=np.array([0, 0, 0], dtype=np.uint),
+    )
 
 
 ### credit: https://github.com/pvigier/perlin-numpy/blob/master/perlin_numpy

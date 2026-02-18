@@ -1,7 +1,12 @@
-from .image_loading_service import ImageLoadingService, register_image_loader
-from .protocols import ImageLoaderProtocol
+from .image_loading_service import ImageLoadingService
+from .varda_raster import VardaRaster
 
-
-from . import (
-    loader_implementations,
-)  # We import this so that the loaders get registered.
+# Import data_sources to trigger decorator-based registration
+from .data_sources import (
+    DataSource,
+    ArrayDataSource,
+    RasterioDataSource,
+    ENVIDataSource,
+    HDF5DataSource,
+    InMemoryDataSource,
+)

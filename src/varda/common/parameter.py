@@ -657,7 +657,7 @@ class ImageParameter(Parameter[Image]):
                 self.comboBox.addItem("No Images Available!")
             else:
                 self.comboBox.addItems(
-                    [image.metadata.name for image in self.imageList]
+                    [image.name for image in self.imageList]
                 )
             self.comboBox.currentIndexChanged.connect(self.imageSelectionChanged)
 

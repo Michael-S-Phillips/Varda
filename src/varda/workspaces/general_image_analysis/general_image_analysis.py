@@ -117,7 +117,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     def _initUI(self):
         """Initialize the user interface for the workflow"""
         self.setWindowTitle(
-            f"General Image Analysis - Image {self.config.image.value.metadata.name}"
+            f"General Image Analysis - Image {self.config.image.value.name}"
         )
 
         self._setupDocks()
