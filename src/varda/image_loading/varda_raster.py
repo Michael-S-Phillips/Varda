@@ -60,7 +60,9 @@ class VardaRaster:
             Spectrum with values and wavelengths.
         """
         values = self._dataSource.getPixelSpectrum(x, y)
-        return Spectrum(values=values, wavelengths=self.wavelengths)
+        return Spectrum(
+            values=values, wavelengths=self.wavelengths, pixel_coordinates=(x, y)
+        )
 
     def getBands(self, bandIndices: npt.ArrayLike) -> np.ndarray:
         """Get raster data for specific bands.

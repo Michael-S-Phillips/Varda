@@ -38,6 +38,7 @@ class Spectrum:
 
     values: np.ndarray = attrs.field(converter=np.asarray)
     wavelengths: np.ndarray | list[str] = attrs.field(converter=np.asarray)
+    pixel_coordinates: tuple[int, int] | None = None
 
     @values.validator
     def _check_values(self, attribute, value):

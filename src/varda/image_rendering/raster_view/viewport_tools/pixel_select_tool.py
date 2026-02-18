@@ -132,7 +132,7 @@ class PixelSelectTool(ViewportTool):
         self.plotWidget.plot(
             wavelengths,
             spectrum.values,
-            name=f"Pixel ({x}, {y})",
+            name=f"Pixel {spectrum.pixel_coordinates}",
         )
         self.plotWidget.show()
         # self.pixelPlot = PixelPlot()
