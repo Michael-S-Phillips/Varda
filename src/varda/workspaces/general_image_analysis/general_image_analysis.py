@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
 )
 from pyqtgraph.dockarea import DockArea, Dock
 
-from varda.common.entities import Image
+from varda.common.entities import VardaRaster
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.new_histogram_view import (
     NewHistogramView,
@@ -34,7 +34,7 @@ class GeneralImageAnalysisConfig(ParameterGroup):
         "The image to view.",
     )
 
-    def __init__(self, imageList: list[Image]) -> None:
+    def __init__(self, imageList: list[VardaRaster]) -> None:
         super().__init__()
         self.imageList = imageList
         self.image.setProvider(lambda: self.imageList)

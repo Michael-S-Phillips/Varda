@@ -13,7 +13,7 @@ from varda.common.parameter import (
     ParameterGroupWidget,
     EnumParameter,
 )
-from varda.common.entities import Image
+from varda.common.entities import VardaRaster
 from varda.image_rendering.raster_view import ImageViewport
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.common.ui import VBoxBuilder, SplitterBuilder, HBoxBuilder
@@ -31,7 +31,7 @@ class LinkMode(Enum):
 
 
 class DualImageWorkspaceConfig(ParameterGroup):
-    imageList: list[Image]
+    imageList: list[VardaRaster]
 
     image1Param: ImageParameter = ImageParameter(
         "Primary Image",
@@ -54,7 +54,7 @@ class DualImageWorkspaceConfig(ParameterGroup):
         "Whether to link the images by pixel or geographic coordinates.",
     )
 
-    def __init__(self, imageList: list[Image]) -> None:
+    def __init__(self, imageList: list[VardaRaster]) -> None:
         super().__init__()
         self.imageList = imageList
         self.image1Param.setProvider(lambda: self.imageList)

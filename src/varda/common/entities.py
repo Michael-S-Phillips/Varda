@@ -22,6 +22,8 @@ import rasterio as rio
 from pyproj import CRS, Transformer
 from pyproj.exceptions import CRSError
 
+# local imports
+from varda.image_loading import VardaRaster
 
 logger = logging.getLogger(__name__)
 
