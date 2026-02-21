@@ -27,10 +27,10 @@ uv run pytest tests/test_core/test_entities.py
 uv run pytest tests/test_core/test_entities.py::TestClassName::test_method
 
 # Format code
-uv run black src/
+uv run ruff format src/
 
-# Check formatting without modifying
-uv run black --check src/
+# Check formatting (without modifying)
+uv run ruff check src/
 
 # Type checking
 uv run mypy src/
@@ -81,18 +81,10 @@ The design goals of Varda are similar to **ENVI Classic**, and **Napari**. Consi
 - **Use type hints** as much as possible, so that MyPy is useful.
 - **Avoid Lazy Importing**, as it worsens readability.
 - **Variable/Function Naming:** When subclassing classes from Qt, use camelCase for variables and functions. Modules that are completely independent of Qt may use snake_case.
-- **Tests** can be colocated with the modules they're testing, using the name test\_\*.py
-- **Formatter:** Black
-- **Python version:** 3.13.x (as specified in `pyproject.toml`)
+- **Tests** can be colocated with the modules they're testing in a subfolder called /\_tests, with filenames test\_\*.py
 - **Package manager:** `uv`
-- **Qt tests** run in offscreen mode (`QT_QPA_PLATFORM=offscreen`, set in `tests/conftest.py`)
 
 ## Note on Testing
 
 Varda currently lacks very much unit testing, due to GUI code being difficult to test.
 Moving forward we should try to better seperate GUI and logic, and write unit tests for the logic code.
-
-## CI Checks (PR to main/development)
-
-- Black formatting check
-- testing with pytest / pytest-qt
