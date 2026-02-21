@@ -168,7 +168,7 @@ class TestInMemoryDataSource:
     @pytest.fixture
     def ds(self, source):
         """Create an InMemoryDataSource wrapping the source."""
-        return InMemoryDataSource.fromDataSource(source)
+        return InMemoryDataSource(source)
 
     def test_delegates_metadata(self, ds, source):
         assert ds.filePath == source.filePath

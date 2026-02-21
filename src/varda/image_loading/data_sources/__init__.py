@@ -1,3 +1,4 @@
+# Import data_sources to trigger decorator-based registration
 from .data_source import DataSource
 from .array_data_source import ArrayDataSource
 from .rasterio_data_source import RasterioDataSource

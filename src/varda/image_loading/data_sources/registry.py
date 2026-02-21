@@ -10,7 +10,6 @@ and to generate file dialog filters dynamically.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 import attrs
 

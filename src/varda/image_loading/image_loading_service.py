@@ -362,23 +362,16 @@ class ImageLoadingService:
             """Load the image from a separate thread."""
             logger.info(f"Loading image: {self.filePath}")
             try:
-                # Open the DataSource (reads metadata, keeps file handle)
+                # get handler for file
                 ds = openDataSource(self.filePath)
 
                 # Wrap in InMemoryDataSource, so that it is just as fast as it was before
                 # later we'll want the user to be able to choose whether to do this.
-                memDs = InMemoryDataSource.fromDataSource(ds)
+                memDs = InMemoryDataSource(ds)
 
-                # Derive display name
-                name = Path(ds.filePath).name
+                # Create VardaRaster
+                self.result = VardaRaster.fromDataSource(memDs)
 
-                # Create VardaRaster (defaultBand comes from DataSource now)
-                self.result = VardaRaster(
-                    _dataSource=memDs,
-                    name=name,
-                    defaultBand=ds.defaultBands,
-                    extraMetadata=ds.extraMetadata,
-                )
                 self.status = ImageLoadingService.LoadStatus.SUCCESS
                 logger.info(f"Image loading success: {self.filePath}")
 

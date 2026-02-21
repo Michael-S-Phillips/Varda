@@ -23,28 +23,16 @@ logger = logging.getLogger(__name__)
 
 
 class InMemoryDataSource(DataSource):
-    """DataSource that holds all raster data in memory.
-
-    Delegates all metadata and coordinate transform calls to the wrapped source.
-    Only raster data access uses the in-memory array.
+    """
+    DataSource that wraps another DataSource, immediately caching all of the raster data in memory.
+    This allows for quick data access at the cost of higher memory usage.
     """
 
-    def __init__(self, data: np.ndarray, source: DataSource):
-        if data.ndim == 2:
-            data = data[:, :, np.newaxis]
-        if data.ndim != 3:
-            raise ValueError(f"Expected 2D or 3D array, got {data.ndim}D")
-
-        self._data = data
+    def __init__(self, source: DataSource):
+        self._data = source.readAllBands()
         self._source = source
 
-    @classmethod
-    def fromDataSource(cls, source: DataSource) -> InMemoryDataSource:
-        """Create an InMemoryDataSource by reading all data from another DataSource."""
-        data = source.readAllBands()
-        return cls(data, source)
-
-    # --- Data access (always from in-memory array) ---
+    # --- Data access ---
 
     def getBands(self, bandIndices: npt.ArrayLike) -> np.ndarray:
         return self.getData(bandIndices=bandIndices)
@@ -76,7 +64,7 @@ class InMemoryDataSource(DataSource):
     def __getitem__(self, key) -> np.ndarray:
         return self._data[key]
 
-    # --- Metadata properties (all delegated to wrapped source) ---
+    # --- Metadata properties ---
 
     @property
     def filePath(self) -> str | None:
@@ -146,7 +134,7 @@ class InMemoryDataSource(DataSource):
     def description(self) -> str:
         return self._source.description
 
-    # --- Coordinate transformation (delegated to wrapped source) ---
+    # --- Coordinate transformation ---
 
     def pixelToGeo(self, col: int, row: int) -> tuple[float, float]:
         return self._source.pixelToGeo(col, row)

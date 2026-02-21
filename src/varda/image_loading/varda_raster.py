@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import warnings
+from pathlib import Path
 from dataclasses import dataclass, field
 from functools import cached_property
 from typing import TYPE_CHECKING
@@ -20,7 +21,7 @@ import affine as affine_module
 from pyproj import CRS
 
 from varda.common.entities import Spectrum
-from varda.image_loading.data_sources.in_memory_data_source import InMemoryDataSource
+from varda.image_loading.data_sources import InMemoryDataSource
 
 if TYPE_CHECKING:
     from varda.image_loading.data_sources.data_source import DataSource
@@ -46,6 +47,21 @@ class VardaRaster:
             self.name = self._dataSource.filePath.split("/")[-1]
         if not isinstance(self.defaultBand, np.ndarray):
             self.defaultBand = np.array(self.defaultBand, dtype=np.uint)
+
+    # alternate constructor
+    @classmethod
+    def fromDataSource(cls, dataSource: DataSource) -> VardaRaster:
+        """Create a VardaRaster directly from a DataSource, deriving metadata from it."""
+        if dataSource.filePath is not None:
+            name = Path(dataSource.filePath).name
+        else:
+            name = "Untitled"
+        return cls(
+            _dataSource=dataSource,
+            name=name,
+            defaultBand=dataSource.defaultBands,
+            extraMetadata=dataSource.extraMetadata,
+        )
 
     # --- High-level data access ---
 
@@ -169,7 +185,7 @@ class VardaRaster:
         Reads all data from the current DataSource into memory.
         """
 
-        memDs = InMemoryDataSource.fromDataSource(self._dataSource)
+        memDs = InMemoryDataSource(self._dataSource)
         return VardaRaster(
             _dataSource=memDs,
             name=self.name,
