@@ -11,8 +11,6 @@ from PyQt6.QtCore import Qt
 import numpy as np
 
 
-
-
 DEBUG = True
 
 
@@ -168,19 +166,16 @@ def generate_random_image(shape=(100, 100, 100), res=(10, 10, 10)):
     """Generate a random VardaRaster entity of the specified size."""
     global randomImageNo
     import numpy as np
-    from varda.image_loading.varda_raster import VardaRaster
+    from varda.common.entities import VardaRaster
     from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
     raster = generate_perlin_noise_3d(shape, res)
-    wavelengths = np.array(
-        ["wavelength " + num for num in map(str, range(shape[2]))]
-    )
+    wavelengths = np.array(["wavelength " + num for num in map(str, range(shape[2]))])
     ds = ArrayDataSource(raster, wavelengths=wavelengths)
     randomImageNo += 1
     return VardaRaster(
-        _dataSource=ds,
+        dataSource=ds,
         name=f"random image {randomImageNo}",
-        defaultBand=np.array([0, 0, 0], dtype=np.uint),
     )
 
 

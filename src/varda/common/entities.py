@@ -6,26 +6,316 @@ entities.py: data structures used throughout Varda
 from __future__ import annotations
 from dataclasses import dataclass, field
 import logging
-from typing import Any, Dict, Optional
+import warnings
+from typing import Any, Dict, Optional, TYPE_CHECKING
 from datetime import datetime
 import uuid
 from enum import Enum
+from functools import cached_property
+from pathlib import Path
 
 # third party imports
 import attrs
 import affine
 from affine import Affine
 import numpy as np
+import numpy.typing as npt
 import geopandas as gpd
 from PyQt6.QtGui import QColor
 import rasterio as rio
 from pyproj import CRS, Transformer
 from pyproj.exceptions import CRSError
 
-# local imports
-from varda.image_loading import VardaRaster
-
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from varda.image_loading.data_sources import DataSource
+
+
+class VardaRaster:
+    """Primary raster image entity in Varda.
+
+    Wraps a DataSource for data access and holds application-level metadata.
+    """
+
+    def __init__(self, dataSource: DataSource, name: str | None = None):
+        self._dataSource = dataSource
+        self._name = name
+
+    # alternate constructor
+    @classmethod
+    def fromDataSource(cls, dataSource: DataSource) -> VardaRaster:
+        """Create a VardaRaster directly from a DataSource, deriving metadata from it."""
+        return cls(dataSource)
+
+    # --- High-level data access ---
+
+    def getSpectrum(self, x: int, y: int) -> Spectrum:
+        """Get the spectrum at a specific pixel location.
+
+        Args:
+            x: Column index.
+            y: Row index.
+
+        Returns:
+            Spectrum with values and wavelengths.
+        """
+        values = self._dataSource.getPixelSpectrum(x, y)
+        return Spectrum(
+            values=values, wavelengths=self.wavelengths, pixel_coordinates=(x, y)
+        )
+
+    def getBands(self, bandIndices: npt.ArrayLike) -> np.ndarray:
+        """Get raster data for specific bands.
+
+        Returns:
+            Array with shape (height, width, n_bands).
+        """
+        return self._dataSource.getBands(bandIndices)
+
+    def getData(
+        self,
+        bandIndices: list[int] | None = None,
+        window: tuple[int, int, int, int] | None = None,
+    ) -> np.ndarray:
+        """Get raster data with optional band and spatial subsetting.
+
+        Returns:
+            Array with shape (height, width, bands).
+        """
+        return self._dataSource.getData(bandIndices, window)
+
+    def __getitem__(self, key) -> np.ndarray:
+        """Numpy-like indexing: ``raster[y, x, :]``."""
+        return self._dataSource[key]
+
+    # --- Coordinate transformation ---
+
+    def pixelToGeo(self, col: int, row: int) -> tuple[float, float]:
+        """Convert pixel coordinates to CRS coordinates."""
+        return self._dataSource.pixelToGeo(col, row)
+
+    def geoToPixel(self, x: float, y: float) -> tuple[int, int]:
+        """Convert CRS coordinates to pixel coordinates."""
+        return self._dataSource.geoToPixel(x, y)
+
+    # --- Delegated properties from DataSource ---
+
+    @property
+    def name(self) -> str:
+        if self._name is None:
+            if self._dataSource.filePath is not None:
+                self._name = Path(self._dataSource.filePath).name
+            else:
+                self._name = "Untitled"
+
+        return self._name
+
+    @property
+    def width(self) -> int:
+        return self._dataSource.width
+
+    @property
+    def height(self) -> int:
+        return self._dataSource.height
+
+    @property
+    def bandCount(self) -> int:
+        return self._dataSource.bandCount
+
+    @property
+    def dtype(self) -> np.dtype:
+        return self._dataSource.dtype
+
+    @property
+    def nodata(self) -> float | None:
+        return self._dataSource.nodata
+
+    @property
+    def wavelengths(self) -> np.ndarray:
+        return self._dataSource.wavelengths
+
+    @property
+    def wavelengthsType(self) -> type:
+        return self._dataSource.wavelengthsType
+
+    @property
+    def wavelengthUnits(self) -> str:
+        return self._dataSource.wavelengthUnits
+
+    @property
+    def bandNames(self) -> list[str]:
+        return self._dataSource.bandNames
+
+    @property
+    def defaultBands(self) -> np.ndarray:
+        return self._dataSource.defaultBands
+
+    @property
+    def transform(self) -> Affine:
+        return self._dataSource.transform
+
+    @property
+    def crs(self) -> CRS | None:
+        return self._dataSource.crs
+
+    @property
+    def filePath(self) -> str | None:
+        return self._dataSource.filePath
+
+    @property
+    def driver(self) -> str:
+        return self._dataSource.driver
+
+    @property
+    def hasGeospatialData(self) -> bool:
+        return self.crs is not None and self.transform != affine.identity
+
+    @property
+    def extraMetadata(self) -> dict:
+        return self._dataSource.extraMetadata
+
+    @property
+    def dataSource(self) -> DataSource:
+        """Access the underlying DataSource directly."""
+        return self._dataSource
+
+    # --- Memory management ---
+
+    def close(self) -> None:
+        """Close the underlying DataSource."""
+        self._dataSource.close()
+
+    # --- Compatibility layer (temporary, for migration) ---
+
+    @cached_property
+    def raster(self) -> np.ndarray:
+        """Full raster data as (h, w, bands) array.
+
+        .. deprecated::
+            Use getBands(), getData(), or getSpectrum() instead.
+            This loads the entire image into memory.
+        """
+        warnings.warn(
+            "VardaRaster.raster is deprecated. Use getBands(), getData(), or getSpectrum() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._dataSource.readAllBands()
+
+    @property
+    def metadata(self) -> CompatMetadata:
+        """Backward-compatible metadata adapter.
+
+        .. deprecated::
+            Access properties directly on VardaRaster instead of through .metadata.
+        """
+        return CompatMetadata(self)
+
+    def __repr__(self) -> str:
+        return (
+            f"VardaRaster({self.name!r}, {self.width}x{self.height}x{self.bandCount})"
+        )
+
+
+class CompatMetadata:
+    """Backward-compatible adapter that makes ``image.metadata.X`` work during migration.
+
+    Delegates to VardaRaster properties so old code keeps working.
+    """
+
+    def __init__(self, raster: VardaRaster):
+        self._raster = raster
+
+    @property
+    def filePath(self) -> str:
+        return self._raster.filePath or ""
+
+    @property
+    def driver(self) -> str:
+        return self._raster.driver
+
+    @property
+    def width(self) -> int:
+        return self._raster.width
+
+    @property
+    def height(self) -> int:
+        return self._raster.height
+
+    @property
+    def bandCount(self) -> int:
+        return self._raster.bandCount
+
+    @property
+    def dtype(self) -> str:
+        return str(self._raster.dtype)
+
+    @property
+    def dataIgnore(self) -> float:
+        nd = self._raster.nodata
+        return nd if nd is not None else 0
+
+    @property
+    def defaultBands(self) -> np.ndarray:
+        return self._raster.defaultBands
+
+    @property
+    def wavelengths(self) -> np.ndarray:
+        return self._raster.wavelengths
+
+    @property
+    def wavelengths_type(self) -> type:
+        return self._raster.wavelengthsType
+
+    @property
+    def name(self) -> str:
+        return self._raster.name
+
+    @property
+    def transform(self) -> Affine:
+        return self._raster.transform
+
+    @property
+    def crs(self) -> CRS | None:
+        return self._raster.crs
+
+    @property
+    def extraMetadata(self) -> dict:
+        return self._raster.extraMetadata
+
+    @property
+    def hasGeospatialData(self) -> bool:
+        return self._raster.hasGeospatialData
+
+    def toFlatDict(self) -> dict:
+        core = {
+            "filePath": self.filePath,
+            "driver": self.driver,
+            "width": self.width,
+            "height": self.height,
+            "bandCount": self.bandCount,
+            "dtype": self.dtype,
+            "dataIgnore": self.dataIgnore,
+            "defaultBands": self.defaultBands,
+            "wavelengths": self.wavelengths,
+            "name": self.name,
+        }
+        core.update(self._raster.extraMetadata)
+        return core
+
+    def __iter__(self):
+        return iter(self.toFlatDict().items())
+
+    def __getitem__(self, item):
+        return self.toFlatDict().get(item)
+
+    def __repr__(self):
+        items = self.toFlatDict()
+        out = "CompatMetadata:\n"
+        for key, value in items.items():
+            out += f"    {key}: {value}\n"
+        return out
 
 
 @attrs.frozen(slots=True)
@@ -48,11 +338,6 @@ class Spectrum:
             raise ValueError(f"values must be a 1d array, got {value.ndim}d array")
 
 
-# Image alias is provided via __getattr__ at the bottom of this file
-# to avoid circular imports with varda.image_loading.varda_raster
-
-
-# pylint: disable=too-many-instance-attributes
 @dataclass
 class Metadata:
     """Data container representing the metadata of an image.
@@ -559,11 +844,9 @@ class Plot:
         return Plot("ROI", timestamp, roi.meanSpectrum)
 
 
-# --- Lazy import for Image alias (avoids circular import with image_loading) ---
+# --- Lazy import for Image alias. This basically just makes it so ---
 def __getattr__(name):
     if name in ("Image", "VardaRaster"):
-        from varda.image_loading.varda_raster import VardaRaster
-
         globals()["Image"] = VardaRaster
         globals()["VardaRaster"] = VardaRaster
         return VardaRaster

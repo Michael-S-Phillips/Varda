@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
 
 from .data_sources import DataSource, RasterioDataSource, InMemoryDataSource
 from .data_sources.registry import datasource_registry, get_image_type_filter
-from .varda_raster import VardaRaster
+from varda.common.entities import VardaRaster
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,7 @@ from affine import Affine
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.rois.varda_roi import VardaROIItem
 from varda.utilities import roi_utils
-from varda.image_loading.varda_raster import VardaRaster
+from varda.common.entities import VardaRaster
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt, pyqtSlot
 
 from varda.common.ui import DetachableTabWidget
-from varda.project import ProjectContext
+# from varda.project import ProjectContext
 
 from varda.workspaces import GeneralImageAnalysisWorkflow
 from varda.image_processing.process_controls.processingmenu import ProcessingMenu
@@ -340,7 +340,6 @@ class MainGUI(QtWidgets.QMainWindow):
         cursor_pos = QCursor.pos()
         processingMenu.exec(cursor_pos)
 
-    @pyqtSlot(int, ProjectContext.ChangeType, ProjectContext.ChangeModifier)
     def onProjectDataChanged(self, index, changeType, changeModifier):
         """Handle when project data changes (like new images being added)."""
         logger.debug(

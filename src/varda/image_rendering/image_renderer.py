@@ -20,7 +20,7 @@ from pyqtgraph import ColorMap
 import numpy as np
 
 from varda.common.parameter import FloatParameter, ParameterGroupWidget
-from varda.image_loading.varda_raster import VardaRaster
+from varda.common.entities import VardaRaster
 from varda.utilities import debug
 from varda.image_rendering.stretch_algorithms import (
     stretchAlgorithmRegistry,
@@ -42,7 +42,7 @@ class RendererSettings:
         return RendererSettings(
             image=image,
             mode="mono",
-            bands=image.defaultBand,
+            bands=image.defaultBands,
             stretch=stretchAlgorithmRegistry["Min-Max (Full Range)"](),
             colorMap=pg.ColorMap(None, color=[0.0, 1.0]),  # simple black to white map
             opacity=1.0,
@@ -56,7 +56,9 @@ class ImageRenderer(QObject):
     sigShouldRefresh: pyqtSignal = pyqtSignal()
 
     def __init__(
-        self, image: VardaRaster | None = None, settings: Optional[RendererSettings] = None
+        self,
+        image: VardaRaster | None = None,
+        settings: Optional[RendererSettings] = None,
     ):
         super().__init__()
         if settings is None and image is None:

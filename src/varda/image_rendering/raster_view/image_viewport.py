@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 
 from varda import log
-from varda.image_loading.varda_raster import VardaRaster
+from varda.common.entities import VardaRaster
 from varda.image_rendering import ImageRenderer
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import (
     ViewportTool,
