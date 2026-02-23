@@ -27,10 +27,10 @@ uv run pytest tests/test_core/test_entities.py
 uv run pytest tests/test_core/test_entities.py::TestClassName::test_method
 
 # Format code
-uv run black src/
+uv run ruff format src/
 
-# Check formatting without modifying
-uv run black --check src/
+# Check formatting (without modifying)
+uv run ruff check src/
 
 # Type checking
 uv run mypy src/
@@ -51,9 +51,9 @@ We also try to do as much wiring as possible at this initialization stage, to re
 ## Important
 
 - **`image_loading/`** — Pluggable image loaders behind `ImageLoaderProtocol`. `ImageLoadingService` runs loading in background threads.
-- **`image_rendering/`** — Systems related to visualization of images. `image_renderer.py` converts gets rgb image from spectral image based on settings. `stretch_algorithms.py` contains band stretch implementations (min-max, linear percentile, etc). `raster_view/` has the widgets to display the results from the image renderer, and other supporting classes for viewport tools, linked viewports, etc.
-- **`rois/`** — ROI graphics item (`VardaROI`), management widgets, table model/view, property editor, statistics dialog. **Much of this is outdated because it is dependent on the old ProjectContext.**
-- **`common/`** — Shared data types and widgets that are used in many places: `entities.py` (Spectrum, Image, Metadata, ROI domain objects), `parameter.py` (parameter system), `ui.py` (common widgets).
+- **`image_rendering/`** — Systems related to visualization of images. `image_renderer.py` calculates an rgb image from based on settings. `stretch_algorithms.py` contains band stretch implementations (min-max, linear percentile, etc). `raster_view/` has the widgets to display the results from the image renderer, and other supporting classes for viewport tools, linked viewports, etc.
+- **`rois/`** — ROI graphics item (`VardaROI`), management widgets, table model/view, property editor, statistics dialog. **Much of this is outdated and should be ignored. We will be rewriting it.**
+- **`common/`** — Shared code that is used in many places: `entities.py` (important domain objects such as VardaRaster), `parameter.py` (parameter system that can auto-generate UI for adjusting values), `ui.py` (useful widgets and builders).
 - **`workspaces/`** — Workspace views: `dual_image_workspace/` (side-by-side comparison), `general_image_analysis/` (standard analysis view).
 - **`utilities/`** — Helpers: threading, signal utils, debug tools, etc..
 - **`maingui.py`** — `MainGUI` (QMainWindow): tabbed workspaces, child window management, docking.
@@ -67,10 +67,10 @@ We also try to do as much wiring as possible at this initialization stage, to re
 
 ## Key Patterns
 
+- **Simplicity/Conciseness** is always preferred, and an emphasis on high code quality and maintainability.
 - **Application-level Actions** are defined in main.py on startup, and dynamically added to the MenuBar.
 - **Qt signals/slots** are used throughout for reactive UI updates. psygnal can also be used to create signals and slots in code that doesn't directly depend on Qt.
 - **Numba** (`@njit`) may be used in performance-critical paths like stretch algorithms.
-- **Background threading** via `ImageLoadingService` for non-blocking image loads.
 
 ### Similar Projects
 
@@ -79,19 +79,12 @@ The design goals of Varda are similar to **ENVI Classic**, and **Napari**. Consi
 ## Code Style and Conventions
 
 - **Use type hints** as much as possible, so that MyPy is useful.
+- **Avoid Lazy Importing**, as it worsens readability.
 - **Variable/Function Naming:** When subclassing classes from Qt, use camelCase for variables and functions. Modules that are completely independent of Qt may use snake_case.
-- **Tests** can be colocated with the modules they're testing, using the name test\_\*.py
-- **Formatter:** Black
-- **Python version:** 3.13.x (as specified in `pyproject.toml`)
+- **Tests** can be colocated with the modules they're testing in a subfolder called /\_tests, with filenames test\_\*.py
 - **Package manager:** `uv`
-- **Qt tests** run in offscreen mode (`QT_QPA_PLATFORM=offscreen`, set in `tests/conftest.py`)
 
 ## Note on Testing
 
-Varda currently lacks very much unit testing, due to GUI code being difficult to test.
+Varda currently lacks much unit testing, due to GUI code being difficult to test.
 Moving forward we should try to better seperate GUI and logic, and write unit tests for the logic code.
-
-## CI Checks (PR to main/development)
-
-- Black formatting check
-- testing with pytest / pytest-qt

@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 
 from varda import log
-from varda.image_rendering import Image
+from varda.common.entities import VardaRaster
 from varda.image_rendering import ImageRenderer
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import (
     ViewportTool,
@@ -117,7 +117,7 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         return self._imageItem
 
     @property
-    def imageEntity(self) -> Image:
+    def imageEntity(self) -> VardaRaster:
         return self._imageRenderer.image
 
     @property

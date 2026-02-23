@@ -7,7 +7,7 @@ from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt, pyqtSlot
 
 from varda.common.ui import DetachableTabWidget
-from varda.project import ProjectContext
+# from varda.project import ProjectContext
 
 from varda.workspaces import GeneralImageAnalysisWorkflow
 from varda.image_processing.process_controls.processingmenu import ProcessingMenu
@@ -31,7 +31,7 @@ class MainGUI(QtWidgets.QMainWindow):
         self.setMenuBar(menubar)
         self.setStatusBar(statusbar)
         self.app = app
-        self.proj = app.proj
+        # self.proj = app.proj
         self.selectedImage = None
         self.imageList = None
         self.rasterViews = {}  # image index -> RasterView
@@ -76,9 +76,9 @@ class MainGUI(QtWidgets.QMainWindow):
     def connectSignals(self):
         self.imageList.itemClicked.connect(self.onSelectedImageChanged)
 
-        self.proj.sigDataChanged[
-            int, ProjectContext.ChangeType, ProjectContext.ChangeModifier
-        ].connect(self.onProjectDataChanged)
+        # self.proj.sigDataChanged[
+        #     int, ProjectContext.ChangeType, ProjectContext.ChangeModifier
+        # ].connect(self.onProjectDataChanged)
 
     def onSelectedImageChanged(self, item):
         if item is None:
@@ -340,7 +340,6 @@ class MainGUI(QtWidgets.QMainWindow):
         cursor_pos = QCursor.pos()
         processingMenu.exec(cursor_pos)
 
-    @pyqtSlot(int, ProjectContext.ChangeType, ProjectContext.ChangeModifier)
     def onProjectDataChanged(self, index, changeType, changeModifier):
         """Handle when project data changes (like new images being added)."""
         logger.debug(

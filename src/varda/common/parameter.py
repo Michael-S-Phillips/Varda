@@ -24,7 +24,7 @@ from varda.common.ui import (
     SliderBuilder,
     SpinBoxBuilder,
 )
-from varda.common.entities import Image
+from varda.common.entities import VardaRaster
 from varda.common.vec2 import Vec2
 
 
@@ -615,7 +615,7 @@ class ColorParameter(Parameter[QColor]):
             self.updateColorDisplay()
 
 
-class ImageParameter(Parameter[Image]):
+class ImageParameter(Parameter[VardaRaster]):
     """
     Parameter that allows selection from a list of images.
     For now it just displays the name, but in the future it could potentially show image previews or maybe filtering options.
@@ -625,11 +625,11 @@ class ImageParameter(Parameter[Image]):
     """
 
     def __init__(self, name: str, description=None, parent=None) -> None:
-        self.imageProvider: Callable[[], list[Image]] = lambda: []
+        self.imageProvider: Callable[[], list[VardaRaster]] = lambda: []
         default = None
         super().__init__(name, default, description, parent)
 
-    def setProvider(self, imageProvider: Callable[[], list[Image]]) -> None:
+    def setProvider(self, imageProvider: Callable[[], list[VardaRaster]]) -> None:
         """
         Sets the callable image provider that returns the list of images to choose from.
         This must be set before using the parameter for anything else.
@@ -656,9 +656,7 @@ class ImageParameter(Parameter[Image]):
             if len(self.imageList) == 0:
                 self.comboBox.addItem("No Images Available!")
             else:
-                self.comboBox.addItems(
-                    [image.metadata.name for image in self.imageList]
-                )
+                self.comboBox.addItems([image.name for image in self.imageList])
             self.comboBox.currentIndexChanged.connect(self.imageSelectionChanged)
 
             paramLayout = paramLayoutDefault()

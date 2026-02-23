@@ -116,28 +116,23 @@ class PixelSelectTool(ViewportTool):
         # check that coordinates are within range
         x = int(pixelCoords.x())
         y = int(pixelCoords.y())
-        if (
-            x < 0
-            or y < 0
-            or x >= self.viewport.imageEntity.raster.shape[1]
-            or y >= self.viewport.imageEntity.raster.shape[0]
-        ):
+        image = self.viewport.imageEntity
+        if x < 0 or y < 0 or x >= image.width or y >= image.height:
             logger.warning(f"Selected pixel ({x}, {y}) is out of image bounds")
             return
 
-        image = self.viewport.imageEntity
         wavelengths = (
-            image.metadata.wavelengths
-            if image.metadata.wavelengths_type is not str
-            else np.arange(image.raster.shape[2])
+            image.wavelengths
+            if image.wavelengthsType is not str
+            else np.arange(image.bandCount)
         )
 
-        spectra = image.raster[y, x, :]
+        spectrum = image.getSpectrum(x, y)
         self.plotWidget = VardaPlotWidget()
         self.plotWidget.plot(
             wavelengths,
-            spectra,
-            name=f"Pixel ({x}, {y})",
+            spectrum.values,
+            name=f"Pixel {spectrum.pixel_coordinates}",
         )
         self.plotWidget.show()
         # self.pixelPlot = PixelPlot()
