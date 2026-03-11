@@ -23,6 +23,7 @@ class ROIManagerWidget(QWidget):
     """Widget for managing ROIs: shows a table and delete button."""
 
     sigSelectionChanged = pyqtSignal(object)  # emits fid (int) or None
+    sigPlotRequested = pyqtSignal(int)  # emits fid
 
     def __init__(
         self,
@@ -43,10 +44,15 @@ class ROIManagerWidget(QWidget):
         self._exportBtn = QPushButton("Export...")
         self._exportBtn.clicked.connect(self._exportCollection)
 
+        self._plotBtn = QPushButton("Plot Spectrum")
+        self._plotBtn.clicked.connect(self._plotSelected)
+        self._plotBtn.setEnabled(False)
+
         # Layout
         btnRow = QHBoxLayout()
         btnRow.addWidget(self._deleteBtn)
         btnRow.addWidget(self._exportBtn)
+        btnRow.addWidget(self._plotBtn)
         btnRow.addStretch()
 
         layout = QVBoxLayout(self)
@@ -76,9 +82,16 @@ class ROIManagerWidget(QWidget):
     def _onSelectionChanged(self, selected, _deselected) -> None:
         if not selected.indexes():
             self.sigSelectionChanged.emit(None)
+            self._plotBtn.setEnabled(False)
             return
         fid = self._model.fidForRow(selected.indexes()[0].row())
         self.sigSelectionChanged.emit(fid)
+        self._plotBtn.setEnabled(fid is not None)
+
+    def _plotSelected(self) -> None:
+        fid = self.selectedFid()
+        if fid is not None:
+            self.sigPlotRequested.emit(fid)
 
     def _deleteSelected(self) -> None:
         fid = self.selectedFid()

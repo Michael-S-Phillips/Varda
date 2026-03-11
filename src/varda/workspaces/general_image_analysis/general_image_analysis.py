@@ -18,9 +18,12 @@ from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.new_histogram_view import (
     NewHistogramView,
 )
+import pyqtgraph as pg
+
 from varda.image_rendering.raster_view import TripleRasterView, ROIDisplayController
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.common.parameter import ImageParameter, ParameterGroup
+from varda.plotting.plot import VardaPlotWidget
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
 
@@ -111,6 +114,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         self.roiManagerWidget = ROIManagerWidget(self.roiCollection, parent=self)
 
+        # --- Spectral plot ---
+        self.plotWidget = VardaPlotWidget(parent=self)
+
     def _initUI(self):
         """Initialize the user interface for the workflow"""
         self.setWindowTitle(
@@ -156,6 +162,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         roiDockNew = Dock("ROI Dock", widget=self.roiManagerWidget, size=(100, 100))
         docks.append(roiDockNew)
+
+        plotDock = Dock("Spectral Plot", widget=self.plotWidget, size=(400, 300))
+        docks.append(plotDock)
         # roiDock = VardaDockWidget("ROI Manager", self.roiManager, loc, self)
         # docks.append(roiDock)
 
@@ -175,6 +184,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         dockArea.addDock(settingsDock, "left")
         dockArea.addDock(roiDockNew, "bottom", settingsDock)
         dockArea.addDock(histogramDock, "bottom", roiDockNew)
+        dockArea.addDock(plotDock, "bottom", rasterDock)
         # dockArea.addDock(bandDockNew, "left")
         # dockArea.addDock(stretchDockNew, "below", bandDockNew)
         # dockArea.addDock(metadataDockNew, "bottom")
@@ -195,6 +205,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             self.roiDisplayController.highlightROI
         )
 
+        # Wire ROI spectral plot
+        self.roiManagerWidget.sigPlotRequested.connect(self._onPlotRequested)
+
     def _onToolActivated(self, tool) -> None:
         """Connect drawing tool signals when a drawing tool is activated."""
         from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
@@ -209,6 +222,36 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.roiCollection.addROIFromDrawing(
             geometry=result["geometry"],
             roiType=result["roiType"],
+        )
+
+    def _onPlotRequested(self, fid: int) -> None:
+        """Compute ROI statistics and plot mean +/- std spectrum."""
+        from PyQt6.QtGui import QColor
+
+        image = self.config.image.value
+        stats = self.roiCollection.getROIStatistics(fid, image)
+
+        if stats["pixel_count"] == 0:
+            logger.warning("ROI fid=%d has no pixels", fid)
+            return
+
+        mean = stats["mean"]
+        std = stats["std"]
+        wavelengths = VardaPlotWidget.getPlottableWavelengths(image, len(mean))
+
+        roi = self.roiCollection.getROI(fid)
+
+        fillColor = QColor(roi.color)
+        fillColor.setAlpha(50)
+
+        self.plotWidget.plotWithFill(
+            wavelengths,
+            mean,
+            yLower=mean - std,
+            yUpper=mean + std,
+            fillBrush=pg.mkBrush(fillColor),
+            pen=pg.mkPen(color=roi.color, width=2),
+            name=roi.name,
         )
 
     def setStatusMessage(self, message):

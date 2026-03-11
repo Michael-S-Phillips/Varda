@@ -1,6 +1,9 @@
+import numpy as np
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import Qt, QObject, pyqtSignal
 import pyqtgraph as pg
+
+from varda.common.entities import VardaRaster
 
 from varda.common.ui import VBoxBuilder, HBoxBuilder, SectionBox
 from varda.common.parameter import (
@@ -102,6 +105,7 @@ class VardaPlotWidget(QWidget):
         self.selectedCurve: Curve | None = None
 
         self.plots: list[Curve] = []
+        self._fillItems: list[pg.GraphicsObject] = []
         self.gv = pg.GraphicsView()
         # if the user clicks on the plot area and none of the plots catch the click (therefore selecting it), deselect any selected plot
         self.gv.scene().sigMouseClicked.connect(self.onSceneClicked)
@@ -193,10 +197,40 @@ class VardaPlotWidget(QWidget):
             self.plots.remove(plot)
             self.plotItem.removeItem(plot)
 
+    def plotWithFill(self, x, y, yLower, yUpper, fillBrush, **kwargs):
+        """Plot a curve with a filled region between yLower and yUpper.
+
+        Useful for displaying mean +/- standard deviation.
+        """
+        self.plot(x, y, **kwargs)
+
+        upperCurve = pg.PlotDataItem(x, yUpper, pen=pg.mkPen(None))
+        lowerCurve = pg.PlotDataItem(x, yLower, pen=pg.mkPen(None))
+        fill = pg.FillBetweenItem(lowerCurve, upperCurve, brush=fillBrush)
+
+        self.plotItem.addItem(upperCurve)
+        self.plotItem.addItem(lowerCurve)
+        self.plotItem.addItem(fill)
+        self._fillItems.extend([upperCurve, lowerCurve, fill])
+
+    @staticmethod
+    def getPlottableWavelengths(image: VardaRaster, bandCount: int) -> np.ndarray:
+        """Return a numeric x-axis array suitable for plotting spectral data.
+
+        Uses the image's wavelengths if they are numeric, otherwise falls
+        back to band indices.
+        """
+        if image.wavelengthsType in (int, float):
+            return np.asarray(image.wavelengths, dtype=float)
+        return np.arange(bandCount, dtype=float)
+
     def clearPlots(self):
         for plot in self.plots:
-            self.plotItem.removeItem(plot)
+            self.plotItem.removeItem(plot.plotDataItem)
         self.plots.clear()
+        for item in self._fillItems:
+            self.plotItem.removeItem(item)
+        self._fillItems.clear()
 
 
 if __name__ == "__main__":
