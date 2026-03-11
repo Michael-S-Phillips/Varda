@@ -78,10 +78,8 @@ class VardaROIGraphicsItem(pg.GraphicsObject):
             self._polygon.append(QPointF(*self._pixelCoords[0]))
 
     def _updateStyle(self) -> None:
-        r, g, b, a = self._roi.color
+        color = self._roi.color
         if self._isHighlighted:
-            color = QColor(255, 255, 0, a)
-        else:
-            color = QColor(r, g, b, a)
+            color = QColor(255, 255, 0, color.alpha())
         self._pen = pg.mkPen(color=(color.red(), color.green(), color.blue()), width=2)
         self._brush = pg.mkBrush(color)

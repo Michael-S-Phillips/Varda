@@ -5,6 +5,8 @@ Tool implementations for drawing different types of ROIs.
 Emits Shapely geometry + ROIMode on completion for the new ROI system.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import List, Tuple
 
@@ -31,7 +33,7 @@ class ROIDrawingTool(ViewportTool):
 
     On completion, emits ``sigROIDrawingComplete`` with a dict:
         {"geometry": ShapelyPolygon, "roiType": ROIMode}
-    where geometry is in image pixel coordinates.
+    where geometry is in CRS coordinates (if georeferenced) or pixel coordinates.
     """
 
     toolCategory = "ROI Drawing"

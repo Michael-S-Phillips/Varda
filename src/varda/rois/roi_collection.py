@@ -15,6 +15,9 @@ from pyproj import CRS
 from shapely.geometry import mapping as shapely_mapping
 from shapely.geometry.base import BaseGeometry
 
+from PyQt6.QtGui import QColor
+import pyqtgraph as pg
+
 from varda.common.entities import ROIMode, Spectrum, VardaROI
 
 logger = logging.getLogger(__name__)
@@ -63,7 +66,7 @@ class ROICollection:
         self,
         geometry: BaseGeometry,
         name: str,
-        color: tuple[int, int, int, int],
+        color: QColor,
         roiType: ROIMode,
         **properties: Any,
     ) -> int:
@@ -317,14 +320,13 @@ class ROICollection:
 
     # --- Convenience ---
 
-    # Default colors cycle for auto-assigned ROI colors
     _DEFAULT_COLORS = [
-        (255, 0, 0, 128),
-        (0, 255, 0, 128),
-        (0, 0, 255, 128),
-        (255, 255, 0, 128),
-        (255, 0, 255, 128),
-        (0, 255, 255, 128),
+        QColor(255, 0, 0, 128),
+        QColor(0, 255, 0, 128),
+        QColor(0, 0, 255, 128),
+        QColor(255, 255, 0, 128),
+        QColor(255, 0, 255, 128),
+        QColor(0, 255, 255, 128),
     ]
 
     def addROIFromDrawing(
@@ -352,9 +354,9 @@ class ROICollection:
 
         gdf = self._gdf.copy()
 
-        # Serialize color tuples to hex strings for file compatibility
+        # Serialize QColor to hex strings for file compatibility
         gdf["color"] = gdf["color"].apply(
-            lambda c: "#{:02x}{:02x}{:02x}{:02x}".format(*c)
+            lambda c: "#{:02x}{:02x}{:02x}{:02x}".format(*c.getRgb())
         )
         # Serialize ROIMode enum to string
         gdf["roi_type"] = gdf["roi_type"].apply(lambda m: m.name)
@@ -400,11 +402,9 @@ class ROICollection:
         for _, row in gdf.iterrows():
             # Deserialize color from hex string
             hex_color = row.get("color", "#ff000080")
-            if isinstance(hex_color, str) and hex_color.startswith("#"):
-                hex_color = hex_color.lstrip("#")
-                color = tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4, 6))
-            else:
-                color = (255, 0, 0, 128)
+            # Annoyingly, QColor doesnt support #rrggbbaa format strings. only #aarrggbb,
+            # but it does support (r,g,b,a) parameters, so we skip the # at the start and convert the rest into bytes, and pass those in
+            color = QColor(*bytes.fromhex(hex_color[1:]))
 
             # Deserialize ROIMode from string
             roi_type_str = row.get("roi_type", "POLYGON")
