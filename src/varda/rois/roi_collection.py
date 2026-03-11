@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import geopandas as gpd
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import rasterio.features
 from affine import Affine
@@ -18,7 +18,7 @@ from shapely.geometry.base import BaseGeometry
 from PyQt6.QtGui import QColor
 import pyqtgraph as pg
 
-from varda.common.entities import ROIMode, Spectrum, VardaROI
+from varda.common.entities import ROIMode, Spectrum, VardaROI, VardaRaster
 
 logger = logging.getLogger(__name__)
 
@@ -68,13 +68,13 @@ class ROICollection:
         name: str,
         color: QColor,
         roiType: ROIMode,
-        **properties: Any,
+        **properties,
     ) -> int:
         """Add an ROI to the collection and return its fid."""
         fid = self._nextFid
         self._nextFid += 1
 
-        row: dict[str, Any] = {
+        row = {
             "name": name,
             "color": color,
             "roi_type": roiType,
@@ -114,7 +114,7 @@ class ROICollection:
         """Return all ROIs as a list of immutable snapshots."""
         return [self._rowToVardaROI(fid, row) for fid, row in self._gdf.iterrows()]
 
-    def updateROI(self, fid: int, **kwargs: Any) -> None:
+    def updateROI(self, fid: int, **kwargs) -> None:
         """Update core properties of an ROI (name, color, roi_type, geometry)."""
         if fid not in self._gdf.index:
             raise KeyError(f"No ROI with fid={fid}")
@@ -134,13 +134,13 @@ class ROICollection:
 
     # --- User metadata columns ---
 
-    def addColumn(self, name: str, default: Any = None) -> None:
+    def addColumn(self, name: str, default=None) -> None:
         """Add a user-defined metadata column to all ROIs."""
         if name in self._gdf.columns:
             raise ValueError(f"Column '{name}' already exists")
         self._gdf[name] = default
 
-    def setProperty(self, fid: int, column: str, value: Any) -> None:
+    def setProperty(self, fid: int, column: str, value) -> None:
         """Set a user-defined property on an ROI."""
         if fid not in self._gdf.index:
             raise KeyError(f"No ROI with fid={fid}")
@@ -150,7 +150,7 @@ class ROICollection:
         self.sigROIUpdated.emit(fid)
         self.sigCollectionChanged.emit()
 
-    def getProperty(self, fid: int, column: str) -> Any:
+    def getProperty(self, fid: int, column: str):
         """Get a user-defined property from an ROI."""
         if fid not in self._gdf.index:
             raise KeyError(f"No ROI with fid={fid}")
@@ -180,7 +180,7 @@ class ROICollection:
 
     # --- Coordinate conversion & masks ---
 
-    def getPixelCoordinates(self, fid: int, image: Any = None) -> np.ndarray:
+    def getPixelCoordinates(self, fid: int, image: VardaRaster) -> np.ndarray:
         """Convert ROI geometry to pixel coordinates.
 
         If the collection has a CRS (georeferenced), converts each vertex
@@ -200,17 +200,13 @@ class ROICollection:
         coords = np.array(geom.exterior.coords)  # Nx2 (x, y)
 
         if self._crs is not None:
-            if image is None:
-                raise ValueError(
-                    "An image is required to convert CRS geometry to pixel coords"
-                )
             pixel_coords = np.array([image.geoToPixel(x, y) for x, y in coords])
             return pixel_coords
         else:
             # Already pixel coords: (col, row)
             return coords[:, :2].astype(np.float64)
 
-    def getMask(self, fid: int, image: Any) -> np.ndarray:
+    def getMask(self, fid: int, image: VardaRaster) -> np.ndarray:
         """Create a binary mask for an ROI in the image's pixel space.
 
         Uses ``rasterio.features.rasterize`` for robust polygon rasterization.
@@ -236,7 +232,7 @@ class ROICollection:
 
     # --- Spectral statistics ---
 
-    def getMeanSpectrum(self, fid: int, image: Any) -> Spectrum:
+    def getMeanSpectrum(self, fid: int, image: VardaRaster) -> Spectrum:
         """Compute per-band mean spectrum for pixels within an ROI.
 
         Uses a bounding-box window read to avoid loading the full image.
@@ -254,12 +250,14 @@ class ROICollection:
             wavelengths=image.wavelengths,
         )
 
-    def getStdDeviation(self, fid: int, image: Any) -> np.ndarray:
+    def getStdDeviation(self, fid: int, image: VardaRaster) -> np.ndarray:
         """Per-band standard deviation of pixels within an ROI."""
         stats = self.getROIStatistics(fid, image)
         return stats["std"]
 
-    def getROIStatistics(self, fid: int, image: Any) -> dict[str, Any]:
+    def getROIStatistics(
+        self, fid: int, image: VardaRaster
+    ) -> dict[str, npt.ArrayLike]:
         """Compute combined statistics for an ROI over an image.
 
         Returns:
@@ -426,7 +424,7 @@ class ROICollection:
 
     # --- Cross-image ---
 
-    def applyToImage(self, targetImage: Any) -> ROICollection:
+    def applyToImage(self, targetImage: VardaRaster) -> ROICollection:
         """Create a new collection with ROIs mapped to the target image.
 
         If both source and target have a CRS, geometries are reprojected.
@@ -477,7 +475,7 @@ class ROICollection:
     # --- Factory ---
 
     @classmethod
-    def fromImage(cls, image: Any) -> ROICollection:
+    def fromImage(cls, image: VardaRaster) -> ROICollection:
         """Create an empty collection with CRS/transform from a VardaRaster."""
         return cls(crs=image.crs, transform=image.transform)
 

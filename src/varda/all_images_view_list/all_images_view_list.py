@@ -1,5 +1,3 @@
-from varda.project import ProjectContext
-
 from .imageview_list import ImageListWidget
 from varda.common import ObservableList
 

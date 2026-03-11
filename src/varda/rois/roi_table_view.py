@@ -2,7 +2,7 @@
 
 import logging
 
-from PyQt6.QtCore import pyqtSignal, Qt, QSize
+from PyQt6.QtCore import pyqtSignal, Qt, QSize, QEvent
 from PyQt6.QtGui import QColor, QPen, QBrush
 from PyQt6.QtWidgets import QTableView, QStyledItemDelegate, QColorDialog
 
@@ -29,13 +29,18 @@ class ROITableView(QTableView):
 
 class ColorDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
-        return None  # we open dialog in setEditorData
+        return None
 
-    def setEditorData(self, editor, index):
-        color = index.data(Qt.ItemDataRole.DecorationRole)
-        newColor = QColorDialog.getColor(initial=color, parent=editor)
-        if newColor.isValid():
-            index.model().setData(index, newColor, Qt.ItemDataRole.EditRole)
+    def editorEvent(self, event, model, option, index):
+        if event.type() == QEvent.Type.MouseButtonDblClick:
+            currentColor = index.data(Qt.ItemDataRole.DecorationRole)
+            if not isinstance(currentColor, QColor):
+                currentColor = QColor(255, 0, 0, 128)
+            newColor = QColorDialog.getColor(initial=currentColor, parent=option.widget)
+            if newColor.isValid():
+                model.setData(index, newColor, Qt.ItemDataRole.EditRole)
+            return True
+        return super().editorEvent(event, model, option, index)
 
     def paint(self, painter, option, index):
         super().paint(painter, option, index)

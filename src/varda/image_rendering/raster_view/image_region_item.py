@@ -104,7 +104,7 @@ class VardaImageItem(pg.ImageItem):
             return QPointF(pg.Point(converted[0]))
         return converted
 
-    def imageToLocal(self, point) -> QPointF:
+    def imageToLocal(self, point):
         """Convert full image coordinates to local coordinates.
         Note that this does not protect against points outside the image bounds.
         """
@@ -126,7 +126,11 @@ class VardaImageItem(pg.ImageItem):
             )
 
         converted = self._coordinateTransform.globalToLocal(pointsList)
-        return QPointF(pg.Point(converted))
+
+        # return same type as input
+        if isinstance(point, QPointF):
+            return QPointF(pg.Point(converted[0]))
+        return converted
 
     def getTransform(self):
         """Get the affine transform for the current region."""

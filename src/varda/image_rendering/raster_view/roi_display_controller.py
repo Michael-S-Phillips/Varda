@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Callable
 
+import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from varda.rois.roi_collection import ROICollection
 from varda.rois.varda_roi_item import VardaROIGraphicsItem
+from varda.image_rendering.raster_view.image_viewport import ImageViewport
 
 logger = logging.getLogger(__name__)
 
@@ -17,21 +19,26 @@ class ROIDisplayController(QObject):
     """Display ROIs from an ROICollection on registered viewports.
 
     Listens to collection signals and keeps the visual items in sync.
+    Handles coordinate conversion for viewports that display subregions.
     """
 
     roiHighlighted = pyqtSignal(int)  # fid
     roiSelected = pyqtSignal(int)  # fid
     displayUpdated = pyqtSignal()
 
-    def __init__(self, collection: ROICollection, image: Any, parent: QObject | None = None) -> None:
+    def __init__(
+        self, collection: ROICollection, image: Any, parent: QObject | None = None
+    ) -> None:
         super().__init__(parent)
         self._collection = collection
         self._image = image
 
         # {viewport_id: viewport_object}
-        self._viewports: dict[str, Any] = {}
+        self._viewports: dict[str, ImageViewport] = {}
         # {viewport_id: {fid: VardaROIGraphicsItem}}
         self._items: dict[str, dict[int, VardaROIGraphicsItem]] = {}
+        # {viewport_id: callback} for signal disconnection
+        self._viewportCallbacks: dict[str, Callable] = {}
 
         self._highlightedFid: int | None = None
 
@@ -45,14 +52,24 @@ class ROIDisplayController(QObject):
     def registerViewport(self, viewportId: str, viewport: Any) -> None:
         self._viewports[viewportId] = viewport
         self._items[viewportId] = {}
+
+        # Listen for region changes so ROI positions update when viewport pans
+        def callback(vid=viewportId):
+            self._refreshViewport(vid)
+
+        self._viewportCallbacks[viewportId] = callback
+        viewport.sigImageChanged.connect(callback)
         # Display any existing ROIs
         self._displayAllForViewport(viewportId)
 
     def unregisterViewport(self, viewportId: str) -> None:
         if viewportId not in self._viewports:
             return
+        viewport = self._viewports[viewportId]
+        viewport.sigImageChanged.disconnect(self._viewportCallbacks[viewportId])
+        del self._viewportCallbacks[viewportId]
         for item in self._items[viewportId].values():
-            self._viewports[viewportId].removeItem(item)
+            viewport.removeItem(item)
         del self._items[viewportId]
         del self._viewports[viewportId]
 
@@ -74,7 +91,8 @@ class ROIDisplayController(QObject):
         roi = self._collection.getROI(fid)
         pixelCoords = self._collection.getPixelCoordinates(fid, self._image)
         for vid, viewport in self._viewports.items():
-            item = VardaROIGraphicsItem(roi, pixelCoords)
+            localCoords = self._convertCoordsForViewport(pixelCoords, viewport)
+            item = VardaROIGraphicsItem(roi, localCoords)
             viewport.addItem(item)
             self._items[vid][fid] = item
         self.displayUpdated.emit()
@@ -91,27 +109,51 @@ class ROIDisplayController(QObject):
     def _onROIUpdated(self, fid: int) -> None:
         roi = self._collection.getROI(fid)
         pixelCoords = self._collection.getPixelCoordinates(fid, self._image)
-        for vid in self._viewports:
+        for vid, viewport in self._viewports.items():
             if fid in self._items[vid]:
-                self._items[vid][fid].updateData(roi, pixelCoords)
+                localCoords = self._convertCoordsForViewport(pixelCoords, viewport)
+                self._items[vid][fid].updateData(roi, localCoords)
         self.displayUpdated.emit()
 
     # --- Internal ---
+
+    def _convertCoordsForViewport(
+        self, pixelCoords: np.ndarray, viewport: Any
+    ) -> np.ndarray:
+        """Convert full-image pixel coordinates to a viewport's local coordinates."""
+        imageItem = viewport.imageItem
+        if not imageItem.isShowingRegion:
+            return pixelCoords
+        pointsList = [(float(c), float(r)) for c, r in pixelCoords]
+        return np.array(imageItem.imageToLocal(pointsList))
+
+    def _refreshViewport(self, viewportId: str) -> None:
+        """Recompute local coordinates for all ROI items on a viewport."""
+        viewport = self._viewports[viewportId]
+        for fid, item in self._items[viewportId].items():
+            roi = self._collection.getROI(fid)
+            pixelCoords = self._collection.getPixelCoordinates(fid, self._image)
+            localCoords = viewport.pixelToLocalCoords(pixelCoords)
+            item.updateData(roi, localCoords)
 
     def _displayAllForViewport(self, viewportId: str) -> None:
         viewport = self._viewports[viewportId]
         for fid in self._collection.fids:
             roi = self._collection.getROI(fid)
             pixelCoords = self._collection.getPixelCoordinates(fid, self._image)
-            item = VardaROIGraphicsItem(roi, pixelCoords)
+            localCoords = self._convertCoordsForViewport(pixelCoords, viewport)
+            item = VardaROIGraphicsItem(roi, localCoords)
             viewport.addItem(item)
             self._items[viewportId][fid] = item
 
     def cleanup(self) -> None:
         for vid, viewport in self._viewports.items():
+            if vid in self._viewportCallbacks:
+                viewport.sigImageChanged.disconnect(self._viewportCallbacks[vid])
             for item in self._items[vid].values():
                 viewport.removeItem(item)
             self._items[vid].clear()
         self._viewports.clear()
         self._items.clear()
+        self._viewportCallbacks.clear()
         self._highlightedFid = None

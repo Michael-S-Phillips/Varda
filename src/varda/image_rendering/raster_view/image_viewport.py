@@ -1,6 +1,7 @@
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
+import numpy as np
 
 from varda import log
 from varda.common.entities import VardaRaster
@@ -90,6 +91,16 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         self._imageItem.refresh()
         if self._overlayImageItem is not None:
             self._overlayImageItem.refresh()
+
+    def pixelToLocalCoords(self, pixelCoords: np.ndarray) -> np.ndarray:
+        """
+        Convert full-image pixel coordinates to the viewport's local coordinates
+        (since a viewport may be showing only an inner region of the image).
+        """
+        if not self.imageItem.isShowingRegion:
+            return pixelCoords
+        pointsList = [(float(c), float(r)) for c, r in pixelCoords]
+        return np.array(self.imageItem.imageToLocal(pointsList))
 
     def addItem(self, item):
         """Add a graphics item to the viewport."""
