@@ -186,56 +186,30 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             self.imageRenderer.updateSettings
         )
 
-        # Wire ROI drawing tools to collection
+        # Wire ROI drawing tools to collection via ToolManager signals
+        for tm in (self.toolManager1, self.toolManager2, self.toolManager3):
+            tm.sigToolActivated.connect(self._onToolActivated)
+
+        # Wire table selection to display controller highlight
+        self.roiManagerWidget.sigSelectionChanged.connect(
+            self.roiDisplayController.highlightROI
+        )
+
+    def _onToolActivated(self, tool) -> None:
+        """Connect drawing tool signals when a drawing tool is activated."""
         from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
             ROIDrawingTool,
         )
-        import inspect
 
-        for tm in (self.toolManager1, self.toolManager2, self.toolManager3):
-            origActivate = tm.activateTool
-
-            def _patchedActivate(toolClass, _orig=origActivate):
-                _orig(toolClass)
-                tool = tm.activeTool
-                logger.debug(f"tool activated: {tool}")
-                print("is class: ", inspect.isclass(tool))
-
-                if isinstance(tool, ROIDrawingTool):
-                    logger.debug(
-                        "tool is ROI drawing tool. connecting onDrawingComplete"
-                    )
-                    tool.sigROIDrawingComplete.connect(self._onROIDrawn)
-
-            tm.activateTool = _patchedActivate
-
-        # Wire table selection to display controller highlight
-        self.roiManagerWidget.table.roiSelected.connect(
-            self.roiDisplayController.highlightROI
-        )
-        selModel = self.roiManagerWidget.table.selectionModel()
-        if selModel is not None:
-            selModel.selectionChanged.connect(self._onTableSelectionChanged)
+        if isinstance(tool, ROIDrawingTool):
+            tool.sigROIDrawingComplete.connect(self._onROIDrawn)
 
     def _onROIDrawn(self, result: dict) -> None:
         """Handle completion of an ROI drawing tool."""
-        logger.debug(f"_onROIDrawn called. result: {result}")
-        # Default color: semi-transparent red
-        color = (255, 0, 0, 128)
-        name = f"ROI {len(self.roiCollection) + 1}"
-        self.roiCollection.addROI(
+        self.roiCollection.addROIFromDrawing(
             geometry=result["geometry"],
-            name=name,
-            color=color,
             roiType=result["roiType"],
         )
-
-    def _onTableSelectionChanged(self, selected, _deselected) -> None:
-        if not selected.indexes():
-            return
-        fid = self.roiManagerWidget.model.fidForRow(selected.indexes()[0].row())
-        if fid is not None:
-            self.roiDisplayController.highlightROI(fid)
 
     def setStatusMessage(self, message):
         """Set a status message in the status bar"""
