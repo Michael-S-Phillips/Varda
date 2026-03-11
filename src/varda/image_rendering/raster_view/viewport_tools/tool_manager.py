@@ -38,6 +38,7 @@ class ToolManager(QObject):
 
         self.activeTool = toolClass(self.viewport, parent=self)
         self.activeTool.activate()
+        self.sigToolActivated.emit(self.activeTool)
 
     def deactivateCurrentTool(self):
         """Deactivate the currently active tool."""

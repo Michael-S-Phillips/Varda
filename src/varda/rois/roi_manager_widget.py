@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 class ROIManagerWidget(QWidget):
     """Widget for managing ROIs: shows a table and delete button."""
+
+    sigSelectionChanged = pyqtSignal(object)  # emits fid (int) or None
 
     def __init__(
         self,
@@ -50,6 +53,11 @@ class ROIManagerWidget(QWidget):
         layout.addLayout(btnRow)
         layout.addWidget(self._table)
 
+        # Forward table selection changes as fid
+        selModel = self._table.selectionModel()
+        if selModel is not None:
+            selModel.selectionChanged.connect(self._onSelectionChanged)
+
     @property
     def table(self) -> ROITableView:
         return self._table
@@ -64,6 +72,13 @@ class ROIManagerWidget(QWidget):
         if not idxs:
             return None
         return self._model.fidForRow(idxs[0].row())
+
+    def _onSelectionChanged(self, selected, _deselected) -> None:
+        if not selected.indexes():
+            self.sigSelectionChanged.emit(None)
+            return
+        fid = self._model.fidForRow(selected.indexes()[0].row())
+        self.sigSelectionChanged.emit(fid)
 
     def _deleteSelected(self) -> None:
         fid = self.selectedFid()

@@ -109,9 +109,7 @@ class ROICollection:
 
     def getAllROIs(self) -> list[VardaROI]:
         """Return all ROIs as a list of immutable snapshots."""
-        return [
-            self._rowToVardaROI(fid, row) for fid, row in self._gdf.iterrows()
-        ]
+        return [self._rowToVardaROI(fid, row) for fid, row in self._gdf.iterrows()]
 
     def updateROI(self, fid: int, **kwargs: Any) -> None:
         """Update core properties of an ROI (name, color, roi_type, geometry)."""
@@ -144,9 +142,7 @@ class ROICollection:
         if fid not in self._gdf.index:
             raise KeyError(f"No ROI with fid={fid}")
         if column in (*_CORE_COLUMNS, "geometry"):
-            raise ValueError(
-                f"'{column}' is a core column. Use updateROI() instead."
-            )
+            raise ValueError(f"'{column}' is a core column. Use updateROI() instead.")
         self._gdf.at[fid, column] = value
         self.sigROIUpdated.emit(fid)
         self.sigCollectionChanged.emit()
@@ -205,9 +201,7 @@ class ROICollection:
                 raise ValueError(
                     "An image is required to convert CRS geometry to pixel coords"
                 )
-            pixel_coords = np.array(
-                [image.geoToPixel(x, y) for x, y in coords]
-            )
+            pixel_coords = np.array([image.geoToPixel(x, y) for x, y in coords])
             return pixel_coords
         else:
             # Already pixel coords: (col, row)
@@ -321,6 +315,29 @@ class ROICollection:
             "pixel_count": len(pixels),
         }
 
+    # --- Convenience ---
+
+    # Default colors cycle for auto-assigned ROI colors
+    _DEFAULT_COLORS = [
+        (255, 0, 0, 128),
+        (0, 255, 0, 128),
+        (0, 0, 255, 128),
+        (255, 255, 0, 128),
+        (255, 0, 255, 128),
+        (0, 255, 255, 128),
+    ]
+
+    def addROIFromDrawing(
+        self,
+        geometry: BaseGeometry,
+        roiType: ROIMode,
+    ) -> int:
+        """Add an ROI from a drawing tool result, auto-generating name and color."""
+        idx = len(self) % len(self._DEFAULT_COLORS)
+        color = self._DEFAULT_COLORS[idx]
+        name = f"ROI {self._nextFid + 1}"
+        return self.addROI(geometry=geometry, name=name, color=color, roiType=roiType)
+
     # --- File I/O ---
 
     def toFile(self, path: str, driver: str | None = None) -> None:
@@ -401,9 +418,7 @@ class ROICollection:
 
             # Collect extra properties
             skip = {"name", "color", "roi_type", "geometry"}
-            extra = {
-                k: row[k] for k in row.index if k not in skip
-            }
+            extra = {k: row[k] for k in row.index if k not in skip}
 
             collection.addROI(geometry, name, color, roi_type, **extra)
 
@@ -433,9 +448,7 @@ class ROICollection:
             )
         target_crs = targetImage.crs
         if target_crs is None:
-            raise ValueError(
-                "Cannot apply ROIs to an image without a CRS."
-            )
+            raise ValueError("Cannot apply ROIs to an image without a CRS.")
 
         target_collection = ROICollection(
             crs=target_crs, transform=targetImage.transform
@@ -449,9 +462,7 @@ class ROICollection:
 
         for fid, row in reprojected_gdf.iterrows():
             extra = {
-                k: row[k]
-                for k in row.index
-                if k not in (*_CORE_COLUMNS, "geometry")
+                k: row[k] for k in row.index if k not in (*_CORE_COLUMNS, "geometry")
             }
             target_collection.addROI(
                 geometry=row["geometry"],
@@ -475,11 +486,7 @@ class ROICollection:
     def _rowToVardaROI(self, fid: int, row: pd.Series) -> VardaROI:
         """Convert a GeoDataFrame row to an immutable VardaROI."""
         # Collect user-defined properties (non-core columns)
-        props = {
-            k: row[k]
-            for k in row.index
-            if k not in (*_CORE_COLUMNS, "geometry")
-        }
+        props = {k: row[k] for k in row.index if k not in (*_CORE_COLUMNS, "geometry")}
         return VardaROI(
             fid=fid,
             name=row["name"],
