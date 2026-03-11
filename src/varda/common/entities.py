@@ -10,7 +10,7 @@ import warnings
 from typing import Any, Dict, Optional, TYPE_CHECKING
 from datetime import datetime
 import uuid
-from enum import Enum, auto
+from enum import Enum
 from functools import cached_property
 from pathlib import Path
 
@@ -355,7 +355,7 @@ class VardaROI:
     Attributes:
         fid: Feature ID, unique within an ROICollection.
         name: Display name.
-        color: RGBA tuple (0-255).
+        color: RGBA color.
         geometry: Shapely geometry in CRS or pixel coordinates.
         roiType: Drawing mode used to create this ROI.
         properties: Arbitrary user-defined metadata.
@@ -363,7 +363,7 @@ class VardaROI:
 
     fid: int
     name: str
-    color: tuple[int, int, int, int]
+    color: QColor
     geometry: BaseGeometry
     roiType: ROIMode
     properties: dict[str, Any] = attrs.Factory(dict)

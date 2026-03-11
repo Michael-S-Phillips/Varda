@@ -5,6 +5,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QVariant
 from PyQt6.QtGui import QColor
 
+from varda.common.entities import VardaROI
 from varda.rois.roi_collection import ROICollection
 
 
@@ -22,6 +23,8 @@ class ROITableModel(QAbstractTableModel):
     def __init__(self, collection: ROICollection, parent=None) -> None:
         super().__init__(parent)
         self._collection = collection
+        self._roiCache: list[VardaROI] = []
+        self._refreshCache()
 
         collection.sigROIAdded.connect(self._onChanged)
         collection.sigROIRemoved.connect(self._onChanged)
@@ -34,7 +37,7 @@ class ROITableModel(QAbstractTableModel):
     # --- QAbstractTableModel interface ---
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
-        return len(self._collection)
+        return len(self._roiCache)
 
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return len(_FIXED_COLUMNS) + len(self._dynamicColumns())
@@ -43,10 +46,10 @@ class ROITableModel(QAbstractTableModel):
         if not index.isValid():
             return QVariant()
 
-        rois = self._collection.getAllROIs()
-        if index.row() >= len(rois):
+        row = index.row()
+        if row >= len(self._roiCache):
             return QVariant()
-        roi = rois[index.row()]
+        roi = self._roiCache[row]
         col = index.column()
 
         if role == Qt.ItemDataRole.DisplayRole:
@@ -65,8 +68,7 @@ class ROITableModel(QAbstractTableModel):
                 return roi.properties.get(key, "")
 
         if role == Qt.ItemDataRole.DecorationRole and col == 2:
-            r, g, b, a = roi.color
-            return QColor(r, g, b, a)
+            return QColor(roi.color)
 
         if role == Qt.ItemDataRole.EditRole:
             if col == 1:
@@ -95,17 +97,16 @@ class ROITableModel(QAbstractTableModel):
         if not index.isValid():
             return False
 
-        rois = self._collection.getAllROIs()
-        if index.row() >= len(rois):
+        row = index.row()
+        if row >= len(self._roiCache):
             return False
-        roi = rois[index.row()]
+        roi = self._roiCache[row]
         col = index.column()
 
         if col == 1:  # Name
             self._collection.updateROI(roi.fid, name=value)
         elif col == 2 and isinstance(value, QColor):  # Color
-            color = (value.red(), value.green(), value.blue(), value.alpha())
-            self._collection.updateROI(roi.fid, color=color)
+            self._collection.updateROI(roi.fid, color=value)
         elif col >= len(_FIXED_COLUMNS):
             dyn_col = self._dynamicColumns()
             key = dyn_col[col - len(_FIXED_COLUMNS)]
@@ -113,14 +114,14 @@ class ROITableModel(QAbstractTableModel):
         else:
             return False
 
-        self.dataChanged.emit(index, index, [role])
+        # Note: _onChanged will be called via the collection signal,
+        # which refreshes the cache and resets the model.
         return True
 
     def fidForRow(self, row: int) -> int | None:
         """Get the fid for a given row index."""
-        rois = self._collection.getAllROIs()
-        if row < len(rois):
-            return rois[row].fid
+        if row < len(self._roiCache):
+            return self._roiCache[row].fid
         return None
 
     # --- Internal ---
@@ -130,6 +131,10 @@ class ROITableModel(QAbstractTableModel):
         core = {"name", "color", "roi_type", "geometry"}
         return [c for c in self._collection.gdf.columns if c not in core]
 
+    def _refreshCache(self) -> None:
+        self._roiCache = self._collection.getAllROIs()
+
     def _onChanged(self, *args) -> None:
         self.beginResetModel()
+        self._refreshCache()
         self.endResetModel()

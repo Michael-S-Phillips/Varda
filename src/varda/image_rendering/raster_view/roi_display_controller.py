@@ -1,7 +1,9 @@
 """ROI display controller — manages VardaROIGraphicsItems across viewports."""
 
+from __future__ import annotations
+
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -27,11 +29,11 @@ class ROIDisplayController(QObject):
         self._image = image
 
         # {viewport_id: viewport_object}
-        self._viewports: Dict[str, Any] = {}
+        self._viewports: dict[str, Any] = {}
         # {viewport_id: {fid: VardaROIGraphicsItem}}
-        self._items: Dict[str, Dict[int, VardaROIGraphicsItem]] = {}
+        self._items: dict[str, dict[int, VardaROIGraphicsItem]] = {}
 
-        self._highlightedFid: Optional[int] = None
+        self._highlightedFid: int | None = None
 
         # Connect collection signals
         self._collection.sigROIAdded.connect(self._onROIAdded)
@@ -56,7 +58,7 @@ class ROIDisplayController(QObject):
 
     # --- Highlight ---
 
-    def highlightROI(self, fid: Optional[int]) -> None:
+    def highlightROI(self, fid: int | None) -> None:
         if self._highlightedFid == fid:
             return
         self._highlightedFid = fid
