@@ -69,12 +69,6 @@ class ProjectContext(QObject):
         self._projectLoader = ProjectLoader(self._imageLoadingService, io)
         self._handling_change = False  # Flag to prevent recursive signal handling
 
-        # Initialize the ROI Manager
-        # TODO: Update this import when ROIManager is moved
-        from varda.project.roi_manager import ROIManager
-
-        self.roiManager = ROIManager()
-
         # Flag for generating stretch presets during image creation
         self._generate_stretch_presets = True
 
@@ -171,16 +165,6 @@ class ProjectContext(QObject):
                     )
                 finally:
                     self._handling_change = old_handling
-
-            # Update ROI Manager
-            if hasattr(project, "roiManager"):
-                self.roiManager = project.roiManager
-            else:
-                # If no ROI Manager in the data, create a new one
-                # TODO: Update this import when ROIManager is moved
-                from varda.project.roi_manager import ROIManager
-
-                self.roiManager = ROIManager(self)
 
             # Emit signal to notify views of the project change
             self.sigProjectChanged.emit()

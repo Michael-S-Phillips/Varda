@@ -1,98 +1,135 @@
+"""Table model backed by ROICollection."""
+
+from __future__ import annotations
+
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QVariant
 from PyQt6.QtGui import QColor
 
+from varda.rois.roi_collection import ROICollection
+
+
+# Fixed columns shown for every collection
+_FIXED_COLUMNS = ["FID", "Name", "Color", "Type"]
+
 
 class ROITableModel(QAbstractTableModel):
-    """Table model exposing ROIs from an ROIManager."""
+    """Table model exposing ROIs from an ROICollection.
 
-    HEADERS = ["Index", "Name", "Visible", "Color", "Points", "Spectrum"]
+    Fixed columns: FID (read-only), Name (editable), Color (editable via delegate),
+    Type (read-only). Additional dynamic columns come from user-added metadata.
+    """
 
-    def __init__(self, roiManager, imageIndex=0, parent=None):
+    def __init__(self, collection: ROICollection, parent=None) -> None:
         super().__init__(parent)
-        self.roiManager = roiManager
-        self.imageIndex = imageIndex
+        self._collection = collection
 
-        # reconnect on data changes
-        roiManager.sigROIAdded.connect(self._onDataChanged)
-        roiManager.sigROIUpdated.connect(self._onDataChanged)
-        roiManager.sigROIRemoved.connect(self._onDataChanged)
+        collection.sigROIAdded.connect(self._onChanged)
+        collection.sigROIRemoved.connect(self._onChanged)
+        collection.sigROIUpdated.connect(self._onChanged)
 
-    def rowCount(self, parent=QModelIndex()):
-        return len(self.rois())
+    @property
+    def collection(self) -> ROICollection:
+        return self._collection
 
-    def columnCount(self, parent=QModelIndex()):
-        return len(self.HEADERS)
+    # --- QAbstractTableModel interface ---
 
-    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        return len(self._collection)
+
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        return len(_FIXED_COLUMNS) + len(self._dynamicColumns())
+
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
             return QVariant()
 
-        roi = self.rois()[index.row()]
+        rois = self._collection.getAllROIs()
+        if index.row() >= len(rois):
+            return QVariant()
+        roi = rois[index.row()]
         col = index.column()
 
-        # Display data
         if role == Qt.ItemDataRole.DisplayRole:
             if col == 0:
-                return index.row()
+                return roi.fid
             if col == 1:
                 return roi.name
             if col == 2:
-                return "Yes" if roi.visible else "No"
-            if col == 4:
-                return len(roi.points)
-            if col == 5:
-                return "Yes" if roi.meanSpectrum is not None else "No"
-        # Decoration (color swatch)
-        if role == Qt.ItemDataRole.DecorationRole and col == 3:
-            return roi.color  # assume QColor
+                return None  # color shown via DecorationRole
+            if col == 3:
+                return roi.roiType.name
+            # Dynamic columns
+            dyn_col = self._dynamicColumns()
+            if col - len(_FIXED_COLUMNS) < len(dyn_col):
+                key = dyn_col[col - len(_FIXED_COLUMNS)]
+                return roi.properties.get(key, "")
 
-        # Edit roles
+        if role == Qt.ItemDataRole.DecorationRole and col == 2:
+            r, g, b, a = roi.color
+            return QColor(r, g, b, a)
+
         if role == Qt.ItemDataRole.EditRole:
             if col == 1:
                 return roi.name
-            if col == 2:
-                return roi.visible
 
         return QVariant()
 
-    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-        if (
-            orientation == Qt.Orientation.Horizontal
-            and role == Qt.ItemDataRole.DisplayRole
-        ):
-            return self.HEADERS[section]
+    def headerData(self, section: int, orientation, role: int = Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
+            all_cols = list(_FIXED_COLUMNS) + self._dynamicColumns()
+            if section < len(all_cols):
+                return all_cols[section]
         return super().headerData(section, orientation, role)
 
-    def flags(self, index):
+    def flags(self, index: QModelIndex):
         base = super().flags(index)
         if not index.isValid():
             return base
-        if index.column() in (1, 2, 3):  # make Name, Visible, Color editable
+        col = index.column()
+        # Name and Color are editable; dynamic columns are editable
+        if col == 1 or col == 2 or col >= len(_FIXED_COLUMNS):
             return base | Qt.ItemFlag.ItemIsEditable
         return base
 
-    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+    def setData(self, index: QModelIndex, value, role: int = Qt.ItemDataRole.EditRole) -> bool:
         if not index.isValid():
             return False
-        roi = self.rois()[index.row()]
+
+        rois = self._collection.getAllROIs()
+        if index.row() >= len(rois):
+            return False
+        roi = rois[index.row()]
         col = index.column()
 
-        if col == 1:  # name
-            self.roiManager.updateROI(roi.id, name=value)
-        elif col == 2:  # visible
-            self.roiManager.updateROI(roi.id, visible=bool(value))
-        elif col == 3 and isinstance(value, QColor):
-            self.roiManager.updateROI(roi.id, color=value)
+        if col == 1:  # Name
+            self._collection.updateROI(roi.fid, name=value)
+        elif col == 2 and isinstance(value, QColor):  # Color
+            color = (value.red(), value.green(), value.blue(), value.alpha())
+            self._collection.updateROI(roi.fid, color=color)
+        elif col >= len(_FIXED_COLUMNS):
+            dyn_col = self._dynamicColumns()
+            key = dyn_col[col - len(_FIXED_COLUMNS)]
+            self._collection.setProperty(roi.fid, key, value)
         else:
             return False
 
         self.dataChanged.emit(index, index, [role])
         return True
 
-    def rois(self):
-        return self.roiManager.getROIsForImage(self.imageIndex)
+    def fidForRow(self, row: int) -> int | None:
+        """Get the fid for a given row index."""
+        rois = self._collection.getAllROIs()
+        if row < len(rois):
+            return rois[row].fid
+        return None
 
-    def _onDataChanged(self, *args):
-        # fully reset view when any change happens
+    # --- Internal ---
+
+    def _dynamicColumns(self) -> list[str]:
+        """Return names of user-added columns (non-core, non-geometry)."""
+        core = {"name", "color", "roi_type", "geometry"}
+        return [c for c in self._collection.gdf.columns if c not in core]
+
+    def _onChanged(self, *args) -> None:
         self.beginResetModel()
         self.endResetModel()

@@ -8,7 +8,6 @@ from PyQt6.QtGui import QTransform
 from affine import Affine
 
 from varda.image_rendering.image_renderer import ImageRenderer
-from varda.rois.varda_roi import VardaROIItem
 from varda.utilities import roi_utils
 from varda.common.entities import VardaRaster
 
@@ -213,7 +212,7 @@ class VardaImageItem(pg.ImageItem):
         return self._imageEntity
 
     @property
-    def roi(self) -> VardaROIItem:
+    def roi(self) -> pg.ROI | None:
         """Get the current region being displayed."""
         return self._roi
 

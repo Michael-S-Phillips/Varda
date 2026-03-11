@@ -67,7 +67,7 @@ We also try to do as much wiring as possible at this initialization stage, to re
 
 ## Key Patterns
 
-- **Simplicity/Conciseness** is always preferred, and an emphasis on high code quality and maintainability.
+- **Simplicity/Conciseness** is always preferred, and an emphasis on high code quality and maintainability. Declarative patterns are also preferred for this purpose.
 - **Application-level Actions** are defined in main.py on startup, and dynamically added to the MenuBar.
 - **Qt signals/slots** are used throughout for reactive UI updates. psygnal can also be used to create signals and slots in code that doesn't directly depend on Qt.
 - **Numba** (`@njit`) may be used in performance-critical paths like stretch algorithms.

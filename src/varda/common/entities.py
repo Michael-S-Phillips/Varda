@@ -10,7 +10,7 @@ import warnings
 from typing import Any, Dict, Optional, TYPE_CHECKING
 from datetime import datetime
 import uuid
-from enum import Enum
+from enum import Enum, auto
 from functools import cached_property
 from pathlib import Path
 
@@ -25,6 +25,7 @@ from PyQt6.QtGui import QColor
 import rasterio as rio
 from pyproj import CRS, Transformer
 from pyproj.exceptions import CRSError
+from shapely.geometry.base import BaseGeometry
 
 logger = logging.getLogger(__name__)
 
@@ -338,6 +339,36 @@ class Spectrum:
             raise ValueError(f"values must be a 1d array, got {value.ndim}d array")
 
 
+class ROIMode(Enum):
+    """Enum to define different ROI drawing modes."""
+
+    FREEHAND = 0
+    RECTANGLE = 1
+    ELLIPSE = 2
+    POLYGON = 3
+
+
+@attrs.frozen(slots=True)
+class VardaROI:
+    """Immutable snapshot of a single ROI feature.
+
+    Attributes:
+        fid: Feature ID, unique within an ROICollection.
+        name: Display name.
+        color: RGBA tuple (0-255).
+        geometry: Shapely geometry in CRS or pixel coordinates.
+        roiType: Drawing mode used to create this ROI.
+        properties: Arbitrary user-defined metadata.
+    """
+
+    fid: int
+    name: str
+    color: tuple[int, int, int, int]
+    geometry: BaseGeometry
+    roiType: ROIMode
+    properties: dict[str, Any] = attrs.Factory(dict)
+
+
 @dataclass
 class Metadata:
     """Data container representing the metadata of an image.
@@ -508,15 +539,6 @@ class Metadata:
                 f"{itemName} must be a {correctType}, got {type(actualValue).__name__}"
             )
             super().__init__(self.message)
-
-
-class ROIMode(Enum):
-    """Enum to define different ROI drawing modes"""
-
-    FREEHAND = 0
-    RECTANGLE = 1
-    ELLIPSE = 2
-    POLYGON = 3  # Click-by-click polygon
 
 
 @dataclass

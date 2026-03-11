@@ -12,7 +12,6 @@ from PyQt6.QtWidgets import QWidget
 
 from .dual_image_types import DualImageConfig, DualImageMode, LinkType
 from .dual_image_link_manager import DualImageLinkManager
-from .roi_sync_manager import ROISyncManager
 from .overlay_manager import OverlayManager
 from .blink_manager import BlinkManager
 from varda.project import ProjectContext
@@ -43,7 +42,6 @@ class DualImageViewController(QObject):
 
         # Initialize managers
         self.link_manager = DualImageLinkManager(project_context, self)
-        self.roi_sync_manager = ROISyncManager(project_context, self)
         self.overlay_manager = OverlayManager(self)
         self.blink_manager = BlinkManager(self)
 
@@ -99,10 +97,6 @@ class DualImageViewController(QObject):
             # Link might already exist, try to update config
             self.link_manager.update_link_config(primary_index, secondary_index, config)
 
-        # NEW: Set up ROI synchronization
-        if config.sync_rois:
-            self.roi_sync_manager.setup_roi_sync(primary_index, secondary_index)
-
         # Store current state
         self._active_pair = (primary_index, secondary_index)
         self._current_config = config
@@ -128,12 +122,6 @@ class DualImageViewController(QObject):
         # Clean up all managers
         self.blink_manager.cleanup_blink()
         self.overlay_manager.cleanup_overlay()
-
-        # Clean up ROI synchronization
-        if self._active_pair:
-            self.roi_sync_manager.cleanup_roi_sync(
-                self._active_pair[0], self._active_pair[1]
-            )
 
         # Reset state
         self._active_pair = None
@@ -303,33 +291,11 @@ class DualImageViewController(QObject):
             self._sync_in_progress = False
 
     def sync_roi(self, source_index: int, roi_id: str):
-        """Synchronize ROI between linked views"""
-        if (
-            not self._is_dual_mode_active
-            or not self._active_pair
-            or not self._current_config.sync_rois
-        ):
-            return
+        """Synchronize ROI between linked views.
 
-        # Find target index
-        target_index = None
-        if source_index == self._active_pair[0]:
-            target_index = self._active_pair[1]
-        elif source_index == self._active_pair[1]:
-            target_index = self._active_pair[0]
-        else:
-            return  # Not part of active pair
-
-        # Sync the ROI
-        success = self.roi_sync_manager.sync_roi(roi_id, source_index, target_index)
-        if success:
-            logger.debug(
-                f"Successfully synced ROI {roi_id} from {source_index} to {target_index}"
-            )
-        else:
-            logger.warning(
-                f"Failed to sync ROI {roi_id} from {source_index} to {target_index}"
-            )
+        TODO: Re-implement using ROICollection.applyToImage().
+        """
+        logger.debug("sync_roi is not yet re-implemented with the new ROI system")
 
     def sync_crosshair(
         self, source_index: int, zoom_x: int, zoom_y: int, abs_x: int, abs_y: int
