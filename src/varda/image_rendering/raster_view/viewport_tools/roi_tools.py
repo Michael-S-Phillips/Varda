@@ -2,6 +2,7 @@
 ROI Drawing Tools
 
 Tool implementations for drawing different types of ROIs.
+Emits Shapely geometry + ROIMode on completion for the new ROI system.
 """
 
 import logging
@@ -9,30 +10,36 @@ from typing import List, Tuple
 
 import numpy as np
 from PyQt6.QtCore import pyqtSignal, QPointF, QRectF, Qt
-from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
+from PyQt6.QtGui import QColor, QPen, QBrush, QPolygonF
+from PyQt6.QtWidgets import QGraphicsSceneMouseEvent, QGraphicsPolygonItem
+from shapely.geometry import Polygon as ShapelyPolygon
 
-import varda
-from varda.common.entities import ROI
+from varda.common.entities import ROIMode
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
 from varda.image_rendering.raster_view.protocols import Viewport
-from varda.utilities import image_utils
-from varda.rois.varda_roi import VardaROIItem
 
 logger = logging.getLogger(__name__)
+
+# Default color for drawing preview
+_PREVIEW_COLOR = QColor(255, 0, 0, 100)
+_PREVIEW_PEN = QPen(QColor(255, 0, 0), 2)
 
 
 class ROIDrawingTool(ViewportTool):
     """
     Base class for all ROI drawing tools.
 
-    This is an abstract class that provides common functionality for ROI drawing tools.
-    Subclasses should define the ROI mode and other specific properties.
+    On completion, emits ``sigROIDrawingComplete`` with a dict:
+        {"geometry": ShapelyPolygon, "roiType": ROIMode}
+    where geometry is in image pixel coordinates.
     """
 
     toolCategory = "ROI Drawing"
 
-    # Signal emitted when ROI drawing is complete
+    # Emits dict with "geometry" (Shapely Polygon in pixel coords) and "roiType" (ROIMode)
     sigROIDrawingComplete = pyqtSignal(object)
+
+    roiMode: ROIMode = ROIMode.FREEHAND  # Subclasses override
 
     def __init__(self, viewport: Viewport, parent=None):
         super().__init__(viewport, parent)
@@ -40,39 +47,35 @@ class ROIDrawingTool(ViewportTool):
         self.points: List[Tuple[float, float]] = []
         self.imageEntity = viewport.imageEntity
         self.targetImageItem = viewport.imageItem
-        self.roiEntity = None
-        self.roiItem = None
+        self._previewItem: QGraphicsPolygonItem | None = None
 
     def activate(self):
-        """Activate the ROI drawing tool."""
         super().activate()
         self.startDrawing()
 
     def deactivate(self):
-        """Deactivate the ROI drawing tool."""
         if self.isDrawing:
             self.cancelDrawing()
         super().deactivate()
 
     def stopDrawing(self):
-        """Reset the tool state"""
+        """Reset the tool state."""
         self.isDrawing = False
         self.points = []
-        # self.viewport.removeItem(self.roiItem)
-        self.roiItem = None
-        self.roiEntity = None
+        if self._previewItem is not None:
+            self.viewport.removeItem(self._previewItem)
+            self._previewItem = None
 
     def startDrawing(self):
-        """Start the drawing process"""
+        """Start the drawing process."""
         self.isDrawing = True
-        self.points = []  # Reset points
+        self.points = []
 
-        # Create a new ROI entity
-        self.roiEntity = ROI(sourceImage=self.imageEntity)
-
-        # Create a visual representation of the ROI
-        self.roiItem = VardaROIItem(self.roiEntity)
-        self.viewport.addItem(self.roiItem)
+        # Simple polygon preview item
+        self._previewItem = QGraphicsPolygonItem()
+        self._previewItem.setPen(_PREVIEW_PEN)
+        self._previewItem.setBrush(QBrush(_PREVIEW_COLOR))
+        self.viewport.addItem(self._previewItem)
 
         self.showText(
             f"{self.toolDescription}. Esc to cancel.",
@@ -82,47 +85,49 @@ class ROIDrawingTool(ViewportTool):
         )
 
     def updateDrawing(self):
-        """Update the drawing process"""
-        self.roiEntity.points = np.array(self.points)
-        self.roiItem.setROIData(self.roiEntity)
+        """Update the preview polygon from current points."""
+        if self._previewItem is None:
+            return
+        poly = QPolygonF()
+        for x, y in self.points:
+            poly.append(QPointF(x, y))
+        if len(self.points) >= 3:
+            poly.append(QPointF(*self.points[0]))  # Close polygon
+        self._previewItem.setPolygon(poly)
 
     def cancelDrawing(self):
-        """Cancel the current drawing operation"""
         self.stopDrawing()
 
     def completeDrawing(self):
-        """Complete the drawing and emit result"""
+        """Convert pixel points to Shapely Polygon and emit result."""
         if len(self.points) < 3:
             self.cancelDrawing()
             return
 
-        # convert points to image space and store in the ROI entity
-        self.roiEntity.points = np.array(
-            self.viewport.imageItem.localToImage(self.points)
-        )
+        # Convert viewport-local coordinates to image pixel coordinates
+        imagePoints = self.viewport.imageItem.localToImage(self.points)
 
-        # Calculate geo coordinates if transform is available
-        if self.imageEntity.metadata.hasGeospatialData:
-            self.roiEntity.geoPoints = np.array(
-                [
-                    image_utils.transformPixelToGeoCoord(
-                        self.imageEntity, int(px), int(py)
-                    )
-                    for px, py in self.roiEntity.points
-                ]
-            )
+        # Build Shapely polygon in pixel space
+        pixelPolygon = ShapelyPolygon(imagePoints)
+
+        # If the image is georeferenced, convert to CRS coordinates
+        if self.imageEntity.hasGeospatialData:
+            geoCoords = [
+                self.imageEntity.pixelToGeo(int(px), int(py))
+                for px, py in imagePoints
+            ]
+            geometry = ShapelyPolygon(geoCoords)
         else:
-            self.roiEntity.geoPoints = None
+            geometry = pixelPolygon
 
-        roiClone = self.roiEntity.clone()
-        self.sigROIDrawingComplete.emit(roiClone)
+        self.sigROIDrawingComplete.emit({
+            "geometry": geometry,
+            "roiType": self.roiMode,
+        })
 
-        # TODO: Possibly change this if we decide on a different way to store ROIs
-        # varda.app.proj.roiManager.addROI(roiClone)
         self.stopDrawing()
 
     def keyPressEvent(self, event) -> bool:
-        """Handle key press events"""
         if not self.isDrawing:
             return False
 
@@ -133,7 +138,7 @@ class ROIDrawingTool(ViewportTool):
         return False
 
     def _mapPosition(self, pos: QPointF) -> QPointF:
-        """Map scene position to image coordinates"""
+        """Map scene position to image-item local coordinates."""
         return self.targetImageItem.mapFromScene(pos)
 
 
@@ -144,6 +149,7 @@ class FreehandROITool(ROIDrawingTool):
     toolDescription = (
         "Draw a freehand ROI by clicking and dragging. Release to complete."
     )
+    roiMode = ROIMode.FREEHAND
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
         if not self.isDrawing:
@@ -193,6 +199,7 @@ class RectangleROITool(ROIDrawingTool):
     toolDescription = (
         "Draw a rectangular ROI by clicking and dragging. Release to complete."
     )
+    roiMode = ROIMode.RECTANGLE
 
     def __init__(self, viewport: Viewport, parent=None):
         super().__init__(viewport, parent)
@@ -203,7 +210,6 @@ class RectangleROITool(ROIDrawingTool):
         self.startPoint = None
 
     def _rectToPoints(self, rect: QRectF) -> List[Tuple[float, float]]:
-        """Convert QRectF to point arrays"""
         x1, y1, x2, y2 = rect.getCoords()
         return [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
 
@@ -257,6 +263,7 @@ class EllipseROITool(ROIDrawingTool):
     toolDescription = (
         "Draw an elliptical ROI by clicking and dragging. Release to complete."
     )
+    roiMode = ROIMode.ELLIPSE
 
     def __init__(self, viewport: Viewport, parent=None):
         super().__init__(viewport, parent)
@@ -269,7 +276,6 @@ class EllipseROITool(ROIDrawingTool):
     def _ellipseToPoints(
         self, rect: QRectF, num_points=36
     ) -> List[Tuple[float, float]]:
-        """Convert QRectF to ellipse point arrays"""
         center_x = rect.center().x()
         center_y = rect.center().y()
         radius_x = rect.width() / 2
@@ -330,6 +336,7 @@ class PolygonROITool(ROIDrawingTool):
     toolDescription = (
         "Draw a Polygon ROI by clicking to add points. Press Enter to complete."
     )
+    roiMode = ROIMode.POLYGON
 
     def __init__(self, viewport: Viewport, parent=None):
         super().__init__(viewport, parent)
@@ -340,7 +347,6 @@ class PolygonROITool(ROIDrawingTool):
         self.tempPoint = None
 
     def completeDrawing(self):
-        """override to remove the temporary point if it exists"""
         if self.tempPoint is not None:
             self.points.remove(self.tempPoint)
             self.tempPoint = None
@@ -355,7 +361,6 @@ class PolygonROITool(ROIDrawingTool):
             return True
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             if self.tempPoint is not None:
-                # If there's a temp point, remove it before completing
                 self.points.remove(self.tempPoint)
                 self.tempPoint = None
             if len(self.points) >= 3:
@@ -366,7 +371,6 @@ class PolygonROITool(ROIDrawingTool):
                 if self.tempPoint is not None:
                     self.points.remove(self.tempPoint)
                     self.tempPoint = None
-                # remove the last point
                 self.points.pop()
                 self.updateDrawing()
             return True
@@ -379,7 +383,6 @@ class PolygonROITool(ROIDrawingTool):
 
         if event.button() == Qt.MouseButton.LeftButton:
             if self.tempPoint is not None:
-                # the point is already in the list. By setting tempPoint to None we "lock in" that point
                 self.tempPoint = None
             else:
                 pos = self._mapPosition(event.scenePos())
@@ -413,11 +416,9 @@ class PolygonROITool(ROIDrawingTool):
 
         pos = self._mapPosition(event.scenePos())
 
-        # Remove previous temp point if it exists
         if self.tempPoint in self.points:
             self.points.remove(self.tempPoint)
 
-        # Add new temp point for preview
         self.tempPoint = (pos.x(), pos.y())
         if len(self.points) > 0:
             self.points.append(self.tempPoint)

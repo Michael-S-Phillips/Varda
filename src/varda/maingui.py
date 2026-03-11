@@ -12,7 +12,6 @@ from varda.common.ui import DetachableTabWidget
 from varda.workspaces import GeneralImageAnalysisWorkflow
 from varda.image_processing.process_controls.processingmenu import ProcessingMenu
 from varda.image_processing.process_controls.processdialog import ProcessDialog
-from varda.workspaces.dual_image_view.dual_image_view import DualImageView
 from varda.workspaces.dual_image_view.dual_image_types import DualImageMode
 from varda.workspaces.dual_image_view.dual_image_selection_dialog import (
     DualImageSelectionDialog,

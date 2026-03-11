@@ -18,12 +18,11 @@ from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.new_histogram_view import (
     NewHistogramView,
 )
-from varda.metadata_management.metadata_editor import MetadataEditor
-
-
-from varda.image_rendering.raster_view import TripleRasterView
+from varda.image_rendering.raster_view import TripleRasterView, ROIDisplayController
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.common.parameter import ImageParameter, ParameterGroup
+from varda.rois.roi_collection import ROICollection
+from varda.rois.roi_manager_widget import ROIManagerWidget
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +57,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         # Initialize core components
         self.rasterView = None
-        self.roiAdapter = None
-        self.roiManager = None
         self.bandManager = None
         self.stretchManager = None
 
@@ -95,24 +92,24 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # initialize histogram view
         self.histogram = NewHistogramView(self.imageRenderer, self)
 
-        # Initialize band selection view
-        # self.bandManager = BandManager(self.proj, self.imageIndex, self)
+        # --- ROI system ---
+        image = self.config.image.value
+        self.roiCollection = ROICollection.fromImage(image)
 
-        # Initialize stretch controls
-        # self.stretchManager = StretchManager(self.proj, self.imageIndex, self)
+        self.roiDisplayController = ROIDisplayController(
+            self.roiCollection, image, parent=self
+        )
+        self.roiDisplayController.registerViewport(
+            "viewport1", self.tripleRasterView.viewport1
+        )
+        self.roiDisplayController.registerViewport(
+            "viewport2", self.tripleRasterView.viewport2
+        )
+        self.roiDisplayController.registerViewport(
+            "viewport3", self.tripleRasterView.viewport3
+        )
 
-        # Initialize metadata editor
-        # self.metadataEditor = MetadataEditor(self.image, self)
-
-        # TODO: Commented out until I refactor to not rely on ProjectContext/ROIManager
-        # Initialize ROI view/table
-        # self.roiManager = ROIManagerWidget(self.proj, self.imageIndex, self)
-        # displayController = self.roiManager.getDisplayController()
-        #
-        # displayController.registerViewport("viewport 1", self.tripleRasterView.viewport1)
-        # displayController.registerViewport("viewport 2", self.tripleRasterView.viewport2)
-        # displayController.registerViewport("viewport 3", self.tripleRasterView.viewport3)
-        # self.oldRoiView = getROIView(self.proj, self.imageIndex, self)
+        self.roiManagerWidget = ROIManagerWidget(self.roiCollection, parent=self)
 
     def _initUI(self):
         """Initialize the user interface for the workflow"""
@@ -157,7 +154,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # metadataDock = VardaDockWidget("Metadata", self.metadataEditor, loc, self)
         # docks.append(metadataDock)
 
-        roiDockNew = Dock("ROI Dock", widget=self.roiManager, size=(100, 100))
+        roiDockNew = Dock("ROI Dock", widget=self.roiManagerWidget, size=(100, 100))
         docks.append(roiDockNew)
         # roiDock = VardaDockWidget("ROI Manager", self.roiManager, loc, self)
         # docks.append(roiDock)
@@ -185,11 +182,60 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
     def _connectSignals(self):
         """Connect signals between workflow components"""
-        # self.bandManager.sigBandChanged.connect(self.tripleRasterView.setBand)
-        # self.stretchManager.sigStretchChanged.connect(self.tripleRasterView.setStretch)
         self.rendererSettingsPanel.sigSettingsChanged.connect(
             self.imageRenderer.updateSettings
         )
+
+        # Wire ROI drawing tools to collection
+        from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
+            ROIDrawingTool,
+        )
+        import inspect
+
+        for tm in (self.toolManager1, self.toolManager2, self.toolManager3):
+            origActivate = tm.activateTool
+
+            def _patchedActivate(toolClass, _orig=origActivate):
+                _orig(toolClass)
+                tool = tm.activeTool
+                logger.debug(f"tool activated: {tool}")
+                print("is class: ", inspect.isclass(tool))
+
+                if isinstance(tool, ROIDrawingTool):
+                    logger.debug(
+                        "tool is ROI drawing tool. connecting onDrawingComplete"
+                    )
+                    tool.sigROIDrawingComplete.connect(self._onROIDrawn)
+
+            tm.activateTool = _patchedActivate
+
+        # Wire table selection to display controller highlight
+        self.roiManagerWidget.table.roiSelected.connect(
+            self.roiDisplayController.highlightROI
+        )
+        selModel = self.roiManagerWidget.table.selectionModel()
+        if selModel is not None:
+            selModel.selectionChanged.connect(self._onTableSelectionChanged)
+
+    def _onROIDrawn(self, result: dict) -> None:
+        """Handle completion of an ROI drawing tool."""
+        logger.debug(f"_onROIDrawn called. result: {result}")
+        # Default color: semi-transparent red
+        color = (255, 0, 0, 128)
+        name = f"ROI {len(self.roiCollection) + 1}"
+        self.roiCollection.addROI(
+            geometry=result["geometry"],
+            name=name,
+            color=color,
+            roiType=result["roiType"],
+        )
+
+    def _onTableSelectionChanged(self, selected, _deselected) -> None:
+        if not selected.indexes():
+            return
+        fid = self.roiManagerWidget.model.fidForRow(selected.indexes()[0].row())
+        if fid is not None:
+            self.roiDisplayController.highlightROI(fid)
 
     def setStatusMessage(self, message):
         """Set a status message in the status bar"""
@@ -197,5 +243,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
     def closeEvent(self, event):
         """Handle workflow closure"""
+        self.roiDisplayController.cleanup()
         self.workflowClosed.emit()  # Emit signal before closing
         super().closeEvent(event)

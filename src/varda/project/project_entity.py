@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 import uuid
 
-from varda.common.entities import ROI
 from varda.common.entities import Metadata
 from varda.common._old_entities import Stretch, Band
 from varda.common.entities import Image
@@ -155,23 +154,6 @@ class BandTable:
         self._bands = {key: deserializeBand(band) for key, band in data.items()}
 
 
-class RoiTable:
-    def __init__(self):
-        self._rois: Dict[str, ROI] = {}
-
-    def add(self, roi: ROI):
-        self._rois[str(uuid.uuid4())] = roi
-
-    def remove(self, key):
-        del self._rois[key]
-
-    def get(self, key):
-        return self._rois[key]
-
-    def getAll(self):
-        return self._rois
-
-
 class ImageStretchAssociations:
     def __init__(self, imageTable, stretchTable):
         self._associations: Dict[str, List[str]] = {}
@@ -238,7 +220,6 @@ class Project:
         self.images = ImageTable()
         self.stretches = StretchTable()
         self.bands = BandTable()
-        self.rois = RoiTable()
         self.imageStretch = ImageStretchAssociations(self.images, self.stretches)
         self.imageBand = ImageBandAssociations(self.images, self.bands)
 
