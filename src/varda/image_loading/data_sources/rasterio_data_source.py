@@ -248,7 +248,6 @@ class RasterioDataSource(DataSource):
 
     def geoToPixel(self, x: float, y: float) -> tuple[int, int]:
         row, col = self._src.index(x, y)
-        a, b = self._src.rowcol(x, y)
         return int(col), int(row)
 
     # --- Lifecycle ---
