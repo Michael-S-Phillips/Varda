@@ -244,15 +244,18 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         fillColor = QColor(roi.color)
         fillColor.setAlpha(50)
 
-        self.plotWidget.plotWithFill(
-            wavelengths,
-            mean,
-            yLower=mean - std,
-            yUpper=mean + std,
-            fillBrush=pg.mkBrush(fillColor),
-            pen=pg.mkPen(color=roi.color, width=2),
-            name=roi.name,
+        self.plotWidget.plot(
+            wavelengths, mean, pen=pg.mkPen(color=roi.color, width=2), name=roi.name
         )
+        # self.plotWidget.plotWithFill(
+        #     wavelengths,
+        #     mean,
+        #     yLower=mean - std,
+        #     yUpper=mean + std,
+        #     fillBrush=pg.mkBrush(fillColor),
+        #     pen=pg.mkPen(color=roi.color, width=2),
+        #     name=roi.name,
+        # )
 
     def setStatusMessage(self, message):
         """Set a status message in the status bar"""
