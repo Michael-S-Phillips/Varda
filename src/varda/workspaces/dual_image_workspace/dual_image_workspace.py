@@ -213,7 +213,7 @@ class DualImageWorkspace(QWidget):
         self.plotWidget.plot(
             wavelengths,
             mean,
-            color=roi.color,
+            pen=roi.color,
             name=roi.name,
         )
 
