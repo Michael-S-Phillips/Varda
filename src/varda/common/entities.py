@@ -85,7 +85,7 @@ class VardaRaster:
         Returns:
             Array with shape (height, width, bands).
         """
-        return self._dataSource.getData(bandIndices, window)
+        return self._dataSource.getData(bandIndices, window, masked=masked)
 
     def __getitem__(self, key) -> np.ndarray:
         """Numpy-like indexing: ``raster[y, x, :]``."""

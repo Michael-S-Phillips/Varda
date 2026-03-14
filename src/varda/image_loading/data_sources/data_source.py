@@ -56,6 +56,7 @@ class DataSource(Protocol):
         self,
         bandIndices: npt.ArrayLike | None = None,
         window: tuple[int, int, int, int] | None = None,
+        masked=True,
     ) -> np.ndarray:
         """Read raster data with optional band and spatial subsetting.
 
