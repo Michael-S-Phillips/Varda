@@ -78,6 +78,7 @@ class VardaRaster:
         self,
         bandIndices: list[int] | None = None,
         window: tuple[int, int, int, int] | None = None,
+        masked=True,
     ) -> np.ndarray:
         """Get raster data with optional band and spatial subsetting.
 

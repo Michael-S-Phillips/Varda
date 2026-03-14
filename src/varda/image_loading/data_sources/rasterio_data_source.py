@@ -65,6 +65,7 @@ class RasterioDataSource(DataSource):
         self,
         bandIndices: npt.ArrayLike | None = None,
         window: tuple[int, int, int, int] | None = None,
+        masked=True,
     ) -> np.ndarray:
         # process window and band inputs into rasterio formats
         rio_window = None
@@ -80,7 +81,7 @@ class RasterioDataSource(DataSource):
             rio_indices = [int(i) + 1 for i in bandIndices]
 
         # get data
-        data = self._src.read(indexes=rio_indices, window=rio_window, masked=True)
+        data = self._src.read(indexes=rio_indices, window=rio_window, masked=masked)
 
         # (bands, h, w) -> (h, w, bands)
         data = np.moveaxis(data, 0, -1)

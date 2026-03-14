@@ -295,6 +295,7 @@ class ROICollection:
         # Handle nodata
         nodata = image.nodata
         if nodata is not None:
+            logger.debug(f"nodata value: {nodata}")
             valid = ~np.all(pixels == nodata, axis=1)
             pixels = pixels[valid]
 
@@ -309,10 +310,10 @@ class ROICollection:
             }
 
         return {
-            "mean": np.mean(pixels, axis=0).astype(np.float64),
-            "std": np.std(pixels, axis=0).astype(np.float64),
-            "min": np.min(pixels, axis=0),
-            "max": np.max(pixels, axis=0),
+            "mean": np.nanmean(pixels, axis=0).astype(np.float64),
+            "std": np.nanstd(pixels, axis=0).astype(np.float64),
+            "min": np.nanmin(pixels, axis=0),
+            "max": np.nanmax(pixels, axis=0),
             "pixel_count": len(pixels),
         }
 
