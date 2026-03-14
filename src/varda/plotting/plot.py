@@ -1,9 +1,10 @@
 import json
+from pathlib import Path
 
 import numpy as np
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, QPoint, QByteArray, QMimeData
 from PyQt6.QtGui import QDrag, QColor
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QWidget, QComboBox
 import pyqtgraph as pg
 
 from varda.common.entities import VardaRaster
@@ -14,6 +15,11 @@ from varda.common.ui import (
     SectionBox,
     ButtonBuilder,
     WrapperWidget,
+)
+from varda.plotting.library_spectra import (
+    DEFAULT_LIBRARY_PATH,
+    listSpectra,
+    loadSpectrum,
 )
 from varda.common.parameter import (
     ParameterGroup,
@@ -187,9 +193,14 @@ class _PlotGraphicsView(pg.GraphicsView):
 
 
 class VardaPlotWidget(QWidget):
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        libraryPath: Path | None = DEFAULT_LIBRARY_PATH,
+    ):
         super().__init__(parent)
         self.selectedCurve: Curve | None = None
+        self.libraryPath = libraryPath
 
         self.plots: list[Curve] = []
         self._fillItems: list[pg.GraphicsObject] = []
@@ -212,20 +223,35 @@ class VardaPlotWidget(QWidget):
         self.windowConfigWidget = self.windowConfig.createWidget()
         self.rangeConfigWidget = self.rangeConfig.createWidget()
         self.rangeConfigWidget.hide()
+
+        sidebar = VBoxBuilder(Qt.AlignmentFlag.AlignTop).withWidget(self.curveSettingsBox)
+
+        spectraNames = listSpectra(libraryPath) if libraryPath else []
+        if spectraNames:
+            self.libraryCombo = QComboBox()
+            self.libraryCombo.addItems(spectraNames)
+            sidebar.withWidget(
+                SectionBox(
+                    "Library Spectra",
+                    VBoxBuilder()
+                    .withWidget(self.libraryCombo)
+                    .withWidget(ButtonBuilder("Add to Plot").onClick(self._addLibrarySpectrum)),
+                )
+            )
+
+        sidebar.withWidget(
+            SectionBox(
+                "Window Settings",
+                VBoxBuilder()
+                .withWidget(self.windowConfigWidget)
+                .withWidget(self.rangeConfigWidget),
+            )
+        )
+
         self.setLayout(
             HBoxBuilder()
             .withWidget(self.gv)
-            .withLayout(
-                VBoxBuilder(Qt.AlignmentFlag.AlignTop)
-                .withWidget(self.curveSettingsBox)
-                .withWidget(
-                    SectionBox(
-                        "Window Settings",
-                        VBoxBuilder()
-                        .withWidget(self.windowConfigWidget)
-                        .withWidget(self.rangeConfigWidget),
-                    )
-                )
+            .withLayout(sidebar
             )
         )
 
@@ -289,6 +315,12 @@ class VardaPlotWidget(QWidget):
             self.selectedCurve.setHighlighted(False)
             self.curveSettingsBox.setContent(None)
         self.selectedCurve = None
+
+    def _addLibrarySpectrum(self) -> None:
+        folderName = self.libraryCombo.currentText()
+        wavelengths, reflectance = loadSpectrum(self.libraryPath / folderName)
+        name = folderName.removeprefix("splib07a_")
+        self.plot(wavelengths, reflectance, name=name)
 
     def removePlot(self, curve: Curve) -> None:
         if curve not in self.plots:

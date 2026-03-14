@@ -96,6 +96,7 @@ class ArrayDataSource(DataSource):
         self,
         bandIndices: npt.ArrayLike | None = None,
         window: tuple[int, int, int, int] | None = None,
+        masked=True,
     ) -> np.ndarray:
         data = self._data
         if window is not None:
