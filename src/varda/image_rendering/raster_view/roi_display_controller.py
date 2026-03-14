@@ -91,7 +91,7 @@ class ROIDisplayController(QObject):
         roi = self._collection.getROI(fid)
         pixelCoords = self._collection.getPixelCoordinates(fid, self._image)
         for vid, viewport in self._viewports.items():
-            localCoords = self._convertCoordsForViewport(pixelCoords, viewport)
+            localCoords = viewport.pixelToLocalCoords(pixelCoords)
             item = VardaROIGraphicsItem(roi, localCoords)
             viewport.addItem(item)
             self._items[vid][fid] = item
@@ -111,21 +111,11 @@ class ROIDisplayController(QObject):
         pixelCoords = self._collection.getPixelCoordinates(fid, self._image)
         for vid, viewport in self._viewports.items():
             if fid in self._items[vid]:
-                localCoords = self._convertCoordsForViewport(pixelCoords, viewport)
+                localCoords = viewport.pixelToLocalCoords(pixelCoords)
                 self._items[vid][fid].updateData(roi, localCoords)
         self.displayUpdated.emit()
 
     # --- Internal ---
-
-    def _convertCoordsForViewport(
-        self, pixelCoords: np.ndarray, viewport: Any
-    ) -> np.ndarray:
-        """Convert full-image pixel coordinates to a viewport's local coordinates."""
-        imageItem = viewport.imageItem
-        if not imageItem.isShowingRegion:
-            return pixelCoords
-        pointsList = [(float(c), float(r)) for c, r in pixelCoords]
-        return np.array(imageItem.imageToLocal(pointsList))
 
     def _refreshViewport(self, viewportId: str) -> None:
         """Recompute local coordinates for all ROI items on a viewport."""
@@ -141,7 +131,7 @@ class ROIDisplayController(QObject):
         for fid in self._collection.fids:
             roi = self._collection.getROI(fid)
             pixelCoords = self._collection.getPixelCoordinates(fid, self._image)
-            localCoords = self._convertCoordsForViewport(pixelCoords, viewport)
+            localCoords = viewport.pixelToLocalCoords(pixelCoords)
             item = VardaROIGraphicsItem(roi, localCoords)
             viewport.addItem(item)
             self._items[viewportId][fid] = item
