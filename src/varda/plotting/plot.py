@@ -1,11 +1,20 @@
+import json
+
 import numpy as np
+from PyQt6.QtCore import Qt, QObject, pyqtSignal, QPoint, QByteArray, QMimeData
+from PyQt6.QtGui import QDrag, QColor
 from PyQt6.QtWidgets import QWidget
-from PyQt6.QtCore import Qt, QObject, pyqtSignal
 import pyqtgraph as pg
 
 from varda.common.entities import VardaRaster
 
-from varda.common.ui import VBoxBuilder, HBoxBuilder, SectionBox
+from varda.common.ui import (
+    VBoxBuilder,
+    HBoxBuilder,
+    SectionBox,
+    ButtonBuilder,
+    WrapperWidget,
+)
 from varda.common.parameter import (
     ParameterGroup,
     FloatParameter,
@@ -13,6 +22,8 @@ from varda.common.parameter import (
     ColorParameter,
     BoolParameter,
 )
+
+CURVE_MIME_TYPE = "application/x-varda-curve"
 
 
 class CurveConfig(ParameterGroup):
@@ -78,6 +89,27 @@ class Curve(QObject):
         else:
             self.plotDataItem.setShadowPen(None)
 
+    def serialize(self) -> dict:
+        x, y = self.plotDataItem.getData()
+        return {
+            "x": x.tolist() if x is not None else [],
+            "y": y.tolist() if y is not None else [],
+            "name": self.plotDataItem.name() or "",
+            "color": self.config.color.value.name(),
+            "width": self.config.width.value,
+            "offset": self.config.offset.value,
+            "scale": self.config.scale.value,
+        }
+
+    @classmethod
+    def deserialize(cls, data: dict) -> "Curve":
+        curve = cls.fromData(data["x"], data["y"], name=data["name"] or None)
+        curve.config.color.set(QColor(data["color"]))
+        curve.config.width.set(data["width"])
+        curve.config.offset.set(data["offset"])
+        curve.config.scale.set(data["scale"])
+        return curve
+
     @classmethod
     def fromData(cls, x, y, **kwargs):
         plotItem = pg.PlotDataItem(x, y, **kwargs)
@@ -99,6 +131,61 @@ class RangeConfig(ParameterGroup):
     viewRangeY = Vec2Parameter("Y View Range", valueNames=("Min", "Max"))
 
 
+class _PlotGraphicsView(pg.GraphicsView):
+    def __init__(self, parent: "VardaPlotWidget"):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self._dragStartPos: QPoint | None = None
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            parent = self.parent()
+            if isinstance(parent, VardaPlotWidget) and parent.selectedCurve is not None:
+                self._dragStartPos = event.pos()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if (
+            self._dragStartPos is not None
+            and event.buttons() & Qt.MouseButton.LeftButton
+            and (event.pos() - self._dragStartPos).manhattanLength() >= 10
+        ):
+            self._dragStartPos = None
+            parent = self.parent()
+            if isinstance(parent, VardaPlotWidget) and parent.selectedCurve is not None:
+                self._initiateDrag(parent.selectedCurve)
+                return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._dragStartPos = None
+        super().mouseReleaseEvent(event)
+
+    def _initiateDrag(self, curve: Curve) -> None:
+        data = curve.serialize()
+        data["source_id"] = id(self.parent())
+        mimeData = QMimeData()
+        mimeData.setData(CURVE_MIME_TYPE, QByteArray(json.dumps(data).encode("utf-8")))
+        drag = QDrag(self)
+        drag.setMimeData(mimeData)
+        drag.exec(Qt.DropAction.CopyAction)
+
+    def dragEnterEvent(self, event) -> None:
+        if event.mimeData().hasFormat(CURVE_MIME_TYPE):
+            event.accept()
+        # Do NOT call super() — pg.GraphicsView.dragEnterEvent calls ev.ignore()
+
+    def dragMoveEvent(self, event) -> None:
+        if event.mimeData().hasFormat(CURVE_MIME_TYPE):
+            event.accept()
+
+    def dropEvent(self, event) -> None:
+        if event.mimeData().hasFormat(CURVE_MIME_TYPE):
+            parent = self.parent()
+            if isinstance(parent, VardaPlotWidget):
+                parent.onCurveDrop(event)
+
+
 class VardaPlotWidget(QWidget):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -106,7 +193,7 @@ class VardaPlotWidget(QWidget):
 
         self.plots: list[Curve] = []
         self._fillItems: list[pg.GraphicsObject] = []
-        self.gv = pg.GraphicsView()
+        self.gv = _PlotGraphicsView(self)
         # if the user clicks on the plot area and none of the plots catch the click (therefore selecting it), deselect any selected plot
         self.gv.scene().sigMouseClicked.connect(self.onSceneClicked)
         self.plotItem = pg.PlotItem()
@@ -160,7 +247,7 @@ class VardaPlotWidget(QWidget):
             self.plotItem.setXRange(xRange.x, xRange.y)
             self.plotItem.setYRange(yRange.x, yRange.y)
 
-    def plot(self, x, y, **kwargs):
+    def plot(self, x, y, **kwargs) -> Curve:
         """
         TODO: Maybe give each new plot a different starting color?
 
@@ -174,12 +261,23 @@ class VardaPlotWidget(QWidget):
         curve.sigClicked.connect(self.selectPlot)
         self.plots.append(curve)
         self.plotItem.addItem(curve.plotDataItem)
+        return curve
 
-    def selectPlot(self, curve: Curve):
+    def selectPlot(self, curve: Curve) -> None:
         self.deselectPlot()
         self.selectedCurve = curve
         curve.setHighlighted(True)
-        self.curveSettingsBox.setContent(curve.config.createWidget())
+        self.curveSettingsBox.setContent(
+            WrapperWidget(
+                VBoxBuilder(Qt.AlignmentFlag.AlignTop)
+                .withWidget(curve.config.createWidget())
+                .withWidget(
+                    ButtonBuilder("Remove Curve").onClick(
+                        lambda: self.removePlot(curve)
+                    )
+                )
+            )
+        )
 
     def onSceneClicked(self, event):
         if event.isAccepted():
@@ -192,10 +290,25 @@ class VardaPlotWidget(QWidget):
             self.curveSettingsBox.setContent(None)
         self.selectedCurve = None
 
-    def removePlot(self, plot: pg.PlotDataItem):
-        if plot in self.plots:
-            self.plots.remove(plot)
-            self.plotItem.removeItem(plot)
+    def removePlot(self, curve: Curve) -> None:
+        if curve not in self.plots:
+            return
+        self.plots.remove(curve)
+        self.plotItem.removeItem(curve.plotDataItem)
+        if self.selectedCurve is curve:
+            self.deselectPlot()
+
+    def onCurveDrop(self, event) -> None:
+        data = json.loads(bytes(event.mimeData().data(CURVE_MIME_TYPE)).decode("utf-8"))
+        if data.get("source_id") == id(self):
+            event.ignore()
+            return
+        curve = Curve.deserialize(data)
+        curve.setClickable(True)
+        curve.sigClicked.connect(self.selectPlot)
+        self.plots.append(curve)
+        self.plotItem.addItem(curve.plotDataItem)
+        event.accept()
 
     def plotWithFill(self, x, y, yLower, yUpper, fillBrush, **kwargs):
         """Plot a curve with a filled region between yLower and yUpper.
