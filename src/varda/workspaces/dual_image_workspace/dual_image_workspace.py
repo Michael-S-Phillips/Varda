@@ -116,15 +116,15 @@ class DualImageWorkspace(QWidget):
                 SplitterBuilder(Qt.Orientation.Vertical)
                 .withWidget(
                     SplitterBuilder(Qt.Orientation.Horizontal)
-                    .withLayout(
-                        VBoxBuilder()
-                        .withWidget(self.viewport1, stretch=2)
-                        .withWidget(self.primaryRenderer.getSettingsPanel(), 1)
+                    .withWidget(
+                        SplitterBuilder(Qt.Orientation.Vertical)
+                        .withWidget(self.viewport1, stretchFactor=2)
+                        .withWidget(self.primaryRenderer.getSettingsPanel())
                     )
-                    .withLayout(
-                        VBoxBuilder()
-                        .withWidget(self.viewport2, stretch=2)
-                        .withWidget(self.secondaryRenderer.getSettingsPanel(), 1)
+                    .withWidget(
+                        SplitterBuilder(Qt.Orientation.Vertical)
+                        .withWidget(self.viewport2, stretchFactor=2)
+                        .withWidget(self.secondaryRenderer.getSettingsPanel())
                     ),
                     stretchFactor=3,
                 )
