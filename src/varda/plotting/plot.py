@@ -15,7 +15,7 @@ from varda.common.ui import (
     SectionBox,
     ButtonBuilder,
     WrapperWidget,
-    ScrollArea,
+    VerticalScrollArea,
 )
 from varda.common.vec2 import Vec2
 from varda.plotting.library_spectra import (
@@ -262,7 +262,9 @@ class VardaPlotWidget(QWidget):
         )
 
         self.setLayout(
-            HBoxBuilder().withWidget(self.gv, stretch=2).withWidget(ScrollArea(sidebar))
+            HBoxBuilder()
+            .withWidget(self.gv, stretch=2)
+            .withWidget(VerticalScrollArea(sidebar))
         )
 
     def onWindowParamsChanged(self):
