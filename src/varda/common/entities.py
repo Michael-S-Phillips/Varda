@@ -867,6 +867,29 @@ class Plot:
         return Plot("ROI", timestamp, roi.meanSpectrum)
 
 
+@attrs.define
+class Color:
+    r: float
+    g: float
+    b: float
+    a: float
+
+    @classmethod
+    def black(cls):
+        return cls(0.0, 0.0, 0.0, 1.0)
+
+    @classmethod
+    def white(cls):
+        return cls(1.0, 1.0, 1.0, 1.0)
+
+    def asQColor(self):
+        c = self.as8bit()
+        return QColor(c[0], c[1], c[2])
+
+    def as8bit(self):
+        return (int(self.r * 255), int(self.g * 255), int(self.b * 255))
+
+
 # --- Lazy import for Image alias. This basically just makes it so ---
 def __getattr__(name):
     if name in ("Image", "VardaRaster"):

@@ -25,12 +25,12 @@ from PyQt6.QtWidgets import (
     QFrame,
     QSpinBox,
     QSizePolicy,
-    QCheckBox,
+    QScrollArea,
 )
 
 
 class WrapperWidget(QWidget):
-    def __init__(self, layout, parent=None):
+    def __init__(self, layout: QLayout, parent: QWidget | None = None):
         super().__init__(parent)
         self.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
@@ -91,20 +91,27 @@ class SplitterBuilder(QSplitter):
         super().__init__()
         self.setOrientation(orientation)
 
-    def withWidget(
-        self, widget: QWidget | None, stretchFactor: int = 1
-    ) -> SplitterBuilder:
+    def withWidget(self, widget: QWidget, stretchFactor: int = 1) -> SplitterBuilder:
         self.addWidget(widget)
         self.setStretchFactor(self.indexOf(widget), stretchFactor)
         return self
 
-    def withLayout(
-        self, layout: QLayout | None, stretchFactor: int = 1
-    ) -> SplitterBuilder:
+    def withLayout(self, layout: QLayout, stretchFactor: int = 1) -> SplitterBuilder:
         wrapper = WrapperWidget(layout)
         self.addWidget(wrapper)
         self.setStretchFactor(self.indexOf(wrapper), stretchFactor)
         return self
+
+
+class ScrollArea(QScrollArea):
+    def __init__(self, contents: QWidget | QLayout, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        if isinstance(contents, QLayout):
+            contents = WrapperWidget(contents)
+
+        self.setWidget(contents)
 
 
 class FormBuilder(QFormLayout):
@@ -139,7 +146,6 @@ class SectionBox(QWidget):
         super().__init__(parent)
         self.frame = QFrame()
         self.frame.setFrameShape(QFrame.Shape.NoFrame)
-        self.frame.setMinimumSize(40, 40)
         self.frame.setObjectName("SectionBox")
         self.frame.setStyleSheet("""
         QFrame#SectionBox {

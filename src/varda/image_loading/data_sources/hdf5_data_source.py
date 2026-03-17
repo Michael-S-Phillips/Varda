@@ -138,6 +138,7 @@ class HDF5DataSource(DataSource):
         self,
         bandIndices: npt.ArrayLike | None = None,
         window: tuple[int, int, int, int] | None = None,
+        masked=True,  # TODO: make this arg do something if needed
     ) -> np.ndarray:
         # process window
         if window is not None:

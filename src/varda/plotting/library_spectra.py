@@ -20,21 +20,26 @@ def _readDataFile(path: Path) -> np.ndarray:
     return arr
 
 
-def loadSpectrum(folder: Path) -> tuple[np.ndarray, np.ndarray]:
+def loadSpectrum(
+    libraryPath: Path, folderName: str
+) -> tuple[str, np.ndarray, np.ndarray]:
     """Load a USGS library spectrum from its folder.
 
     Returns (wavelengths_nm, reflectance) where wavelengths have been
     converted from micrometers to nanometers.
     """
-    reflectance_path = folder / (folder.name + ".txt")
-    wavelength_paths = list(folder.glob("*Wavelengths*.txt"))
+    name = folderName.removeprefix("splib07a_")
+
+    path = libraryPath / folderName
+    reflectance_path = path / (path.name + ".txt")
+    wavelength_paths = list(path.glob("*Wavelengths*.txt"))
     if not wavelength_paths:
-        raise FileNotFoundError(f"No wavelength file found in {folder}")
+        raise FileNotFoundError(f"No wavelength file found in {path}")
 
     reflectance = _readDataFile(reflectance_path)
     wavelengths_um = _readDataFile(wavelength_paths[0])
     wavelengths_nm = wavelengths_um * 1000.0
-    return wavelengths_nm, reflectance
+    return name, wavelengths_nm, reflectance
 
 
 def listSpectra(library_path: Path = DEFAULT_LIBRARY_PATH) -> list[str]:
