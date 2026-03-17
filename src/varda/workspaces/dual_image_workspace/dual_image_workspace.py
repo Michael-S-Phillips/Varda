@@ -16,7 +16,12 @@ from varda.common.parameter import (
 from varda.common.entities import VardaRaster
 from varda.image_rendering.raster_view import ImageViewport, ROIDisplayController
 from varda.image_rendering.image_renderer import ImageRenderer
-from varda.common.ui import VBoxBuilder, SplitterBuilder, HBoxBuilder
+from varda.common.ui import (
+    VBoxBuilder,
+    SplitterBuilder,
+    HBoxBuilder,
+    VerticalScrollArea,
+)
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
@@ -128,10 +133,10 @@ class DualImageWorkspace(QWidget):
                     ),
                     stretchFactor=3,
                 )
-                .withLayout(
-                    HBoxBuilder()
-                    .withWidget(self.roiManagerWidget, stretch=1)
-                    .withWidget(self.plotWidget, stretch=2),
+                .withWidget(
+                    SplitterBuilder(Qt.Orientation.Horizontal)
+                    .withWidget(self.roiManagerWidget, stretchFactor=1)
+                    .withWidget(self.plotWidget, stretchFactor=2),
                     stretchFactor=1,
                 )
             )

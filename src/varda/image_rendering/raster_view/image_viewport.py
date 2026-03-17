@@ -26,7 +26,7 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
 
     sigImageChanged = pyqtSignal()
 
-    def __init__(self, imageRenderer: ImageRenderer, parent=None):
+    def __init__(self, imageRenderer: ImageRenderer, mouseEnabled=False, parent=None):
         super().__init__(parent)
         self.selfUpdating = True
 
@@ -37,7 +37,7 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         self._overlayImageItem: VardaImageItem | None = None
 
         self._vb = pg.ViewBox(lockAspect=True, invertY=True)
-        self._vb.setMouseEnabled(x=False, y=False)
+        self._vb.setMouseEnabled(x=mouseEnabled, y=mouseEnabled)
 
         self._vb.addItem(self._imageItem)
         self._vb.keyPressEvent = lambda event: None
