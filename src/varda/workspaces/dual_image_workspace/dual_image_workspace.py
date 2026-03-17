@@ -14,13 +14,17 @@ from varda.common.parameter import (
     EnumParameter,
 )
 from varda.common.entities import VardaRaster
-from varda.image_rendering.raster_view import ImageViewport, ROIDisplayController
+from varda.image_rendering.raster_view import (
+    ImageViewport,
+    ROIDisplayController,
+    ViewportLinkController,
+    LinkMode,
+)
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.common.ui import (
     VBoxBuilder,
     SplitterBuilder,
     HBoxBuilder,
-    VerticalScrollArea,
 )
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.rois.roi_collection import ROICollection
@@ -33,11 +37,6 @@ logger = logging.getLogger(__name__)
 class DisplayMode(Enum):
     SIDE_BY_SIDE = 1
     OVERLAY = 2
-
-
-class LinkMode(Enum):
-    PIXEL = 1
-    GEO = 2
 
 
 class DualImageWorkspaceConfig(ParameterGroup):
@@ -77,6 +76,9 @@ class DualImageWorkspace(QWidget):
         self.image1 = config.image1Param.get()
         self.image2 = config.image2Param.get()
         self.displayMode = config.displayModeParam.get()
+        self.linkMode = config.linkModeParam.get()
+
+        self.viewportLinkController = None
 
         self._initComponents()
         self._initUI()
@@ -102,8 +104,12 @@ class DualImageWorkspace(QWidget):
             self._initOverlay()
 
     def _initSideBySide(self):
-        self.viewport1 = ImageViewport(self.primaryRenderer, self)
-        self.viewport2 = ImageViewport(self.secondaryRenderer, self)
+        self.viewport1 = ImageViewport(
+            self.primaryRenderer, mouseEnabled=True, parent=self
+        )
+        self.viewport2 = ImageViewport(
+            self.secondaryRenderer, mouseEnabled=True, parent=self
+        )
 
         self.toolManager1 = ToolManager(self.viewport1, self)
         self.toolManager2 = ToolManager(self.viewport2, self)
@@ -112,6 +118,10 @@ class DualImageWorkspace(QWidget):
 
         self.roiDisplayController.registerViewport("primary", self.viewport1)
         self.roiDisplayController.registerViewport("secondary", self.viewport2)
+
+        self.viewportLinkController = ViewportLinkController(
+            self.viewport1, self.viewport2, self.linkMode, parent=self
+        )
 
         # Only right viewport drawing tools create ROIs
         self._drawingToolManagers = [self.toolManager2]
@@ -223,6 +233,8 @@ class DualImageWorkspace(QWidget):
         )
 
     def closeEvent(self, event):
+        if self.viewportLinkController is not None:
+            self.viewportLinkController.cleanup()
         self.roiDisplayController.cleanup()
         super().closeEvent(event)
 
