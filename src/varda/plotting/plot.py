@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, QPoint, QByteArray, QMimeData
 from PyQt6.QtGui import QDrag, QColor
-from PyQt6.QtWidgets import QWidget, QComboBox
+from PyQt6.QtWidgets import QWidget, QComboBox, QScrollArea
 import pyqtgraph as pg
 
 from varda.common.entities import VardaRaster
@@ -15,7 +15,9 @@ from varda.common.ui import (
     SectionBox,
     ButtonBuilder,
     WrapperWidget,
+    ScrollArea,
 )
+from varda.common.vec2 import Vec2
 from varda.plotting.library_spectra import (
     DEFAULT_LIBRARY_PATH,
     listSpectra,
@@ -133,8 +135,12 @@ class WindowConfig(ParameterGroup):
 
 
 class RangeConfig(ParameterGroup):
-    viewRangeX = Vec2Parameter("X View Range", valueNames=("Min", "Max"))
-    viewRangeY = Vec2Parameter("Y View Range", valueNames=("Min", "Max"))
+    viewRangeX = Vec2Parameter(
+        "X View Range", default=Vec2(0.0, 1.0), valueNames=("Min", "Max")
+    )
+    viewRangeY = Vec2Parameter(
+        "Y View Range", default=Vec2(0.0, 1.0), valueNames=("Min", "Max")
+    )
 
 
 class _PlotGraphicsView(pg.GraphicsView):
@@ -196,7 +202,7 @@ class VardaPlotWidget(QWidget):
     def __init__(
         self,
         parent: QWidget | None = None,
-        libraryPath: Path | None = DEFAULT_LIBRARY_PATH,
+        libraryPath: Path = DEFAULT_LIBRARY_PATH,
     ):
         super().__init__(parent)
         self.selectedCurve: Curve | None = None
@@ -224,18 +230,25 @@ class VardaPlotWidget(QWidget):
         self.rangeConfigWidget = self.rangeConfig.createWidget()
         self.rangeConfigWidget.hide()
 
-        sidebar = VBoxBuilder(Qt.AlignmentFlag.AlignTop).withWidget(self.curveSettingsBox)
+        sidebar = VBoxBuilder(Qt.AlignmentFlag.AlignTop).withWidget(
+            self.curveSettingsBox
+        )
 
         spectraNames = listSpectra(libraryPath) if libraryPath else []
         if spectraNames:
             self.libraryCombo = QComboBox()
+            self.libraryCombo.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+            )
             self.libraryCombo.addItems(spectraNames)
             sidebar.withWidget(
                 SectionBox(
                     "Library Spectra",
                     VBoxBuilder()
                     .withWidget(self.libraryCombo)
-                    .withWidget(ButtonBuilder("Add to Plot").onClick(self._addLibrarySpectrum)),
+                    .withWidget(
+                        ButtonBuilder("Add to Plot").onClick(self._addLibrarySpectrum)
+                    ),
                 )
             )
 
@@ -249,10 +262,7 @@ class VardaPlotWidget(QWidget):
         )
 
         self.setLayout(
-            HBoxBuilder()
-            .withWidget(self.gv)
-            .withLayout(sidebar
-            )
+            HBoxBuilder().withWidget(self.gv, stretch=2).withWidget(ScrollArea(sidebar))
         )
 
     def onWindowParamsChanged(self):
@@ -318,8 +328,7 @@ class VardaPlotWidget(QWidget):
 
     def _addLibrarySpectrum(self) -> None:
         folderName = self.libraryCombo.currentText()
-        wavelengths, reflectance = loadSpectrum(self.libraryPath / folderName)
-        name = folderName.removeprefix("splib07a_")
+        name, wavelengths, reflectance = loadSpectrum(self.libraryPath, folderName)
         self.plot(wavelengths, reflectance, name=name)
 
     def removePlot(self, curve: Curve) -> None:

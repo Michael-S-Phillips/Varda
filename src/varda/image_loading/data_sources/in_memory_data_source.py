@@ -48,7 +48,7 @@ class InMemoryDataSource(DataSource):
         self,
         bandIndices: npt.ArrayLike | None = None,
         window: tuple[int, int, int, int] | None = None,
-        masked=True,  # TODO: make this arg do something
+        masked=True,  # TODO: make this arg do something if needed
     ) -> np.ndarray:
         data = self._data
         if window is not None:
