@@ -770,6 +770,22 @@ wheels = [
 ]
 
 [[package]]
+name = "pyqt6ads"
+version = "4.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyqt6" },
+    { name = "pyqt6-sip" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/21/c8/dbe010d7f8f7cda828d1d9004d1aeac75c4699eb543ff55b0e131982bd1d/pyqt6ads-4.5.0.tar.gz", hash = "sha256:df0f161e6cced3d006f0bd70b3c4d03609e84b68182c05c848aa4df0cfcc3337", size = 52106125, upload-time = "2026-02-03T16:19:07.745Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/91/ab/8fae572e4ec2ed9fc1404c951d7725926c40e6e9d016a446d40f4a5c44cc/pyqt6ads-4.5.0-cp39-abi3-macosx_10_14_x86_64.whl", hash = "sha256:561f200ed4b39069d7a28a56e22b1185c00be1d1c7eb003ab22c75acffddd1f5", size = 366196, upload-time = "2026-02-03T16:19:01.004Z" },
+    { url = "https://files.pythonhosted.org/packages/8a/b7/8baeb3e1eaa9edaedc3bfe208f976986272348346029b39aed7e551f1308/pyqt6ads-4.5.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:80a877822917c8afd930e5670be3cedfa8f40d1b72d5f1b937703ae4230c7ec6", size = 347594, upload-time = "2026-02-03T16:19:02.276Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/f7/e565a685169353b21108c9a96839f8f1d354fb01776de9083908bb81ca38/pyqt6ads-4.5.0-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:62193279ae3676d15cdbb08337079cf271cc28c4c1d088939d06d4387809baa6", size = 445486, upload-time = "2026-02-03T16:19:03.928Z" },
+    { url = "https://files.pythonhosted.org/packages/8a/4d/7874bee95205061e4b1db098aada4cc0650b0061fae3d26638eec51dbb5a/pyqt6ads-4.5.0-cp39-abi3-win_amd64.whl", hash = "sha256:58c26cd6362822a05dc4daeac6c42b77c88ec1f9b4d5747dd9c470ee87b3c3a7", size = 1341902, upload-time = "2026-02-03T16:19:05.41Z" },
+]
+
+[[package]]
 name = "pyqtgraph"
 version = "0.13.7"
 source = { registry = "https://pypi.org/simple" }
@@ -1060,6 +1076,7 @@ dependencies = [
     { name = "pyogrio" },
     { name = "pyproj" },
     { name = "pyqt6" },
+    { name = "pyqt6ads" },
     { name = "pyqtgraph" },
     { name = "rasterio" },
     { name = "scikit-image" },
@@ -1095,6 +1112,7 @@ requires-dist = [
     { name = "pyogrio", specifier = ">=0.11.1" },
     { name = "pyproj", specifier = ">=3.7.1" },
     { name = "pyqt6", specifier = ">=6.7.1" },
+    { name = "pyqt6ads", specifier = ">=4.5.0" },
     { name = "pyqtgraph", specifier = ">=0.13.7" },
     { name = "rasterio", specifier = ">=1.4.0" },
     { name = "scikit-image", specifier = ">=0.21.0" },

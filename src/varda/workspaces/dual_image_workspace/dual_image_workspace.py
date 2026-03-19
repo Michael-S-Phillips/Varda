@@ -3,9 +3,8 @@ import logging
 from enum import Enum
 
 # third party imports
-from PyQt6.QtWidgets import QWidget
-from PyQt6.QtCore import Qt
-import pyqtgraph as pg
+from PyQt6.QtWidgets import QMainWindow
+import PyQt6Ads as ads
 
 # local imports
 from varda.common.parameter import (
@@ -21,11 +20,7 @@ from varda.image_rendering.raster_view import (
     LinkMode,
 )
 from varda.image_rendering.image_renderer import ImageRenderer
-from varda.common.ui import (
-    VBoxBuilder,
-    SplitterBuilder,
-    HBoxBuilder,
-)
+from varda.common.ui import VardaDockWidget
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
@@ -70,7 +65,7 @@ class DualImageWorkspaceConfig(ParameterGroup):
         self.image2Param.setProvider(lambda: self.imageList)
 
 
-class DualImageWorkspace(QWidget):
+class DualImageWorkspace(QMainWindow):
     def __init__(self, config: DualImageWorkspaceConfig, parent=None):
         super().__init__(parent)
         self.image1 = config.image1Param.get()
@@ -103,6 +98,24 @@ class DualImageWorkspace(QWidget):
         elif self.displayMode == DisplayMode.OVERLAY:
             self._initOverlay()
 
+    def _setupDocks(self):
+        self.dockManager = ads.CDockManager(self)
+        self.dockManager.setAutoHideConfigFlags(
+            ads.CDockManager.eAutoHideFlag.DefaultAutoHideConfig
+        )
+
+        self.roiDock = VardaDockWidget("ROI Manager")
+        self.roiDock.setWidget(self.roiManagerWidget)
+
+        self.plotDock = VardaDockWidget("ROI Plots")
+        self.plotDock.setWidget(self.plotWidget)
+
+        self.primarySettingsDock = VardaDockWidget("Primary Render Settings")
+        self.primarySettingsDock.setWidget(self.primaryRenderer.getSettingsPanel())
+
+        self.secondarySettingsDock = VardaDockWidget("Secondary Render Settings")
+        self.secondarySettingsDock.setWidget(self.secondaryRenderer.getSettingsPanel())
+
     def _initSideBySide(self):
         self.viewport1 = ImageViewport(
             self.primaryRenderer, mouseEnabled=True, parent=self
@@ -126,31 +139,54 @@ class DualImageWorkspace(QWidget):
         # Only right viewport drawing tools create ROIs
         self._drawingToolManagers = [self.toolManager2]
 
-        self.setLayout(
-            HBoxBuilder().withWidget(
-                SplitterBuilder(Qt.Orientation.Vertical)
-                .withWidget(
-                    SplitterBuilder(Qt.Orientation.Horizontal)
-                    .withWidget(
-                        SplitterBuilder(Qt.Orientation.Vertical)
-                        .withWidget(self.viewport1, stretchFactor=2)
-                        .withWidget(self.primaryRenderer.getSettingsPanel())
-                    )
-                    .withWidget(
-                        SplitterBuilder(Qt.Orientation.Vertical)
-                        .withWidget(self.viewport2, stretchFactor=2)
-                        .withWidget(self.secondaryRenderer.getSettingsPanel())
-                    ),
-                    stretchFactor=3,
-                )
-                .withWidget(
-                    SplitterBuilder(Qt.Orientation.Horizontal)
-                    .withWidget(self.roiManagerWidget, stretchFactor=1)
-                    .withWidget(self.plotWidget, stretchFactor=2),
-                    stretchFactor=1,
-                )
-            )
+        self._setupDocks()
+
+        self.viewport1Dock = VardaDockWidget("Primary Viewport")
+        self.viewport1Dock.setWidget(self.viewport1)
+
+        self.viewport2Dock = VardaDockWidget("Secondary Viewport")
+        self.viewport2Dock.setWidget(self.viewport2)
+
+        # Top row: two viewports side by side
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.viewport1Dock,
         )
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.RightDockWidgetArea,
+            self.viewport2Dock,
+            self.viewport1Dock.dockAreaWidget(),
+        )
+
+        # Settings panels as auto-hide on the bottom sidebar
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.BottomDockWidgetArea,
+            self.primarySettingsDock,
+            self.viewport1Dock.dockAreaWidget(),
+        )
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.BottomDockWidgetArea,
+            self.secondarySettingsDock,
+            self.viewport2Dock.dockAreaWidget(),
+        )
+
+        # Bottom row: ROI manager and plot side by side
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.BottomDockWidgetArea, self.roiDock
+        )
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.RightDockWidgetArea,
+            self.plotDock,
+            self.roiDock.dockAreaWidget(),
+        )
+        self.dockManager.setSplitterSizes(self.viewport1Dock.dockAreaWidget(), [4, 1])
+        # Within each viewport column, give viewport more space than its settings
+        viewport1Splitter = self.viewport1Dock.dockAreaWidget().parentSplitter()
+        if viewport1Splitter:
+            viewport1Splitter.setSizes([500, 150])
+        viewport2Splitter = self.viewport2Dock.dockAreaWidget().parentSplitter()
+        if viewport2Splitter:
+            viewport2Splitter.setSizes([500, 150])
 
     def _initOverlay(self):
         self.viewport1 = ImageViewport(self.primaryRenderer, self)
@@ -163,27 +199,37 @@ class DualImageWorkspace(QWidget):
 
         self._drawingToolManagers = [self.toolManager1]
 
-        self.setLayout(
-            HBoxBuilder().withWidget(
-                SplitterBuilder(Qt.Orientation.Vertical)
-                .withLayout(
-                    VBoxBuilder()
-                    .withWidget(self.viewport1)
-                    .withLayout(
-                        HBoxBuilder()
-                        .withWidget(self.primaryRenderer.getSettingsPanel())
-                        .withWidget(self.secondaryRenderer.getSettingsPanel())
-                    ),
-                    stretchFactor=3,
-                )
-                .withLayout(
-                    HBoxBuilder()
-                    .withWidget(self.roiManagerWidget, stretch=1)
-                    .withWidget(self.plotWidget, stretch=2),
-                    stretchFactor=1,
-                )
-            )
+        self._setupDocks()
+
+        self.viewport1Dock = VardaDockWidget("Overlay Viewport")
+        self.viewport1Dock.setWidget(self.viewport1)
+
+        # Viewport as the main area
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea, self.viewport1Dock
         )
+
+        # Both settings panels as auto-hide on the bottom sidebar
+        self.dockManager.addAutoHideDockWidget(
+            ads.SideBarLocation.SideBarBottom, self.primarySettingsDock
+        )
+        self.dockManager.addAutoHideDockWidget(
+            ads.SideBarLocation.SideBarBottom, self.secondarySettingsDock
+        )
+
+        # Bottom row: ROI manager and plot side by side
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.BottomDockWidgetArea, self.roiDock
+        )
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.RightDockWidgetArea,
+            self.plotDock,
+            self.roiDock.dockAreaWidget(),
+        )
+
+        # Give viewport most vertical space, settings and ROI/plot less
+        rootSplitter = self.dockManager.rootSplitter()
+        rootSplitter.setSizes([600, 200])
 
     def _connectSignals(self):
         # Wire drawing tools (only right viewport in side-by-side, single viewport in overlay)

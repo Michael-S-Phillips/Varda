@@ -7,10 +7,7 @@ ROI drawing, band selection, stretch controls, and metadata management.
 
 import logging
 
-from PyQt6.QtWidgets import (
-    QMainWindow,
-    QStatusBar,
-)
+from PyQt6.QtWidgets import QMainWindow, QStatusBar, QWidget
 from pyqtgraph.dockarea import DockArea, Dock
 
 from varda.common.entities import VardaRaster
@@ -19,6 +16,8 @@ from varda.image_rendering.new_histogram_view import (
     NewHistogramView,
 )
 import pyqtgraph as pg
+import PyQt6Ads as ads
+
 
 from varda.image_rendering.raster_view import TripleRasterView, ROIDisplayController
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
@@ -26,6 +25,7 @@ from varda.common.parameter import ImageParameter, ParameterGroup
 from varda.plotting.plot import VardaPlotWidget
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
+from varda.common.ui import VardaDockWidget
 
 logger = logging.getLogger(__name__)
 
@@ -131,64 +131,77 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
     def _setupDocks(self):
         """Setup all of the dock widgets for the workflow. This is most of the viewport_tools"""
-        dockArea = DockArea(self)
-        self.setCentralWidget(dockArea)
-        docks = []
 
-        rasterDock = Dock("Raster Dock", widget=self.tripleRasterView, size=(800, 800))
-        docks.append(rasterDock)
+        self.dockManager = ads.CDockManager(self)
 
-        settingsDock = Dock(
-            "Render Settings", widget=self.rendererSettingsPanel, size=(100, 100)
-        )
-        docks.append(settingsDock)
+        # dockArea = DockArea(self)
+        # self.setCentralWidget(dockArea)
+        # docks = []
 
-        histogramDock = Dock("Histogram Dock", widget=self.histogram)
-        docks.append(histogramDock)
-        # bandDockNew = Dock("Band Dock", widget=self.bandManager)
-        # docks.append(bandDockNew)
-        # bandDock = VardaDockWidget("Band Manager", self.bandManager, loc, self)
-        # docks.append(bandDock)
-
-        # stretchDockNew = Dock("Stretch Dock", widget=self.stretchManager)
-        # docks.append(stretchDockNew)
-        # stretchDock = VardaDockWidget("Stretch Manager", self.stretchManager, loc, self)
-        # docks.append(stretchDock)
-
-        # metadataDockNew = Dock("Metadata Dock", widget=self.metadataEditor)
-        # docks.append(metadataDockNew)
-        # metadataDock = VardaDockWidget("Metadata", self.metadataEditor, loc, self)
-        # docks.append(metadataDock)
-
-        roiDockNew = Dock("ROI Dock", widget=self.roiManagerWidget, size=(100, 100))
-        docks.append(roiDockNew)
-
-        plotDock = Dock("Spectral Plot", widget=self.plotWidget, size=(400, 300))
-        docks.append(plotDock)
-        # roiDock = VardaDockWidget("ROI Manager", self.roiManager, loc, self)
-        # docks.append(roiDock)
-
-        # oldRoiDockNew = Dock("Old ROI Dock", widget=self.oldRoiView)
-        # docks.append(oldRoiDockNew)
-        # oldRoiDock = VardaDockWidget("Old ROI View", self.oldRoiView, loc, self)
-        # docks.append(oldRoiDock)
-
-        # stack docks
-        # self.tabifyDockWidget(bandDock, stretchDock)
-        # self.tabifyDockWidget(stretchDock, roiDock)
-        # self.tabifyDockWidget(roiDock, metadataDock)
-        # self.setTabPosition(
-        #    Qt.DockWidgetArea.AllDockWidgetAreas, QTabWidget.TabPosition.North
+        self.rasterDock = VardaDockWidget("Raster Dock")
+        # self.rasterDock.setFeature(
+        #     ads.CDockWidget.DockWidgetFeature.DockWidgetClosable, False
         # )
-        dockArea.addDock(rasterDock, "right")
-        dockArea.addDock(settingsDock, "left")
-        dockArea.addDock(roiDockNew, "bottom", settingsDock)
-        dockArea.addDock(histogramDock, "bottom", roiDockNew)
-        dockArea.addDock(plotDock, "bottom", rasterDock)
-        # dockArea.addDock(bandDockNew, "left")
-        # dockArea.addDock(stretchDockNew, "below", bandDockNew)
-        # dockArea.addDock(metadataDockNew, "bottom")
-        # dockArea.addDock(oldRoiDockNew, "below", roiDockNew)
+        self.rasterDock.setWidget(self.tripleRasterView)
+
+        # rasterDock = Dock("Raster Dock", widget=self.tripleRasterView, size=(800, 800))
+        # docks.append(rasterDock)
+
+        self.settingsDock = VardaDockWidget("Render Settings")
+        self.settingsDock.setWidget(self.rendererSettingsPanel)
+
+        # settingsDock = Dock(
+        #     "Render Settings", widget=self.rendererSettingsPanel, size=(100, 100)
+        # )
+        # docks.append(settingsDock)
+
+        self.roiDock = VardaDockWidget("ROI Manager")
+        self.roiDock.setWidget(self.roiManagerWidget)
+
+        # roiDockNew = Dock("ROI Dock", widget=self.roiManagerWidget, size=(100, 100))
+        # docks.append(roiDockNew)
+
+        self.histogramDock = VardaDockWidget("Histogram")
+        self.histogramDock.setWidget(self.histogram)
+
+        # histogramDock = Dock("Histogram Dock", widget=self.histogram)
+        # docks.append(histogramDock)
+
+        self.plotDock = VardaDockWidget("ROI Plots")
+        self.plotDock.setWidget(self.plotWidget)
+
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.RightDockWidgetArea, self.rasterDock
+        )
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.LeftDockWidgetArea,
+            self.settingsDock,
+            self.rasterDock.dockAreaWidget(),
+        )
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.BottomDockWidgetArea,
+            self.histogramDock,
+            self.settingsDock.dockAreaWidget(),
+        )
+
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.BottomDockWidgetArea, self.roiDock
+        )
+
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.RightDockWidgetArea,
+            self.plotDock,
+            self.roiDock.dockAreaWidget(),
+        )
+
+        # plotDock = Dock("Spectral Plot", widget=self.plotWidget, size=(400, 300))
+        # docks.append(plotDock)
+
+        # dockArea.addDock(rasterDock, "right")
+        # dockArea.addDock(settingsDock, "left")
+        # dockArea.addDock(roiDockNew, "bottom", settingsDock)
+        # dockArea.addDock(histogramDock, "bottom", roiDockNew)
+        # dockArea.addDock(plotDock, "bottom", rasterDock)
 
     def _connectSignals(self):
         """Connect signals between workflow components"""
