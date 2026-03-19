@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QScrollArea,
 )
+import PyQt6Ads as ads
 
 
 class WrapperWidget(QWidget):
@@ -248,23 +249,6 @@ class SectionBox(QWidget):
                 w.setParent(None)
             elif l := item.layout():
                 self._clearLayout(l)
-
-
-class VardaDockWidget(QDockWidget):
-    def __init__(self, title, widget=None, area=None, parent=None):
-        super().__init__(title, parent)
-
-        self.setObjectName("VardaDockWidget")
-        self.setFeatures(
-            self.DockWidgetFeature.DockWidgetMovable
-            | self.DockWidgetFeature.DockWidgetFloatable
-        )
-        self.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
-        if widget:
-            self.setWidget(widget)
-
-        if parent is not None and area is not None and isinstance(parent, QMainWindow):
-            parent.addDockWidget(area, self)
 
 
 class FilePathBox(QWidget):
@@ -501,3 +485,26 @@ class SliderBuilder:
 
     def build(self) -> QSlider:
         return self.widget
+
+
+### PyQt6Ads Stuff ##
+
+ads.CDockManager.setConfigFlags(ads.CDockManager.eConfigFlag.DefaultOpaqueConfig)
+ads.CDockManager.setConfigFlag(
+    ads.CDockManager.eConfigFlag.DockAreaHasCloseButton, False
+)
+ads.CDockManager.setConfigFlag(
+    ads.CDockManager.eConfigFlag.ActiveTabHasCloseButton, False
+)
+ads.CDockManager.setAutoHideConfigFlags(
+    ads.CDockManager.eAutoHideFlag.DefaultAutoHideConfig
+)
+
+
+class VardaDockWidget(ads.CDockWidget):
+    def __init__(self, title: str, parent: QWidget | None = None):
+        super().__init__(title, parent)
+
+    def withWidget(self, widget: QWidget) -> VardaDockWidget:
+        self.setWidget(widget)
+        return self
