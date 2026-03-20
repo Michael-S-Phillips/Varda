@@ -33,12 +33,8 @@ class VardaApplicationContext(QObject):
         self.maingui = maingui
         self.images = ObservableList()
 
-        self._imageLoadingService = ImageLoadingService()
-
     def loadNewImage(self):
-        self._imageLoadingService.load_image_data(
-            on_success_callback=self.images.append
-        )
+        ImageLoadingService.load_image_data(on_success_callback=self.images.append)
 
     def quit(self):
         varda.log.info("Exiting application...")

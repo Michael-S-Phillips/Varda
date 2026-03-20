@@ -52,29 +52,22 @@ class ImageLoadingService:
     Uses the DataSource system to open files and wraps them in VardaRaster entities.
     """
 
+    thread_pool = QThreadPool()
+    active_loading_processes: list = []
+    LOAD_TIMEOUT_MS = 120000  # 2 minutes
+    LARGE_FILE_THRESHOLD_MB = 100
+    LARGE_FILE_TIMEOUT_MS = 600000  # 10 minutes
+
     class LoadStatus(Enum):
         LOAD = 0
         SUCCESS = 1
         FAIL = 2
         WARNING = 3
 
-    def __init__(self):
-        self.thread_pool = QThreadPool()
-        self.active_loading_processes = []
-        self.load_timeout_ms = 120000  # 2 minutes
-        self.large_file_threshold_mb = 100
-        self.largeFileTimeoutMs = 600000  # 10 minutes
-
     # public methods
-    def _get_file_size(self, filePath):
-        """Get file size in megabytes"""
-        try:
-            return os.path.getsize(filePath) / (1024 * 1024)
-        except Exception:
-            return 0
-
+    @classmethod
     def load_image_data(
-        self, file_path=None, on_success_callback=None, on_failure_callback=None
+        cls, file_path=None, on_success_callback=None, on_failure_callback=None
     ):
         """Load a new image as a VardaRaster.
 
@@ -84,24 +77,22 @@ class ImageLoadingService:
         """
         logger.debug(f"Loading image data for {file_path}")
         if file_path is None:
-            file_path = self._request_file_path()
+            file_path = cls._request_file_path()
             if file_path is None:
                 logger.info("No file path provided.")
                 return
 
         # Check file size and adjust timeout
-        file_size_mb = self._get_file_size(file_path)
-        timeout_ms = self.load_timeout_ms
+        file_size_mb = cls._get_file_size(file_path)
+        timeout_ms = cls.LOAD_TIMEOUT_MS
         progress_dialog = None
 
-        if file_size_mb > self.large_file_threshold_mb:
-            timeout_ms = self.largeFileTimeoutMs
+        if file_size_mb > cls.LARGE_FILE_THRESHOLD_MB:
+            timeout_ms = cls.LARGE_FILE_TIMEOUT_MS
             logger.info(
                 f"Large file detected ({file_size_mb:.2f} MB), using extended timeout"
             )
-            progress_dialog = self._show_large_file_loading_dialog(
-                file_path, timeout_ms
-            )
+            progress_dialog = cls._show_large_file_loading_dialog(file_path, timeout_ms)
 
         try:
             original_success = on_success_callback
@@ -119,9 +110,9 @@ class ImageLoadingService:
                 if original_failure:
                     original_failure(error_msg)
                 else:
-                    self._show_error_message(error_msg)
+                    cls._show_error_message(error_msg)
 
-            self._create_new_load_process(
+            cls._create_new_load_process(
                 file_path, success_with_dialog, failure_with_dialog, timeout_ms
             )
             if progress_dialog:
@@ -134,10 +125,19 @@ class ImageLoadingService:
             if on_failure_callback:
                 on_failure_callback(str(e))
             else:
-                self._show_error_message(f"Error loading image: {e}")
+                cls._show_error_message(f"Error loading image: {e}")
 
     # private methods
-    def _show_large_file_options_dialog(self, filePath, file_size_mb):
+    @classmethod
+    def _get_file_size(cls, filePath):
+        """Get file size in megabytes"""
+        try:
+            return os.path.getsize(filePath) / (1024 * 1024)
+        except Exception:
+            return 0
+
+    @classmethod
+    def _show_large_file_options_dialog(cls, filePath, file_size_mb):
         """Show a dialog with options for loading a large file."""
         dialog = QDialog(QApplication.activeWindow())
         dialog.setWindowTitle("Large File Detected")
@@ -190,48 +190,51 @@ class ImageLoadingService:
 
         return "cancel"
 
+    @classmethod
     def _create_new_load_process(
-        self, filePath, onSuccessCallback, onFailureCallback, timeout_ms=None
+        cls, filePath, onSuccessCallback, onFailureCallback, timeout_ms=None
     ):
         """Creates and starts a new image loading process in the thread pool."""
         logger.info(f"Creating new image loading process for {filePath}")
-        process = self.ImageLoadProcess(filePath, onSuccessCallback, onFailureCallback)
-        process.signals.sigFinished.connect(self._on_loading_process_finished)
+        process = cls.ImageLoadProcess(filePath, onSuccessCallback, onFailureCallback)
+        process.signals.sigFinished.connect(cls._on_loading_process_finished)
 
         timer = QTimer()
         timer.setSingleShot(True)
-        timer.timeout.connect(lambda: self._handle_load_timeout(process))
+        timer.timeout.connect(lambda: cls._handle_load_timeout(process))
 
         if timeout_ms is None:
-            timeout_ms = self.load_timeout_ms
+            timeout_ms = cls.LOAD_TIMEOUT_MS
 
         timer.start(timeout_ms)
         process.timer = timer
 
-        self.active_loading_processes.append(process)
-        self.thread_pool.start(process)
+        cls.active_loading_processes.append(process)
+        cls.thread_pool.start(process)
 
-    def _handle_load_timeout(self, process):
+    @classmethod
+    def _handle_load_timeout(cls, process):
         """Handle a loading process timeout."""
-        if process in self.active_loading_processes:
+        if process in cls.active_loading_processes:
             logger.error(f"Image loading timeout for {process.filePath}")
-            self.active_loading_processes.remove(process)
+            cls.active_loading_processes.remove(process)
             if process.onFailureCallback:
                 process.onFailureCallback(
                     "Loading timed out. The file may be too large or corrupted."
                 )
             else:
-                self._show_error_message(
+                cls._show_error_message(
                     f"Loading timed out for {process.filePath}. The file may be too large or corrupted."
                 )
 
-    def _on_loading_process_finished(self, loadingProcess):
+    @classmethod
+    def _on_loading_process_finished(cls, loadingProcess):
         """Handles cleanup and callback once the image is loaded."""
         if hasattr(loadingProcess, "timer") and loadingProcess.timer.isActive():
             loadingProcess.timer.stop()
 
-        if loadingProcess in self.active_loading_processes:
-            self.active_loading_processes.remove(loadingProcess)
+        if loadingProcess in cls.active_loading_processes:
+            cls.active_loading_processes.remove(loadingProcess)
 
             if loadingProcess.status == ImageLoadingService.LoadStatus.SUCCESS:
                 vardaRaster = loadingProcess.result
@@ -251,13 +254,14 @@ class ImageLoadingService:
                 if loadingProcess.onFailureCallback:
                     loadingProcess.onFailureCallback(error_msg)
                 else:
-                    self._show_error_message(f"Failed to load image: {error_msg}")
+                    cls._show_error_message(f"Failed to load image: {error_msg}")
 
-    def _show_large_file_loading_dialog(self, filePath, timeout_ms):
+    @classmethod
+    def _show_large_file_loading_dialog(cls, filePath, timeout_ms):
         """Show a dialog with progress information for large files."""
         logger.info(f"Showing large file loading dialog for {filePath}")
         file_name = os.path.basename(filePath)
-        file_size_mb = self._get_file_size(filePath)
+        file_size_mb = cls._get_file_size(filePath)
 
         dialog = QProgressDialog(
             f"Loading large file ({file_size_mb:.1f} MB)...\n{file_name}",
@@ -282,7 +286,8 @@ class ImageLoadingService:
         )
         return dialog
 
-    def _show_error_message(self, message):
+    @classmethod
+    def _show_error_message(cls, message):
         """Display an error message to the user."""
         msg_box = QMessageBox()
         msg_box.setIcon(QMessageBox.Icon.Critical)
@@ -290,7 +295,8 @@ class ImageLoadingService:
         msg_box.setText(message)
         msg_box.exec()
 
-    def _show_warning_message(self, message):
+    @classmethod
+    def _show_warning_message(cls, message):
         """Display a warning message to the user."""
         msg_box = QMessageBox()
         msg_box.setIcon(QMessageBox.Icon.Warning)
@@ -298,7 +304,8 @@ class ImageLoadingService:
         msg_box.setText(message)
         msg_box.exec()
 
-    def load_image_sync(self, file_path=None):
+    @classmethod
+    def load_image_sync(cls, file_path=None):
         """Load an image synchronously. Blocks until complete.
 
         Returns:
@@ -317,11 +324,11 @@ class ImageLoadingService:
             logger.error(f"Sync loading failed: {error_msg}")
             isComplete = True
 
-        self.load_image_data(file_path, on_success, on_failure)
+        cls.load_image_data(file_path, on_success, on_failure)
 
         import time
 
-        timeout = time.time() + self.load_timeout_ms / 1000
+        timeout = time.time() + cls.LOAD_TIMEOUT_MS / 1000
         while not isComplete and time.time() < timeout:
             time.sleep(0.1)
 
