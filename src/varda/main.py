@@ -27,7 +27,7 @@ from varda.plugins import VardaPluginManager
 
 
 class VardaApplicationContext(QObject):
-    def __init__(self, pm, maingui=None):
+    def __init__(self, pm, maingui: MainGUI = None):
         super().__init__()
         self.pm = pm
         self.maingui = maingui
@@ -137,7 +137,7 @@ def initVarda() -> None:
     varda.log.debug("Configurations set")
 
     ### Initialize Application Components ###
-    app = VardaApplicationContext(VardaPluginManager(), None)
+    app = VardaApplicationContext(VardaPluginManager())
 
     # let plugins run their startup code
     app.pm.hook.onLoad(app=app)
