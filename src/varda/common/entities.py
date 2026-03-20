@@ -882,11 +882,11 @@ class Color:
     def white(cls):
         return cls(1.0, 1.0, 1.0, 1.0)
 
-    def asQColor(self):
-        c = self.as8bit()
+    def toQColor(self) -> QColor:
+        c = self._as8bit()
         return QColor(c[0], c[1], c[2])
 
-    def as8bit(self):
+    def _as8bit(self):
         return (int(self.r * 255), int(self.g * 255), int(self.b * 255))
 
 

@@ -23,6 +23,8 @@ venv/
 
 # Other
 testImages/*
+___testImages/
+
 .idea
 *.varda
 .junie
