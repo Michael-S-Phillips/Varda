@@ -3,7 +3,7 @@
 Varda is a GUI based app to visualize and analyze image data, with an emphasis on supporting hyperspectral and multispectral data workflows.
 It currently offers basic image visualization, and spectra exploration (viewing individual pixel spectra, and mean spectra of ROIs). There are many features we still plan to add, including richer ROI features and image processing/analysis pipelines. As well as continuing to improve the modularity and exposing plugin APIs for users to inject their own features.
 
-This project is still very much a WIP! As such, things will be changing rapidly, and may feel a bit unpolished. If you encounter any issues, or are missing any features that you would like to see, feel free to contact me at jesseoved@arizona.edu, or you may open a new issue here on GitHub.
+This project is still very much a WIP! As such, things will be changing rapidly, and may feel a bit unpolished. If you encounter any issues or would like to request any features, feel free to contact me at jesseoved@arizona.edu, or you may open a new issue here on GitHub.
 
 
 # Getting Started
