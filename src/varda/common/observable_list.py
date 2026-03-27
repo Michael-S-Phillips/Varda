@@ -47,3 +47,9 @@ class ObservableList(QObject):
     def clear(self):
         self._items.clear()
         self.sigDataChanged.emit(self._items.copy())
+
+
+class ImageList(ObservableList):
+    """Typed ObservableList for VardaRaster images, used as DI injection type."""
+
+    pass
