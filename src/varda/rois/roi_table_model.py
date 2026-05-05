@@ -68,7 +68,7 @@ class ROITableModel(QAbstractTableModel):
                 return roi.properties.get(key, "")
 
         if role == Qt.ItemDataRole.DecorationRole and col == 2:
-            return QColor(roi.color)
+            return roi.color.toQColor()
 
         if role == Qt.ItemDataRole.EditRole:
             if col == 1:
@@ -76,8 +76,13 @@ class ROITableModel(QAbstractTableModel):
 
         return QVariant()
 
-    def headerData(self, section: int, orientation, role: int = Qt.ItemDataRole.DisplayRole):
-        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
+    def headerData(
+        self, section: int, orientation, role: int = Qt.ItemDataRole.DisplayRole
+    ):
+        if (
+            orientation == Qt.Orientation.Horizontal
+            and role == Qt.ItemDataRole.DisplayRole
+        ):
             all_cols = list(_FIXED_COLUMNS) + self._dynamicColumns()
             if section < len(all_cols):
                 return all_cols[section]
@@ -93,7 +98,9 @@ class ROITableModel(QAbstractTableModel):
             return base | Qt.ItemFlag.ItemIsEditable
         return base
 
-    def setData(self, index: QModelIndex, value, role: int = Qt.ItemDataRole.EditRole) -> bool:
+    def setData(
+        self, index: QModelIndex, value, role: int = Qt.ItemDataRole.EditRole
+    ) -> bool:
         if not index.isValid():
             return False
 

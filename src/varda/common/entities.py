@@ -364,7 +364,7 @@ class VardaROI:
 
     fid: int
     name: str
-    color: QColor
+    color: Color
     geometry: BaseGeometry
     roiType: ROIMode
     properties: dict[str, Any] = attrs.Factory(dict)
@@ -882,12 +882,41 @@ class Color:
     def white(cls):
         return cls(1.0, 1.0, 1.0, 1.0)
 
-    def toQColor(self) -> QColor:
-        c = self._as8bit()
-        return QColor(c[0], c[1], c[2])
+    @classmethod
+    def fromHexString(cls, hex):
+        """
+        assumes an rgba hex string in the format of "#RRGGBBAA"
+        """
+        return cls.fromBytes(bytes.fromhex(hex[1:]))
 
-    def _as8bit(self):
-        return (int(self.r * 255), int(self.g * 255), int(self.b * 255))
+    @staticmethod
+    def fromBytes(b: bytes):
+        Color(
+            float(b[0]) / 255.0,
+            float(b[1]) / 255.0,
+            float(b[2]) / 255.0,
+            float(b[3]) / 255.0,
+        )
+
+    def toQColor(self) -> QColor:
+        c = self._toBytes()
+        return QColor(c[0], c[1], c[2], c[3])
+
+    def toHexString(self) -> str:
+        """
+        returns a hex string in the format of "#RRGGBBAA"
+        """
+        return "#{:02x}{:02x}{:02x}{:02x}".format(*self._toBytes())
+
+    def _toBytes(self):
+        return bytes(
+            (
+                int(self.r * 255),
+                int(self.g * 255),
+                int(self.b * 255),
+                int(self.a * 255),
+            )
+        )
 
 
 # --- Lazy import for Image alias. This basically just makes it so ---
