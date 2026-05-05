@@ -1,10 +1,13 @@
-class MenuId:
+from enum import StrEnum
+
+
+class MenuId(StrEnum):
     FILE = "varda/file"
     WORKSPACE = "varda/workspace"
     DEBUG = "varda/debug"
 
 
-class MenuGroup:
+class MenuGroup(StrEnum):
     FILE_IO = "1_io"
     FILE_EXIT = "9_exit"
     WORKSPACE_NEW = "1_new"

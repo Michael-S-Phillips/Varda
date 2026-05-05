@@ -1,24 +1,14 @@
-# standard library
-import os
-from pathlib import Path
 import logging
-from enum import Enum
 import traceback
+from enum import Enum
+from pathlib import Path
 
-# third party imports
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable, QTimer
 from PyQt6.QtWidgets import (
     QFileDialog,
     QMessageBox,
     QProgressDialog,
     QApplication,
-    QDialog,
-    QVBoxLayout,
-    QLabel,
-    QPushButton,
-    QRadioButton,
-    QButtonGroup,
-    QHBoxLayout,
 )
 
 from .data_sources import DataSource, RasterioDataSource, InMemoryDataSource
@@ -52,7 +42,6 @@ class ImageLoadingService:
     Uses the DataSource system to open files and wraps them in VardaRaster entities.
     """
 
-    thread_pool = QThreadPool()
     active_loading_processes: list = []
     LOAD_TIMEOUT_MS = 120000  # 2 minutes
     LARGE_FILE_THRESHOLD_MB = 100
@@ -64,7 +53,6 @@ class ImageLoadingService:
         FAIL = 2
         WARNING = 3
 
-    # public methods
     @classmethod
     def load_image_data(
         cls, file_path=None, on_success_callback=None, on_failure_callback=None
@@ -127,68 +115,13 @@ class ImageLoadingService:
             else:
                 cls._show_error_message(f"Error loading image: {e}")
 
-    # private methods
     @classmethod
     def _get_file_size(cls, filePath):
         """Get file size in megabytes"""
         try:
-            return os.path.getsize(filePath) / (1024 * 1024)
-        except Exception:
+            return Path(filePath).stat().st_size / (1024 * 1024)
+        except OSError:
             return 0
-
-    @classmethod
-    def _show_large_file_options_dialog(cls, filePath, file_size_mb):
-        """Show a dialog with options for loading a large file."""
-        dialog = QDialog(QApplication.activeWindow())
-        dialog.setWindowTitle("Large File Detected")
-
-        layout = QVBoxLayout()
-        layout.addWidget(
-            QLabel(
-                f"The file you're trying to load is very large ({file_size_mb:.1f} MB).\n"
-                "Loading large files may take a long time and use significant memory."
-            )
-        )
-
-        option_group = QButtonGroup(dialog)
-
-        preview_option = QRadioButton(
-            "Load a downsampled preview (faster, less memory)"
-        )
-        preview_option.setChecked(True)
-        option_group.addButton(preview_option)
-        layout.addWidget(preview_option)
-
-        full_option = QRadioButton("Load the full file (slow, high memory usage)")
-        option_group.addButton(full_option)
-        layout.addWidget(full_option)
-
-        metadata_option = QRadioButton("Load metadata only (fastest)")
-        option_group.addButton(metadata_option)
-        layout.addWidget(metadata_option)
-
-        button_layout = QHBoxLayout()
-        cancel_button = QPushButton("Cancel")
-        cancel_button.clicked.connect(dialog.reject)
-        load_button = QPushButton("Load")
-        load_button.clicked.connect(dialog.accept)
-        button_layout.addWidget(cancel_button)
-        button_layout.addWidget(load_button)
-
-        layout.addLayout(button_layout)
-        dialog.setLayout(layout)
-
-        result = dialog.exec()
-
-        if result == QDialog.DialogCode.Accepted:
-            if preview_option.isChecked():
-                return "preview"
-            elif full_option.isChecked():
-                return "full"
-            elif metadata_option.isChecked():
-                return "metadata"
-
-        return "cancel"
 
     @classmethod
     def _create_new_load_process(
@@ -210,7 +143,7 @@ class ImageLoadingService:
         process.timer = timer
 
         cls.active_loading_processes.append(process)
-        cls.thread_pool.start(process)
+        QThreadPool.globalInstance().start(process)
 
     @classmethod
     def _handle_load_timeout(cls, process):
@@ -260,7 +193,7 @@ class ImageLoadingService:
     def _show_large_file_loading_dialog(cls, filePath, timeout_ms):
         """Show a dialog with progress information for large files."""
         logger.info(f"Showing large file loading dialog for {filePath}")
-        file_name = os.path.basename(filePath)
+        file_name = Path(filePath).name
         file_size_mb = cls._get_file_size(filePath)
 
         dialog = QProgressDialog(
@@ -296,15 +229,6 @@ class ImageLoadingService:
         msg_box.exec()
 
     @classmethod
-    def _show_warning_message(cls, message):
-        """Display a warning message to the user."""
-        msg_box = QMessageBox()
-        msg_box.setIcon(QMessageBox.Icon.Warning)
-        msg_box.setWindowTitle("Image Loaded with Warnings")
-        msg_box.setText(message)
-        msg_box.exec()
-
-    @classmethod
     def load_image_sync(cls, file_path=None):
         """Load an image synchronously. Blocks until complete.
 
@@ -334,7 +258,6 @@ class ImageLoadingService:
 
         return result
 
-    # private helpers
     @staticmethod
     def _request_file_path():
         """Opens a file dialog to request an image file path from the user."""

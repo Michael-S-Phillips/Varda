@@ -2,10 +2,10 @@ from app_model.types import Action, KeyBindingRule, KeyCode, MenuRule
 
 import varda
 from varda._actions._menu_ids import MenuId, MenuGroup
-from varda.common.observable_list import ImageList
+from varda.common.di_types import ProjectImages
 
 
-def loadDummyImage(images: ImageList) -> None:
+def loadDummyImage(images: ProjectImages) -> None:
     images.append(varda.utilities.debug.generate_random_image())
 
 

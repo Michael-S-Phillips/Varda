@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from PyQt6 import QtWidgets
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget
 from app_model.backends.qt import QModelMainWindow
 from varda.common.ui import DetachableTabWidget
 from varda.all_images_view_list.imageview_list import ImageListWidget
@@ -23,12 +24,7 @@ class MainGUI(QModelMainWindow):
         self.setWindowTitle("Varda")
         self.setWindowIcon(QIcon("resources/logo.svg"))
         self.app = app
-        self.selectedImage = None
-        self.imageList = None
-        self.rasterViews = {}  # image index -> RasterView
-
-        # Track all open windows
-        self.childWindows = []
+        self.childWindows: list[QWidget] = []
 
         self.initUI()
 
