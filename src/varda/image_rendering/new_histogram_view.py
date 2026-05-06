@@ -95,12 +95,12 @@ class NewHistogramView(QWidget):
         # plot new ones
         mode = self.imageRenderer.settings.mode
 
-        if self.imageRenderer.isLinearStretch():
+        minMaxVals = self.imageRenderer.getMinMaxValues()
+        if None not in minMaxVals:
             data = self.imageRenderer.getRawBandData()
         else:
             data = self.imageRenderer.getStretchedData()
 
-        minMaxVals = self.imageRenderer.getMinMaxValues()
         if mode == "mono":
             plotHistogram(data.ravel(), self.monoPlot, "w", (255, 255, 255, 50))
         elif mode == "rgb":

@@ -156,13 +156,6 @@ class ImageRenderer(QObject):
             self.render()
         return self.settings.stretch.minMaxVals()
 
-    def isLinearStretch(self):
-        return isinstance(
-            self.settings.stretch,
-            stretchAlgorithmRegistry["Linear Percentile"]
-            | stretchAlgorithmRegistry["Min-Max (Full Range)"],
-        )
-
     def updateSettings(self, settings: RendererSettings):
         self.settings = settings
         # delete cache so new image is generated

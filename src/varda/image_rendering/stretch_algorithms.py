@@ -5,7 +5,13 @@ from numba import njit, prange
 from PyQt6.QtCore import QObject
 from PyQt6.QtWidgets import QWidget
 
-from varda.common.parameter import IntParameter, ParameterGroup
+from varda.common.parameter import (
+    IntParameter,
+    FloatParameter,
+    Vec2Parameter,
+    ParameterGroup,
+)
+from varda.common.vec2 import Vec2
 from varda.utilities.debug import Profiler
 
 # TODO: Implement the other stretch algorithms:
@@ -101,7 +107,7 @@ def normalize_numba(image, minVals, maxVals):
     return out
 
 
-@registerStretchAlgorithm("Min-Max (Full Range)")
+@registerStretchAlgorithm("Min-Max (Auto Full Range)")
 class MinMaxStretch(StretchAlgorithm):
     """Simple min-max stretch that uses the full range of values in the image."""
 
@@ -144,6 +150,72 @@ class MinMaxStretch(StretchAlgorithm):
         return (np.clip(image, minVals, maxVals) - minVals) / (maxVals - minVals)
 
     def minMaxVals(self):
+        if self.minVals is not None and self.maxVals is not None:
+            return self.minVals, self.maxVals
+        else:
+            return None
+
+
+@registerStretchAlgorithm("Min-Max (Manual)")
+class ManualValueStretchRGB(StretchAlgorithm):
+    class Config(ParameterGroup):
+        redStretch = Vec2Parameter(
+            "Red Stretch",
+            Vec2(0.0, 1.0),
+            valueNames=("min", "max"),
+            description="the min/max values to stretch the red channel",
+        )
+        greenStretch = Vec2Parameter(
+            "Green Stretch",
+            Vec2(0.0, 1.0),
+            valueNames=("min", "max"),
+            description="the min/max values to stretch the green channel",
+        )
+        blueStretch = Vec2Parameter(
+            "Blue Stretch",
+            Vec2(0.0, 1.0),
+            valueNames=("min", "max"),
+            description="the min/max values to stretch the blue channel",
+        )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.config = self.Config()
+
+        self.minVals: np.ndarray | None = None
+        self.maxVals: np.ndarray | None = None
+
+    def parameters(self) -> ParameterGroup:
+        return self.config
+
+    def apply(self, image: np.ndarray) -> np.ndarray:
+        """use the given min/max values to stretch the image"""
+
+        validateArrayShape(image)
+        if image.shape[2] == 3:
+            # image is RGB
+            self.minVals = np.asarray(
+                [
+                    self.config.redStretch.value.x,
+                    self.config.greenStretch.value.x,
+                    self.config.blueStretch.value.x,
+                ]
+            )
+            self.maxVals = np.asarray(
+                [
+                    self.config.redStretch.value.y,
+                    self.config.greenStretch.value.y,
+                    self.config.blueStretch.value.y,
+                ]
+            )
+        else:
+            # image is mono; we'll only use the min/max for the red channel
+            self.minVals = np.asarray([self.config.redStretch.value.x])
+            self.maxVals = np.asarray([self.config.redStretch.value.y])
+
+        return normalize_numba(image, self.minVals, self.maxVals)
+
+    def minMaxVals(self) -> tuple[np.ndarray, np.ndarray] | None:
         if self.minVals is not None and self.maxVals is not None:
             return self.minVals, self.maxVals
         else:
@@ -271,9 +343,8 @@ class LinearPercentileStretch(StretchAlgorithm):
     def apply(self, image: np.ndarray) -> np.ndarray:
         """Compute min/max values based on percentiles.
 
-        NOTE: This is an approximation, since we are sampling 1/4th of the pixels for better performance.
-            For visualization purposes that's probably fine, but maybe not for more specific analysis?
-            We can remove the optimization if so, or make it configurable."""
+        NOTE: This is an approximation using histogram binning. But I think that for the purpose of visualization it's indisinguishable.
+        """
 
         # profile = Profiler()
         lowPercent = self.config.lowPercent.value
