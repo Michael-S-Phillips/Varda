@@ -889,14 +889,18 @@ class Color:
         """
         return cls.fromBytes(bytes.fromhex(hex[1:]))
 
-    @staticmethod
-    def fromBytes(b: bytes):
-        Color(
+    @classmethod
+    def fromBytes(cls, b: bytes):
+        return cls(
             float(b[0]) / 255.0,
             float(b[1]) / 255.0,
             float(b[2]) / 255.0,
             float(b[3]) / 255.0,
         )
+
+    @classmethod
+    def fromQColor(cls, color: QColor):
+        return cls(color.redF(), color.greenF(), color.blueF(), color.alphaF())
 
     def toQColor(self) -> QColor:
         c = self._toBytes()

@@ -5,7 +5,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QVariant
 from PyQt6.QtGui import QColor
 
-from varda.common.entities import VardaROI
+from varda.common.entities import VardaROI, Color
 from varda.rois.roi_collection import ROICollection
 
 
@@ -113,7 +113,7 @@ class ROITableModel(QAbstractTableModel):
         if col == 1:  # Name
             self._collection.updateROI(roi.fid, name=value)
         elif col == 2 and isinstance(value, QColor):  # Color
-            self._collection.updateROI(roi.fid, color=value)
+            self._collection.updateROI(roi.fid, color=Color.fromQColor(value))
         elif col >= len(_FIXED_COLUMNS):
             dyn_col = self._dynamicColumns()
             key = dyn_col[col - len(_FIXED_COLUMNS)]
