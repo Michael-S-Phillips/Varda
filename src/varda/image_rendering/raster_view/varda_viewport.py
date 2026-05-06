@@ -102,9 +102,14 @@ class VardaViewport(QWidget):
         if self._overlayImageItem is not None:
             self._overlayImageItem.refresh()
 
-    def addItem(self, item):
-        """Add a graphics item to the viewport."""
-        self._vb.addItem(item)
+    def addItem(self, item, ignoreBounds: bool = True):
+        """Add a graphics item to the viewport.
+
+        By default the item does not contribute to the viewbox's auto-range bounds,
+        so the viewport stays centered on the image even when ROIs or other overlays
+        extend outside the image extent.
+        """
+        self._vb.addItem(item, ignoreBounds=ignoreBounds)
 
     def removeItem(self, item):
         """Remove a graphics item from the viewport."""

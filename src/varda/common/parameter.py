@@ -399,7 +399,6 @@ class Vec2Parameter(Parameter[Vec2]):
             self.param = param
 
             paramLayout = paramLayoutDefault()
-            paramLayout.addWidget(QLabel(self.param.name))
             self.xSpinBox = QDoubleSpinBox(parent=self)
             self.xSpinBox.setRange(-100000, 100000)
 

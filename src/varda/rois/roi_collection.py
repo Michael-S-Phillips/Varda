@@ -18,7 +18,7 @@ from shapely.geometry.base import BaseGeometry
 from PyQt6.QtGui import QColor
 import pyqtgraph as pg
 
-from varda.common.entities import ROIMode, Spectrum, VardaROI, VardaRaster
+from varda.common.entities import ROIMode, Spectrum, VardaROI, VardaRaster, Color
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class ROICollection:
         self,
         geometry: BaseGeometry,
         name: str,
-        color: QColor,
+        color: Color,
         roiType: ROIMode,
         **properties,
     ) -> int:
@@ -320,12 +320,12 @@ class ROICollection:
     # --- Convenience ---
 
     _DEFAULT_COLORS = [
-        QColor(255, 0, 0, 128),
-        QColor(0, 255, 0, 128),
-        QColor(0, 0, 255, 128),
-        QColor(255, 255, 0, 128),
-        QColor(255, 0, 255, 128),
-        QColor(0, 255, 255, 128),
+        Color(1.0, 0.0, 0.0, 0.5),
+        Color(0.0, 1.0, 0.0, 0.5),
+        Color(0.0, 0.0, 1.0, 0.5),
+        Color(1.0, 1.0, 0.0, 0.5),
+        Color(1.0, 0.0, 1.0, 0.5),
+        Color(0.0, 1.0, 1.0, 0.5),
     ]
 
     def addROIFromDrawing(
@@ -353,10 +353,9 @@ class ROICollection:
 
         gdf = self._gdf.copy()
 
-        # Serialize QColor to hex strings for file compatibility
-        gdf["color"] = gdf["color"].apply(
-            lambda c: "#{:02x}{:02x}{:02x}{:02x}".format(*c.getRgb())
-        )
+        # Serialize Color to hex strings for file compatibility
+        gdf["color"] = gdf["color"].apply(lambda c: c.toHexString())
+
         # Serialize ROIMode enum to string
         gdf["roi_type"] = gdf["roi_type"].apply(lambda m: m.name)
 
@@ -370,6 +369,8 @@ class ROICollection:
             if driver is None:
                 raise ValueError(f"Cannot determine driver for extension '.{ext}'")
 
+        if self._crs is not None:
+            gdf["crs"] = self._crs.to_wkt()
         if self._crs is None:
             logger.warning(
                 "Exporting ROIs without CRS — pixel-space geometries have no "
@@ -401,9 +402,7 @@ class ROICollection:
         for _, row in gdf.iterrows():
             # Deserialize color from hex string
             hex_color = row.get("color", "#ff000080")
-            # Annoyingly, QColor doesnt support #rrggbbaa format strings. only #aarrggbb,
-            # but it does support (r,g,b,a) parameters, so we skip the # at the start and convert the rest into bytes, and pass those in
-            color = QColor(*bytes.fromhex(hex_color[1:]))
+            color = Color.fromHexString(hex_color)
 
             # Deserialize ROIMode from string
             roi_type_str = row.get("roi_type", "POLYGON")

@@ -205,9 +205,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
     def _connectSignals(self):
         """Connect signals between workflow components"""
-        self.rendererSettingsPanel.sigSettingsChanged.connect(
-            self.imageRenderer.updateSettings
-        )
 
         # Wire ROI drawing tools to collection via ToolManager signals
         for tm in (self.toolManager1, self.toolManager2, self.toolManager3):
@@ -239,7 +236,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
     def _onPlotRequested(self, fid: int) -> None:
         """Compute ROI statistics and plot mean +/- std spectrum."""
-        from PyQt6.QtGui import QColor
 
         image = self.config.image.value
         stats = self.roiCollection.getROIStatistics(fid, image)
@@ -253,11 +249,10 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         wavelengths = VardaPlotWidget.getPlottableWavelengths(image, len(mean))
 
         roi = self.roiCollection.getROI(fid)
+        # fillColor = roi.color.toQColor()
+        # fillColor.setAlpha(50)
 
-        fillColor = QColor(roi.color)
-        fillColor.setAlpha(50)
-
-        self.plotWidget.plot(wavelengths, mean, pen=roi.color, name=roi.name)
+        self.plotWidget.plot(wavelengths, mean, color=roi.color, name=roi.name)
         # self.plotWidget.plotWithFill(
         #     wavelengths,
         #     mean,

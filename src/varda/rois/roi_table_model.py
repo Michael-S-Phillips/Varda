@@ -5,7 +5,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QVariant
 from PyQt6.QtGui import QColor
 
-from varda.common.entities import VardaROI
+from varda.common.entities import VardaROI, Color
 from varda.rois.roi_collection import ROICollection
 
 
@@ -68,7 +68,7 @@ class ROITableModel(QAbstractTableModel):
                 return roi.properties.get(key, "")
 
         if role == Qt.ItemDataRole.DecorationRole and col == 2:
-            return QColor(roi.color)
+            return roi.color.toQColor()
 
         if role == Qt.ItemDataRole.EditRole:
             if col == 1:
@@ -76,8 +76,13 @@ class ROITableModel(QAbstractTableModel):
 
         return QVariant()
 
-    def headerData(self, section: int, orientation, role: int = Qt.ItemDataRole.DisplayRole):
-        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
+    def headerData(
+        self, section: int, orientation, role: int = Qt.ItemDataRole.DisplayRole
+    ):
+        if (
+            orientation == Qt.Orientation.Horizontal
+            and role == Qt.ItemDataRole.DisplayRole
+        ):
             all_cols = list(_FIXED_COLUMNS) + self._dynamicColumns()
             if section < len(all_cols):
                 return all_cols[section]
@@ -93,7 +98,9 @@ class ROITableModel(QAbstractTableModel):
             return base | Qt.ItemFlag.ItemIsEditable
         return base
 
-    def setData(self, index: QModelIndex, value, role: int = Qt.ItemDataRole.EditRole) -> bool:
+    def setData(
+        self, index: QModelIndex, value, role: int = Qt.ItemDataRole.EditRole
+    ) -> bool:
         if not index.isValid():
             return False
 
@@ -106,7 +113,7 @@ class ROITableModel(QAbstractTableModel):
         if col == 1:  # Name
             self._collection.updateROI(roi.fid, name=value)
         elif col == 2 and isinstance(value, QColor):  # Color
-            self._collection.updateROI(roi.fid, color=value)
+            self._collection.updateROI(roi.fid, color=Color.fromQColor(value))
         elif col >= len(_FIXED_COLUMNS):
             dyn_col = self._dynamicColumns()
             key = dyn_col[col - len(_FIXED_COLUMNS)]

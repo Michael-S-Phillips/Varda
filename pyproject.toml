@@ -33,6 +33,11 @@ dependencies = [
     "numba>=0.63.1",
     "psygnal>=0.15.1",
     "pyqt6ads>=4.5.0",
+    "in-n-out>=0.2.1",
+    "app-model>=0.5.1",
+    "qtpy>=2.4.3",
+    "superqt>=0.8.0",
+    "pyconify>=0.2.1",
 ]
 
 [dependency-groups]

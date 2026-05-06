@@ -7,12 +7,12 @@ import pytest
 from PyQt6.QtGui import QColor
 from shapely.geometry import Polygon, box
 
-from varda.common.entities import ROIMode, VardaROI
+from varda.common.entities import ROIMode, VardaROI, Color
 from varda.rois.roi_collection import ROICollection
 
-RED = QColor(255, 0, 0, 128)
-GREEN = QColor(0, 255, 0, 128)
-BLUE = QColor(0, 0, 255, 128)
+RED = Color(1.0, 0.0, 0.0, 0.5)
+GREEN = Color(0.0, 1.0, 0.0, 0.5)
+BLUE = Color(0.0, 0.0, 1.0, 0.5)
 
 
 @pytest.fixture
@@ -50,9 +50,7 @@ class TestVardaROI:
 
 
 class TestROICollectionCRUD:
-    def test_add_roi(
-        self, collection: ROICollection, sample_polygon: Polygon
-    ) -> None:
+    def test_add_roi(self, collection: ROICollection, sample_polygon: Polygon) -> None:
         fid = collection.addROI(
             geometry=sample_polygon,
             name="ROI 1",
@@ -70,9 +68,7 @@ class TestROICollectionCRUD:
         assert fid1 != fid2
         assert len(collection) == 2
 
-    def test_get_roi(
-        self, collection: ROICollection, sample_polygon: Polygon
-    ) -> None:
+    def test_get_roi(self, collection: ROICollection, sample_polygon: Polygon) -> None:
         fid = collection.addROI(sample_polygon, "ROI 1", RED, ROIMode.RECTANGLE)
         roi = collection.getROI(fid)
         assert isinstance(roi, VardaROI)
@@ -152,9 +148,7 @@ class TestROICollectionUserColumns:
         roi = collection.getROI(fid)
         assert roi.properties["material"] == "iron"
 
-    def test_duplicate_column_raises(
-        self, collection: ROICollection
-    ) -> None:
+    def test_duplicate_column_raises(self, collection: ROICollection) -> None:
         collection.addColumn("material")
         with pytest.raises(ValueError, match="already exists"):
             collection.addColumn("material")
@@ -191,7 +185,9 @@ class TestROICollectionSignals:
         self, collection: ROICollection, sample_polygon: Polygon
     ) -> None:
         count = [0]
-        collection.sigCollectionChanged.connect(lambda: count.__setitem__(0, count[0] + 1))
+        collection.sigCollectionChanged.connect(
+            lambda: count.__setitem__(0, count[0] + 1)
+        )
         collection.addROI(sample_polygon, "ROI 1", RED, ROIMode.RECTANGLE)
         collection.addROI(sample_polygon, "ROI 2", GREEN, ROIMode.POLYGON)
         assert count[0] == 2
@@ -270,7 +266,9 @@ def _make_fake_image_with_data(
         nodata=None,
         wavelengths=np.arange(bands, dtype=np.float64),
         getData=lambda bandIndices=None, window=None: (
-            data[window[0] : window[0] + window[2], window[1] : window[1] + window[3], :]
+            data[
+                window[0] : window[0] + window[2], window[1] : window[1] + window[3], :
+            ]
             if window is not None
             else data
         ),
@@ -341,6 +339,7 @@ class TestFileIO:
         collection.toFile(path)
         # Should not create file (just warns)
         import os
+
         assert not os.path.exists(path)
 
 

@@ -7,7 +7,7 @@ from PyQt6.QtGui import QDrag, QColor
 from PyQt6.QtWidgets import QWidget, QComboBox, QScrollArea
 import pyqtgraph as pg
 
-from varda.common.entities import VardaRaster
+from varda.common.entities import VardaRaster, Color
 
 from varda.common.ui import (
     VBoxBuilder,
@@ -111,7 +111,9 @@ class Curve(QObject):
 
     @classmethod
     def deserialize(cls, data: dict) -> "Curve":
-        curve = cls.fromData(data["x"], data["y"], name=data["name"] or None)
+        curve = cls.fromData(
+            data["x"], data["y"], QColor(data["color"]), name=data["name"] or None
+        )
         curve.config.color.set(QColor(data["color"]))
         curve.config.width.set(data["width"])
         curve.config.offset.set(data["offset"])
@@ -119,10 +121,15 @@ class Curve(QObject):
         return curve
 
     @classmethod
-    def fromData(cls, x, y, **kwargs):
+    def fromData(cls, x, y, color: QColor, **kwargs):
         plotItem = pg.PlotDataItem(x, y, **kwargs)
         defaultConfig = CurveConfig()
-        return cls(plotItem, defaultConfig)
+        curve = cls(plotItem, defaultConfig)
+
+        # initialize parameters
+        curve.config.color.set(color)
+
+        return curve
 
 
 class WindowConfig(ParameterGroup):
@@ -285,7 +292,7 @@ class VardaPlotWidget(QWidget):
             self.plotItem.setXRange(xRange.x, xRange.y)
             self.plotItem.setYRange(yRange.x, yRange.y)
 
-    def plot(self, x, y, **kwargs) -> Curve:
+    def plot(self, x, y, color: Color = Color(1.0, 0.0, 0.0, 0.5), **kwargs) -> Curve:
         """
         TODO: Maybe give each new plot a different starting color?
 
@@ -294,7 +301,7 @@ class VardaPlotWidget(QWidget):
         :param y: Description
         :param kwargs: Description
         """
-        curve = Curve.fromData(x, y, **kwargs)
+        curve = Curve.fromData(x, y, color.toQColor(), **kwargs)
         curve.setClickable(True)
         curve.sigClicked.connect(self.selectPlot)
         self.plots.append(curve)

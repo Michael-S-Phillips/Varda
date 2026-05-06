@@ -5,7 +5,13 @@ from numba import njit, prange
 from PyQt6.QtCore import QObject
 from PyQt6.QtWidgets import QWidget
 
-from varda.common.parameter import IntParameter, ParameterGroup
+from varda.common.parameter import (
+    IntParameter,
+    FloatParameter,
+    Vec2Parameter,
+    ParameterGroup,
+)
+from varda.common.vec2 import Vec2
 from varda.utilities.debug import Profiler
 
 # TODO: Implement the other stretch algorithms:
@@ -101,7 +107,7 @@ def normalize_numba(image, minVals, maxVals):
     return out
 
 
-@registerStretchAlgorithm("Min-Max (Full Range)")
+@registerStretchAlgorithm("Min-Max (Auto Full Range)")
 class MinMaxStretch(StretchAlgorithm):
     """Simple min-max stretch that uses the full range of values in the image."""
 
@@ -150,8 +156,74 @@ class MinMaxStretch(StretchAlgorithm):
             return None
 
 
+@registerStretchAlgorithm("Min-Max (Manual)")
+class ManualValueStretchRGB(StretchAlgorithm):
+    class Config(ParameterGroup):
+        redStretch = Vec2Parameter(
+            "Red Stretch",
+            Vec2(0.0, 1.0),
+            valueNames=("min", "max"),
+            description="the min/max values to stretch the red channel",
+        )
+        greenStretch = Vec2Parameter(
+            "Green Stretch",
+            Vec2(0.0, 1.0),
+            valueNames=("min", "max"),
+            description="the min/max values to stretch the green channel",
+        )
+        blueStretch = Vec2Parameter(
+            "Blue Stretch",
+            Vec2(0.0, 1.0),
+            valueNames=("min", "max"),
+            description="the min/max values to stretch the blue channel",
+        )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.config = self.Config()
+
+        self.minVals: np.ndarray | None = None
+        self.maxVals: np.ndarray | None = None
+
+    def parameters(self) -> ParameterGroup:
+        return self.config
+
+    def apply(self, image: np.ndarray) -> np.ndarray:
+        """use the given min/max values to stretch the image"""
+
+        validateArrayShape(image)
+        if image.shape[2] == 3:
+            # image is RGB
+            self.minVals = np.asarray(
+                [
+                    self.config.redStretch.value.x,
+                    self.config.greenStretch.value.x,
+                    self.config.blueStretch.value.x,
+                ]
+            )
+            self.maxVals = np.asarray(
+                [
+                    self.config.redStretch.value.y,
+                    self.config.greenStretch.value.y,
+                    self.config.blueStretch.value.y,
+                ]
+            )
+        else:
+            # image is mono; we'll only use the min/max for the red channel
+            self.minVals = np.asarray([self.config.redStretch.value.x])
+            self.maxVals = np.asarray([self.config.redStretch.value.y])
+
+        return normalize_numba(image, self.minVals, self.maxVals)
+
+    def minMaxVals(self) -> tuple[np.ndarray, np.ndarray] | None:
+        if self.minVals is not None and self.maxVals is not None:
+            return self.minVals, self.maxVals
+        else:
+            return None
+
+
 @njit(parallel=True)
-def rgb_histogram(vals, hist, vmin, vmax):
+def histogram(vals, hist, vmin, vmax):
     n, c = vals.shape
     nbins = hist.shape[1]
     scale = nbins / (vmax - vmin)
@@ -195,7 +267,7 @@ def rgb_hist_percentiles_numba(
         vmax = np.nanmax(flat)
 
     hist = np.zeros((3, bins), dtype=np.int64)
-    rgb_histogram(flat, hist, vmin, vmax)
+    histogram(flat, hist, vmin, vmax)
 
     edges = np.linspace(vmin, vmax, bins + 1)
 
@@ -207,6 +279,37 @@ def rgb_hist_percentiles_numba(
         maxVals[c] = percentile_from_hist(hist[c], edges, highPercent)
 
     return minVals, maxVals
+
+
+def mono_hist_percentiles_numba(
+    mono: np.ndarray,
+    lowPercent,
+    highPercent,
+    bins=1024,
+    vmin=None,
+    vmax=None,
+):
+    """
+    Alternate method for approximating percentiles using a histogram approach.
+    It's much faster than np.nanpercentile, but also slightly less accurate.
+    I dont know for certain if this is okay or not (I think the error is smaller than what can be seen on a display), but for now not using it.
+    """
+    flat = mono.reshape(-1, 1)
+
+    if vmin is None:
+        vmin = np.nanmin(flat)
+    if vmax is None:
+        vmax = np.nanmax(flat)
+
+    hist = np.zeros((1, bins), dtype=np.int64)
+    histogram(flat, hist, vmin, vmax)
+
+    edges = np.linspace(vmin, vmax, bins + 1)
+
+    minVal = percentile_from_hist(hist, edges, lowPercent)
+    maxVal = percentile_from_hist(hist, edges, highPercent)
+
+    return minVal, maxVal
 
 
 @registerStretchAlgorithm("Linear Percentile")
@@ -240,51 +343,64 @@ class LinearPercentileStretch(StretchAlgorithm):
     def apply(self, image: np.ndarray) -> np.ndarray:
         """Compute min/max values based on percentiles.
 
-        NOTE: This is an approximation, since we are sampling 1/4th of the pixels for better performance.
-            For visualization purposes that's probably fine, but maybe not for more specific analysis?
-            We can remove the optimization if so, or make it configurable."""
+        NOTE: This is an approximation using histogram binning. But I think that for the purpose of visualization it's indisinguishable.
+        """
 
-        profile = Profiler()
+        # profile = Profiler()
         lowPercent = self.config.lowPercent.value
         highPercent = self.config.highPercent.value
 
         validateArrayShape(image)
-        profile("LinearPercentileStretch: Validated array shape")
+        # profile("LinearPercentileStretch: Validated array shape")
         # Create a copy if the array is not writeable, because np.nanpercentile fails otherwise
         if not image.flags.writeable:
             image = image.copy()
-            profile("LinearPercentileStretch: Copied array")
+            # profile("LinearPercentileStretch: Copied array")
 
         # sample = image[::2, ::2]  # 1/4th pixels
         sample = image
-        profile("LinearPercentileStretch: Created sample")
+        # profile("LinearPercentileStretch: Created sample")
         if image.shape[2] == 1:
-            # Handle grayscale; format as arrays for consistency with RGB case
-            minVal = np.asarray([np.nanpercentile(sample, lowPercent)])
-            maxVal = np.asarray([np.nanpercentile(sample, highPercent)])
+            # using a histogram approximation, which is significantly faster. For visualizing it's accurate enough
+            minVals, maxVals = mono_hist_percentiles_numba(
+                sample, lowPercent, highPercent
+            )
+            # format as arrays for consistency with RGB case
+            minVals = np.asarray([minVals])
+            maxVals = np.asarray([maxVals])
+
+            # OLD VERSION; used nanpercentile which is more accurate but way slower.
+            # minVal = np.asarray([np.nanpercentile(sample, lowPercent)])
+            # maxVal = np.asarray([np.nanpercentile(sample, highPercent)])
             # clip and stretch
             # scale = maxVal - minVal
             # scale = 1.0 if scale == 0 else scale  # prevent division by zero
-            self.minVals = minVal
-            self.maxVals = maxVal
-            profile("LinearPercentileStretch: Computed percentiles for grayscale image")
-            result = normalize_numba(image, minVal, maxVal)
-            profile("LinearPercentileStretch: stretched grayscale image")
-            profile.total("LinearPercentileStretch: Total time")
+
+            self.minVals = minVals
+            self.maxVals = maxVals
+
+            # profile("LinearPercentileStretch: Computed percentiles for grayscale image")
+            result = normalize_numba(image, minVals, maxVals)
+            # profile("LinearPercentileStretch: stretched grayscale image")
+            # profile.total("LinearPercentileStretch: Total time")
             return result
         else:
-            flat = sample.reshape(-1, 3)
-            minVals = np.empty(3)
-            maxVals = np.empty(3)
+            # using a histogram approximation, which is significantly faster. For visualizing it's accurate enough
+            minVals, maxVals = rgb_hist_percentiles_numba(
+                sample, lowPercent, highPercent
+            )
+            # flat = sample.reshape(-1, 3)
+            # minVals = np.empty(3)
+            # maxVals = np.empty(3)
 
-            for c in range(3):
-                vals = flat[:, c]
-                vals = vals[~np.isnan(vals)]
-                vals_len = len(vals)
-                k_low = int(vals_len * lowPercent / 100)
-                k_high = int(vals_len * highPercent / 100)
-                minVals[c] = np.partition(vals, k_low)[k_low]
-                maxVals[c] = np.partition(vals, k_high)[k_high]
+            # for c in range(3):
+            #     vals = flat[:, c]
+            #     vals = vals[~np.isnan(vals)]
+            #     vals_len = len(vals)
+            #     k_low = int(vals_len * lowPercent / 100)
+            #     k_high = int(vals_len * highPercent / 100)
+            #     minVals[c] = np.partition(vals, k_low)[k_low]
+            #     maxVals[c] = np.partition(vals, k_high)[k_high]
 
             # Compute percentiles for each channel
             # minVals = np.nanpercentile(sample, lowPercent, axis=(0, 1))
@@ -296,10 +412,10 @@ class LinearPercentileStretch(StretchAlgorithm):
 
             self.minVals = minVals
             self.maxVals = maxVals
-            profile("LinearPercentileStretch: Computed percentiles for RGB image")
+            # profile("LinearPercentileStretch: Computed percentiles for RGB image")
             result = normalize_numba(image, minVals, maxVals)
-            profile("LinearPercentileStretch: stretched RGB image")
-            profile.total("LinearPercentileStretch: Total time")
+            # profile("LinearPercentileStretch: stretched RGB image")
+            # profile.total("LinearPercentileStretch: Total time")
             return result
 
     def minMaxVals(self) -> tuple[np.ndarray, np.ndarray] | None:
