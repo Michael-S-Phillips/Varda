@@ -205,9 +205,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
     def _connectSignals(self):
         """Connect signals between workflow components"""
-        self.rendererSettingsPanel.sigSettingsChanged.connect(
-            self.imageRenderer.updateSettings
-        )
 
         # Wire ROI drawing tools to collection via ToolManager signals
         for tm in (self.toolManager1, self.toolManager2, self.toolManager3):
