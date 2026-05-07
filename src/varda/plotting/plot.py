@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-from PyQt6.QtCore import Qt, QObject, pyqtSignal, QPoint, QByteArray, QMimeData
+from PyQt6.QtCore import Qt, QObject, pyqtSignal, QPoint, QByteArray, QMimeData, QSize
 from PyQt6.QtGui import QDrag, QColor
 from PyQt6.QtWidgets import QWidget, QComboBox, QScrollArea
 import pyqtgraph as pg
@@ -222,8 +222,20 @@ class VardaPlotWidget(QWidget):
         self.gv.scene().sigMouseClicked.connect(self.onSceneClicked)
         self.plotItem = pg.PlotItem()
         self.plotItem.addLegend()
-        self.plotItem.setMouseEnabled(x=False, y=False)
+        viewBox = self.plotItem.getViewBox()
+        assert viewBox is not None
+        self.viewBox: pg.ViewBox = viewBox
+        # Left-drag draws a rubber-band rectangle and zooms in on release;
+        # right-drag pans, wheel zooms.
+        self.viewBox.setMouseMode(pg.ViewBox.RectMode)
+        self.viewBox.setMouseEnabled(x=True, y=True)
         self.gv.setCentralItem(self.plotItem)
+
+        # Whether manual range params have been seeded with a starting value.
+        # Auto-range stays auto until the user opts into manual; the first
+        # opt-in seeds the manual params from the current view, subsequent
+        # toggles preserve whatever the user last set.
+        self._manualRangeInitialized = False
 
         self.windowConfig = WindowConfig()
         self.windowConfig.sigParameterChanged.connect(self.onWindowParamsChanged)
@@ -231,11 +243,14 @@ class VardaPlotWidget(QWidget):
         self.rangeConfig = RangeConfig()
         self.rangeConfig.sigParameterChanged.connect(self.onRangeParamsChanged)
 
+        # sigRangeChangedManually fires only on user interaction (rubber-band
+        # zoom, pan, wheel), not on programmatic setRange calls.
+        self.viewBox.sigRangeChangedManually.connect(self._onUserViewChange)
+
         self.curveSettingsBox = SectionBox("Curve Settings")
 
         self.windowConfigWidget = self.windowConfig.createWidget()
         self.rangeConfigWidget = self.rangeConfig.createWidget()
-        self.rangeConfigWidget.hide()
 
         sidebar = VBoxBuilder(Qt.AlignmentFlag.AlignTop).withWidget(
             self.curveSettingsBox
@@ -274,23 +289,90 @@ class VardaPlotWidget(QWidget):
             .withWidget(VerticalScrollArea(sidebar))
         )
 
+    def sizeHint(self) -> QSize:
+        # Sensible window size so plot isn't squashed by default.
+        # Layout stretch factors only distribute space *beyond*
+        # sizeHint, so without this the widget opens at the sum of children's
+        # natural sizes (sidebar wide, plot tiny) and stretch never kicks in.
+        return QSize(1200, 600)
+
     def onWindowParamsChanged(self):
         self.gv.setBackground(self.windowConfig.backgroundColor.value)
 
         if self.windowConfig.autoViewRange.value:
             self.plotItem.enableAutoRange()
-            self.rangeConfigWidget.hide()
         else:
             self.plotItem.disableAutoRange()
-            self.rangeConfigWidget.show()
+            if not self._manualRangeInitialized:
+                self._seedManualRangeFromView()
             self.onRangeParamsChanged()
 
     def onRangeParamsChanged(self):
         if not self.windowConfig.autoViewRange.value:
             xRange = self.rangeConfig.viewRangeX.value
             yRange = self.rangeConfig.viewRangeY.value
-            self.plotItem.setXRange(xRange.x, xRange.y)
-            self.plotItem.setYRange(yRange.x, yRange.y)
+            self.plotItem.setXRange(xRange.x, xRange.y, padding=0)
+            self.plotItem.setYRange(yRange.x, yRange.y, padding=0)
+
+    def _seedManualRangeFromView(self) -> None:
+        xRange, yRange = self.viewBox.viewRange()
+        self.rangeConfig.viewRangeX.set(Vec2(float(xRange[0]), float(xRange[1])))
+        self.rangeConfig.viewRangeY.set(Vec2(float(yRange[0]), float(yRange[1])))
+        self._manualRangeInitialized = True
+
+    def _onUserViewChange(self) -> None:
+        # User did a rubber-band zoom, pan, or wheel zoom. Sync our manual
+        # range params to the new view and switch out of auto mode so the UI
+        # reflects what the user just did.
+        self._seedManualRangeFromView()
+        if self.windowConfig.autoViewRange.value:
+            self.windowConfig.autoViewRange.set(False)
+
+    def _updateViewLimits(self) -> None:
+        # Constrain panning and zooming so the view never extends past the
+        # bounds of the plotted data.
+        if not self.plots:
+            self.viewBox.setLimits(
+                xMin=None,
+                xMax=None,
+                yMin=None,
+                yMax=None,
+                maxXRange=None,
+                maxYRange=None,
+            )
+            return
+        xMin, xMax = float("inf"), float("-inf")
+        yMin, yMax = float("inf"), float("-inf")
+        for curve in self.plots:
+            x, y = curve.plotDataItem.getData()
+            if x is None or y is None or len(x) == 0:
+                continue
+            yScaled = (
+                np.asarray(y) * curve.config.scale.value + curve.config.offset.value
+            )
+            xMin = min(xMin, float(np.min(x)))
+            xMax = max(xMax, float(np.max(x)))
+            yMin = min(yMin, float(np.min(yScaled)))
+            yMax = max(yMax, float(np.max(yScaled)))
+        if not np.isfinite(xMin) or xMax <= xMin or yMax <= yMin:
+            return
+
+        # apply padding
+        xRange = xMax - xMin
+        yRange = yMax - yMin
+        xMin = xMin - (xRange * 0.05)
+        xMax = xMax + (xRange * 0.05)
+        yMin = yMin - (yRange * 0.05)
+        yMax = yMax + (yRange * 0.05)
+
+        self.viewBox.setLimits(
+            xMin=xMin,
+            xMax=xMax,
+            yMin=yMin,
+            yMax=yMax,
+            maxXRange=xMax - xMin,
+            maxYRange=yMax - yMin,
+        )
 
     def plot(self, x, y, color: Color = Color(1.0, 0.0, 0.0, 0.5), **kwargs) -> Curve:
         """
@@ -304,8 +386,11 @@ class VardaPlotWidget(QWidget):
         curve = Curve.fromData(x, y, color.toQColor(), **kwargs)
         curve.setClickable(True)
         curve.sigClicked.connect(self.selectPlot)
+        # offset/scale changes shift visible y-bounds, so refresh limits.
+        curve.config.sigParameterChanged.connect(self._updateViewLimits)
         self.plots.append(curve)
         self.plotItem.addItem(curve.plotDataItem)
+        self._updateViewLimits()
         return curve
 
     def selectPlot(self, curve: Curve) -> None:
@@ -347,6 +432,7 @@ class VardaPlotWidget(QWidget):
         self.plotItem.removeItem(curve.plotDataItem)
         if self.selectedCurve is curve:
             self.deselectPlot()
+        self._updateViewLimits()
 
     def onCurveDrop(self, event) -> None:
         data = json.loads(bytes(event.mimeData().data(CURVE_MIME_TYPE)).decode("utf-8"))
@@ -356,8 +442,10 @@ class VardaPlotWidget(QWidget):
         curve = Curve.deserialize(data)
         curve.setClickable(True)
         curve.sigClicked.connect(self.selectPlot)
+        curve.config.sigParameterChanged.connect(self._updateViewLimits)
         self.plots.append(curve)
         self.plotItem.addItem(curve.plotDataItem)
+        self._updateViewLimits()
         event.accept()
 
     def plotWithFill(self, x, y, yLower, yUpper, fillBrush, **kwargs):
@@ -394,6 +482,7 @@ class VardaPlotWidget(QWidget):
         for item in self._fillItems:
             self.plotItem.removeItem(item)
         self._fillItems.clear()
+        self._updateViewLimits()
 
 
 if __name__ == "__main__":

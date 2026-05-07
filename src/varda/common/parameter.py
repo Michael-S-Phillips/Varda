@@ -397,6 +397,7 @@ class Vec2Parameter(Parameter[Vec2]):
         def __init__(self, param: "Vec2Parameter", parent=None):
             super().__init__(parent)
             self.param = param
+            self.param.sigParameterChanged.connect(self.onParamChanged)
 
             paramLayout = paramLayoutDefault()
             self.xSpinBox = QDoubleSpinBox(parent=self)
@@ -425,6 +426,15 @@ class Vec2Parameter(Parameter[Vec2]):
             vec = self.param.get()
             vec.y = value
             self.param.set(vec)
+
+        @pyqtSlot(object)
+        def onParamChanged(self, value: Vec2):
+            if self.xSpinBox.value() != value.x:
+                with QSignalBlocker(self.xSpinBox):
+                    self.xSpinBox.setValue(value.x)
+            if self.ySpinBox.value() != value.y:
+                with QSignalBlocker(self.ySpinBox):
+                    self.ySpinBox.setValue(value.y)
 
 
 class StringParameter(Parameter[str]):
@@ -459,6 +469,11 @@ class StringParameter(Parameter[str]):
         def textChanged(self, text):
             self.param.set(text)
 
+        @pyqtSlot(object)
+        def onParamChanged(self, text: str):
+            with QSignalBlocker(self.lineEdit):
+                self.lineEdit.setText(text)
+
 
 class BoolParameter(Parameter[bool]):
     def __init__(self, name, default=False, description=None, parent=None):
@@ -479,6 +494,8 @@ class BoolParameter(Parameter[bool]):
         def __init__(self, param: "BoolParameter", parent=None):
             super().__init__(parent)
             self.param = param
+            self.param.sigParameterChanged.connect(self.onParamChanged)
+
             self.checkBox = QCheckBox(self)
             self.checkBox.setChecked(self.param.get())
             self.checkBox.checkStateChanged.connect(self.stateChanged)
@@ -489,6 +506,13 @@ class BoolParameter(Parameter[bool]):
         @pyqtSlot(Qt.CheckState)
         def stateChanged(self, state):
             self.param.set(state == Qt.CheckState.Checked)
+
+        @pyqtSlot(object)
+        def onParamChanged(self, isChecked: bool):
+            with QSignalBlocker(self.checkBox):
+                self.checkBox.setCheckState(
+                    Qt.CheckState.Checked if isChecked else Qt.CheckState.Unchecked
+                )
 
 
 class EnumParameter(Parameter[Enum]):
@@ -542,14 +566,13 @@ class EnumParameter(Parameter[Enum]):
         def __init__(self, param: "EnumParameter", parent=None):
             super().__init__(parent)
             self.param = param
+            self.param.sigParameterChanged.connect(self.onParamChanged)
             self.comboBox = QComboBox(self)
 
             self.comboBox.addItems(param.enumNames)
-
-            self.comboBox.setCurrentIndex(
-                list(self.param.enumType).index(self.param.get())
-            )
+            self.refreshComboBox()
             self.comboBox.currentIndexChanged.connect(self.enumSelectionChanged)
+
             paramLayout = paramLayoutDefault()
             paramLayout.addWidget(self.comboBox)
             self.setLayout(paramLayout)
@@ -557,6 +580,16 @@ class EnumParameter(Parameter[Enum]):
         def enumSelectionChanged(self, index):
             enumMember = list(self.param.enumType)[index]
             self.param.set(enumMember)
+
+        def refreshComboBox(self):
+            self.comboBox.setCurrentIndex(
+                list(self.param.enumType).index(self.param.value)
+            )
+
+        @pyqtSlot(object)
+        def onParamChanged(self, value):
+            with QSignalBlocker(self.comboBox):
+                self.refreshComboBox()
 
 
 class ColorParameter(Parameter[QColor]):
@@ -652,10 +685,10 @@ class ImageParameter(Parameter[VardaRaster]):
             self.param = param
             self.imageList = param.imageProvider()
             self.comboBox = QComboBox(self)
-            if len(self.imageList) == 0:
-                self.comboBox.addItem("No Images Available!")
-            else:
-                self.comboBox.addItems([image.name for image in self.imageList])
+            assert len(self.imageList) != 0, (
+                "Image Parameter requires at least 1 available image!"
+            )
+            self.comboBox.addItems([image.name for image in self.imageList])
             self.comboBox.currentIndexChanged.connect(self.imageSelectionChanged)
 
             paramLayout = paramLayoutDefault()
