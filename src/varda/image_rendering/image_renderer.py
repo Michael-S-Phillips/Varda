@@ -43,7 +43,7 @@ class RendererSettings:
             image=image,
             mode="mono",
             bands=image.defaultBands,
-            stretch=stretchAlgorithmRegistry["Min-Max (Full Range)"](),
+            stretch=stretchAlgorithmRegistry["Min-Max (Auto Full Range)"](),
             colorMap=pg.ColorMap(None, color=[0.0, 1.0]),  # simple black to white map
             opacity=1.0,
         )

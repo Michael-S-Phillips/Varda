@@ -1,12 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 a = Analysis(
     ['src/varda/main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=collect_data_files('rasterio') + collect_data_files('pyproj'), # bundles GDAL data shipped in rasterio (and data from pyproj)
     hiddenimports=collect_submodules('rasterio'),
     hookspath=[],
     hooksconfig={},
