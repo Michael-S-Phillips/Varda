@@ -372,6 +372,10 @@ class Vec2Parameter(Parameter[Vec2]):
         self,
         name: str,
         default: Vec2 | None = None,
+        range: tuple[Vec2, Vec2] = (
+            Vec2(-100000.0, 100000.0),
+            Vec2(-100000.0, 100000.0),
+        ),
         valueNames: tuple[str, str] = ("X", "Y"),
         description=None,
         parent=None,
@@ -379,6 +383,7 @@ class Vec2Parameter(Parameter[Vec2]):
         if default is None:
             default = Vec2.zero()
         super().__init__(name, default, description, parent)
+        self.range = range
         self.valueNames = valueNames
 
     def getWidget(self, parent=None) -> QWidget:
@@ -388,6 +393,7 @@ class Vec2Parameter(Parameter[Vec2]):
         return Vec2Parameter(
             self.name,
             self.default,
+            self.range,
             self.valueNames,
             self.description,
             parent,
@@ -401,15 +407,15 @@ class Vec2Parameter(Parameter[Vec2]):
 
             paramLayout = paramLayoutDefault()
             self.xSpinBox = QDoubleSpinBox(parent=self)
-            self.xSpinBox.setRange(-100000, 100000)
-
+            self.xSpinBox.setRange(self.param.range[0].x, self.param.range[0].y)
             self.xSpinBox.setValue(self.param.get().x)
             self.xSpinBox.valueChanged.connect(self.onXChanged)
+
             paramLayout.addWidget(QLabel(self.param.valueNames[0]))
             paramLayout.addWidget(self.xSpinBox)
 
             self.ySpinBox = QDoubleSpinBox(parent=self)
-            self.ySpinBox.setRange(-100000, 100000)
+            self.ySpinBox.setRange(self.param.range[1].x, self.param.range[1].y)
             self.ySpinBox.setValue(self.param.get().y)
             self.ySpinBox.valueChanged.connect(self.onYChanged)
             paramLayout.addWidget(QLabel(self.param.valueNames[1]))
