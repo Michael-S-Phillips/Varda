@@ -158,9 +158,8 @@ if __name__ == "__main__":
     image = varda.utilities.debug.generate_random_image((100, 100, 10), (10, 10, 10))
     renderSettings = RendererSettings.new(image)
     renderSettings.bands = np.array([0, 1, 2])
-    settingsPanel = RendererSettingsPanel(image, renderSettings)
     renderer = ImageRenderer(image, renderSettings)
-    settingsPanel.sigSettingsChanged.connect(renderer.updateSettings)
+    settingsPanel = renderer.getSettingsPanel()
 
     view = NewHistogramView(renderer)
     renderer.sigShouldRefresh.connect(view._updateHistogram)

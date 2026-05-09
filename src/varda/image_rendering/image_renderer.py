@@ -140,15 +140,17 @@ class ImageRenderer(QObject):
         # profile.total("Complete Image Render")
         return rgba
 
-    def getStretchedData(self):
+    def getStretchedData(self) -> np.ndarray:
         if self._stretchedData is None:
             self.render()
+        assert self._stretchedData is not None
         return self._stretchedData
 
-    def getRawBandData(self):
+    def getRawBandData(self) -> np.ndarray:
         # Extract the raster data for the specified band
         if self._rawBandData is None:
             self.render()
+        assert self._rawBandData is not None
         return self._rawBandData
 
     def getMinMaxValues(self):

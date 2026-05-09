@@ -20,9 +20,8 @@ logger = logging.getLogger(__name__)
 class MainGUI(QModelMainWindow):
     def __init__(self, app: VardaApplication):
         super().__init__(app)
-
         self.setWindowTitle("Varda")
-        self.setWindowIcon(QIcon("resources/logo.svg"))
+
         self.app = app
         self.childWindows: list[QWidget] = []
 

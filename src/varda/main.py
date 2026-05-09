@@ -6,8 +6,9 @@ This module initializes all the core components of Varda right away, and then st
 import sys
 
 import pyqtgraph as pg
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QIcon
 from PyQt6.QtWidgets import QApplication, QSplashScreen
+from PyQt6.QtCore import QSize
 
 import varda
 from varda._actions import MENUBAR
@@ -15,12 +16,25 @@ from varda.app import VardaApplication
 from varda.maingui import MainGUI
 
 
+import ctypes
+
+if sys.platform == "win32":
+    # this "registers" varda as its own unique application, which lets it use its own icon for the taskbar, instead of the generic python icon
+    appid = "varda.0.1.0"
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(appid)
+
+ICON_PATH = "resources/logo.svg"
+
+
 def initVarda() -> None:
     """Initialize and start the Varda application."""
 
     q_app = QApplication(sys.argv)
     q_app.setApplicationName("Varda")
-    splash = QSplashScreen(QPixmap("resources/logo.svg"))
+    app_icon = QIcon()
+    app_icon.addFile(ICON_PATH, QSize(16, 16))
+    q_app.setWindowIcon(app_icon)
+    splash = QSplashScreen(QPixmap(ICON_PATH))
     splash.show()
     q_app.processEvents()
 
