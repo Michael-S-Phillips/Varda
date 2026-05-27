@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 class RegionController(QObject):
     dragSpeed: float = 0.5  # Speed multiplier for drag events
+    zoomFactor: float = 1.2  # ROI scale change per wheel notch (120 units)
+    minRoiSize: float = 4.0  # Smallest allowed ROI dimension, in source pixels
 
     def __init__(
         self,
@@ -62,6 +64,11 @@ class RegionController(QObject):
             return False
 
         etype = ev.type()
+
+        # zoom (mouse wheel / trackpad two-finger scroll)
+        if etype == QEvent.Type.GraphicsSceneWheel:
+            self._handleZoom(ev)
+            return True  # Accept the event so the ViewBox doesn't also handle it
 
         # drag START
         if (
@@ -160,6 +167,57 @@ class RegionController(QObject):
 
         # Update ROI position
         self.displayROI.setPos(newRoiPos)
+        self.onRegionChanged()
+
+    def _handleZoom(self, ev):
+        """Zoom by resizing the ROI, anchored at the cursor.
+
+        Scrolling up shrinks the ROI (the target viewport shows a smaller region,
+        i.e. zooms in); scrolling down grows it. Works for both the mouse wheel and
+        trackpad two-finger scroll, which arrive as GraphicsSceneWheel events.
+        """
+        delta = ev.delta()
+        if delta == 0:
+            return
+
+        # delta > 0 (scroll up) -> scale < 1 -> smaller ROI -> zoom in.
+        scale = self.zoomFactor ** (-delta / 120.0)
+
+        roiPos = self.displayROI.pos()
+        roiSize = self.displayROI.size()
+        bounds = self.displayROI.maxBounds
+
+        # Where the cursor sits within the current ROI (normalised 0..1), so we can
+        # keep that point fixed while zooming. The target view is ranged to the ROI
+        # region, so a fraction of the view maps to the same fraction of the ROI.
+        targetViewRect = self.targetViewport.viewBox.viewRect()
+        cursorView = self.targetViewport.viewBox.mapToView(ev.pos())
+        fracX = (cursorView.x() - targetViewRect.left()) / targetViewRect.width()
+        fracY = (cursorView.y() - targetViewRect.top()) / targetViewRect.height()
+        fracX = max(0.0, min(1.0, fracX))
+        fracY = max(0.0, min(1.0, fracY))
+
+        # Scale both axes equally to preserve aspect ratio, clamped so the ROI
+        # neither grows past its bounds nor shrinks below the minimum size.
+        maxScale = min(bounds.width() / roiSize.x(), bounds.height() / roiSize.y())
+        minScale = max(self.minRoiSize / roiSize.x(), self.minRoiSize / roiSize.y())
+        scale = max(minScale, min(scale, maxScale))
+
+        newWidth = roiSize.x() * scale
+        newHeight = roiSize.y() * scale
+
+        # Keep the cursor's anchor point fixed in source coordinates.
+        anchorX = roiPos.x() + fracX * roiSize.x()
+        anchorY = roiPos.y() + fracY * roiSize.y()
+        newX = anchorX - fracX * newWidth
+        newY = anchorY - fracY * newHeight
+
+        # Constrain to bounds.
+        newX = max(bounds.left(), min(newX, bounds.right() - newWidth))
+        newY = max(bounds.top(), min(newY, bounds.bottom() - newHeight))
+
+        self.displayROI.setSize([newWidth, newHeight], update=False)
+        self.displayROI.setPos([newX, newY])
         self.onRegionChanged()
 
     def _convertDragToSourceCoordinates(self, targetDrag: QPointF) -> QPointF:
