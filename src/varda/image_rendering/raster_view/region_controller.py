@@ -32,11 +32,16 @@ class RegionController(QObject):
         self.displayROI = roi
         self._updateRoiBounds()
 
+        # Guard against re-entrant updates while we reposition the ROI ourselves.
+        self._updatingFromSource = False
+
         # setup roi
         self.sourceViewport.addItem(self.displayROI)
         self.displayROI.sigRegionChanged.connect(self.onRegionChanged)
-        self.sourceViewport.sigImageChanged.connect(self.onRegionChanged)
-        self.targetViewport.sigImageChanged.connect(self._updateRoiBounds)
+        # When the source viewport shows a different region (e.g. it is itself the
+        # target of a parent controller that zoomed/panned), keep the ROI anchored
+        # to the same absolute image coordinates and refresh its bounds.
+        self.sourceViewport.sigImageChanged.connect(self._onSourceRegionChanged)
         # Initialize drag state variables
         self._dragStartScenePos = None
         self._isNavigating = False
@@ -240,11 +245,56 @@ class RegionController(QObject):
         return targetDrag
 
     def onRegionChanged(self):
-        """Handle changes to the ROI region."""
+        """Handle changes to the ROI region driven by the displayROI (local coords)."""
+        # Skip while we're repositioning the ROI from absolute coords ourselves;
+        # the absolute region is unchanged in that case, so there's nothing to push.
+        if self._updatingFromSource:
+            return
         # Update the absolute ROI based on the display ROI changes
         self._calculateAbsoluteROI()
         # Set the absolute ROI on the target viewport
         self.targetViewport.imageItem.setROI(self.internalROI)
+
+    def _onSourceRegionChanged(self):
+        """Handle the source viewport emitting a new image.
+
+        This fires both when the source pans/zooms (its coordinate system changes)
+        and when its render data changes (band/stretch). The displayROI is anchored
+        to absolute image coordinates, so we re-derive its local position to keep it
+        covering the same absolute region, then re-push that region to the target so
+        it re-extracts from the source's (possibly new) render data.
+        """
+        self._updateRoiBounds()
+        self._repositionDisplayROIFromAbsolute()
+        self.onRegionChanged()
+
+    def _repositionDisplayROIFromAbsolute(self):
+        """Move/resize the displayROI so it still covers self.internalROI.
+
+        Converts the persisted absolute image coordinates back into the source
+        viewport's (possibly changed) local coordinates.
+        """
+        if self.internalROI is None:
+            return
+
+        absPoints = [(float(x), float(y)) for x, y in self.internalROI.points]
+        localPoints = np.asarray(
+            self.sourceViewport.imageItem.imageToLocal(absPoints), dtype=float
+        )
+        if localPoints.size == 0:
+            return
+
+        xMin, yMin = localPoints[:, 0].min(), localPoints[:, 1].min()
+        xMax, yMax = localPoints[:, 0].max(), localPoints[:, 1].max()
+
+        # Apply without triggering the forward (local -> absolute) recompute, so
+        # the anchored absolute region stays the source of truth.
+        self._updatingFromSource = True
+        try:
+            self.displayROI.setSize([xMax - xMin, yMax - yMin], update=False)
+            self.displayROI.setPos(QPointF(xMin, yMin))
+        finally:
+            self._updatingFromSource = False
 
     def _updateRoiBounds(self):
         """Update the ROI bounds based on the source viewport image item"""
