@@ -157,6 +157,89 @@ class TestROICollectionUserColumns:
         with pytest.raises(ValueError, match="already exists"):
             collection.addColumn("material")
 
+    def test_user_columns_property(self, collection: ROICollection) -> None:
+        assert collection.userColumns == []
+        collection.addColumn("material")
+        collection.addColumn("notes")
+        assert collection.userColumns == ["material", "notes"]
+
+    def test_add_column_strips_and_rejects_empty(
+        self, collection: ROICollection
+    ) -> None:
+        collection.addColumn("  notes  ")
+        assert collection.userColumns == ["notes"]
+        with pytest.raises(ValueError, match="empty"):
+            collection.addColumn("   ")
+
+    def test_add_column_rejects_reserved(self, collection: ROICollection) -> None:
+        with pytest.raises(ValueError, match="reserved"):
+            collection.addColumn("geometry")
+
+    def test_add_column_emits_columns_changed(self, collection: ROICollection) -> None:
+        received: list[int] = []
+        collection.sigColumnsChanged.connect(lambda: received.append(1))
+        collection.addColumn("notes")
+        assert received == [1]
+
+    def test_new_roi_backfills_existing_column(
+        self, collection: ROICollection, sample_polygon: Polygon
+    ) -> None:
+        collection.addColumn("notes")
+        fid = collection.addROI(sample_polygon, "ROI 1", RED, ROIMode.RECTANGLE)
+        # New ROI gets an empty value rather than NaN for the existing column.
+        assert collection.getProperty(fid, "notes") == ""
+
+    def test_remove_column(
+        self, collection: ROICollection, sample_polygon: Polygon
+    ) -> None:
+        fid = collection.addROI(sample_polygon, "ROI 1", RED, ROIMode.RECTANGLE)
+        collection.addColumn("notes", default="hi")
+        collection.removeColumn("notes")
+        assert collection.userColumns == []
+        assert "notes" not in collection.getROI(fid).properties
+
+    def test_remove_column_rejects_core(self, collection: ROICollection) -> None:
+        with pytest.raises(ValueError, match="core column"):
+            collection.removeColumn("name")
+
+    def test_remove_nonexistent_column(self, collection: ROICollection) -> None:
+        with pytest.raises(KeyError):
+            collection.removeColumn("missing")
+
+    def test_remove_column_emits_columns_changed(
+        self, collection: ROICollection
+    ) -> None:
+        collection.addColumn("notes")
+        received: list[int] = []
+        collection.sigColumnsChanged.connect(lambda: received.append(1))
+        collection.removeColumn("notes")
+        assert received == [1]
+
+    def test_rename_column_preserves_values(
+        self, collection: ROICollection, sample_polygon: Polygon
+    ) -> None:
+        fid = collection.addROI(sample_polygon, "ROI 1", RED, ROIMode.RECTANGLE)
+        collection.addColumn("notes")
+        collection.setProperty(fid, "notes", "important")
+        collection.renameColumn("notes", "comments")
+        assert collection.userColumns == ["comments"]
+        assert collection.getProperty(fid, "comments") == "important"
+
+    def test_rename_column_rejects_core(self, collection: ROICollection) -> None:
+        collection.addColumn("notes")
+        with pytest.raises(ValueError, match="core column"):
+            collection.renameColumn("name", "notes")
+
+    def test_rename_column_rejects_duplicate(self, collection: ROICollection) -> None:
+        collection.addColumn("notes")
+        collection.addColumn("comments")
+        with pytest.raises(ValueError, match="already exists"):
+            collection.renameColumn("notes", "comments")
+
+    def test_rename_nonexistent_column(self, collection: ROICollection) -> None:
+        with pytest.raises(KeyError):
+            collection.renameColumn("missing", "other")
+
 
 class TestROICollectionSignals:
     def test_add_signal(

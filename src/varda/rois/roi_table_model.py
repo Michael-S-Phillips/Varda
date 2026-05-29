@@ -29,6 +29,7 @@ class ROITableModel(QAbstractTableModel):
         collection.sigROIAdded.connect(self._onChanged)
         collection.sigROIRemoved.connect(self._onChanged)
         collection.sigROIUpdated.connect(self._onChanged)
+        collection.sigColumnsChanged.connect(self._onChanged)
 
     @property
     def collection(self) -> ROICollection:
@@ -131,12 +132,19 @@ class ROITableModel(QAbstractTableModel):
             return self._roiCache[row].fid
         return None
 
+    def userColumnAt(self, section: int) -> str | None:
+        """Return the user column name at a header section, or None if fixed."""
+        userCols = self._dynamicColumns()
+        idx = section - len(_FIXED_COLUMNS)
+        if 0 <= idx < len(userCols):
+            return userCols[idx]
+        return None
+
     # --- Internal ---
 
     def _dynamicColumns(self) -> list[str]:
-        """Return names of user-added columns (non-core, non-geometry)."""
-        core = {"name", "color", "roi_type", "geometry"}
-        return [c for c in self._collection.gdf.columns if c not in core]
+        """Return names of user-added columns"""
+        return self._collection.userColumns
 
     def _refreshCache(self) -> None:
         self._roiCache = self._collection.getAllROIs()

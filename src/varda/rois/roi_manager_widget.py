@@ -10,6 +10,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QPushButton,
+    QInputDialog,
+    QMessageBox,
 )
 
 from varda.rois.roi_collection import ROICollection
@@ -41,6 +43,9 @@ class ROIManagerWidget(QWidget):
         self._deleteBtn = QPushButton("Delete Selected")
         self._deleteBtn.clicked.connect(self._deleteSelected)
 
+        self._addColumnBtn = QPushButton("Add Column...")
+        self._addColumnBtn.clicked.connect(self._addColumn)
+
         self._exportBtn = QPushButton("Export...")
         self._exportBtn.clicked.connect(self._exportCollection)
 
@@ -51,6 +56,7 @@ class ROIManagerWidget(QWidget):
         # Layout
         btnRow = QHBoxLayout()
         btnRow.addWidget(self._deleteBtn)
+        btnRow.addWidget(self._addColumnBtn)
         btnRow.addWidget(self._exportBtn)
         btnRow.addWidget(self._plotBtn)
         btnRow.addStretch()
@@ -97,6 +103,15 @@ class ROIManagerWidget(QWidget):
         fid = self.selectedFid()
         if fid is not None:
             self._collection.removeROI(fid)
+
+    def _addColumn(self) -> None:
+        name, ok = QInputDialog.getText(self, "Add Column", "Column name:")
+        if not ok or not name.strip():
+            return
+        try:
+            self._collection.addColumn(name)
+        except ValueError as e:
+            QMessageBox.warning(self, "Cannot Add Column", str(e))
 
     def _exportCollection(self) -> None:
         from PyQt6.QtWidgets import QFileDialog

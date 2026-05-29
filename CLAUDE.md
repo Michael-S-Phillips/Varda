@@ -8,34 +8,9 @@ Varda is a PyQt6 desktop application for visualizing and analyzing hyperspectral
 
 Right now, there are some systems that are in an incomplete state and should generally be ignored for now. This includes the plugin system, and image processing system.
 
-## Commands
-
-```bash
-# Install dependencies
-uv sync
-
-# Run the application
-uv run varda
-
-# Run all tests
-uv run pytest
-
-# Run a single test file
-uv run pytest tests/test_core/test_entities.py
-
-# Run a specific test
-uv run pytest tests/test_core/test_entities.py::TestClassName::test_method
-
-# Format code
-uv run ruff format src/
-
-# Check formatting (without modifying)
-uv run ruff check src/
-
-# Type checking
-uv run mypy src/
-```
-
+## Dev Tools
+uv used for package management. ruff for formatting. ty for static type checking. pytest for unit testing.
+When using Astral tools (uv, ty, ruff), invoke the relevant /astral:<skill> to ensure best practices are followed.
 ## Architecture
 
 ### Entry Point and Application Bootstrap

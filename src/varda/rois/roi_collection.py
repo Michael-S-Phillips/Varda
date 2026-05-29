@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 # Core columns in the GeoDataFrame (besides the geometry column)
 _CORE_COLUMNS = ("name", "color", "roi_type")
+# Columns that users cannot add, remove, or rename.
+_RESERVED_COLUMNS = frozenset({*_CORE_COLUMNS, "geometry"})
 
 
 class ROICollection:
@@ -29,16 +31,18 @@ class ROICollection:
     Each row is an ROI feature. Geometry is stored in CRS coordinates when the
     source image is georeferenced, or in pixel coordinates otherwise.
 
-    Signals (psygnal, Qt-free):
+    Signals:
         sigROIAdded(int): emitted with fid after an ROI is added.
         sigROIRemoved(int): emitted with fid after an ROI is removed.
         sigROIUpdated(int): emitted with fid after an ROI is updated.
+        sigColumnsChanged(): emitted after a user column is added/removed/renamed.
         sigCollectionChanged(): emitted on any structural change.
     """
 
     sigROIAdded = Signal(int)
     sigROIRemoved = Signal(int)
     sigROIUpdated = Signal(int)
+    sigColumnsChanged = Signal()
     sigCollectionChanged = Signal()
 
     def __init__(
@@ -78,6 +82,10 @@ class ROICollection:
             "geometry": geometry,
         }
         row.update(properties)
+        # Backfill existing user columns so a new ROI gets an empty value
+        # instead of NaN when a column was added before it.
+        for column in self.userColumns:
+            row.setdefault(column, "")
 
         new_row = gpd.GeoDataFrame(
             [row],
@@ -85,7 +93,7 @@ class ROICollection:
             geometry="geometry",
             crs=self._crs,
         )
-        self._gdf = pd.concat([self._gdf, new_row])
+        self._gdf: pd.DataFrame = pd.concat([self._gdf, new_row])
 
         self.sigROIAdded.emit(fid)
         self.sigCollectionChanged.emit()
@@ -116,7 +124,7 @@ class ROICollection:
         if fid not in self._gdf.index:
             raise KeyError(f"No ROI with fid={fid}")
         for key, value in kwargs.items():
-            if key not in (*_CORE_COLUMNS, "geometry"):
+            if key not in _RESERVED_COLUMNS:
                 raise ValueError(
                     f"'{key}' is not a core ROI property. "
                     "Use setProperty() for user columns."
@@ -131,17 +139,56 @@ class ROICollection:
 
     # --- User metadata columns ---
 
-    def addColumn(self, name: str, default=None) -> None:
+    @property
+    def userColumns(self) -> list[str]:
+        """Names of user-defined metadata columns"""
+        return [c for c in self._gdf.columns if c not in _RESERVED_COLUMNS]
+
+    def addColumn(self, name: str, default: str = "") -> None:
         """Add a user-defined metadata column to all ROIs."""
+        name = name.strip().lower()
+        if not name:
+            raise ValueError("Column name cannot be empty")
+        if name in _RESERVED_COLUMNS:
+            raise ValueError(f"'{name}' is a reserved column name")
         if name in self._gdf.columns:
             raise ValueError(f"Column '{name}' already exists")
         self._gdf[name] = default
+        self.sigColumnsChanged.emit()
+        self.sigCollectionChanged.emit()
+
+    def removeColumn(self, name: str) -> None:
+        """Remove a user-defined metadata column and all its values."""
+        if name in _RESERVED_COLUMNS:
+            raise ValueError(f"'{name}' is a core column and cannot be removed")
+        if name not in self._gdf.columns:
+            raise KeyError(f"No column '{name}'")
+        self._gdf = self._gdf.drop(columns=name)
+        self.sigColumnsChanged.emit()
+        self.sigCollectionChanged.emit()
+
+    def renameColumn(self, oldName: str, newName: str) -> None:
+        """Rename a user-defined metadata column, preserving its values."""
+        newName = newName.strip()
+        if oldName in _RESERVED_COLUMNS:
+            raise ValueError(f"'{oldName}' is a core column and cannot be renamed")
+        if oldName not in self._gdf.columns:
+            raise KeyError(f"No column '{oldName}'")
+        if not newName:
+            raise ValueError("Column name cannot be empty")
+        if newName in _RESERVED_COLUMNS:
+            raise ValueError(f"'{newName}' is a reserved column name")
+        if newName != oldName and newName in self._gdf.columns:
+            raise ValueError(f"Column '{newName}' already exists")
+        self._gdf = self._gdf.rename(columns={oldName: newName})
+        self.sigColumnsChanged.emit()
+        self.sigCollectionChanged.emit()
 
     def setProperty(self, fid: int, column: str, value) -> None:
         """Set a user-defined property on an ROI."""
         if fid not in self._gdf.index:
             raise KeyError(f"No ROI with fid={fid}")
-        if column in (*_CORE_COLUMNS, "geometry"):
+        if column in _RESERVED_COLUMNS:
             raise ValueError(f"'{column}' is a core column. Use updateROI() instead.")
         self._gdf.at[fid, column] = value
         self.sigROIUpdated.emit(fid)
