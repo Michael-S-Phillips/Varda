@@ -38,15 +38,11 @@ class ViewportLinkController(QObject):
         self._viewport2 = viewport2
         self._linkMode = linkMode
 
-        # sigRangeChangedManually only fires on user interaction (mouse drag,
-        # scroll wheel), NOT on programmatic setRange() calls, so there is no
-        # risk of infinite recursion.
-        self._viewport1.viewBox.sigRangeChangedManually.connect(
-            self._onViewport1Changed
-        )
-        self._viewport2.viewBox.sigRangeChangedManually.connect(
-            self._onViewport2Changed
-        )
+        # sigViewRangeChangedManually only fires when a user gesture pans/zooms the
+        # viewport's own view, NOT on programmatic setViewRange() calls, so syncing the
+        # other viewport can't trigger an infinite recursion.
+        self._viewport1.sigViewRangeChangedManually.connect(self._onViewport1Changed)
+        self._viewport2.sigViewRangeChangedManually.connect(self._onViewport2Changed)
 
     # --- Public API ---
 
@@ -54,12 +50,8 @@ class ViewportLinkController(QObject):
         self._linkMode = linkMode
 
     def cleanup(self) -> None:
-        self._viewport1.viewBox.sigRangeChangedManually.disconnect(
-            self._onViewport1Changed
-        )
-        self._viewport2.viewBox.sigRangeChangedManually.disconnect(
-            self._onViewport2Changed
-        )
+        self._viewport1.sigViewRangeChangedManually.disconnect(self._onViewport1Changed)
+        self._viewport2.sigViewRangeChangedManually.disconnect(self._onViewport2Changed)
 
     # --- Slots ---
     def _onViewport1Changed(self) -> None:

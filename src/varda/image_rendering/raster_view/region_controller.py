@@ -1,8 +1,7 @@
 import logging
 
 import numpy as np
-from PyQt6.QtCore import QObject, QEvent, Qt, QPointF
-from PyQt6.QtWidgets import QGraphicsRectItem
+from PyQt6.QtCore import QObject, QPointF
 
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.rois.varda_roi import VardaROIItem
@@ -11,8 +10,18 @@ logger = logging.getLogger(__name__)
 
 
 class RegionController(QObject):
+    """Drives what a target viewport shows from an ROI placed on a source viewport.
+
+    A `displayROI` lives on the source viewport; its region (in absolute image
+    coordinates, tracked as `internalROI`) is pushed to the target viewport via
+    `showRegion`. Navigating the target viewport (the target has self-navigation
+    disabled) pans/zooms the ROI instead of the target's own view:
+
+      - panning the target moves the ROI on the source,
+      - zooming the target resizes the ROI on the source.
+    """
+
     dragSpeed: float = 0.5  # Speed multiplier for drag events
-    zoomFactor: float = 1.2  # ROI scale change per wheel notch (120 units)
     minRoiSize: float = 4.0  # Smallest allowed ROI dimension, in source pixels
 
     def __init__(
@@ -34,6 +43,8 @@ class RegionController(QObject):
 
         # Guard against re-entrant updates while we reposition the ROI ourselves.
         self._updatingFromSource = False
+        # ROI position captured at the start of a pan gesture.
+        self._initialRoiPos = None
 
         # setup roi
         self.sourceViewport.addItem(self.displayROI)
@@ -42,171 +53,52 @@ class RegionController(QObject):
         # target of a parent controller that zoomed/panned), keep the ROI anchored
         # to the same absolute image coordinates and refresh its bounds.
         self.sourceViewport.sigImageChanged.connect(self._onSourceRegionChanged)
-        # Initialize drag state variables
-        self._dragStartScenePos = None
-        self._isNavigating = False
-        self._initialRoiPos = None
 
-        self.enableNavigation()
+        # Navigation of the target viewport drives the ROI rather than the target's view.
+        self.targetViewport.sigPanStarted.connect(self._onPanStarted)
+        self.targetViewport.sigPanned.connect(self._onPanned)
+        self.targetViewport.sigZoomed.connect(self._onZoomed)
+
         self.onRegionChanged()
 
-    def enableNavigation(self):
-        """Enable navigation mode for the viewport"""
-        self.targetViewport.viewBox.installEventFilter(self)
+    # --- Navigation gesture handlers ---
 
-    def disableNavigation(self):
-        """Disable navigation mode for the viewport"""
-        self.targetViewport.viewBox.removeEventFilter(self)
-        self._resetDragState()
-
-    def eventFilter(self, obj, ev):
-        """
-        Treat a Graphics-scene mouse-press / move / release triplet
-        as a "drag" and update the ROI accordingly.
-        """
-        # We only care about events that hit *our* ViewBox
-        if obj is not self.targetViewport.viewBox:
-            return False
-
-        etype = ev.type()
-
-        # zoom (mouse wheel / trackpad two-finger scroll)
-        if etype == QEvent.Type.GraphicsSceneWheel:
-            self._handleZoom(ev)
-            return True  # Accept the event so the ViewBox doesn't also handle it
-
-        # drag START
-        if (
-            etype == QEvent.Type.GraphicsSceneMousePress
-            and ev.button() == Qt.MouseButton.LeftButton
-            and ev.modifiers() == Qt.KeyboardModifier.NoModifier
-        ):
-            # Get click position in scene coordinates
-            targetScenePos = self.targetViewport.viewBox.mapToView(ev.pos())
-
-            # abort if we clicked on any items other than the ViewBox/ImageItem/BackgroundRect
-            items = self.targetViewport.viewBox.scene().items(ev.scenePos())
-            if items:
-                for item in items:
-                    if (
-                        isinstance(item, QGraphicsRectItem)
-                        or item is self.targetViewport.imageItem
-                        or item is self.targetViewport.viewBox
-                    ):
-                        continue
-                    else:
-                        return False
-
-            # No items are in the way, so we can start dragging
-            self._isNavigating = True
-            self._dragStartScenePos = targetScenePos
-            self._initialRoiPos = self.displayROI.pos()
-
-            return True  # Accept the event for navigation
-
-        # drag MOVE
-        if etype == QEvent.Type.GraphicsSceneMouseMove and self._isNavigating:
-            if ev.buttons() & Qt.MouseButton.LeftButton:
-                self._handleNavigationDrag(ev)
-                return True  # Accept the event
-
-        # drag END
-        if (
-            etype == QEvent.Type.GraphicsSceneMouseRelease
-            and self._isNavigating
-            and ev.button() == Qt.MouseButton.LeftButton
-        ):
-            self._handleNavigationEnd(ev)
-            self._resetDragState()
-            return True  # Accept the event
-
-        return False
-
-    def _resetDragState(self):
-        """Reset drag state variables"""
-        self._isNavigating = False
-        self._dragStartScenePos = None
+    def _onPanStarted(self, startView: QPointF):
+        """Capture the ROI position so the pan can be applied relative to it."""
         self._initialRoiPos = self.displayROI.pos()
 
-    def _handleNavigationEnd(self, ev):
-        """Handle end of navigation drag"""
-        # Reset the drag state
-        self._resetDragState()
-
-        # Emit a signal or perform any additional actions needed on drag end
-        self.onRegionChanged()
-        # This will update the viewport with the new ROI position
-
-    def _handleNavigationDrag(self, ev):
-        """Handle ongoing navigation drag"""
-        if (
-            not self._isNavigating
-            or not self._dragStartScenePos
-            or not self._initialRoiPos
-        ):
+    def _onPanned(self, currentView: QPointF, startView: QPointF):
+        """Move the ROI to follow a drag in the target viewport."""
+        if self._initialRoiPos is None:
             return
 
-        # Get current mouse position in target viewport coordinates
-        currentScenePos = self.targetViewport.viewBox.mapToView(ev.pos())
+        # Drag distance in target view coordinates, mapped to source coordinates.
+        dragDistance = (currentView - startView) * self.dragSpeed
+        sourceDrag = self._convertDragToSourceCoordinates(dragDistance)
 
-        # Calculate drag distance in target viewport coordinates
-        dragDistance = (currentScenePos - self._dragStartScenePos) * self.dragSpeed
-
-        # Map the drag distance to source viewport coordinates
-        # We need to account for the scale difference between viewports
-        source_drag_distance = self._convertDragToSourceCoordinates(dragDistance)
-
-        # Apply drag to ROI position (invert the drag for intuitive navigation)
-        newRoiPos = self._initialRoiPos - source_drag_distance
-
-        # Constrain to bounds
-        bounds = self.displayROI.maxBounds
-        roi_size = self.displayROI.size()
-
-        newRoiPos.setX(
-            max(bounds.left(), min(newRoiPos.x(), bounds.right() - roi_size.x()))
-        )
-        newRoiPos.setY(
-            max(bounds.top(), min(newRoiPos.y(), bounds.bottom() - roi_size.y()))
-        )
-
-        # Update ROI position
+        # Invert the drag for intuitive "grab the view" navigation.
+        newRoiPos = self._initialRoiPos - sourceDrag
+        self._clampPosToBounds(newRoiPos, self.displayROI.size())
         self.displayROI.setPos(newRoiPos)
         self.onRegionChanged()
 
-    def _handleZoom(self, ev):
-        """Zoom by resizing the ROI, anchored at the cursor.
+    def _onZoomed(self, scaleFactor: float, anchorFraction: QPointF):
+        """Resize the ROI about the cursor anchor to zoom the target viewport.
 
-        Scrolling up shrinks the ROI (the target viewport shows a smaller region,
-        i.e. zooms in); scrolling down grows it. Works for both the mouse wheel and
-        trackpad two-finger scroll, which arrive as GraphicsSceneWheel events.
+        `scaleFactor` < 1 shrinks the ROI (target shows a smaller region, i.e. zooms
+        in); `anchorFraction` is the cursor's normalised position within the ROI, kept
+        fixed so the zoom stays centred on the cursor.
         """
-        delta = ev.delta()
-        if delta == 0:
-            return
-
-        # delta > 0 (scroll up) -> scale < 1 -> smaller ROI -> zoom in.
-        scale = self.zoomFactor ** (-delta / 120.0)
-
         roiPos = self.displayROI.pos()
         roiSize = self.displayROI.size()
         bounds = self.displayROI.maxBounds
+        fracX, fracY = anchorFraction.x(), anchorFraction.y()
 
-        # Where the cursor sits within the current ROI (normalised 0..1), so we can
-        # keep that point fixed while zooming. The target view is ranged to the ROI
-        # region, so a fraction of the view maps to the same fraction of the ROI.
-        targetViewRect = self.targetViewport.viewBox.viewRect()
-        cursorView = self.targetViewport.viewBox.mapToView(ev.pos())
-        fracX = (cursorView.x() - targetViewRect.left()) / targetViewRect.width()
-        fracY = (cursorView.y() - targetViewRect.top()) / targetViewRect.height()
-        fracX = max(0.0, min(1.0, fracX))
-        fracY = max(0.0, min(1.0, fracY))
-
-        # Scale both axes equally to preserve aspect ratio, clamped so the ROI
-        # neither grows past its bounds nor shrinks below the minimum size.
+        # Scale both axes equally to preserve aspect ratio, clamped so the ROI neither
+        # grows past its bounds nor shrinks below the minimum size.
         maxScale = min(bounds.width() / roiSize.x(), bounds.height() / roiSize.y())
         minScale = max(self.minRoiSize / roiSize.x(), self.minRoiSize / roiSize.y())
-        scale = max(minScale, min(scale, maxScale))
+        scale = max(minScale, min(scaleFactor, maxScale))
 
         newWidth = roiSize.x() * scale
         newHeight = roiSize.y() * scale
@@ -214,21 +106,23 @@ class RegionController(QObject):
         # Keep the cursor's anchor point fixed in source coordinates.
         anchorX = roiPos.x() + fracX * roiSize.x()
         anchorY = roiPos.y() + fracY * roiSize.y()
-        newX = anchorX - fracX * newWidth
-        newY = anchorY - fracY * newHeight
-
-        # Constrain to bounds.
-        newX = max(bounds.left(), min(newX, bounds.right() - newWidth))
-        newY = max(bounds.top(), min(newY, bounds.bottom() - newHeight))
+        newPos = QPointF(anchorX - fracX * newWidth, anchorY - fracY * newHeight)
+        self._clampPosToBounds(newPos, QPointF(newWidth, newHeight))
 
         self.displayROI.setSize([newWidth, newHeight], update=False)
-        self.displayROI.setPos([newX, newY])
+        self.displayROI.setPos(newPos)
         self.onRegionChanged()
+
+    def _clampPosToBounds(self, pos: QPointF, size: QPointF):
+        """Clamp an ROI position (in place) so the ROI stays within maxBounds."""
+        bounds = self.displayROI.maxBounds
+        pos.setX(max(bounds.left(), min(pos.x(), bounds.right() - size.x())))
+        pos.setY(max(bounds.top(), min(pos.y(), bounds.bottom() - size.y())))
 
     def _convertDragToSourceCoordinates(self, targetDrag: QPointF) -> QPointF:
         """Convert drag distance from target viewport to source viewport coordinates"""
-        target_view_rect = self.targetViewport.viewBox.viewRect()
-        source_view_rect = self.sourceViewport.viewBox.viewRect()
+        target_view_rect = self.targetViewport.viewRect()
+        source_view_rect = self.sourceViewport.viewRect()
 
         # Calculate separate scale factors for X and Y
         if (
@@ -244,6 +138,8 @@ class RegionController(QObject):
 
         return targetDrag
 
+    # --- Region sync ---
+
     def onRegionChanged(self):
         """Handle changes to the ROI region driven by the displayROI (local coords)."""
         # Skip while we're repositioning the ROI from absolute coords ourselves;
@@ -253,7 +149,7 @@ class RegionController(QObject):
         # Update the absolute ROI based on the display ROI changes
         self._calculateAbsoluteROI()
         # Set the absolute ROI on the target viewport
-        self.targetViewport.imageItem.setROI(self.internalROI)
+        self.targetViewport.showRegion(self.internalROI)
 
     def _onSourceRegionChanged(self):
         """Handle the source viewport emitting a new image.
@@ -279,7 +175,7 @@ class RegionController(QObject):
 
         absPoints = [(float(x), float(y)) for x, y in self.internalROI.points]
         localPoints = np.asarray(
-            self.sourceViewport.imageItem.imageToLocal(absPoints), dtype=float
+            self.sourceViewport.imageToLocal(absPoints), dtype=float
         )
         if localPoints.size == 0:
             return
@@ -298,7 +194,7 @@ class RegionController(QObject):
 
     def _updateRoiBounds(self):
         """Update the ROI bounds based on the source viewport image item"""
-        self.displayROI.maxBounds = self.sourceViewport.imageItem.boundingRect()
+        self.displayROI.maxBounds = self.sourceViewport.imageBounds()
 
     def _calculateAbsoluteROI(self):
         """
@@ -307,11 +203,7 @@ class RegionController(QObject):
         absolutePoints = []
 
         for x, y in self.displayROI.roiEntity.points:
-            # scenePoint = self.displayROI.mapToScene(QPointF(point[0], point[1]))
-            # localImagePoint = self.sourceViewport.imageItem.mapFromScene(scenePoint)
-            absoluteImagePoint = self.sourceViewport.imageItem.localToImage(
-                QPointF(x, y)
-            )
+            absoluteImagePoint = self.sourceViewport.localToImage(QPointF(x, y))
             absolutePoints.append([absoluteImagePoint.x(), absoluteImagePoint.y()])
 
         # Create new ROI entity with absolute coordinates

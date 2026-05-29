@@ -19,11 +19,15 @@ class TripleRasterView(QWidget):
 
     def _initUI(self):
         self.viewport1 = ImageViewport(self.imageRenderer)
-        # only need to connect one first viewport, because others are linked via region controllers
+        # only need to connect one first viewport, because others are linked via region controllers.
+        # viewport2/3 are region-controller targets: navigating them drives the controlling
+        # ROI rather than their own view, so they don't self-update or self-navigate.
         self.viewport2 = ImageViewport(self.imageRenderer)
         self.viewport2.disableSelfUpdating()
+        self.viewport2.disableSelfNavigation()
         self.viewport3 = ImageViewport(self.imageRenderer)
         self.viewport3.disableSelfUpdating()
+        self.viewport3.disableSelfNavigation()
 
         # top-level layout
         verticalSplitter = QSplitter(Qt.Orientation.Vertical)

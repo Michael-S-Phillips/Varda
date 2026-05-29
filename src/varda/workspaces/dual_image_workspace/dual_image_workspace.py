@@ -117,12 +117,8 @@ class DualImageWorkspace(QMainWindow):
         self.secondarySettingsDock.setWidget(self.secondaryRenderer.getSettingsPanel())
 
     def _initSideBySide(self):
-        self.viewport1 = ImageViewport(
-            self.primaryRenderer, mouseEnabled=True, parent=self
-        )
-        self.viewport2 = ImageViewport(
-            self.secondaryRenderer, mouseEnabled=True, parent=self
-        )
+        self.viewport1 = ImageViewport(self.primaryRenderer, parent=self)
+        self.viewport2 = ImageViewport(self.secondaryRenderer, parent=self)
 
         self.toolManager1 = ToolManager(self.viewport1, self)
         self.toolManager2 = ToolManager(self.viewport2, self)
