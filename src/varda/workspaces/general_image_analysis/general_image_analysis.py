@@ -100,7 +100,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.roiCollection = ROICollection.fromImage(image)
 
         self.roiDisplayController = ROIDisplayController(
-            self.roiCollection, image, parent=self
+            self.roiCollection, parent=self
         )
         self.roiDisplayController.registerViewport(
             "viewport1", self.tripleRasterView.viewport1

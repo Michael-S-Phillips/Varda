@@ -15,9 +15,6 @@ from pyproj import CRS
 from shapely.geometry import mapping as shapely_mapping
 from shapely.geometry.base import BaseGeometry
 
-from PyQt6.QtGui import QColor
-import pyqtgraph as pg
-
 from varda.common.entities import ROIMode, Spectrum, VardaROI, VardaRaster, Color
 
 logger = logging.getLogger(__name__)
@@ -180,16 +177,15 @@ class ROICollection:
 
     # --- Coordinate conversion & masks ---
 
-    def getPixelCoordinates(self, fid: int, image: VardaRaster) -> np.ndarray:
+    def getPixelCoordinates(self, fid: int) -> np.ndarray:
         """Convert ROI geometry to pixel coordinates.
 
-        If the collection has a CRS (georeferenced), converts each vertex
-        via the image's ``geoToPixel()``. Otherwise the geometry is already
-        in pixel space.
+        If the collection is georeferenced (has a CRS), each vertex is converted
+        from CRS coordinates to pixel space using the collection's own affine
+        transform. Otherwise the geometry is already in pixel space.
 
         Args:
             fid: Feature ID.
-            image: A VardaRaster. Required when the collection has a CRS.
 
         Returns:
             Nx2 array of (col, row) pixel coordinates.
@@ -197,14 +193,14 @@ class ROICollection:
         if fid not in self._gdf.index:
             raise KeyError(f"No ROI with fid={fid}")
         geom = self._gdf.at[fid, "geometry"]
-        coords = np.array(geom.exterior.coords)  # Nx2 (x, y)
+        coords = np.array(geom.exterior.coords)[:, :2]  # Nx2 (x, y)
 
         if self._crs is not None:
-            pixel_coords = np.array([image.geoToPixel(x, y) for x, y in coords])
-            return pixel_coords
+            geoToPixel = ~self._transform
+            return np.array([geoToPixel * (x, y) for x, y in coords])
         else:
             # Already pixel coords: (col, row)
-            return coords[:, :2].astype(np.float64)
+            return coords.astype(np.float64)
 
     def getMask(self, fid: int, image: VardaRaster) -> np.ndarray:
         """Create a binary mask for an ROI in the image's pixel space.
@@ -218,7 +214,7 @@ class ROICollection:
         Returns:
             Boolean array of shape (height, width).
         """
-        pixel_coords = self.getPixelCoordinates(fid, image)
+        pixel_coords = self.getPixelCoordinates(fid)
         from shapely.geometry import Polygon as ShapelyPolygon
 
         pixel_polygon = ShapelyPolygon(pixel_coords)

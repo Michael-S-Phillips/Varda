@@ -27,11 +27,10 @@ class ROIDisplayController(QObject):
     displayUpdated = pyqtSignal()
 
     def __init__(
-        self, collection: ROICollection, image: Any, parent: QObject | None = None
+        self, collection: ROICollection, parent: QObject | None = None
     ) -> None:
         super().__init__(parent)
         self._collection = collection
-        self._image = image
 
         # {viewport_id: viewport_object}
         self._viewports: dict[str, ImageViewport] = {}
@@ -89,7 +88,7 @@ class ROIDisplayController(QObject):
 
     def _onROIAdded(self, fid: int) -> None:
         roi = self._collection.getROI(fid)
-        pixelCoords = self._collection.getPixelCoordinates(fid, self._image)
+        pixelCoords = self._collection.getPixelCoordinates(fid)
         for vid, viewport in self._viewports.items():
             localCoords = viewport.pixelToLocalCoords(pixelCoords)
             item = VardaROIGraphicsItem(roi, localCoords)
@@ -108,7 +107,7 @@ class ROIDisplayController(QObject):
 
     def _onROIUpdated(self, fid: int) -> None:
         roi = self._collection.getROI(fid)
-        pixelCoords = self._collection.getPixelCoordinates(fid, self._image)
+        pixelCoords = self._collection.getPixelCoordinates(fid)
         for vid, viewport in self._viewports.items():
             if fid in self._items[vid]:
                 localCoords = viewport.pixelToLocalCoords(pixelCoords)
@@ -122,7 +121,7 @@ class ROIDisplayController(QObject):
         viewport = self._viewports[viewportId]
         for fid, item in self._items[viewportId].items():
             roi = self._collection.getROI(fid)
-            pixelCoords = self._collection.getPixelCoordinates(fid, self._image)
+            pixelCoords = self._collection.getPixelCoordinates(fid)
             localCoords = viewport.pixelToLocalCoords(pixelCoords)
             item.updateData(roi, localCoords)
 
@@ -130,7 +129,7 @@ class ROIDisplayController(QObject):
         viewport = self._viewports[viewportId]
         for fid in self._collection.fids:
             roi = self._collection.getROI(fid)
-            pixelCoords = self._collection.getPixelCoordinates(fid, self._image)
+            pixelCoords = self._collection.getPixelCoordinates(fid)
             localCoords = viewport.pixelToLocalCoords(pixelCoords)
             item = VardaROIGraphicsItem(roi, localCoords)
             viewport.addItem(item)

@@ -4,7 +4,6 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from PyQt6.QtGui import QColor
 from shapely.geometry import Polygon, box
 
 from varda.common.entities import ROIMode, VardaROI, Color
@@ -13,6 +12,11 @@ from varda.rois.roi_collection import ROICollection
 RED = Color(1.0, 0.0, 0.0, 0.5)
 GREEN = Color(0.0, 1.0, 0.0, 0.5)
 BLUE = Color(0.0, 0.0, 1.0, 0.5)
+
+
+def _quantized(color: Color) -> Color:
+    """A color as it survives file storage (colors are persisted as 8-bit hex)."""
+    return Color.fromHexString(color.toHexString())
 
 
 @pytest.fixture
@@ -305,8 +309,10 @@ class TestFileIO:
     def test_geojson_round_trip(self, collection: ROICollection, tmp_path) -> None:
         poly1 = box(0, 0, 10, 10)
         poly2 = box(20, 20, 30, 30)
-        collection.addROI(poly1, "ROI A", RED, ROIMode.RECTANGLE)
-        collection.addROI(poly2, "ROI B", QColor(0, 255, 0, 200), ROIMode.POLYGON)
+        POLY1_COLOR = RED
+        collection.addROI(poly1, "ROI A", POLY1_COLOR, ROIMode.RECTANGLE)
+        POLY2_COLOR = Color(0, 1, 0, 0.8)
+        collection.addROI(poly2, "ROI B", POLY2_COLOR, ROIMode.POLYGON)
 
         path = str(tmp_path / "rois.geojson")
         collection.toFile(path)
@@ -315,15 +321,16 @@ class TestFileIO:
         assert len(loaded) == 2
         rois = loaded.getAllROIs()
         assert rois[0].name == "ROI A"
-        assert rois[0].color == RED
+        assert rois[0].color == _quantized(POLY1_COLOR)
         assert rois[0].roiType == ROIMode.RECTANGLE
         assert rois[0].geometry.equals(poly1)
         assert rois[1].name == "ROI B"
-        assert rois[1].color == QColor(0, 255, 0, 200)
+        assert rois[1].color == _quantized(POLY2_COLOR)
 
     def test_gpkg_round_trip(self, collection: ROICollection, tmp_path) -> None:
         poly = box(5, 5, 15, 15)
-        collection.addROI(poly, "Test", QColor(100, 100, 100, 255), ROIMode.FREEHAND)
+        POLY_COLOR = Color(0.4, 0.4, 0.4, 1.0)
+        collection.addROI(poly, "Test", POLY_COLOR, ROIMode.FREEHAND)
 
         path = str(tmp_path / "rois.gpkg")
         collection.toFile(path)
@@ -333,6 +340,7 @@ class TestFileIO:
         roi = loaded.getROI(0)
         assert roi.name == "Test"
         assert roi.roiType == ROIMode.FREEHAND
+        assert roi.color == _quantized(POLY_COLOR)
 
     def test_export_empty_collection(self, collection: ROICollection, tmp_path) -> None:
         path = str(tmp_path / "empty.geojson")

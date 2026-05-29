@@ -87,7 +87,7 @@ class DualImageWorkspace(QMainWindow):
         # (both images assumed to share the same transform)
         self.roiCollection = ROICollection.fromImage(self.image2)
         self.roiDisplayController = ROIDisplayController(
-            self.roiCollection, self.image2, parent=self
+            self.roiCollection, parent=self
         )
         self.roiManagerWidget = ROIManagerWidget(self.roiCollection, parent=self)
         self.plotWidget = VardaPlotWidget(parent=self)
