@@ -18,7 +18,7 @@ from shapely.geometry import Polygon as ShapelyPolygon
 
 from varda.common.entities import ROIMode
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
-from varda.image_rendering.raster_view.protocols import Viewport
+from varda.image_rendering.raster_view.image_viewport import ImageViewport
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class ROIDrawingTool(ViewportTool):
 
     roiMode: ROIMode = ROIMode.FREEHAND  # Subclasses override
 
-    def __init__(self, viewport: Viewport, parent=None):
+    def __init__(self, viewport: ImageViewport, parent=None):
         super().__init__(viewport, parent)
         self.isDrawing = False
         self.points: List[Tuple[float, float]] = []
@@ -203,7 +203,7 @@ class RectangleROITool(ROIDrawingTool):
     )
     roiMode = ROIMode.RECTANGLE
 
-    def __init__(self, viewport: Viewport, parent=None):
+    def __init__(self, viewport: ImageViewport, parent=None):
         super().__init__(viewport, parent)
         self.startPoint = None
 
@@ -267,7 +267,7 @@ class EllipseROITool(ROIDrawingTool):
     )
     roiMode = ROIMode.ELLIPSE
 
-    def __init__(self, viewport: Viewport, parent=None):
+    def __init__(self, viewport: ImageViewport, parent=None):
         super().__init__(viewport, parent)
         self.startPoint = None
 
@@ -340,7 +340,7 @@ class PolygonROITool(ROIDrawingTool):
     )
     roiMode = ROIMode.POLYGON
 
-    def __init__(self, viewport: Viewport, parent=None):
+    def __init__(self, viewport: ImageViewport, parent=None):
         super().__init__(viewport, parent)
         self.tempPoint = None
 

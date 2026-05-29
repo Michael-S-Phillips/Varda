@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from PyQt6.QtCore import pyqtSignal, QPointF, QRectF
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
@@ -7,20 +11,19 @@ from varda import log
 from varda.common.entities import VardaRaster
 from varda.image_rendering import ImageRenderer
 from varda.image_rendering.raster_view.navigable_view_box import NavigableViewBox
-from varda.image_rendering.raster_view.viewport_tools.viewport_tool import (
-    ViewportTool,
-)
-from varda.image_rendering.raster_view.protocols import Viewport
 from varda.image_rendering.raster_view.image_region_item import (
     VardaImageItem,
 )
 
+if TYPE_CHECKING:
+    # Imported under TYPE_CHECKING only: importing the tool module at runtime would
+    # cycle back through this one (tools reference ImageViewport).
+    from varda.image_rendering.raster_view.viewport_tools.viewport_tool import (
+        ViewportTool,
+    )
 
-class ViewportMeta(type(QWidget), type(Viewport)):
-    pass
 
-
-class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
+class ImageViewport(QWidget):
     """
     Generic image viewer: holds a single Viewbox with an ImageRegionItem, and helper methods.
 
@@ -36,7 +39,6 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
     # is disabled. Positions are in view (data) coordinates.
     sigPanStarted = pyqtSignal(QPointF)  # press position
     sigPanned = pyqtSignal(QPointF, QPointF)  # (current position, start position)
-    sigPanEnded = pyqtSignal()
     sigZoomed = pyqtSignal(float, QPointF)  # (scaleFactor, anchorFraction)
     # Emitted when a user gesture pans/zooms this viewport's own view (self-navigation on).
     # Mirrors pyqtgraph's viewBox.sigRangeChangedManually but without its mask argument.
@@ -63,7 +65,6 @@ class ImageViewport(QWidget, Viewport, metaclass=ViewportMeta):
         # Forward navigation signals so consumers depend on the viewport, not the ViewBox.
         self._vb.sigPanStarted.connect(self.sigPanStarted)
         self._vb.sigPanned.connect(self.sigPanned)
-        self._vb.sigPanEnded.connect(self.sigPanEnded)
         self._vb.sigZoomed.connect(self.sigZoomed)
         self._vb.sigRangeChangedManually.connect(self._onViewBoxRangeChangedManually)
 

@@ -5,7 +5,7 @@ from PyQt6.QtCore import QObject, pyqtSignal, QEvent, QPointF, QTimer
 from PyQt6.QtGui import QAction, QIcon, QKeyEvent, QCursor
 from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
-from varda.image_rendering.raster_view.protocols import Viewport
+from varda.image_rendering.raster_view.image_viewport import ImageViewport
 
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ class ViewportTool(QObject):
     toolIcon = None  # Path to icon or QIcon
     toolCategory = "General"
 
-    def __init__(self, viewport: Viewport, parent=None):
+    def __init__(self, viewport: ImageViewport, parent=None):
         super().__init__(parent)
         self.viewport = viewport
         self._textItem = None

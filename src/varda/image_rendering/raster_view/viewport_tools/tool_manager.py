@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QToolBar
 from PyQt6.QtGui import QActionGroup
 
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
-from varda.image_rendering.raster_view.protocols import Viewport
+from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.image_rendering.raster_view.viewport_tools.tool_registry import ToolRegistry
 
 
@@ -19,7 +19,7 @@ class ToolManager(QObject):
     sigToolActivated = pyqtSignal(object)  # Emits the activated tool
     sigToolDeactivated = pyqtSignal(object)  # Emits the deactivated tool
 
-    def __init__(self, viewport: Viewport, parent=None):
+    def __init__(self, viewport: ImageViewport, parent=None):
         super().__init__(parent)
         self.viewport = viewport
         self.viewport.installEventFilter(self)

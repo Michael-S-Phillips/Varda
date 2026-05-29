@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QPointF
 from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
-from varda.image_rendering.raster_view.protocols import Viewport
+from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.plotting.plot import VardaPlotWidget
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class PixelSelectTool(ViewportTool):
     toolDescription = "Select individual pixels (Ctrl+Click)"
     toolCategory = "Selection"
 
-    def __init__(self, viewport: Viewport, parent=None):
+    def __init__(self, viewport: ImageViewport, parent=None):
         super().__init__(viewport, parent)
         self.targetImageItem = viewport.imageItem
         self.vCrosshair = pg.InfiniteLine(angle=90, movable=False, pen="r")
