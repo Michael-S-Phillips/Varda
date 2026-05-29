@@ -200,13 +200,11 @@ class RegionController(QObject):
         """
         update self.roi with the absolute coordinate conversion of self.displayROI.
         """
-        absolutePoints = []
-
-        for x, y in self.displayROI.roiEntity.points:
-            absoluteImagePoint = self.sourceViewport.localToImage(QPointF(x, y))
-            absolutePoints.append([absoluteImagePoint.x(), absoluteImagePoint.y()])
+        localPoints = [
+            (float(x), float(y)) for x, y in self.displayROI.roiEntity.points
+        ]
 
         # Create new ROI entity with absolute coordinates
         absROI = self.displayROI.roiEntity.clone()
-        absROI.points = np.array(absolutePoints)
+        absROI.points = np.asarray(self.sourceViewport.localToImage(localPoints))
         self.internalROI = absROI

@@ -20,7 +20,6 @@ class NavigableViewBox(pg.ViewBox):
     # Emitted only while self-navigation is disabled. Positions are in view (data) coords.
     sigPanStarted = pyqtSignal(QPointF)  # press position
     sigPanned = pyqtSignal(QPointF, QPointF)  # (current position, start position)
-    sigPanEnded = pyqtSignal()
     # (scaleFactor, anchorFraction): scaleFactor < 1 zooms in; anchorFraction is the cursor
     # position normalised to [0, 1] within the current view rect.
     sigZoomed = pyqtSignal(float, QPointF)
@@ -57,8 +56,6 @@ class NavigableViewBox(pg.ViewBox):
         if ev.isStart():
             self.sigPanStarted.emit(startView)
         self.sigPanned.emit(currentView, startView)
-        if ev.isFinish():
-            self.sigPanEnded.emit()
 
     def wheelEvent(self, ev, axis=None):
         if self._selfNavigating:

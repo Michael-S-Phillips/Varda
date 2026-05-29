@@ -69,8 +69,7 @@ class ViewportLinkController(QObject):
             self._syncRangeGeo(source, target)
 
     def _syncRangePixel(self, source: ImageViewport, target: ImageViewport) -> None:
-        sourceRect = source.viewBox.viewRect()
-        target.viewBox.setRange(rect=sourceRect, padding=0)
+        target.setViewRange(source.viewRect())
 
     def _syncRangeGeo(self, source: ImageViewport, target: ImageViewport) -> None:
         sourceImage = source.imageEntity
@@ -83,7 +82,7 @@ class ViewportLinkController(QObject):
             self._syncRangePixel(source, target)
             return
 
-        sourceRect = source.viewBox.viewRect()
+        sourceRect = source.viewRect()
 
         # Convert source rect corners: source pixels → geo → target pixels
         geoX1, geoY1 = sourceImage.pixelToGeo(
@@ -102,4 +101,4 @@ class ViewportLinkController(QObject):
             abs(tCol2 - tCol1),
             abs(tRow2 - tRow1),
         )
-        target.viewBox.setRange(rect=targetRect, padding=0)
+        target.setViewRange(targetRect)
