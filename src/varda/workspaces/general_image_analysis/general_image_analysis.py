@@ -15,7 +15,6 @@ from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.new_histogram_view import (
     NewHistogramView,
 )
-import pyqtgraph as pg
 import PyQt6Ads as ads
 
 
