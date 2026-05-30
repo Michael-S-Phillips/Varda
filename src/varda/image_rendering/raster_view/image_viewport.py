@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import pyqtSignal, QPointF, QRectF
+from psygnal import Signal
+from PyQt6.QtCore import QPointF, QRectF
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 import numpy as np
@@ -14,12 +16,21 @@ from varda.image_rendering.raster_view.navigable_view_box import NavigableViewBo
 from varda.image_rendering.raster_view.image_region_item import (
     VardaImageItem,
 )
+from varda.image_rendering.raster_view.overlay_handles import (
+    PyqtgraphCrosshair,
+    PyqtgraphPolygonOverlay,
+)
 
 if TYPE_CHECKING:
     # Imported under TYPE_CHECKING only: importing the tool module at runtime would
     # cycle back through this one (tools reference ImageViewport).
     from varda.image_rendering.raster_view.viewport_tools.viewport_tool import (
         ViewportTool,
+    )
+    from varda.image_rendering.raster_view.viewport_protocol import (
+        RasterViewport,
+        CrosshairHandle,
+        PolygonOverlayHandle,
     )
 
 
@@ -33,16 +44,16 @@ class ImageViewport(QWidget):
     used when something else (e.g. RegionController) drives what the viewport shows.
     """
 
-    sigImageChanged = pyqtSignal()
+    sigImageChanged = Signal()
 
     # Navigation gestures, forwarded from the ViewBox. Emitted only while self-navigation
     # is disabled. Positions are in view (data) coordinates.
-    sigPanStarted = pyqtSignal(QPointF)  # press position
-    sigPanned = pyqtSignal(QPointF, QPointF)  # (current position, start position)
-    sigZoomed = pyqtSignal(float, QPointF)  # (scaleFactor, anchorFraction)
+    sigPanStarted = Signal(QPointF)  # press position
+    sigPanned = Signal(QPointF, QPointF)  # (current position, start position)
+    sigZoomed = Signal(float, QPointF)  # (scaleFactor, anchorFraction)
     # Emitted when a user gesture pans/zooms this viewport's own view (self-navigation on).
     # Mirrors pyqtgraph's viewBox.sigRangeChangedManually but without its mask argument.
-    sigViewRangeChangedManually = pyqtSignal()
+    sigViewRangeChangedManually = Signal()
 
     def __init__(self, imageRenderer: ImageRenderer, parent=None):
         super().__init__(parent)
@@ -63,12 +74,12 @@ class ImageViewport(QWidget):
         self.setLayout(layout)
 
         # Forward navigation signals so consumers depend on the viewport, not the ViewBox.
-        self._vb.sigPanStarted.connect(self.sigPanStarted)
-        self._vb.sigPanned.connect(self.sigPanned)
-        self._vb.sigZoomed.connect(self.sigZoomed)
+        self._vb.sigPanStarted.connect(self.sigPanStarted.emit)
+        self._vb.sigPanned.connect(self.sigPanned.emit)
+        self._vb.sigZoomed.connect(self.sigZoomed.emit)
         self._vb.sigRangeChangedManually.connect(self._onViewBoxRangeChangedManually)
 
-        self._imageItem.sigImageChanged.connect(self.sigImageChanged)
+        self._imageItem.sigImageChanged.connect(self.sigImageChanged.emit)
         self._imageRenderer.sigShouldRefresh.connect(self.autoRefresh)
 
     def overlayImage(self, overlayImageRenderer: ImageRenderer):
@@ -183,6 +194,26 @@ class ImageViewport(QWidget):
     def isShowingRegion(self) -> bool:
         """Whether the viewport is showing a subregion rather than the full image."""
         return self._imageItem.isShowingRegion
+
+    # --- Overlay primitives ---
+
+    def addCrosshair(self, color: QColor | None = None) -> "CrosshairHandle":
+        """Add a hidden crosshair overlay; returns a handle to drive it."""
+        return PyqtgraphCrosshair(self._vb, color or QColor("red"))
+
+    def addPolygonOverlay(
+        self,
+        lineColor: QColor | None = None,
+        fillColor: QColor | None = None,
+        lineWidth: float = 2.0,
+    ) -> "PolygonOverlayHandle":
+        """Add an (initially empty) polygon overlay; returns a handle to drive it."""
+        return PyqtgraphPolygonOverlay(
+            self._vb,
+            lineColor or QColor(255, 0, 0),
+            fillColor or QColor(255, 0, 0, 100),
+            lineWidth,
+        )
 
     # --- Items / tools ---
 

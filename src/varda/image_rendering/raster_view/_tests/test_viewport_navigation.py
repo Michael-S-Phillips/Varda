@@ -6,8 +6,11 @@ events (the same entry points pyqtgraph's scene would use), which keeps the test
 real windowing while still driving the production code paths.
 """
 
+from contextlib import contextmanager
+
 import numpy as np
 import pytest
+from psygnal import SignalInstance
 from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QColor
 
@@ -83,6 +86,14 @@ class _FakeDragEvent:
         pass
 
 
+@contextmanager
+def captures(signal: SignalInstance):
+    """Record emissions of a psygnal signal within the block."""
+    received: list[tuple] = []
+    signal.connect(lambda *args: received.append(args))
+    yield received
+
+
 @pytest.fixture
 def makeViewport(qtbot):
     """Factory for ready-to-use Imageviewports backed by a small in-memory raster."""
@@ -101,19 +112,21 @@ def makeViewport(qtbot):
 
 
 class TestSelfNavigation:
-    def test_self_navigating_zoom_changes_own_view(self, makeViewport, qtbot):
+    def test_self_navigating_zoom_changes_own_view(self, makeViewport):
         viewport = makeViewport()
         widthBefore = viewport.viewRect().width()
 
-        with qtbot.waitSignal(viewport.sigViewRangeChangedManually, timeout=500):
+        with captures(viewport.sigViewRangeChangedManually) as emitted:
             viewport.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
 
+        assert emitted  # self-navigation reported the manual range change
         assert viewport.viewRect().width() < widthBefore  # scroll up zooms in
 
-    def test_self_navigating_does_not_emit_gesture_signals(self, makeViewport, qtbot):
+    def test_self_navigating_does_not_emit_gesture_signals(self, makeViewport):
         viewport = makeViewport()
-        with qtbot.assertNotEmitted(viewport.sigZoomed):
+        with captures(viewport.sigZoomed) as emitted:
             viewport.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+        assert not emitted
 
     def test_disable_self_navigation_freezes_own_view(self, makeViewport):
         viewport = makeViewport()
@@ -124,11 +137,12 @@ class TestSelfNavigation:
 
         assert viewport.viewRect() == rectBefore  # gesture no longer moves own view
 
-    def test_disabled_viewport_emits_zoom_gesture(self, makeViewport, qtbot):
+    def test_disabled_viewport_emits_zoom_gesture(self, makeViewport):
         viewport = makeViewport()
         viewport.disableSelfNavigation()
-        with qtbot.waitSignal(viewport.sigZoomed, timeout=500):
+        with captures(viewport.sigZoomed) as emitted:
             viewport.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+        assert emitted  # gesture re-emitted instead of moving the view
 
 
 class TestRegionController:

@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import logging
-from typing import override
+from typing import override, TYPE_CHECKING
 
 import pyqtgraph as pg
 import numpy as np
@@ -9,6 +11,9 @@ from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.plotting.plot import VardaPlotWidget
+
+if TYPE_CHECKING:
+    from varda.image_rendering.raster_view.viewport_protocol import CrosshairHandle
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +30,7 @@ class PixelSelectTool(ViewportTool):
 
     def __init__(self, viewport: ImageViewport, parent=None):
         super().__init__(viewport, parent)
-        self.targetImageItem = viewport.imageItem
-        self.vCrosshair = pg.InfiniteLine(angle=90, movable=False, pen="r")
-        self.hCrosshair = pg.InfiniteLine(angle=0, movable=False, pen="r")
-        self.vCrosshair.hide()
-        self.hCrosshair.hide()
+        self._crosshair: CrosshairHandle | None = None
         self.isDragging = False
 
         self.sigPixelSelected.connect(
@@ -39,13 +40,14 @@ class PixelSelectTool(ViewportTool):
 
     def activate(self):
         super().activate()
-        self.viewport.addItem(self.vCrosshair)
-        self.viewport.addItem(self.hCrosshair)
+        if self._crosshair is None:
+            self._crosshair = self.viewport.addCrosshair()
 
     def deactivate(self):
         super().deactivate()
-        self.viewport.removeItem(self.vCrosshair)
-        self.viewport.removeItem(self.hCrosshair)
+        if self._crosshair is not None:
+            self._crosshair.remove()
+            self._crosshair = None
 
     @override
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
@@ -80,17 +82,13 @@ class PixelSelectTool(ViewportTool):
 
     def _showCrosshairs(self):
         """Show the crosshairs at the current mouse position."""
-        if not self.vCrosshair.isVisible():
-            self.vCrosshair.show()
-        if not self.hCrosshair.isVisible():
-            self.hCrosshair.show()
+        if self._crosshair is not None:
+            self._crosshair.setVisible(True)
 
     def _hideCrosshairs(self):
         """Hide the crosshairs."""
-        if self.vCrosshair.isVisible():
-            self.vCrosshair.hide()
-        if self.hCrosshair.isVisible():
-            self.hCrosshair.hide()
+        if self._crosshair is not None:
+            self._crosshair.setVisible(False)
 
     def _updateCrosshair(self, scenePos, emitSignal=True):
         """
@@ -104,8 +102,8 @@ class PixelSelectTool(ViewportTool):
 
         # apply a visual offset so the crosshairs are at the center of the pixel instead of the top left corner.
         centeredPos = quantizedPos + pg.Point(0.5, 0.5)
-        self.hCrosshair.setPos(centeredPos)
-        self.vCrosshair.setPos(centeredPos)
+        if self._crosshair is not None:
+            self._crosshair.setPos(centeredPos)
         if emitSignal:
             # get absolute image pos
             imagePos = pg.Point(self.viewport.imageItem.localToImage(pos))

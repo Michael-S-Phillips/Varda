@@ -8,23 +8,23 @@ Emits Shapely geometry + ROIMode on completion for the new ROI system.
 from __future__ import annotations
 
 import logging
-from typing import List, Tuple
+from typing import List, Tuple, TYPE_CHECKING
 
 import numpy as np
 from PyQt6.QtCore import pyqtSignal, QPointF, QRectF, Qt
-from PyQt6.QtGui import QColor, QPen, QBrush, QPolygonF
-from PyQt6.QtWidgets import QGraphicsSceneMouseEvent, QGraphicsPolygonItem
+from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 from shapely.geometry import Polygon as ShapelyPolygon
 
 from varda.common.entities import ROIMode
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from varda.image_rendering.raster_view.viewport_protocol import (
+        PolygonOverlayHandle,
+    )
 
-# Default color for drawing preview
-_PREVIEW_COLOR = QColor(255, 0, 0, 100)
-_PREVIEW_PEN = QPen(QColor(255, 0, 0), 2)
+logger = logging.getLogger(__name__)
 
 
 class ROIDrawingTool(ViewportTool):
@@ -49,7 +49,7 @@ class ROIDrawingTool(ViewportTool):
         self.points: List[Tuple[float, float]] = []
         self.imageEntity = viewport.imageEntity
         self.targetImageItem = viewport.imageItem
-        self._previewItem: QGraphicsPolygonItem | None = None
+        self._preview: PolygonOverlayHandle | None = None
 
     def activate(self):
         super().activate()
@@ -64,20 +64,16 @@ class ROIDrawingTool(ViewportTool):
         """Reset the tool state."""
         self.isDrawing = False
         self.points = []
-        if self._previewItem is not None:
-            self.viewport.removeItem(self._previewItem)
-            self._previewItem = None
+        if self._preview is not None:
+            self._preview.remove()
+            self._preview = None
 
     def startDrawing(self):
         """Start the drawing process."""
         self.isDrawing = True
         self.points = []
 
-        # Simple polygon preview item
-        self._previewItem = QGraphicsPolygonItem()
-        self._previewItem.setPen(_PREVIEW_PEN)
-        self._previewItem.setBrush(QBrush(_PREVIEW_COLOR))
-        self.viewport.addItem(self._previewItem)
+        self._preview = self.viewport.addPolygonOverlay()
 
         self.showText(
             f"{self.toolDescription}. Esc to cancel.",
@@ -88,14 +84,12 @@ class ROIDrawingTool(ViewportTool):
 
     def updateDrawing(self):
         """Update the preview polygon from current points."""
-        if self._previewItem is None:
+        if self._preview is None:
             return
-        poly = QPolygonF()
-        for x, y in self.points:
-            poly.append(QPointF(x, y))
+        points = [QPointF(x, y) for x, y in self.points]
         if len(self.points) >= 3:
-            poly.append(QPointF(*self.points[0]))  # Close polygon
-        self._previewItem.setPolygon(poly)
+            points.append(QPointF(*self.points[0]))  # Close polygon
+        self._preview.setPoints(points)
 
     def cancelDrawing(self):
         self.stopDrawing()
@@ -107,7 +101,7 @@ class ROIDrawingTool(ViewportTool):
             return
 
         # Convert viewport-local coordinates to image pixel coordinates
-        imagePoints = self.viewport.imageItem.localToImage(self.points)
+        imagePoints = self.viewport.localToImage(self.points)
 
         # Build Shapely polygon in pixel space
         pixelPolygon = ShapelyPolygon(imagePoints)
@@ -115,17 +109,18 @@ class ROIDrawingTool(ViewportTool):
         # If the image is georeferenced, convert to CRS coordinates
         if self.imageEntity.hasGeospatialData:
             geoCoords = [
-                self.imageEntity.pixelToGeo(int(px), int(py))
-                for px, py in imagePoints
+                self.imageEntity.pixelToGeo(int(px), int(py)) for px, py in imagePoints
             ]
             geometry = ShapelyPolygon(geoCoords)
         else:
             geometry = pixelPolygon
 
-        self.sigROIDrawingComplete.emit({
-            "geometry": geometry,
-            "roiType": self.roiMode,
-        })
+        self.sigROIDrawingComplete.emit(
+            {
+                "geometry": geometry,
+                "roiType": self.roiMode,
+            }
+        )
 
         self.stopDrawing()
 
