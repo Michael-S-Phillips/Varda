@@ -73,3 +73,41 @@ class PyqtgraphPolygonOverlay:
 
     def remove(self) -> None:
         self._viewBox.removeItem(self._item)
+
+
+class PyqtgraphTextOverlay:
+    """A `pg.TextItem` label positioned in view (data) coordinates."""
+
+    def __init__(
+        self,
+        viewBox: pg.ViewBox,
+        text: str,
+        pos: QPointF,
+        color: str,
+        fontSize: int,
+        backgroundColor: str,
+        backgroundAlpha: int,
+        anchor: tuple[float, float],
+    ):
+        self._item = pg.TextItem(text=text, color=color, anchor=anchor)
+        font = self._item.textItem.font()
+        font.setPointSize(fontSize)
+        self._item.textItem.setFont(font)
+        if backgroundColor:
+            self._item.fill = pg.mkBrush(color=backgroundColor, alpha=backgroundAlpha)
+            self._item.border = pg.mkPen(color=backgroundColor, width=1)
+        self._item.setPos(pos)
+        self._viewBox = viewBox
+        viewBox.addItem(self._item, ignoreBounds=True)
+
+    def setText(self, text: str) -> None:
+        self._item.setText(text)
+
+    def setPos(self, pos: QPointF) -> None:
+        self._item.setPos(pos)
+
+    def setVisible(self, visible: bool) -> None:
+        self._item.setVisible(visible)
+
+    def remove(self) -> None:
+        self._viewBox.removeItem(self._item)

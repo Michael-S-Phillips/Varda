@@ -126,6 +126,10 @@ class VardaRaster:
         return self._dataSource.bandCount
 
     @property
+    def shape(self) -> tuple[int, int, int]:
+        return (self.height, self.width, self.bandCount)
+
+    @property
     def dtype(self) -> np.dtype:
         return self._dataSource.dtype
 

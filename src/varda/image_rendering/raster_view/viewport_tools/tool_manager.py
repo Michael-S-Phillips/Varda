@@ -6,6 +6,7 @@ from PyQt6.QtGui import QActionGroup
 
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
+from varda.image_rendering.raster_view.pointer_event import KeyEvent
 from varda.image_rendering.raster_view.viewport_tools.tool_registry import ToolRegistry
 
 
@@ -49,13 +50,14 @@ class ToolManager(QObject):
         self.sigToolDeactivated.emit(self.activeTool)
         self.activeTool = None
 
-    def eventFilter(self, obj, event):
+    def eventFilter(self, a0, a1):
         """
         This is specifically for forwarding KeyPress events to the active tool.
         Otherwise, the KeyPress events get consumed before reaching the imageItem.
         """
+        event = a1
         if event.type() == QEvent.Type.KeyPress and self.activeTool is not None:
-            return self.activeTool.eventFilter(obj, event)
+            return self.activeTool.onKeyEvent(KeyEvent.fromQt(event))
         return False
 
     def _createToolbar(self) -> QToolBar:

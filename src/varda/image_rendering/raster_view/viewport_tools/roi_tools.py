@@ -12,12 +12,16 @@ from typing import List, Tuple, TYPE_CHECKING
 
 import numpy as np
 from PyQt6.QtCore import pyqtSignal, QPointF, QRectF, Qt
-from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 from shapely.geometry import Polygon as ShapelyPolygon
 
 from varda.common.entities import ROIMode
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
+from varda.image_rendering.raster_view.pointer_event import (
+    KeyEvent,
+    PointerAction,
+    PointerEvent,
+)
 
 if TYPE_CHECKING:
     from varda.image_rendering.raster_view.viewport_protocol import (
@@ -34,6 +38,10 @@ class ROIDrawingTool(ViewportTool):
     On completion, emits ``sigROIDrawingComplete`` with a dict:
         {"geometry": ShapelyPolygon, "roiType": ROIMode}
     where geometry is in CRS coordinates (if georeferenced) or pixel coordinates.
+
+    Pointer events arrive with `localPos` already in viewport-local coordinates,
+    so drawing accumulates local points and converts to image/CRS coordinates only
+    on completion.
     """
 
     toolCategory = "ROI Drawing"
@@ -48,7 +56,6 @@ class ROIDrawingTool(ViewportTool):
         self.isDrawing = False
         self.points: List[Tuple[float, float]] = []
         self.imageEntity = viewport.imageEntity
-        self.targetImageItem = viewport.imageItem
         self._preview: PolygonOverlayHandle | None = None
 
     def activate(self):
@@ -75,12 +82,7 @@ class ROIDrawingTool(ViewportTool):
 
         self._preview = self.viewport.addPolygonOverlay()
 
-        self.showText(
-            f"{self.toolDescription}. Esc to cancel.",
-            pos=self.viewport.viewBox.scenePos(),
-            anchor=(0, 0),
-            timeout=3000,
-        )
+        self.showText(f"{self.toolDescription}. Esc to cancel.", timeout=3000)
 
     def updateDrawing(self):
         """Update the preview polygon from current points."""
@@ -124,19 +126,35 @@ class ROIDrawingTool(ViewportTool):
 
         self.stopDrawing()
 
-    def keyPressEvent(self, event) -> bool:
+    # --- Input dispatch ---
+
+    def onPointerEvent(self, event: PointerEvent) -> bool:
+        if event.action == PointerAction.PRESS:
+            return self._onPress(event)
+        if event.action == PointerAction.MOVE:
+            return self._onMove(event)
+        if event.action == PointerAction.RELEASE:
+            return self._onRelease(event)
+        return False
+
+    def _onPress(self, event: PointerEvent) -> bool:
+        return False
+
+    def _onMove(self, event: PointerEvent) -> bool:
+        return False
+
+    def _onRelease(self, event: PointerEvent) -> bool:
+        return False
+
+    def onKeyEvent(self, event: KeyEvent) -> bool:
         if not self.isDrawing:
             return False
 
-        if event.key() == Qt.Key.Key_Escape:
+        if event.key == Qt.Key.Key_Escape:
             self.cancelDrawing()
             return True
 
         return False
-
-    def _mapPosition(self, pos: QPointF) -> QPointF:
-        """Map scene position to image-item local coordinates."""
-        return self.targetImageItem.mapFromScene(pos)
 
 
 class FreehandROITool(ROIDrawingTool):
@@ -148,38 +166,38 @@ class FreehandROITool(ROIDrawingTool):
     )
     roiMode = ROIMode.FREEHAND
 
-    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+    def _onPress(self, event: PointerEvent) -> bool:
         if not self.isDrawing:
             return False
 
-        if event.button() == Qt.MouseButton.LeftButton:
-            pos = self._mapPosition(event.scenePos())
+        if event.button == Qt.MouseButton.LeftButton:
+            pos = event.localPos
             self.points.append((pos.x(), pos.y()))
             self.updateDrawing()
             return True
-        elif event.button() == Qt.MouseButton.RightButton:
+        elif event.button == Qt.MouseButton.RightButton:
             self.cancelDrawing()
             return True
 
         return False
 
-    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+    def _onMove(self, event: PointerEvent) -> bool:
         if not self.isDrawing:
             return False
 
         if self.points and len(self.points) > 0:
-            pos = self._mapPosition(event.scenePos())
+            pos = event.localPos
             self.points.append((pos.x(), pos.y()))
             self.updateDrawing()
             return True
 
         return False
 
-    def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+    def _onRelease(self, event: PointerEvent) -> bool:
         if not self.isDrawing:
             return False
 
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button == Qt.MouseButton.LeftButton:
             if len(self.points) >= 3:
                 self.completeDrawing()
             else:
@@ -210,39 +228,37 @@ class RectangleROITool(ROIDrawingTool):
         x1, y1, x2, y2 = rect.getCoords()
         return [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
 
-    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+    def _onPress(self, event: PointerEvent) -> bool:
         if not self.isDrawing:
             return False
 
-        if event.button() == Qt.MouseButton.LeftButton:
-            pos = self._mapPosition(event.scenePos())
+        if event.button == Qt.MouseButton.LeftButton:
+            pos = event.localPos
             self.startPoint = pos
             self.points = self._rectToPoints(QRectF(pos, pos))
             self.updateDrawing()
             return True
-        elif event.button() == Qt.MouseButton.RightButton:
+        elif event.button == Qt.MouseButton.RightButton:
             self.cancelDrawing()
             return True
 
         return False
 
-    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+    def _onMove(self, event: PointerEvent) -> bool:
         if not self.isDrawing or self.startPoint is None:
             return False
 
-        pos = self._mapPosition(event.scenePos())
-        rect = QRectF(self.startPoint, pos).normalized()
+        rect = QRectF(self.startPoint, event.localPos).normalized()
         self.points = self._rectToPoints(rect)
         self.updateDrawing()
         return True
 
-    def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+    def _onRelease(self, event: PointerEvent) -> bool:
         if not self.isDrawing or self.startPoint is None:
             return False
 
-        if event.button() == Qt.MouseButton.LeftButton:
-            pos = self._mapPosition(event.scenePos())
-            rect = QRectF(self.startPoint, pos).normalized()
+        if event.button == Qt.MouseButton.LeftButton:
+            rect = QRectF(self.startPoint, event.localPos).normalized()
             if rect.width() > 5 and rect.height() > 5:
                 self.points = self._rectToPoints(rect)
                 self.completeDrawing()
@@ -283,39 +299,37 @@ class EllipseROITool(ROIDrawingTool):
         y = center_y + radius_y * np.sin(theta)
         return [(x[i], y[i]) for i in range(num_points)]
 
-    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+    def _onPress(self, event: PointerEvent) -> bool:
         if not self.isDrawing:
             return False
 
-        if event.button() == Qt.MouseButton.LeftButton:
-            pos = self._mapPosition(event.scenePos())
+        if event.button == Qt.MouseButton.LeftButton:
+            pos = event.localPos
             self.startPoint = pos
             self.points = self._ellipseToPoints(QRectF(pos, pos))
             self.updateDrawing()
             return True
-        elif event.button() == Qt.MouseButton.RightButton:
+        elif event.button == Qt.MouseButton.RightButton:
             self.cancelDrawing()
             return True
 
         return False
 
-    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+    def _onMove(self, event: PointerEvent) -> bool:
         if not self.isDrawing or self.startPoint is None:
             return False
 
-        pos = self._mapPosition(event.scenePos())
-        rect = QRectF(self.startPoint, pos).normalized()
+        rect = QRectF(self.startPoint, event.localPos).normalized()
         self.points = self._ellipseToPoints(rect)
         self.updateDrawing()
         return True
 
-    def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+    def _onRelease(self, event: PointerEvent) -> bool:
         if not self.isDrawing or self.startPoint is None:
             return False
 
-        if event.button() == Qt.MouseButton.LeftButton:
-            pos = self._mapPosition(event.scenePos())
-            rect = QRectF(self.startPoint, pos).normalized()
+        if event.button == Qt.MouseButton.LeftButton:
+            rect = QRectF(self.startPoint, event.localPos).normalized()
             if rect.width() > 5 and rect.height() > 5:
                 self.points = self._ellipseToPoints(rect)
                 self.completeDrawing()
@@ -349,21 +363,21 @@ class PolygonROITool(ROIDrawingTool):
             self.tempPoint = None
         super().completeDrawing()
 
-    def keyPressEvent(self, event) -> bool:
+    def onKeyEvent(self, event: KeyEvent) -> bool:
         if not self.isDrawing:
             return False
 
-        if event.key() == Qt.Key.Key_Escape:
+        if event.key == Qt.Key.Key_Escape:
             self.cancelDrawing()
             return True
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+        if event.key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             if self.tempPoint is not None:
                 self.points.remove(self.tempPoint)
                 self.tempPoint = None
             if len(self.points) >= 3:
                 self.completeDrawing()
             return True
-        if event.key() == Qt.Key.Key_Backspace:
+        if event.key == Qt.Key.Key_Backspace:
             if len(self.points) > 0:
                 if self.tempPoint is not None:
                     self.points.remove(self.tempPoint)
@@ -374,44 +388,30 @@ class PolygonROITool(ROIDrawingTool):
 
         return False
 
-    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+    def _onPress(self, event: PointerEvent) -> bool:
         if not self.isDrawing:
             return False
 
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button == Qt.MouseButton.LeftButton:
             if self.tempPoint is not None:
                 self.tempPoint = None
             else:
-                pos = self._mapPosition(event.scenePos())
+                pos = event.localPos
                 self.points.append((pos.x(), pos.y()))
             self.updateDrawing()
             return True
 
-        if event.button() == Qt.MouseButton.RightButton:
+        if event.button == Qt.MouseButton.RightButton:
             self.cancelDrawing()
             return True
 
         return False
 
-    def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
+    def _onMove(self, event: PointerEvent) -> bool:
         if not self.isDrawing:
             return False
 
-        if event.button() == Qt.MouseButton.LeftButton:
-            if len(self.points) >= 3:
-                if self.tempPoint is not None:
-                    self.points.remove(self.tempPoint)
-                    self.tempPoint = None
-                self.completeDrawing()
-            return True
-
-        return False
-
-    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> bool:
-        if not self.isDrawing:
-            return False
-
-        pos = self._mapPosition(event.scenePos())
+        pos = event.localPos
 
         if self.tempPoint in self.points:
             self.points.remove(self.tempPoint)

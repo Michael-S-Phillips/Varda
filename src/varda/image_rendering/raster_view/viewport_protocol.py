@@ -7,12 +7,16 @@ and tools can depend on *this* Protocol instead of reaching into pyqtgraph
 internals, so a future VisPy/pygfx viewport becomes "implement one Protocol"
 rather than "rewrite every consumer".
 
-Provisional surface: `addItem`/`removeItem`/`showRegion` still traffic in raw
-pyqtgraph graphics objects. They are part of the contract for now so consumers
-compile, but a later step replaces them with backend-neutral overlay-primitive
-factories (`addTextOverlay`, `addCrosshair`, `addPolygonOverlay`) returning
-abstract handles. They are typed loosely (`object`) here to avoid baking a
-pyqtgraph dependency into the contract in the meantime.
+Backend-neutral overlays go through the `add*Overlay` factories (`addCrosshair`,
+`addPolygonOverlay`, `addTextOverlay`), which return abstract handles — tools use
+these instead of constructing pyqtgraph items. Tool input arrives as
+backend-neutral `PointerEvent`/`KeyEvent`s (see `pointer_event`), so tools never
+touch the scene graph.
+
+Provisional surface that still traffics in raw pyqtgraph objects (typed loosely
+as `object` to keep pyqtgraph out of the contract): `addItem`/`removeItem` (used
+for ROI-display graphics items) and `showRegion`. A later step replaces these
+with a backend-neutral ROI-overlay mechanism.
 """
 
 from __future__ import annotations
@@ -59,6 +63,14 @@ class PolygonOverlayHandle(OverlayHandle, Protocol):
     """A filled polygon outline, positioned in viewport-local coordinates."""
 
     def setPoints(self, points: Sequence[QPointF]) -> None: ...
+
+
+class TextOverlayHandle(OverlayHandle, Protocol):
+    """A text label positioned in view (data) coordinates."""
+
+    def setText(self, text: str) -> None: ...
+
+    def setPos(self, pos: QPointF) -> None: ...
 
 
 @runtime_checkable
@@ -110,7 +122,7 @@ class RasterViewport(Protocol):
         """Detect gestures and emit them as signals without moving the view."""
         ...
 
-    # --- view / range (Qt-core types intentionally kept) ---
+    # --- view / range ---
 
     def mapToView(self, point: QPointF) -> QPointF: ...
 
@@ -160,6 +172,19 @@ class RasterViewport(Protocol):
         lineWidth: float = 2.0,
     ) -> PolygonOverlayHandle:
         """Add an (initially empty) polygon overlay; returns a handle to drive it."""
+        ...
+
+    def addTextOverlay(
+        self,
+        text: str,
+        viewPos: QPointF | None = None,
+        color: str = "white",
+        fontSize: int = 12,
+        backgroundColor: str = "black",
+        backgroundAlpha: int = 150,
+        anchor: tuple[float, float] = (0.0, 0.0),
+    ) -> TextOverlayHandle:
+        """Add a text label at `viewPos` (defaults to the top-left of the view)."""
         ...
 
     # --- raw items / tools (provisional; see module docstring) ---

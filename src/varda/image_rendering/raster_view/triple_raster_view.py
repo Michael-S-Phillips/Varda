@@ -44,7 +44,7 @@ class TripleRasterView(QWidget):
 
     def _initROIControllers(self):
         """Initialize ROI controllers for the viewports"""
-        imageShape = self.viewport1.imageItem.image.shape
+        imageShape = self.viewport1.imageEntity.shape
         height, width = imageShape[0], imageShape[1]
 
         startPoint = width // 3, height // 3
