@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from psygnal import Signal
@@ -19,6 +20,7 @@ from varda.image_rendering.raster_view.image_region_item import (
 from varda.image_rendering.raster_view.overlay_handles import (
     PyqtgraphCrosshair,
     PyqtgraphPolygonOverlay,
+    PyqtgraphROIOverlay,
     PyqtgraphTextOverlay,
 )
 from varda.image_rendering.raster_view.pointer_event import (
@@ -37,6 +39,7 @@ if TYPE_CHECKING:
         CrosshairHandle,
         PolygonOverlayHandle,
         TextOverlayHandle,
+        ROIOverlayHandle,
     )
 
 
@@ -258,6 +261,12 @@ class ImageViewport(QWidget):
             backgroundAlpha,
             anchor,
         )
+
+    def addROIOverlay(
+        self, points: Sequence[QPointF], color: QColor
+    ) -> "ROIOverlayHandle":
+        """Add a display-only ROI polygon overlay; returns a handle to drive it."""
+        return PyqtgraphROIOverlay(self._vb, points, color)
 
     # --- Items / tools ---
 

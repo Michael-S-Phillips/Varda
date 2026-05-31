@@ -117,7 +117,7 @@ class TestSelfNavigation:
         widthBefore = viewport.viewRect().width()
 
         with captures(viewport.sigViewRangeChangedManually) as emitted:
-            viewport.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+            viewport._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
 
         assert emitted  # self-navigation reported the manual range change
         assert viewport.viewRect().width() < widthBefore  # scroll up zooms in
@@ -125,7 +125,7 @@ class TestSelfNavigation:
     def test_self_navigating_does_not_emit_gesture_signals(self, makeViewport):
         viewport = makeViewport()
         with captures(viewport.sigZoomed) as emitted:
-            viewport.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+            viewport._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
         assert not emitted
 
     def test_disable_self_navigation_freezes_own_view(self, makeViewport):
@@ -133,7 +133,7 @@ class TestSelfNavigation:
         viewport.disableSelfNavigation()
         rectBefore = viewport.viewRect()
 
-        viewport.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+        viewport._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
 
         assert viewport.viewRect() == rectBefore  # gesture no longer moves own view
 
@@ -141,7 +141,7 @@ class TestSelfNavigation:
         viewport = makeViewport()
         viewport.disableSelfNavigation()
         with captures(viewport.sigZoomed) as emitted:
-            viewport.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+            viewport._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
         assert emitted  # gesture re-emitted instead of moving the view
 
 
@@ -166,13 +166,13 @@ class TestRegionController:
     def test_scroll_up_zooms_in_shrinks_roi(self, wired):
         _controller, _source, target, roi = wired
         sizeBefore = roi.size().x()
-        target.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+        target._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
         assert roi.size().x() < sizeBefore
 
     def test_scroll_down_zooms_out_grows_roi(self, wired):
         _controller, _source, target, roi = wired
         sizeBefore = roi.size().x()
-        target.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), -120))
+        target._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), -120))
         assert roi.size().x() > sizeBefore
 
     def test_zoom_stays_within_source_bounds(self, wired):
@@ -180,7 +180,7 @@ class TestRegionController:
         bounds = roi.maxBounds
         # Zoom out hard; the ROI must not grow beyond the source image extent.
         for _ in range(20):
-            target.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), -120))
+            target._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), -120))
         assert roi.size().x() <= bounds.width() + 1e-6
         assert roi.size().y() <= bounds.height() + 1e-6
 
@@ -189,10 +189,8 @@ class TestRegionController:
         posBefore = QPointF(roi.pos())
 
         down = QPointF(150, 150)
-        target.viewBox.mouseDragEvent(_FakeDragEvent(down, down, start=True))
-        target.viewBox.mouseDragEvent(_FakeDragEvent(QPointF(180, 180), down))
-        target.viewBox.mouseDragEvent(
-            _FakeDragEvent(QPointF(180, 180), down, finish=True)
-        )
+        target._vb.mouseDragEvent(_FakeDragEvent(down, down, start=True))
+        target._vb.mouseDragEvent(_FakeDragEvent(QPointF(180, 180), down))
+        target._vb.mouseDragEvent(_FakeDragEvent(QPointF(180, 180), down, finish=True))
 
         assert roi.pos() != posBefore  # the drag moved the ROI on the source

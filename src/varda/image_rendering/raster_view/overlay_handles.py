@@ -14,8 +14,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import pyqtgraph as pg
-from PyQt6.QtCore import QPointF
-from PyQt6.QtGui import QBrush, QColor, QPen, QPolygonF
+from PyQt6.QtCore import QPointF, QRectF
+from PyQt6.QtGui import QBrush, QColor, QPainterPath, QPen, QPolygonF
 from PyQt6.QtWidgets import QGraphicsPolygonItem
 
 
@@ -111,3 +111,80 @@ class PyqtgraphTextOverlay:
 
     def remove(self) -> None:
         self._viewBox.removeItem(self._item)
+
+
+class PyqtgraphROIOverlay(pg.GraphicsObject):
+    """A display-only ROI polygon: coloured outline + fill, with a highlight state.
+
+    Points are in viewport-local coordinates. This is both the handle and the
+    graphics item (a `pg.GraphicsObject`), so it can paint a closed, filled polygon
+    while still satisfying the `ROIOverlayHandle` protocol.
+    """
+
+    _HIGHLIGHT = QColor(255, 255, 0)
+
+    def __init__(self, viewBox: pg.ViewBox, points: Sequence[QPointF], color: QColor):
+        super().__init__()
+        self._color = color
+        self._highlighted = False
+        self._polygon = QPolygonF()
+        self._pen = QPen()
+        self._brush = QBrush()
+        self._buildPolygon(points)
+        self._updateStyle()
+        # NB: not `_viewBox` — pg.GraphicsItem uses that name internally.
+        self._hostViewBox = viewBox
+        viewBox.addItem(self, ignoreBounds=True)
+
+    def setPoints(self, points: Sequence[QPointF]) -> None:
+        self.prepareGeometryChange()
+        self._buildPolygon(points)
+        self.update()
+
+    def setColor(self, color: QColor) -> None:
+        self._color = color
+        self._updateStyle()
+        self.update()
+
+    def setHighlighted(self, highlighted: bool) -> None:
+        if self._highlighted != highlighted:
+            self._highlighted = highlighted
+            self._updateStyle()
+            self.update()
+
+    def remove(self) -> None:
+        self._hostViewBox.removeItem(self)
+
+    def boundingRect(self) -> QRectF:
+        return self._polygon.boundingRect()
+
+    def shape(self) -> QPainterPath:
+        path = QPainterPath()
+        path.addPolygon(self._polygon)
+        return path
+
+    def paint(self, painter, option, widget=None) -> None:
+        painter.setPen(self._pen)
+        painter.setBrush(self._brush)
+        painter.drawPolygon(self._polygon)
+
+    def _buildPolygon(self, points: Sequence[QPointF]) -> None:
+        pts = list(points)
+        polygon = QPolygonF()
+        for point in pts:
+            polygon.append(point)
+        if len(pts) >= 3:
+            polygon.append(pts[0])  # close the polygon
+        self._polygon = polygon
+
+    def _updateStyle(self) -> None:
+        color = self._color
+        if self._highlighted:
+            color = QColor(
+                self._HIGHLIGHT.red(),
+                self._HIGHLIGHT.green(),
+                self._HIGHLIGHT.blue(),
+                color.alpha(),
+            )
+        self._pen = pg.mkPen(color=(color.red(), color.green(), color.blue()), width=2)
+        self._brush = pg.mkBrush(color)

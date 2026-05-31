@@ -8,15 +8,16 @@ internals, so a future VisPy/pygfx viewport becomes "implement one Protocol"
 rather than "rewrite every consumer".
 
 Backend-neutral overlays go through the `add*Overlay` factories (`addCrosshair`,
-`addPolygonOverlay`, `addTextOverlay`), which return abstract handles — tools use
-these instead of constructing pyqtgraph items. Tool input arrives as
-backend-neutral `PointerEvent`/`KeyEvent`s (see `pointer_event`), so tools never
-touch the scene graph.
+`addPolygonOverlay`, `addTextOverlay`, `addROIOverlay`), which return abstract
+handles — consumers use these instead of constructing pyqtgraph items. Tool input
+arrives as backend-neutral `PointerEvent`/`KeyEvent`s (see `pointer_event`), so
+tools never touch the scene graph.
 
 Provisional surface that still traffics in raw pyqtgraph objects (typed loosely
-as `object` to keep pyqtgraph out of the contract): `addItem`/`removeItem` (used
-for ROI-display graphics items) and `showRegion`. A later step replaces these
-with a backend-neutral ROI-overlay mechanism.
+as `object` to keep pyqtgraph out of the contract): `addItem`/`removeItem` and
+`showRegion`. These now back only the *interactive* region-selection ROI
+(`VardaROIItem`, a `pg.ROI` with drag/resize handles) used by `RegionController`;
+abstracting interactive ROI editing is the remaining step.
 """
 
 from __future__ import annotations
@@ -71,6 +72,21 @@ class TextOverlayHandle(OverlayHandle, Protocol):
     def setText(self, text: str) -> None: ...
 
     def setPos(self, pos: QPointF) -> None: ...
+
+
+class ROIOverlayHandle(OverlayHandle, Protocol):
+    """A display-only ROI polygon (coloured outline + fill) with a highlight state.
+
+    Points are in viewport-local coordinates. Unlike `PolygonOverlayHandle`
+    (a transient drawing preview), this carries a per-ROI colour and can be
+    highlighted, matching how saved ROIs are shown.
+    """
+
+    def setPoints(self, points: Sequence[QPointF]) -> None: ...
+
+    def setColor(self, color: QColor) -> None: ...
+
+    def setHighlighted(self, highlighted: bool) -> None: ...
 
 
 @runtime_checkable
@@ -185,6 +201,12 @@ class RasterViewport(Protocol):
         anchor: tuple[float, float] = (0.0, 0.0),
     ) -> TextOverlayHandle:
         """Add a text label at `viewPos` (defaults to the top-left of the view)."""
+        ...
+
+    def addROIOverlay(
+        self, points: Sequence[QPointF], color: QColor
+    ) -> ROIOverlayHandle:
+        """Add a display-only ROI polygon overlay; returns a handle to drive it."""
         ...
 
     # --- raw items / tools (provisional; see module docstring) ---
