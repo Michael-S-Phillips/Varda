@@ -104,10 +104,20 @@ def test_stretch_select_by_name(qtbot):
 
 def test_stretch_subparam_change_propagates(qtbot):
     p = StretchParameter("Stretch")
+    p.selectByName("Min-Max (Manual)")
     received = []
     p.sigParameterChanged.connect(lambda v: received.append(v))
     p.option("Min-Max (Manual)").config.redStretch.set(Vec2(0.1, 0.9))
     assert len(received) >= 1
+
+
+def test_stretch_inactive_subparam_change_does_not_propagate(qtbot):
+    p = StretchParameter("Stretch")  # default active = Auto
+    received = []
+    p.sigParameterChanged.connect(lambda v: received.append(v))
+    # Manual is NOT the active algorithm; changing it must not emit
+    p.option("Min-Max (Manual)").config.redStretch.set(Vec2(0.3, 0.7))
+    assert received == []
 
 
 def test_stretch_clone_preserves_selection_with_independent_instances(qtbot):

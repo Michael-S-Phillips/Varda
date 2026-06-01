@@ -142,7 +142,7 @@ class StretchParameter(Parameter[StretchAlgorithm]):
     """
 
     DEFAULT_NAME = "Min-Max (Auto Full Range)"
-    MANUAL_NAME = "Min-Max (Manual)"
+    MANUAL_NAME = "Min-Max (Manual)"  # used by ImageRenderer's manual-stretch convenience methods
 
     def __init__(self, name: str, description: str | None = None, parent=None):
         self._instances: dict[str, StretchAlgorithm] = {
@@ -162,8 +162,11 @@ class StretchParameter(Parameter[StretchAlgorithm]):
             group.sigParameterChanged.connect(self._onSubParamChanged)
 
     def _onSubParamChanged(self, *args) -> None:
-        # a sub-parameter of one of the algorithms changed; treat it as a settings change
-        self.sigParameterChanged.emit(self.value)
+        # A sub-parameter of one of the algorithms changed. All algorithms' groups stay
+        # connected (to keep them alive and avoid dangling-connection crashes), so only
+        # propagate when the group that changed belongs to the *active* algorithm.
+        if self.sender() is self._paramGroups[self.nameOf(self.value)]:
+            self.sigParameterChanged.emit(self.value)
 
     @property
     def current(self) -> StretchAlgorithm:
@@ -222,7 +225,6 @@ class StretchParameter(Parameter[StretchAlgorithm]):
 
         def _onComboChanged(self, index: int) -> None:
             self.param.selectByName(self.param.optionNames[index])
-            self.stack.setCurrentIndex(index)
 
         def _syncToParam(self) -> None:
             index = self.param.optionNames.index(self.param.nameOf(self.param.current))
