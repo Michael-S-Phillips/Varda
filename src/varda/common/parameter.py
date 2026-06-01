@@ -37,7 +37,7 @@ class ParameterGroup(QObject):
         floatParam: FloatParameter = FloatParameter("Float Parameter", 5.0, (0.0, 10.0), "float units", "A float parameter")
     """
 
-    sigParameterChanged: pyqtSignal = pyqtSignal()
+    sigParameterChanged: pyqtSignal = pyqtSignal(object)
 
     def __init__(self, parent: QObject | None = None) -> None:
         """
@@ -58,7 +58,7 @@ class ParameterGroup(QObject):
                 instanceParam = attr.clone(parent=self)
                 # link the parameter's change signal to the collection's change signal. lambda is to discard the value sent by the parameter
                 instanceParam.sigParameterChanged.connect(
-                    lambda _: self.sigParameterChanged.emit()
+                    lambda _: self.sigParameterChanged.emit(self)
                 )
                 setattr(
                     self, name, instanceParam
@@ -92,12 +92,12 @@ class ParameterGroup(QObject):
 
     def clone(self, parent: QObject | None = None) -> ParameterGroup:
         """
-        Instantiates a new ParameterGroup based on the current group's state.
+        Returns a fresh instance of this group. Subclasses define their parameters as
+        class attributes, so ``self.__class__(parent)`` reconstructs them at their
+        defaults with the attributes, ``params`` dict, and change-signal wiring all
+        consistent. (Used by the parent group's magic to give each instance its own copy.)
         """
-        newGroup = self.__class__(parent)
-        for name, param in self.params.items():
-            setattr(newGroup, name, param.clone(parent=newGroup))
-        return newGroup
+        return self.__class__(parent)
 
 
 class Parameter[T](QObject):
