@@ -84,8 +84,7 @@ class RendererSettings(ParameterGroup):
         self.image = image
         for p in (self.rgb.red, self.rgb.green, self.rgb.blue, self.mono.band):
             p.setImage(image)
-        self.stretch.setImage(image)
-        # seed defaults from image (e.g. image.defaultBands)
+        # seed band values from image.defaultBands
 ```
 
 Mirrors how `GeneralImageAnalysisConfig` already wires an image-dependent parameter in
@@ -106,11 +105,11 @@ stretch-algorithm dependencies out of the generic `common/parameter.py`):
   `pg.GradientWidget`. The HSV-unsupported guard (currently in the panel) moves here.
 - **`StretchParameter(Parameter[StretchAlgorithm])`** — value is the *active* algorithm
   instance. Pre-builds one instance per registry entry; exposes `selectByName(name)`,
-  `current`, `optionNames`. Connects each held algorithm's `parameters().sigParameterChanged`
-  to its own change signal so editing any stretch sub-param propagates. `setImage()`
-  configures the manual stretch's min/max param ranges from the data range.
-  Its `getWidget()` returns a **self-contained combo + stacked sub-form** (the stretch combo
-  only drives its own sub-params, so no cross-parameter coordination is needed).
+  `current`, `optionNames`, and `option(name)` (fetch a specific instance). Connects each held
+  algorithm's `parameters().sigParameterChanged` to its own change signal so editing any
+  stretch sub-param propagates. Its `getWidget()` returns a **self-contained combo + stacked
+  sub-form** (the stretch combo only drives its own sub-params, so no cross-parameter
+  coordination is needed).
 
 ### 3. Change propagation
 
@@ -178,7 +177,15 @@ channels 0/1/2.
     2→blue); used by histogram drag.
   - `setManualStretch(lo: float, hi: float)` — all channels to the same range.
 
-  Both ensure the manual stretch is active (seeded from current min/max) before setting.
+  Both ensure the manual stretch is active before setting. When switching *into* the manual
+  stretch, `setStretchMinMax` seeds all channels from the current stretch's computed min/max
+  (`current.minMaxVals()`) so unchanged channels don't jump, then sets the requested channel.
+  `setManualStretch` sets all channels explicitly, so no seeding is needed.
+
+This fixes the manual stretch's poor default min/max **value** of `Vec2(0.0, 1.0)` (correct
+values now come from the data via seeding). The manual stretch's spinbox **range** is left at
+the `Vec2Parameter` default (±100000) — a known limitation for data whose magnitude exceeds
+that; widening it per-image is deferred.
 
 ### 7. Consumer updates
 
@@ -209,8 +216,9 @@ GUI panel wiring (widget swapping on mode) remains harder to unit-test and is ve
 ## Risks / Open Points
 
 - Nested `ParameterGroup` signal propagation fix may touch behavior relied on elsewhere —
-  audit existing `ParameterGroup` users before changing.
+  audited: the only `ParameterGroup.sigParameterChanged` consumers are zero-arg slots in
+  `plot.py`, which remain compatible (Qt allows slots with fewer args than the signal).
 - `EnumParameter` renders `RenderMode.RGB` as "Rgb" via its name-prettifier (cosmetic; can
   override display if undesirable).
-- Manual stretch is currently RGB-oriented (red/green/blue Vec2 params). Seeding/range-from-data
-  must handle both mono (1 channel) and RGB (3 channels) cleanly.
+- Manual stretch is RGB-oriented (red/green/blue Vec2 params). Seeding from `minMaxVals()` must
+  handle both mono (1-element arrays → broadcast to 3 channels) and RGB (3-element arrays).
