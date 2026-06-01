@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.common.entities import VardaRaster
-from varda.common.parameter import Parameter, paramLayoutDefault
+from varda.common.parameter import Parameter, ParameterGroup, paramLayoutDefault
 from varda.common.vec2 import Vec2
 from varda.image_rendering.stretch_algorithms import (
     StretchAlgorithm,
@@ -131,3 +131,105 @@ class ColorMapParameter(Parameter[pg.ColorMap]):
         def onParamChanged(self, colorMap: pg.ColorMap) -> None:
             with QSignalBlocker(self.gradient):
                 self.gradient.setColorMap(colorMap)
+
+
+class StretchParameter(Parameter[StretchAlgorithm]):
+    """Selects the active stretch algorithm from the registry.
+
+    The value is the active ``StretchAlgorithm`` instance. One instance of every
+    registered algorithm is built up-front and kept, so each option retains its own
+    sub-parameters. The widget is a self-contained combo + stacked sub-form.
+    """
+
+    DEFAULT_NAME = "Min-Max (Auto Full Range)"
+    MANUAL_NAME = "Min-Max (Manual)"
+
+    def __init__(self, name: str, description: str | None = None, parent=None):
+        self._instances: dict[str, StretchAlgorithm] = {
+            n: cls() for n, cls in stretchAlgorithmRegistry.items()
+        }
+        default = self._instances.get(self.DEFAULT_NAME) or next(
+            iter(self._instances.values())
+        )
+        super().__init__(name, default, description, parent)
+        # Keep ParameterGroup references alive so Qt signal connections are not dangling.
+        # Algorithms whose parameters() returns a fresh group each call need their group
+        # kept alive here; algorithms that return self.config are also fine.
+        self._paramGroups: dict[str, ParameterGroup] = {}
+        for alg_name, instance in self._instances.items():
+            group = instance.parameters()
+            self._paramGroups[alg_name] = group
+            group.sigParameterChanged.connect(self._onSubParamChanged)
+
+    def _onSubParamChanged(self, *args) -> None:
+        # a sub-parameter of one of the algorithms changed; treat it as a settings change
+        self.sigParameterChanged.emit(self.value)
+
+    @property
+    def current(self) -> StretchAlgorithm:
+        return self.value
+
+    @property
+    def optionNames(self) -> list[str]:
+        return list(self._instances.keys())
+
+    def option(self, name: str) -> StretchAlgorithm:
+        return self._instances[name]
+
+    def nameOf(self, instance: StretchAlgorithm) -> str:
+        for n, inst in self._instances.items():
+            if inst is instance:
+                return n
+        raise ValueError("instance is not one of this parameter's algorithms")
+
+    def selectByName(self, name: str) -> None:
+        self.set(self._instances[name])
+
+    def getWidget(self, parent=None) -> QWidget:
+        return self.StretchParameterWidget(self, parent)
+
+    def clone(self, parent=None) -> StretchParameter:
+        new = StretchParameter(self.name, self.description, parent)
+        new.selectByName(self.nameOf(self.value))
+        return new
+
+    class StretchParameterWidget(QWidget):
+        def __init__(self, param: StretchParameter, parent=None):
+            super().__init__(parent)
+            self.param = param
+            self.param.sigParameterChanged.connect(self.onParamChanged)
+
+            self.comboBox = QComboBox(self)
+            self.comboBox.addItems(self.param.optionNames)
+
+            self.stack = QStackedLayout()
+            self.stack.setAlignment(
+                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+            )
+            for name in self.param.optionNames:
+                self.stack.addWidget(self.param._paramGroups[name].createWidget())
+
+            self.comboBox.currentIndexChanged.connect(self._onComboChanged)
+
+            layout = QVBoxLayout()
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            layout.addWidget(self.comboBox)
+            layout.addLayout(self.stack)
+            self.setLayout(layout)
+
+            self._syncToParam()
+
+        def _onComboChanged(self, index: int) -> None:
+            self.param.selectByName(self.param.optionNames[index])
+            self.stack.setCurrentIndex(index)
+
+        def _syncToParam(self) -> None:
+            index = self.param.optionNames.index(self.param.nameOf(self.param.current))
+            with QSignalBlocker(self.comboBox):
+                self.comboBox.setCurrentIndex(index)
+            self.stack.setCurrentIndex(index)
+
+        @pyqtSlot(object)
+        def onParamChanged(self, value) -> None:
+            self._syncToParam()

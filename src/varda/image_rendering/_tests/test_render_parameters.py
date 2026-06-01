@@ -84,3 +84,45 @@ def test_colormap_widget_builds(qtbot):
     w = p.getWidget()
     qtbot.addWidget(w)
     assert w.gradient is not None
+
+
+from varda.common.vec2 import Vec2
+from varda.image_rendering.render_parameters import StretchParameter
+
+
+def test_stretch_default_is_auto(qtbot):
+    p = StretchParameter("Stretch")
+    assert p.nameOf(p.current) == "Min-Max (Auto Full Range)"
+
+
+def test_stretch_select_by_name(qtbot):
+    p = StretchParameter("Stretch")
+    p.selectByName("Min-Max (Manual)")
+    assert p.nameOf(p.current) == "Min-Max (Manual)"
+    assert p.current is p.option("Min-Max (Manual)")
+
+
+def test_stretch_subparam_change_propagates(qtbot):
+    p = StretchParameter("Stretch")
+    received = []
+    p.sigParameterChanged.connect(lambda v: received.append(v))
+    p.option("Min-Max (Manual)").config.redStretch.set(Vec2(0.1, 0.9))
+    assert len(received) >= 1
+
+
+def test_stretch_clone_preserves_selection_with_independent_instances(qtbot):
+    p = StretchParameter("Stretch")
+    p.selectByName("Linear Percentile")
+    c = p.clone()
+    assert c.nameOf(c.current) == "Linear Percentile"
+    assert c.current is not p.current
+
+
+def test_stretch_widget_combo_drives_selection(qtbot):
+    p = StretchParameter("Stretch")
+    w = p.getWidget()
+    qtbot.addWidget(w)
+    manual_index = p.optionNames.index("Min-Max (Manual)")
+    w.comboBox.setCurrentIndex(manual_index)
+    assert p.nameOf(p.current) == "Min-Max (Manual)"
+    assert w.stack.currentIndex() == manual_index
