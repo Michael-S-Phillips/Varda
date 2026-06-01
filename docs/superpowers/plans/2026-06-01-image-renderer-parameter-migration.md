@@ -1277,7 +1277,15 @@ git commit -m "feat: drag histogram regions to drive the manual stretch min/max"
 Confirm no consumer still uses the removed API, then run type checking, formatting, the full test suite, and a smoke launch of the real workspace.
 
 **Files:**
+- Modify: `src/varda/image_rendering/stretch_algorithms.py` (revert obsolete WIP stubs).
 - Modify (only if grep finds hits): any file still referencing removed symbols.
+
+- [ ] **Step 0: Revert the obsolete `setMinMaxVals` WIP stubs in `stretch_algorithms.py`**
+
+The working tree has pre-existing WIP additions to `stretch_algorithms.py` (a `setMinMaxVals` stub on `StretchAlgorithm` and a broken `self.min` `setMinMaxVals` on `LinearPercentileStretch`) — the only uncommitted changes to that file. The migration's `StretchParameter` + `ImageRenderer` convenience methods supersede them and nothing calls `setMinMaxVals`. Revert the file to its committed state:
+
+Run: `git checkout HEAD -- src/varda/image_rendering/stretch_algorithms.py`
+Then confirm it's clean: `git diff --stat src/varda/image_rendering/stretch_algorithms.py` (expected: no output).
 
 - [ ] **Step 1: Grep for removed/changed API usage**
 
@@ -1315,14 +1323,18 @@ Expected: PASS (all green, including the pre-existing suites).
 Run: `uv run python -m varda.main`
 Expected: The app launches. Open an image and a General Image Analysis workspace; the "Render Settings" dock shows the parameter-generated panel; changing Mode/Stretch/Opacity updates the raster view and histogram. Dragging a histogram region updates the image. Close the app.
 
-- [ ] **Step 6: Commit any integration fixes**
+- [ ] **Step 6: Commit integration fixes (explicit paths only)**
+
+Do **not** use `git add -A` — the untracked `src/_experiments/vispy_varda_raster_viewer.py` is the user's experiment and must stay uncommitted. Stage only the files actually changed in this task (the `stretch_algorithms.py` revert is a working-tree change to a tracked file, so `git add` stages the reverted/clean content; include any files touched in Step 1):
 
 ```bash
-git add -A
-git commit -m "chore: integration fixes for renderer parameter migration"
+git add src/varda/image_rendering/stretch_algorithms.py
+# add any other files changed by Step 1 fixes, e.g.:
+# git add src/varda/image_rendering/image_renderer.py
+git commit -m "chore: drop obsolete setMinMaxVals stubs; integration fixes for renderer parameter migration"
 ```
 
-(If Steps 1–5 required no changes, skip this commit.)
+(If Step 0's revert plus Steps 1–5 produced no staged changes, skip this commit.)
 
 ---
 
