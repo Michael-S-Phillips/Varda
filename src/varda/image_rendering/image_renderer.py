@@ -1,55 +1,69 @@
 import sys
-from dataclasses import dataclass
+from enum import Enum, auto
 from typing import Optional
 
 from PyQt6.QtCore import pyqtSignal, QObject, Qt
 from PyQt6.QtWidgets import (
     QWidget,
-    QComboBox,
-    QButtonGroup,
-    QRadioButton,
-    QHBoxLayout,
-    QStackedLayout,
     QVBoxLayout,
     QLabel,
+    QStackedLayout,
     QApplication,
-    QMessageBox,
 )
-import pyqtgraph as pg
-from pyqtgraph import ColorMap
 import numpy as np
 
-from varda.common.parameter import FloatParameter, ParameterGroupWidget
+from varda.common.parameter import (
+    ParameterGroup,
+    EnumParameter,
+    FloatParameter,
+    ParameterGroupWidget,
+)
 from varda.common.entities import VardaRaster
+from varda.common.vec2 import Vec2
 from varda.utilities import debug
-from varda.image_rendering.stretch_algorithms import (
-    stretchAlgorithmRegistry,
-    StretchAlgorithm,
+from varda.image_rendering.render_parameters import (
+    BandParameter,
+    ColorMapParameter,
+    StretchParameter,
 )
 
 
-@dataclass
-class RendererSettings:
-    image: VardaRaster
-    mode: str
-    bands: np.ndarray[tuple[int], np.dtype[np.uint]]
-    stretch: StretchAlgorithm
-    colorMap: ColorMap
-    opacity: float
+class RenderMode(Enum):
+    MONO = auto()
+    RGB = auto()
 
-    @staticmethod
-    def new(image):
-        return RendererSettings(
-            image=image,
-            mode="mono",
-            bands=image.defaultBands,
-            stretch=stretchAlgorithmRegistry["Min-Max (Auto Full Range)"](),
-            colorMap=pg.ColorMap(None, color=[0.0, 1.0]),  # simple black to white map
-            opacity=1.0,
-        )
 
-    def __repr__(self):
-        return f"RendererSettings (\n    image={self.image},\n    mode={self.mode},\n    bands={self.bands},\n    stretch={self.stretch},\n    colorMap={self.colorMap},\n    opacity={self.opacity}\n)"
+class RgbBandGroup(ParameterGroup):
+    red = BandParameter("Red Band")
+    green = BandParameter("Green Band")
+    blue = BandParameter("Blue Band")
+
+
+class MonoViewGroup(ParameterGroup):
+    band = BandParameter("Band")
+    colorMap = ColorMapParameter("Color Map")
+
+
+class RendererSettings(ParameterGroup):
+    mode = EnumParameter("Mode", RenderMode, RenderMode.MONO)
+    rgb = RgbBandGroup()
+    mono = MonoViewGroup()
+    stretch = StretchParameter("Stretch Algorithm")
+    opacity = FloatParameter(
+        "Opacity", 1.0, (0.0, 1.0), "%", "Opacity of the rendered image."
+    )
+
+    def __init__(self, image: VardaRaster, parent: QObject | None = None):
+        super().__init__(parent)
+        self.image = image
+        for bandParam in (self.rgb.red, self.rgb.green, self.rgb.blue, self.mono.band):
+            bandParam.setImage(image)
+        # seed band selections from the image's default bands
+        defaultBands = image.defaultBands
+        self.rgb.red.value = int(defaultBands[0])
+        self.rgb.green.value = int(defaultBands[1])
+        self.rgb.blue.value = int(defaultBands[2])
+        self.mono.band.value = int(defaultBands[0])
 
 
 class ImageRenderer(QObject):
@@ -157,6 +171,13 @@ class ImageRenderer(QObject):
         if self.cachedRender is None:
             self.render()
         return self.settings.stretch.minMaxVals()
+
+    def setMinMaxValues(self, min, max):
+        # todo: rework image renderer so we can do this
+        pass
+
+    def manuallySetStretch(self, minMaxVals):
+        self.settings.stretch
 
     def updateSettings(self, settings: RendererSettings):
         self.settings = settings
@@ -358,7 +379,7 @@ class RendererSettingsPanel(QWidget):
 
         self.sigSettingsChanged.emit(self.settings)
 
-    def _onColorMapChanged(self, colorMap: pg.GradientEditorItem):
+    def _onColorMapChanged(self, colorMap: "pg.GradientEditorItem"):
         try:
             newColorMap = colorMap.colorMap()  # may raise NotImplementedError
             self.settings.colorMap = newColorMap
