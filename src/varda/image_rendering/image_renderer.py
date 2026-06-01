@@ -65,6 +65,11 @@ class RendererSettings(ParameterGroup):
         self.rgb.blue.value = int(defaultBands[2])
         self.mono.band.value = int(defaultBands[0])
 
+    def clone(self, parent: QObject | None = None) -> "RendererSettings":
+        # RendererSettings needs the image at construction, unlike the base ParameterGroup
+        # whose clone() calls self.__class__(parent) with no image.
+        return RendererSettings(self.image, parent)
+
 
 class ImageRenderer(QObject):
     sigShouldRefresh: pyqtSignal = pyqtSignal()

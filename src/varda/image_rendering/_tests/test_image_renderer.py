@@ -45,3 +45,11 @@ def test_settings_change_emits_group(qtbot):
 def test_settings_stretch_default_is_auto(qtbot):
     s = RendererSettings(make_image(5))
     assert s.stretch.nameOf(s.stretch.current) == "Min-Max (Auto Full Range)"
+
+
+def test_settings_defaults_single_band_image(qtbot):
+    s = RendererSettings(make_image(1))
+    assert s.rgb.red.get() == 0
+    assert s.rgb.green.get() == 0
+    assert s.rgb.blue.get() == 0
+    assert s.mono.band.get() == 0
