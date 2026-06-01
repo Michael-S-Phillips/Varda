@@ -43,3 +43,13 @@ def test_band_parameter_widget_reflects_value(qtbot):
     qtbot.addWidget(w)
     p.set(2)
     assert w.comboBox.currentIndex() == 2
+
+
+def test_band_parameter_widget_combo_drives_param(qtbot):
+    img = make_image(4)
+    p = BandParameter("Band", 0)
+    p.setImage(img)
+    w = p.getWidget()
+    qtbot.addWidget(w)
+    w.comboBox.setCurrentIndex(3)
+    assert p.get() == 3

@@ -47,9 +47,9 @@ class BandParameter(Parameter[int]):
 
     def clone(self, parent=None) -> BandParameter:
         new = BandParameter(self.name, self.default, self.description, parent)
-        new.value = self.value
         if self.image is not None:
             new.setImage(self.image)
+        new.value = self.value
         return new
 
     class BandParameterWidget(QWidget):
