@@ -1,7 +1,7 @@
 import sys
 from enum import Enum, auto
 
-from PyQt6.QtCore import pyqtSignal, QObject, Qt
+from PyQt6.QtCore import pyqtSignal, QObject, Qt, QSignalBlocker
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -79,9 +79,12 @@ class ImageRenderer(QObject):
         settings: RendererSettings | None = None,
     ):
         super().__init__()
-        if settings is None and image is None:
+        if settings is not None:
+            self.settings = settings
+        elif image is not None:
+            self.settings = RendererSettings(image)
+        else:
             raise ValueError("Either image or settings must be provided.")
-        self.settings = settings if settings is not None else RendererSettings(image)
         self.image = self.settings.image
         self.cachedRender = None
         self._stretchedData = None  # latest render post-stretch but pre-colormap
@@ -164,10 +167,13 @@ class ImageRenderer(QObject):
         """Switch to the manual stretch and set every channel to [lo, hi]."""
         manual = self.settings.stretch.option(StretchParameter.MANUAL_NAME)
         value = Vec2(float(lo), float(hi))
-        manual.config.redStretch.set(value)
-        manual.config.greenStretch.set(value)
-        manual.config.blueStretch.set(value)
-        self.settings.stretch.selectByName(StretchParameter.MANUAL_NAME)
+        # batch the param edits into a single refresh
+        with QSignalBlocker(self.settings):
+            manual.config.redStretch.set(value)
+            manual.config.greenStretch.set(value)
+            manual.config.blueStretch.set(value)
+            self.settings.stretch.selectByName(StretchParameter.MANUAL_NAME)
+        self.settings.sigParameterChanged.emit(self.settings)
 
     def setStretchMinMax(self, channel: int, lo: float, hi: float) -> None:
         """Set one channel's manual min/max (0=red, 1=green, 2=blue).
@@ -182,16 +188,19 @@ class ImageRenderer(QObject):
             manual.config.greenStretch,
             manual.config.blueStretch,
         ]
-        if stretch.current is not manual:
-            self.render()  # ensure the current stretch has computed its min/max
-            seed = stretch.current.minMaxVals()
-            if seed is not None:
-                mins = np.resize(np.atleast_1d(np.asarray(seed[0], dtype=float)).ravel(), 3)
-                maxs = np.resize(np.atleast_1d(np.asarray(seed[1], dtype=float)).ravel(), 3)
-                for i, param in enumerate(channelParams):
-                    param.set(Vec2(float(mins[i]), float(maxs[i])))
-            stretch.selectByName(StretchParameter.MANUAL_NAME)
-        channelParams[channel].set(Vec2(float(lo), float(hi)))
+        # batch all edits (seed + select + channel set) into a single refresh
+        with QSignalBlocker(self.settings):
+            if stretch.current is not manual:
+                self.render()  # ensure the current stretch has computed its min/max
+                seed = stretch.current.minMaxVals()
+                if seed is not None:
+                    mins = np.resize(np.atleast_1d(np.asarray(seed[0], dtype=float)).ravel(), 3)
+                    maxs = np.resize(np.atleast_1d(np.asarray(seed[1], dtype=float)).ravel(), 3)
+                    for i, param in enumerate(channelParams):
+                        param.set(Vec2(float(mins[i]), float(maxs[i])))
+                stretch.selectByName(StretchParameter.MANUAL_NAME)
+            channelParams[channel].set(Vec2(float(lo), float(hi)))
+        self.settings.sigParameterChanged.emit(self.settings)
 
     def getSettingsPanel(self) -> "RendererSettingsPanel":
         return RendererSettingsPanel(self.settings)

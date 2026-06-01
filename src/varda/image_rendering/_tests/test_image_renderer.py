@@ -107,4 +107,18 @@ def test_setStretchMinMax_seeds_other_channels_and_sets_target(qtbot):
     assert r.settings.stretch.current is manual
     assert manual.config.redStretch.get() == Vec2(5.0, 7.0)
     # green/blue were seeded from the auto stretch (not left at the Vec2(0, 1) default)
-    assert isinstance(manual.config.greenStretch.get(), Vec2)
+    assert manual.config.greenStretch.get() != Vec2(0.0, 1.0)
+
+
+def test_setManualStretch_emits_single_refresh(qtbot):
+    r = make_renderer()
+    r.setManualStretch(10.0, 50.0)  # first call: auto -> manual
+    count = 0
+
+    def _inc():
+        nonlocal count
+        count += 1
+
+    r.sigShouldRefresh.connect(_inc)
+    r.setManualStretch(20.0, 60.0)  # manual already active (was the storm case)
+    assert count == 1
