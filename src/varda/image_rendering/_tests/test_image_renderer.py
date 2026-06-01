@@ -53,3 +53,58 @@ def test_settings_defaults_single_band_image(qtbot):
     assert s.rgb.green.get() == 0
     assert s.rgb.blue.get() == 0
     assert s.mono.band.get() == 0
+
+
+from varda.common.vec2 import Vec2
+from varda.image_rendering.image_renderer import ImageRenderer
+
+
+def make_renderer(bands: int = 5) -> ImageRenderer:
+    return ImageRenderer(image=make_image(bands))
+
+
+def test_render_returns_rgba(qtbot):
+    out = make_renderer().render()
+    assert out.ndim == 3 and out.shape[2] == 4
+
+
+def test_render_is_cached(qtbot):
+    r = make_renderer()
+    r.render()
+    assert r.cachedRender is not None
+
+
+def test_param_change_invalidates_cache_and_emits_refresh(qtbot):
+    r = make_renderer()
+    r.render()
+    with qtbot.waitSignal(r.sigShouldRefresh, timeout=1000):
+        r.settings.opacity.set(0.5)
+    assert r.cachedRender is None
+
+
+def test_mode_switch_changes_render_path(qtbot):
+    r = make_renderer()
+    r.settings.mode.set(RenderMode.RGB)
+    out = r.render()
+    assert out.shape[2] == 4
+
+
+def test_setManualStretch_activates_manual_on_all_channels(qtbot):
+    r = make_renderer()
+    r.setManualStretch(10.0, 50.0)
+    stretch = r.settings.stretch
+    assert stretch.nameOf(stretch.current) == "Min-Max (Manual)"
+    assert stretch.current.config.redStretch.get() == Vec2(10.0, 50.0)
+    assert stretch.current.config.greenStretch.get() == Vec2(10.0, 50.0)
+    assert stretch.current.config.blueStretch.get() == Vec2(10.0, 50.0)
+
+
+def test_setStretchMinMax_seeds_other_channels_and_sets_target(qtbot):
+    r = make_renderer()
+    r.render()  # auto stretch computes its min/max for seeding
+    r.setStretchMinMax(0, 5.0, 7.0)
+    manual = r.settings.stretch.option("Min-Max (Manual)")
+    assert r.settings.stretch.current is manual
+    assert manual.config.redStretch.get() == Vec2(5.0, 7.0)
+    # green/blue were seeded from the auto stretch (not left at the Vec2(0, 1) default)
+    assert isinstance(manual.config.greenStretch.get(), Vec2)

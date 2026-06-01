@@ -1,6 +1,5 @@
 import sys
 from enum import Enum, auto
-from typing import Optional
 
 from PyQt6.QtCore import pyqtSignal, QObject, Qt
 from PyQt6.QtWidgets import (
@@ -77,86 +76,71 @@ class ImageRenderer(QObject):
     def __init__(
         self,
         image: VardaRaster | None = None,
-        settings: Optional[RendererSettings] = None,
+        settings: RendererSettings | None = None,
     ):
         super().__init__()
         if settings is None and image is None:
             raise ValueError("Either image or settings must be provided.")
-        self.settings = (
-            settings if settings is not None else RendererSettings.new(image)
-        )
+        self.settings = settings if settings is not None else RendererSettings(image)
         self.image = self.settings.image
         self.cachedRender = None
-        self._stretchedData = (
-            None  # the data from the latest render post-stretch but pre-colormap.
-        )
-        self._rawBandData = None  # extracted data bands with no processing applied.
+        self._stretchedData = None  # latest render post-stretch but pre-colormap
+        self._rawBandData = None  # extracted band data with no processing applied
+        self.settings.sigParameterChanged.connect(self._onSettingsChanged)
+
+    def _onSettingsChanged(self, *args) -> None:
+        # any parameter (UI or programmatic) changed: drop caches and request a refresh
+        self.cachedRender = None
+        self._stretchedData = None
+        self.sigShouldRefresh.emit()
 
     def render(self):
         """
         Render the image with the current band and stretch settings.
-        Returns: numpy ndarray with shape (height, width, 3) representing an RGB image.
-
+        Returns: numpy ndarray with shape (height, width, 4) representing an RGBA image.
         """
         if self.cachedRender is not None:
             return self.cachedRender
-
         if self.image is None or self.settings is None:
             raise ValueError("Image and settings must be set before rendering.")
-        # profile = debug.Profiler()
-        # Extract the raster data for the specified bands
-        if self.settings.mode == "mono":
-            # maintain 3D shape so stretch algorithms don't need to account for both 2d and 3d arrays
-            data = self.image.getBands([int(self.settings.bands[0])])
+
+        mode = self.settings.mode.get()
+        if mode == RenderMode.MONO:
+            # maintain 3D shape so stretch algorithms don't branch on 2d/3d
+            data = self.image.getBands([int(self.settings.mono.band.get())])
         else:
-            data = self.image.getBands([int(b) for b in self.settings.bands[:3]])
+            data = self.image.getBands(
+                [
+                    int(self.settings.rgb.red.get()),
+                    int(self.settings.rgb.green.get()),
+                    int(self.settings.rgb.blue.get()),
+                ]
+            )
         self._rawBandData = data
 
-        # profile("Extract band data")
-
-        # if array is masked, convert to regular array with nans
         if np.ma.isMaskedArray(data):
             data = data.filled(np.nan)
 
-        # profile("Handle masked array")
-
-        # Run the stretch algorithm
-        data = self.settings.stretch.apply(data)
-
-        # profile("Apply stretching")
-
-        # save the stretched data pre-colormap; expand mono image to RGB image
+        data = self.settings.stretch.current.apply(data)
         self._stretchedData = data
-
-        # convert NaNs to zeros before color mapping and outputting
         data[np.isnan(data)] = 0
 
-        # profile("Handle NaNs")
-
-        # Apply color map
-        if self.settings.mode == "mono":
-            data = np.squeeze(data)  # go back to 2D because ColorMap expects it
-
-            lut = self.settings.colorMap.getLookupTable(0, 1, 256, alpha=False)
+        if mode == RenderMode.MONO:
+            data = np.squeeze(data)  # back to 2D because ColorMap expects it
+            lut = self.settings.mono.colorMap.get().getLookupTable(
+                0, 1, 256, alpha=False
+            )
             data = lut[(data * 255).astype(np.uint8)]
         else:
-            # convert the image to byte values, since it's faster to display I think.
-            # (ColorMap already does this for mono images)
             data = (data * 255).astype(np.uint8)
-        # profile("Apply color map")
 
-        # add 4th channel with opacity values
         alpha = np.full(
             (data.shape[0], data.shape[1], 1),
-            int(self.settings.opacity * 255),
+            int(self.settings.opacity.get() * 255),
             dtype=np.uint8,
         )
         rgba = np.concatenate((data, alpha), axis=2)
-
-        # profile("set opacity")
-
-        self.cachedRender = rgba  # cache the rendered image
-        # profile.total("Complete Image Render")
+        self.cachedRender = rgba
         return rgba
 
     def getStretchedData(self) -> np.ndarray:
@@ -166,7 +150,6 @@ class ImageRenderer(QObject):
         return self._stretchedData
 
     def getRawBandData(self) -> np.ndarray:
-        # Extract the raster data for the specified band
         if self._rawBandData is None:
             self.render()
         assert self._rawBandData is not None
@@ -175,26 +158,43 @@ class ImageRenderer(QObject):
     def getMinMaxValues(self):
         if self.cachedRender is None:
             self.render()
-        return self.settings.stretch.minMaxVals()
+        return self.settings.stretch.current.minMaxVals()
 
-    def setMinMaxValues(self, min, max):
-        # todo: rework image renderer so we can do this
-        pass
+    def setManualStretch(self, lo: float, hi: float) -> None:
+        """Switch to the manual stretch and set every channel to [lo, hi]."""
+        manual = self.settings.stretch.option(StretchParameter.MANUAL_NAME)
+        value = Vec2(float(lo), float(hi))
+        manual.config.redStretch.set(value)
+        manual.config.greenStretch.set(value)
+        manual.config.blueStretch.set(value)
+        self.settings.stretch.selectByName(StretchParameter.MANUAL_NAME)
 
-    def manuallySetStretch(self, minMaxVals):
-        self.settings.stretch
+    def setStretchMinMax(self, channel: int, lo: float, hi: float) -> None:
+        """Set one channel's manual min/max (0=red, 1=green, 2=blue).
 
-    def updateSettings(self, settings: RendererSettings):
-        self.settings = settings
-        # delete cache so new image is generated
-        self.cachedRender = None
-        self._stretchedData = None
-        self.sigShouldRefresh.emit()
+        When switching into the manual stretch, seed all channels from the current
+        stretch's computed min/max so the other channels don't jump.
+        """
+        stretch = self.settings.stretch
+        manual = stretch.option(StretchParameter.MANUAL_NAME)
+        channelParams = [
+            manual.config.redStretch,
+            manual.config.greenStretch,
+            manual.config.blueStretch,
+        ]
+        if stretch.current is not manual:
+            self.render()  # ensure the current stretch has computed its min/max
+            seed = stretch.current.minMaxVals()
+            if seed is not None:
+                mins = np.resize(np.atleast_1d(np.asarray(seed[0], dtype=float)).ravel(), 3)
+                maxs = np.resize(np.atleast_1d(np.asarray(seed[1], dtype=float)).ravel(), 3)
+                for i, param in enumerate(channelParams):
+                    param.set(Vec2(float(mins[i]), float(maxs[i])))
+            stretch.selectByName(StretchParameter.MANUAL_NAME)
+        channelParams[channel].set(Vec2(float(lo), float(hi)))
 
     def getSettingsPanel(self) -> "RendererSettingsPanel":
-        settingsPanel = RendererSettingsPanel(self.settings)
-        settingsPanel.sigSettingsChanged.connect(self.updateSettings)
-        return settingsPanel
+        return RendererSettingsPanel(self.settings)
 
 
 def getComboBox():
