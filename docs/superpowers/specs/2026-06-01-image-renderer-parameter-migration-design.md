@@ -125,10 +125,18 @@ Any change — from the UI panel *or* a programmatic `param.set(...)` — flows 
 same path. `updateSettings()` is removed (no remaining callers once the panel is migrated).
 
 **Required fix:** `ParameterGroup.__init__` wires child change signals with
-`lambda _: self.sigParameterChanged.emit()`. That breaks for child `ParameterGroup`s,
-whose `sigParameterChanged` emits no argument. The path is currently untested (no existing
-nested groups). This design nests groups (`rgb`, `mono`), so the wiring must be fixed to
-handle both `Parameter` children (emit a value) and `ParameterGroup` children (emit nothing).
+`lambda _: self.sigParameterChanged.emit()`. The `lambda _:` takes one argument, but a child
+`ParameterGroup`'s `sigParameterChanged` currently emits *no* argument, so nested groups
+raise `TypeError` at emit time. The path is untested today (no existing nested groups), and
+this design nests groups (`rgb`, `mono`).
+
+Fix: change `ParameterGroup.sigParameterChanged` from `pyqtSignal()` to `pyqtSignal(object)`
+and emit the group itself (`self.sigParameterChanged.emit(self)`). Now `Parameter` children
+emit their value and `ParameterGroup` children emit the group — both provide one argument, so
+the `lambda _:` wiring is uniform. This is backward-compatible: Qt lets a slot accept fewer
+arguments than its signal, and all existing consumers (`plot.py`'s `onConfigChanged`,
+`onWindowParamsChanged`, `onRangeParamsChanged`, `_updateViewLimits`) are zero-arg slots that
+keep working unchanged.
 
 ### 4. `RendererSettingsPanel` (thinner)
 
