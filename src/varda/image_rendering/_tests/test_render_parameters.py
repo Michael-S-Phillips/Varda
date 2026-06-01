@@ -53,3 +53,34 @@ def test_band_parameter_widget_combo_drives_param(qtbot):
     qtbot.addWidget(w)
     w.comboBox.setCurrentIndex(3)
     assert p.get() == 3
+
+
+import pyqtgraph as pg
+
+from varda.image_rendering.render_parameters import ColorMapParameter
+
+
+def test_colormap_default_is_a_colormap(qtbot):
+    p = ColorMapParameter("Color Map")
+    assert isinstance(p.get(), pg.ColorMap)
+
+
+def test_colormap_set_get(qtbot):
+    p = ColorMapParameter("Color Map")
+    new = pg.ColorMap(None, color=[1.0, 0.0])
+    p.set(new)
+    assert p.get() is new
+
+
+def test_colormap_clone(qtbot):
+    p = ColorMapParameter("Color Map")
+    c = p.clone()
+    assert isinstance(c, ColorMapParameter)
+    assert isinstance(c.get(), pg.ColorMap)
+
+
+def test_colormap_widget_builds(qtbot):
+    p = ColorMapParameter("Color Map")
+    w = p.getWidget()
+    qtbot.addWidget(w)
+    assert w.gradient is not None
