@@ -10,10 +10,8 @@ import logging
 import pyqtgraph as pg
 from PyQt6.QtCore import QSignalBlocker
 from PyQt6.QtWidgets import (
-    QVBoxLayout,
     QWidget,
     QTabWidget,
-    QStackedWidget,
     QStackedLayout,
 )
 
@@ -22,7 +20,6 @@ from varda.image_rendering.image_renderer import (
     ImageRenderer,
     RendererSettings,
     RenderMode,
-    RendererSettingsPanel,
 )
 
 logger = logging.getLogger(__name__)

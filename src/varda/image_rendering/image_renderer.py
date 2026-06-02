@@ -194,8 +194,12 @@ class ImageRenderer(QObject):
                 self.render()  # ensure the current stretch has computed its min/max
                 seed = stretch.current.minMaxVals()
                 if seed is not None:
-                    mins = np.resize(np.atleast_1d(np.asarray(seed[0], dtype=float)).ravel(), 3)
-                    maxs = np.resize(np.atleast_1d(np.asarray(seed[1], dtype=float)).ravel(), 3)
+                    mins = np.resize(
+                        np.atleast_1d(np.asarray(seed[0], dtype=float)).ravel(), 3
+                    )
+                    maxs = np.resize(
+                        np.atleast_1d(np.asarray(seed[1], dtype=float)).ravel(), 3
+                    )
                     for i, param in enumerate(channelParams):
                         param.set(Vec2(float(mins[i]), float(maxs[i])))
                 stretch.selectByName(StretchParameter.MANUAL_NAME)
@@ -224,7 +228,9 @@ class RendererSettingsPanel(QWidget):
 
         # Band / colormap area, swapped by the mode parameter
         self.bandStack = QStackedLayout()
-        self.bandStack.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.bandStack.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
         self._rgbIndex = self.bandStack.addWidget(settings.rgb.createWidget())
         self._monoIndex = self.bandStack.addWidget(settings.mono.createWidget())
         layout.addLayout(self.bandStack)

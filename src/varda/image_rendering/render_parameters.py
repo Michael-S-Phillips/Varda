@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt, QSignalBlocker, pyqtSlot
 from PyQt6.QtWidgets import (
@@ -13,7 +12,6 @@ from PyQt6.QtWidgets import (
 
 from varda.common.entities import VardaRaster
 from varda.common.parameter import Parameter, ParameterGroup, paramLayoutDefault
-from varda.common.vec2 import Vec2
 from varda.image_rendering.stretch_algorithms import (
     StretchAlgorithm,
     stretchAlgorithmRegistry,
@@ -142,7 +140,9 @@ class StretchParameter(Parameter[StretchAlgorithm]):
     """
 
     DEFAULT_NAME = "Min-Max (Auto Full Range)"
-    MANUAL_NAME = "Min-Max (Manual)"  # used by ImageRenderer's manual-stretch convenience methods
+    MANUAL_NAME = (
+        "Min-Max (Manual)"  # used by ImageRenderer's manual-stretch convenience methods
+    )
 
     def __init__(self, name: str, description: str | None = None, parent=None):
         self._instances: dict[str, StretchAlgorithm] = {
