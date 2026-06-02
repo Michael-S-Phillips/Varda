@@ -122,3 +122,19 @@ def test_setManualStretch_emits_single_refresh(qtbot):
     r.sigShouldRefresh.connect(_inc)
     r.setManualStretch(20.0, 60.0)  # manual already active (was the storm case)
     assert count == 1
+
+
+def test_setStretchMinMax_emits_single_refresh_when_switching(qtbot):
+    r = make_renderer()
+    r.render()  # auto stretch active; computes min/max for seeding
+    count = 0
+
+    def _inc():
+        nonlocal count
+        count += 1
+
+    r.sigShouldRefresh.connect(_inc)
+    # switching into manual + seeding + setting one channel must be ONE refresh
+    r.setStretchMinMax(0, 5.0, 7.0)
+    assert count == 1
+    assert r.settings.stretch.nameOf(r.settings.stretch.current) == "Min-Max (Manual)"
