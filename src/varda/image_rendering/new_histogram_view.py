@@ -168,7 +168,6 @@ if __name__ == "__main__":
     settingsPanel = renderer.getSettingsPanel()
 
     view = NewHistogramView(renderer)
-    renderer.sigShouldRefresh.connect(view._updateHistogram)
     view.show()
     settingsPanel.show()
     q_app.exec()
