@@ -206,208 +206,43 @@ class ImageRenderer(QObject):
         return RendererSettingsPanel(self.settings)
 
 
-def getComboBox():
-    comboBox = QComboBox()
-    # None of these seem to work to stop it from expanding to the full width lol.
-    # comboBox.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
-    # comboBox.setSizeAdjustPolicy(
-    #     QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
-    # )
-    return comboBox
-
-
 class RendererSettingsPanel(QWidget):
-    """
-    Panel for adjusting image rendering settings.
-    TODO: Update to use new Parameter system
-    """
-
-    sigSettingsChanged: pyqtSignal = pyqtSignal(RendererSettings)
+    """Panel for adjusting render settings, generated from the settings' parameters."""
 
     def __init__(self, settings: RendererSettings, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Image Render Settings")
         self.settings = settings
 
-        ### init UI ###
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         layout.setSpacing(2)
 
-        ## Mode selection ##
-        modeSelector = QButtonGroup(self)
-        modeSelector.addButton(rgbMode := QRadioButton("rgb"))
-        modeSelector.addButton(monoMode := QRadioButton("mono"))
-        modeLayout = QHBoxLayout()
-        modeLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        modeLayout.addWidget(rgbMode)
-        modeLayout.addWidget(monoMode)
+        # Mode
         layout.addWidget(QLabel("Mode:"))
-        layout.addLayout(modeLayout)
+        layout.addWidget(settings.mode.getWidget(self))
 
-        ## Band Selection ##
-        self.rgbBands: list[QComboBox] = []
-        self.bandLayout = QStackedLayout()
-        self.bandLayout.setAlignment(
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
-        )
-        rgbBandLayout = QHBoxLayout()
-        rgbBandLayout.setAlignment(
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
-        )
-        # generate band layout for rgb mode
-        wavelengths = self.settings.image.wavelengths
-        for i in range(3):
-            comboBox = getComboBox()
-            comboBox.addItems([str(w) for w in wavelengths])
-            comboBox.setMaximumWidth(100)
-            comboBox.currentIndexChanged.connect(self._onBandsChanged)
-            self.rgbBands.append(comboBox)
-            rgbBandLayout.addWidget(comboBox)
-        # generate band layout for mono mode
-        monoBandLayout = QVBoxLayout()
-        monoBandLayout.setAlignment(
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
-        )
-        self.monoBand = getComboBox()
-        self.monoBand.addItems([str(w) for w in wavelengths])
-        self.monoBand.currentIndexChanged.connect(self._onBandsChanged)
-        monoBandLayout.addWidget(self.monoBand)
-        colormapSelector = pg.GradientWidget()
-        colormapSelector.sigGradientChanged.connect(self._onColorMapChanged)
-        monoBandLayout.addWidget(colormapSelector)
+        # Band / colormap area, swapped by the mode parameter
+        self.bandStack = QStackedLayout()
+        self.bandStack.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self._rgbIndex = self.bandStack.addWidget(settings.rgb.createWidget())
+        self._monoIndex = self.bandStack.addWidget(settings.mono.createWidget())
+        layout.addLayout(self.bandStack)
+        self._syncBandStack()
+        settings.mode.sigParameterChanged.connect(self._syncBandStack)
 
-        # add to the stacked layout
-        widgetContainer = QWidget()
-        widgetContainer.setLayout(rgbBandLayout)
-        self.bandLayout.addWidget(widgetContainer)
-        widgetContainer = QWidget()
-        widgetContainer.setLayout(monoBandLayout)
-
-        self.bandLayout.addWidget(widgetContainer)
-
-        layout.addLayout(self.bandLayout)
-
-        ## Stretch Selection ##
-        stretchLayout = QVBoxLayout()
-        stretchLayout.setAlignment(
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
-        )
-        self.stretchAlgSelector = getComboBox()
-        self.stretchAlgSelector.addItems(
-            [key for key in stretchAlgorithmRegistry.keys()]
-        )
-        stretchLayout.addWidget(self.stretchAlgSelector)
-        self.stretchParameters = QStackedLayout()
-        # self.stretchParameters.setSizeConstraint(
-        #     QStackedLayout.SizeConstraint.SetMinimumSize
-        # )
-        self.stretchParameters.setAlignment(
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
-        )
-        # self.stretchParameters.setContentsMargins(0, 0, 0, 0)
-        self.stretchInstances = []  # list of StretchAlgorithm objects, one for each
-        for alg in stretchAlgorithmRegistry.values():
-            instance = alg()
-            parameters = instance.parameters()
-            # parameters are already associated with the stretch algorithm instance,
-            # so we dont need to edit the settings object at all. Just indicate that a refresh is needed.
-            parameters.sigParameterChanged.connect(
-                lambda: self.sigSettingsChanged.emit(self.settings)
-            )
-            self.stretchParameters.addWidget(parameters.createWidget())
-            self.stretchInstances.append(instance)
-        stretchLayout.addLayout(self.stretchParameters)
-
+        # Stretch (self-contained combo + stacked sub-form)
         layout.addWidget(QLabel("Stretch Algorithm:"))
-        layout.addLayout(stretchLayout)
+        layout.addWidget(settings.stretch.getWidget(self))
 
-        # opacity UI
-        opacityParam = FloatParameter(
-            name="Opacity",
-            default=self.settings.opacity,
-            range=(0.0, 1.0),
-            units="%",
-            description="Opacity of the rendered image.",
-            parent=self,
-        )
-        opacityParam.sigParameterChanged.connect(self._onOpacityChanged)
+        # Opacity (labeled form row)
+        layout.addWidget(ParameterGroupWidget([settings.opacity], self))
 
-        layout.addWidget(ParameterGroupWidget([opacityParam], self))
-        ### Finish Init UI ###
         self.setLayout(layout)
 
-        ### Connect Signals ###
-        self.stretchAlgSelector.currentIndexChanged.connect(self._onStretchAlgChanged)
-        modeSelector.buttonToggled.connect(self._onModeToggled)
-
-        self.rgbBands[0].currentIndexChanged.connect(self._onBandsChanged)
-
-        ### Set Defaults ###
-        if self.settings.mode == "rgb":
-            rgbMode.setChecked(True)
-        elif self.settings.mode == "mono":
-            monoMode.setChecked(True)
-        colormapSelector.setColorMap(self.settings.colorMap)
-        self.rgbBands[0].setCurrentIndex(self.settings.bands[0])
-        self.rgbBands[1].setCurrentIndex(self.settings.bands[1])
-        self.rgbBands[2].setCurrentIndex(self.settings.bands[2])
-        self.monoBand.setCurrentIndex(self.settings.bands[0])
-        # this is kinda hacky whoops
-        self.stretchAlgSelector.setCurrentIndex(
-            list(stretchAlgorithmRegistry.values()).index(
-                self.settings.stretch.__class__
-            )
-        )
-
-    def _onModeToggled(self, button, checked):
-        # this gets triggered by both the radio button that was checked and the radio button that was unchecked.
-        # so we skip the unchecked one.
-        if not checked:
-            return
-        self.settings.mode = button.text()
-
-        if self.settings.mode == "rgb":
-            self.bandLayout.setCurrentIndex(0)
-        elif self.settings.mode == "mono":
-            self.bandLayout.setCurrentIndex(1)
-        else:
-            raise ValueError("Invalid mode selected.")
-
-        self.sigSettingsChanged.emit(self.settings)
-
-    def _onStretchAlgChanged(self, index):
-        self.stretchParameters.setCurrentIndex(index)
-        self.settings.stretch = self.stretchInstances[index]
-        self.sigSettingsChanged.emit(self.settings)
-
-    def _onBandsChanged(self, index: int):
-        if self.settings.mode == "rgb":
-            self.settings.bands[0] = self.rgbBands[0].currentIndex()
-            self.settings.bands[1] = self.rgbBands[1].currentIndex()
-            self.settings.bands[2] = self.rgbBands[2].currentIndex()
-        elif self.settings.mode == "mono":
-            self.settings.bands[0] = self.monoBand.currentIndex()
-        else:
-            raise ValueError("Invalid mode selected.")
-
-        self.sigSettingsChanged.emit(self.settings)
-
-    def _onColorMapChanged(self, colorMap: "pg.GradientEditorItem"):
-        try:
-            newColorMap = colorMap.colorMap()  # may raise NotImplementedError
-            self.settings.colorMap = newColorMap
-            self.sigSettingsChanged.emit(self.settings)
-        except NotImplementedError:
-            QMessageBox.warning(
-                self, "Unsupported Color Map", "HSV color maps are not supported yet."
-            )
-            # revert to previous colormap
-            colorMap.setColorMap(self.settings.colorMap)
-
-    def _onOpacityChanged(self, value: float):
-        self.settings.opacity = value
-        self.sigSettingsChanged.emit(self.settings)
+    def _syncBandStack(self, *args) -> None:
+        isRgb = self.settings.mode.get() == RenderMode.RGB
+        self.bandStack.setCurrentIndex(self._rgbIndex if isRgb else self._monoIndex)
 
 
 if __name__ == "__main__":
