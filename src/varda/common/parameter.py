@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QColorDialog,
     QPushButton,
+    QLayout,
 )
 
 from varda.common.ui import (
@@ -191,7 +192,7 @@ class ParameterGroupWidget(QWidget):
             self.group.sigParameterChanged.emit()
 
 
-def paramLayoutDefault():
+def paramLayoutDefault() -> QLayout:
     return HBoxBuilder(
         alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, margins=0
     )
