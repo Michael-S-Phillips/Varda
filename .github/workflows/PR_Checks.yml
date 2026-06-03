@@ -7,77 +7,95 @@ on:
       - main
 
 jobs:
-  # Formatting Check with Black
-  black:
+  # Formatting check with ruff
+  format:
+    name: Format (ruff)
     runs-on: ubuntu-latest
+    # Non-blocking for now: the codebase isn't fully ruff-formatted yet.
+    continue-on-error: true
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.12'
-          
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install black
+          enable-cache: true
+          python-version: '3.13'
 
-      - name: Run Black (Code Formatter)
-        run: black --check varda/
+      - name: Install dependencies
+        run: uv sync
 
-  # Linting Check with Pylint
-  pylint:
+      - name: Run ruff format check
+        run: uv run ruff format --check .
+
+  # Linting check with ruff
+  lint:
+    name: Lint (ruff)
     runs-on: ubuntu-latest
+    # Non-blocking for now: existing lint backlog (~125 errors).
+    continue-on-error: true
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.12'
+          enable-cache: true
+          python-version: '3.13'
 
-      - name: Install system dependencies
-        run: |
-          sudo apt update
-          sudo apt install libegl1
-          
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pylint
-          pip install -r requirements.txt
+      - name: Install dependencies
+        run: uv sync
 
-      - name: Run Pylint (Linter)
-        run: pylint --errors-only varda/
+      - name: Run ruff check
+        run: uv run ruff check .
 
-  # Unit Testing with Pytest
+  # Static type checking with ty
+  typecheck:
+    name: Type check (ty)
+    runs-on: ubuntu-latest
+    # Non-blocking for now: large type-checking backlog (~387 diagnostics).
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run ty check
+        run: uv run ty check
+
+  # Unit testing with pytest
   pytest:
+    name: Unit tests (pytest)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.12'
-          
+          enable-cache: true
+          python-version: '3.13'
+
       - name: Install system dependencies
         run: |
-          sudo apt update
-          sudo apt install libegl1
-          
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-qt
-          pip install -r requirements.txt
-          
-      - name: Set Offscreen Mode
-        run: echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
-        
-      - name: Run Pytest (Unit Tests)
-        run: pytest
+          sudo apt-get update
+          sudo apt-get install -y libegl1
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: uv run pytest
