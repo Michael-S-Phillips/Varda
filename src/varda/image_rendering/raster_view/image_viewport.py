@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import pyqtSignal, QPointF, QRectF
+from psygnal import Signal
+from PyQt6.QtCore import QEvent, QPointF, QRectF
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 import numpy as np
@@ -14,6 +17,16 @@ from varda.image_rendering.raster_view.navigable_view_box import NavigableViewBo
 from varda.image_rendering.raster_view.image_region_item import (
     VardaImageItem,
 )
+from varda.image_rendering.raster_view.overlay_handles import (
+    PyqtgraphCrosshair,
+    PyqtgraphPolygonOverlay,
+    PyqtgraphROIOverlay,
+    PyqtgraphTextOverlay,
+)
+from varda.image_rendering.raster_view.pointer_event import (
+    PointerAction,
+    PointerEvent,
+)
 
 if TYPE_CHECKING:
     # Imported under TYPE_CHECKING only: importing the tool module at runtime would
@@ -21,6 +34,23 @@ if TYPE_CHECKING:
     from varda.image_rendering.raster_view.viewport_tools.viewport_tool import (
         ViewportTool,
     )
+    from varda.image_rendering.raster_view.viewport_protocol import (
+        RasterViewport,
+        CrosshairHandle,
+        PolygonOverlayHandle,
+        TextOverlayHandle,
+        ROIOverlayHandle,
+    )
+
+
+# Maps the pyqtgraph scene mouse-event types this viewport bridges into the
+# backend-neutral PointerAction delivered to tools. Double-click is intentionally
+# absent — the previous tool event filter never dispatched it either.
+_POINTER_ACTIONS = {
+    QEvent.Type.GraphicsSceneMousePress: PointerAction.PRESS,
+    QEvent.Type.GraphicsSceneMouseMove: PointerAction.MOVE,
+    QEvent.Type.GraphicsSceneMouseRelease: PointerAction.RELEASE,
+}
 
 
 class ImageViewport(QWidget):
@@ -33,16 +63,16 @@ class ImageViewport(QWidget):
     used when something else (e.g. RegionController) drives what the viewport shows.
     """
 
-    sigImageChanged = pyqtSignal()
+    sigImageChanged = Signal()
 
     # Navigation gestures, forwarded from the ViewBox. Emitted only while self-navigation
     # is disabled. Positions are in view (data) coordinates.
-    sigPanStarted = pyqtSignal(QPointF)  # press position
-    sigPanned = pyqtSignal(QPointF, QPointF)  # (current position, start position)
-    sigZoomed = pyqtSignal(float, QPointF)  # (scaleFactor, anchorFraction)
+    sigPanStarted = Signal(QPointF)  # press position
+    sigPanned = Signal(QPointF, QPointF)  # (current position, start position)
+    sigZoomed = Signal(float, QPointF)  # (scaleFactor, anchorFraction)
     # Emitted when a user gesture pans/zooms this viewport's own view (self-navigation on).
     # Mirrors pyqtgraph's viewBox.sigRangeChangedManually but without its mask argument.
-    sigViewRangeChangedManually = pyqtSignal()
+    sigViewRangeChangedManually = Signal()
 
     def __init__(self, imageRenderer: ImageRenderer, parent=None):
         super().__init__(parent)
@@ -63,13 +93,18 @@ class ImageViewport(QWidget):
         self.setLayout(layout)
 
         # Forward navigation signals so consumers depend on the viewport, not the ViewBox.
-        self._vb.sigPanStarted.connect(self.sigPanStarted)
-        self._vb.sigPanned.connect(self.sigPanned)
-        self._vb.sigZoomed.connect(self.sigZoomed)
+        self._vb.sigPanStarted.connect(self.sigPanStarted.emit)
+        self._vb.sigPanned.connect(self.sigPanned.emit)
+        self._vb.sigZoomed.connect(self.sigZoomed.emit)
         self._vb.sigRangeChangedManually.connect(self._onViewBoxRangeChangedManually)
 
-        self._imageItem.sigImageChanged.connect(self.sigImageChanged)
+        self._imageItem.sigImageChanged.connect(self.sigImageChanged.emit)
         self._imageRenderer.sigShouldRefresh.connect(self.autoRefresh)
+
+        # Tools installed on this viewport. The viewport filters the imageItem's
+        # scene events and delivers translated PointerEvents to each tool.
+        self._tools: list[ViewportTool] = []
+        self._imageItem.installEventFilter(self)
 
     def overlayImage(self, overlayImageRenderer: ImageRenderer):
         """Overlay an image on top of the current image.
@@ -164,10 +199,10 @@ class ImageViewport(QWidget):
         Convert full-image pixel coordinates to the viewport's local coordinates
         (since a viewport may be showing only an inner region of the image).
         """
-        if not self.imageItem.isShowingRegion:
+        if not self._imageItem.isShowingRegion:
             return pixelCoords
         pointsList = [(float(c), float(r)) for c, r in pixelCoords]
-        return np.array(self.imageItem.imageToLocal(pointsList))
+        return np.array(self._imageItem.imageToLocal(pointsList))
 
     # --- Region display ---
 
@@ -183,6 +218,55 @@ class ImageViewport(QWidget):
     def isShowingRegion(self) -> bool:
         """Whether the viewport is showing a subregion rather than the full image."""
         return self._imageItem.isShowingRegion
+
+    # --- Overlay primitives ---
+
+    def addCrosshair(self, color: QColor | None = None) -> "CrosshairHandle":
+        """Add a hidden crosshair overlay; returns a handle to drive it."""
+        return PyqtgraphCrosshair(self._vb, color or QColor("red"))
+
+    def addPolygonOverlay(
+        self,
+        lineColor: QColor | None = None,
+        fillColor: QColor | None = None,
+        lineWidth: float = 2.0,
+    ) -> "PolygonOverlayHandle":
+        """Add an (initially empty) polygon overlay; returns a handle to drive it."""
+        return PyqtgraphPolygonOverlay(
+            self._vb,
+            lineColor or QColor(255, 0, 0),
+            fillColor or QColor(255, 0, 0, 100),
+            lineWidth,
+        )
+
+    def addTextOverlay(
+        self,
+        text: str,
+        viewPos: QPointF | None = None,
+        color: str = "white",
+        fontSize: int = 12,
+        backgroundColor: str = "black",
+        backgroundAlpha: int = 150,
+        anchor: tuple[float, float] = (0.0, 0.0),
+    ) -> "TextOverlayHandle":
+        """Add a text label at `viewPos` (defaults to the top-left of the view)."""
+        pos = viewPos if viewPos is not None else self._vb.viewRect().topLeft()
+        return PyqtgraphTextOverlay(
+            self._vb,
+            text,
+            pos,
+            color,
+            fontSize,
+            backgroundColor,
+            backgroundAlpha,
+            anchor,
+        )
+
+    def addROIOverlay(
+        self, points: Sequence[QPointF], color: QColor
+    ) -> "ROIOverlayHandle":
+        """Add a display-only ROI polygon overlay; returns a handle to drive it."""
+        return PyqtgraphROIOverlay(self._vb, points, color)
 
     # --- Items / tools ---
 
@@ -200,12 +284,43 @@ class ImageViewport(QWidget):
         self._vb.removeItem(item)
 
     def installTool(self, tool: ViewportTool):
-        """Shortcut to install a tool's event filter on the imageItem."""
-        self._imageItem.installEventFilter(tool)
+        """Register a tool to receive translated pointer events from this viewport."""
+        if tool not in self._tools:
+            self._tools.append(tool)
 
     def removeTool(self, tool: ViewportTool):
-        """Shortcut to remove a tool's event filter from the imageItem."""
-        self._imageItem.removeEventFilter(tool)
+        """Stop a tool from receiving pointer events from this viewport."""
+        if tool in self._tools:
+            self._tools.remove(tool)
+
+    def eventFilter(self, a0, a1):
+        """Translate the imageItem's scene mouse events into PointerEvents.
+
+        Mapping scene -> local -> image pixel coordinates happens here, once, so
+        tools never touch the pyqtgraph scene graph. Each installed tool gets the
+        event until one reports it handled (returns True).
+        """
+        obj, event = a0, a1
+        if obj is self._imageItem and self._tools:
+            action = _POINTER_ACTIONS.get(event.type())
+            if action is not None:
+                pointerEvent = self._buildPointerEvent(action, event)
+                for tool in list(self._tools):
+                    if tool.onPointerEvent(pointerEvent):
+                        event.accept()
+                        return True
+        return super().eventFilter(obj, event)
+
+    def _buildPointerEvent(self, action: PointerAction, event) -> PointerEvent:
+        localPos = self._imageItem.mapFromScene(event.scenePos())
+        imagePos = self._imageItem.localToImage(localPos)
+        return PointerEvent(
+            action=action,
+            localPos=localPos,
+            imagePos=imagePos,
+            button=event.button(),
+            modifiers=event.modifiers(),
+        )
 
     def addToolBar(self, toolbar):
         """Add a toolbar to the viewport."""
@@ -214,15 +329,17 @@ class ImageViewport(QWidget):
     # --- Escape hatches ---
 
     @property
-    def imageItem(self) -> VardaImageItem:
-        """Get the ImageRegionItem for this viewport."""
-        return self._imageItem
-
-    @property
     def imageEntity(self) -> VardaRaster:
         return self._imageRenderer.image
 
-    @property
-    def viewBox(self) -> pg.ViewBox:
-        """Get the ViewBox for this viewport."""
-        return self._vb
+
+if TYPE_CHECKING:
+
+    def _assert_implements_protocol(viewport: ImageViewport) -> RasterViewport:
+        """Static-only conformance check.
+
+        `ty` flags this return if `ImageViewport` stops satisfying the
+        `RasterViewport` contract (e.g. a method signature drifts). Never called
+        at runtime; it exists purely so the type checker guards the seam.
+        """
+        return viewport

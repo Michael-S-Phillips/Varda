@@ -1,14 +1,19 @@
+from __future__ import annotations
+
 import logging
-from typing import override
+from typing import override, TYPE_CHECKING
 
 import pyqtgraph as pg
 import numpy as np
 from PyQt6.QtCore import Qt, pyqtSignal, QPointF
-from PyQt6.QtWidgets import QGraphicsSceneMouseEvent
 
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
+from varda.image_rendering.raster_view.pointer_event import PointerAction, PointerEvent
 from varda.plotting.plot import VardaPlotWidget
+
+if TYPE_CHECKING:
+    from varda.image_rendering.raster_view.viewport_protocol import CrosshairHandle
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +30,7 @@ class PixelSelectTool(ViewportTool):
 
     def __init__(self, viewport: ImageViewport, parent=None):
         super().__init__(viewport, parent)
-        self.targetImageItem = viewport.imageItem
-        self.vCrosshair = pg.InfiniteLine(angle=90, movable=False, pen="r")
-        self.hCrosshair = pg.InfiniteLine(angle=0, movable=False, pen="r")
-        self.vCrosshair.hide()
-        self.hCrosshair.hide()
+        self._crosshair: CrosshairHandle | None = None
         self.isDragging = False
 
         self.sigPixelSelected.connect(
@@ -39,77 +40,60 @@ class PixelSelectTool(ViewportTool):
 
     def activate(self):
         super().activate()
-        self.viewport.addItem(self.vCrosshair)
-        self.viewport.addItem(self.hCrosshair)
+        if self._crosshair is None:
+            self._crosshair = self.viewport.addCrosshair()
 
     def deactivate(self):
         super().deactivate()
-        self.viewport.removeItem(self.vCrosshair)
-        self.viewport.removeItem(self.hCrosshair)
+        if self._crosshair is not None:
+            self._crosshair.remove()
+            self._crosshair = None
 
     @override
-    def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
-        """Handle mouse press events to start pixel selection."""
-        if (
-            event.button() == Qt.MouseButton.LeftButton
-            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
-        ):
-            self.isDragging = True
-            self._updateCrosshair(event.pos(), emitSignal=False)
-            self._showCrosshairs()
-            return True
-        return False
-
-    @override
-    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
-        """Handle mouse drag events to update crosshairs and emit pixel selection."""
-        if self.isDragging:
-            self._updateCrosshair(event.scenePos(), emitSignal=False)
-            return True
-        return False
-
-    @override
-    def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
-        """Handle mouse release events to finalize pixel selection."""
-        if self.isDragging and event.button() == Qt.MouseButton.LeftButton:
-            self.isDragging = False
-            self._updateCrosshair(event.scenePos())
-            self._hideCrosshairs()
-            return True
+    def onPointerEvent(self, event: PointerEvent) -> bool:
+        if event.action == PointerAction.PRESS:
+            if (
+                event.button == Qt.MouseButton.LeftButton
+                and event.modifiers & Qt.KeyboardModifier.ControlModifier
+            ):
+                self.isDragging = True
+                self._updateCrosshair(event, emitSignal=False)
+                self._showCrosshairs()
+                return True
+            return False
+        if event.action == PointerAction.MOVE:
+            if self.isDragging:
+                self._updateCrosshair(event, emitSignal=False)
+                return True
+            return False
+        if event.action == PointerAction.RELEASE:
+            if self.isDragging and event.button == Qt.MouseButton.LeftButton:
+                self.isDragging = False
+                self._updateCrosshair(event)
+                self._hideCrosshairs()
+                return True
+            return False
         return False
 
     def _showCrosshairs(self):
         """Show the crosshairs at the current mouse position."""
-        if not self.vCrosshair.isVisible():
-            self.vCrosshair.show()
-        if not self.hCrosshair.isVisible():
-            self.hCrosshair.show()
+        if self._crosshair is not None:
+            self._crosshair.setVisible(True)
 
     def _hideCrosshairs(self):
         """Hide the crosshairs."""
-        if self.vCrosshair.isVisible():
-            self.vCrosshair.hide()
-        if self.hCrosshair.isVisible():
-            self.hCrosshair.hide()
+        if self._crosshair is not None:
+            self._crosshair.setVisible(False)
 
-    def _updateCrosshair(self, scenePos, emitSignal=True):
-        """
-        Update the position of the crosshairs based on the mouse position.
-        This assumes that the position is already in image coordinates.
-        """
-        # Convert scene position to local coordinates in the image item
-        pos = self.viewport.imageItem.mapFromScene(scenePos)
-        # get the exact pixel coordinate
-        quantizedPos = pg.Point(int(pos.x()), int(pos.y()))
-
-        # apply a visual offset so the crosshairs are at the center of the pixel instead of the top left corner.
-        centeredPos = quantizedPos + pg.Point(0.5, 0.5)
-        self.hCrosshair.setPos(centeredPos)
-        self.vCrosshair.setPos(centeredPos)
+    def _updateCrosshair(self, event: PointerEvent, emitSignal=True):
+        """Position the crosshairs at the pointer and optionally emit the pixel."""
+        local = event.localPos
+        # Quantize to a pixel, then offset to the pixel's centre for display.
+        centeredPos = pg.Point(int(local.x()), int(local.y())) + pg.Point(0.5, 0.5)
+        if self._crosshair is not None:
+            self._crosshair.setPos(centeredPos)
         if emitSignal:
-            # get absolute image pos
-            imagePos = pg.Point(self.viewport.imageItem.localToImage(pos))
-            self.sigPixelSelected.emit(imagePos)
+            self.sigPixelSelected.emit(event.imagePos)
 
     def onPixelSelected(self, pixelCoords):
         # TODO: This is prob temp. Should somehow integrate with the more complex plotting system Michael was working on.

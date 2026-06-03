@@ -14,6 +14,7 @@ import varda
 from varda._actions import MENUBAR
 from varda.app import VardaApplication
 from varda.maingui import MainGUI
+from varda.utilities.resources import resource_path
 
 
 import ctypes
@@ -23,7 +24,7 @@ if sys.platform == "win32":
     appid = "varda.0.1.0"
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(appid)
 
-ICON_PATH = "resources/logo.svg"
+ICON_PATH = resource_path("resources/logo.svg")
 
 
 def initVarda() -> None:

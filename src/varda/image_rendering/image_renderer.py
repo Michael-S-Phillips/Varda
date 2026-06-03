@@ -1,55 +1,73 @@
 import sys
-from dataclasses import dataclass
-from typing import Optional
+from enum import Enum, auto
 
-from PyQt6.QtCore import pyqtSignal, QObject, Qt
+from PyQt6.QtCore import pyqtSignal, QObject, Qt, QSignalBlocker
 from PyQt6.QtWidgets import (
     QWidget,
-    QComboBox,
-    QButtonGroup,
-    QRadioButton,
-    QHBoxLayout,
-    QStackedLayout,
     QVBoxLayout,
     QLabel,
+    QStackedLayout,
     QApplication,
-    QMessageBox,
 )
-import pyqtgraph as pg
-from pyqtgraph import ColorMap
 import numpy as np
 
-from varda.common.parameter import FloatParameter, ParameterGroupWidget
+from varda.common.parameter import (
+    ParameterGroup,
+    EnumParameter,
+    FloatParameter,
+    ParameterGroupWidget,
+)
 from varda.common.entities import VardaRaster
+from varda.common.vec2 import Vec2
 from varda.utilities import debug
-from varda.image_rendering.stretch_algorithms import (
-    stretchAlgorithmRegistry,
-    StretchAlgorithm,
+from varda.image_rendering.render_parameters import (
+    BandParameter,
+    ColorMapParameter,
+    StretchParameter,
 )
 
 
-@dataclass
-class RendererSettings:
-    image: VardaRaster
-    mode: str
-    bands: np.ndarray[tuple[int], np.dtype[np.uint]]
-    stretch: StretchAlgorithm
-    colorMap: ColorMap
-    opacity: float
+class RenderMode(Enum):
+    MONO = auto()
+    RGB = auto()
 
-    @staticmethod
-    def new(image):
-        return RendererSettings(
-            image=image,
-            mode="mono",
-            bands=image.defaultBands,
-            stretch=stretchAlgorithmRegistry["Min-Max (Auto Full Range)"](),
-            colorMap=pg.ColorMap(None, color=[0.0, 1.0]),  # simple black to white map
-            opacity=1.0,
-        )
 
-    def __repr__(self):
-        return f"RendererSettings (\n    image={self.image},\n    mode={self.mode},\n    bands={self.bands},\n    stretch={self.stretch},\n    colorMap={self.colorMap},\n    opacity={self.opacity}\n)"
+class RgbBandGroup(ParameterGroup):
+    red = BandParameter("Red Band")
+    green = BandParameter("Green Band")
+    blue = BandParameter("Blue Band")
+
+
+class MonoViewGroup(ParameterGroup):
+    band = BandParameter("Band")
+    colorMap = ColorMapParameter("Color Map")
+
+
+class RendererSettings(ParameterGroup):
+    mode = EnumParameter("Mode", RenderMode, RenderMode.MONO)
+    rgb = RgbBandGroup()
+    mono = MonoViewGroup()
+    stretch = StretchParameter("Stretch Algorithm")
+    opacity = FloatParameter(
+        "Opacity", 1.0, (0.0, 1.0), "%", "Opacity of the rendered image."
+    )
+
+    def __init__(self, image: VardaRaster, parent: QObject | None = None):
+        super().__init__(parent)
+        self.image = image
+        for bandParam in (self.rgb.red, self.rgb.green, self.rgb.blue, self.mono.band):
+            bandParam.setImage(image)
+        # seed band selections from the image's default bands
+        defaultBands = image.defaultBands
+        self.rgb.red.value = int(defaultBands[0])
+        self.rgb.green.value = int(defaultBands[1])
+        self.rgb.blue.value = int(defaultBands[2])
+        self.mono.band.value = int(defaultBands[0])
+
+    def clone(self, parent: QObject | None = None) -> "RendererSettings":
+        # RendererSettings needs the image at construction, unlike the base ParameterGroup
+        # whose clone() calls self.__class__(parent) with no image.
+        return RendererSettings(self.image, parent)
 
 
 class ImageRenderer(QObject):
@@ -58,86 +76,74 @@ class ImageRenderer(QObject):
     def __init__(
         self,
         image: VardaRaster | None = None,
-        settings: Optional[RendererSettings] = None,
+        settings: RendererSettings | None = None,
     ):
         super().__init__()
-        if settings is None and image is None:
+        if settings is not None:
+            self.settings = settings
+        elif image is not None:
+            self.settings = RendererSettings(image)
+        else:
             raise ValueError("Either image or settings must be provided.")
-        self.settings = (
-            settings if settings is not None else RendererSettings.new(image)
-        )
         self.image = self.settings.image
         self.cachedRender = None
-        self._stretchedData = (
-            None  # the data from the latest render post-stretch but pre-colormap.
-        )
-        self._rawBandData = None  # extracted data bands with no processing applied.
+        self._stretchedData = None  # latest render post-stretch but pre-colormap
+        self._rawBandData = None  # extracted band data with no processing applied
+        self.settings.sigParameterChanged.connect(self._onSettingsChanged)
+
+    def _onSettingsChanged(self, *args) -> None:
+        # any parameter (UI or programmatic) changed: drop caches and request a refresh
+        self.cachedRender = None
+        self._stretchedData = None
+        self.sigShouldRefresh.emit()
 
     def render(self):
         """
         Render the image with the current band and stretch settings.
-        Returns: numpy ndarray with shape (height, width, 3) representing an RGB image.
-
+        Returns: numpy ndarray with shape (height, width, 4) representing an RGBA image.
         """
         if self.cachedRender is not None:
             return self.cachedRender
-
         if self.image is None or self.settings is None:
             raise ValueError("Image and settings must be set before rendering.")
-        # profile = debug.Profiler()
-        # Extract the raster data for the specified bands
-        if self.settings.mode == "mono":
-            # maintain 3D shape so stretch algorithms don't need to account for both 2d and 3d arrays
-            data = self.image.getBands([int(self.settings.bands[0])])
+
+        mode = self.settings.mode.get()
+        if mode == RenderMode.MONO:
+            # maintain 3D shape so stretch algorithms don't branch on 2d/3d
+            data = self.image.getBands([int(self.settings.mono.band.get())])
         else:
-            data = self.image.getBands([int(b) for b in self.settings.bands[:3]])
+            data = self.image.getBands(
+                [
+                    int(self.settings.rgb.red.get()),
+                    int(self.settings.rgb.green.get()),
+                    int(self.settings.rgb.blue.get()),
+                ]
+            )
         self._rawBandData = data
 
-        # profile("Extract band data")
-
-        # if array is masked, convert to regular array with nans
         if np.ma.isMaskedArray(data):
             data = data.filled(np.nan)
 
-        # profile("Handle masked array")
-
-        # Run the stretch algorithm
-        data = self.settings.stretch.apply(data)
-
-        # profile("Apply stretching")
-
-        # save the stretched data pre-colormap; expand mono image to RGB image
+        data = self.settings.stretch.current.apply(data)
         self._stretchedData = data
-
-        # convert NaNs to zeros before color mapping and outputting
         data[np.isnan(data)] = 0
 
-        # profile("Handle NaNs")
-
-        # Apply color map
-        if self.settings.mode == "mono":
-            data = np.squeeze(data)  # go back to 2D because ColorMap expects it
-
-            lut = self.settings.colorMap.getLookupTable(0, 1, 256, alpha=False)
+        if mode == RenderMode.MONO:
+            data = np.squeeze(data)  # back to 2D because ColorMap expects it
+            lut = self.settings.mono.colorMap.get().getLookupTable(
+                0, 1, 256, alpha=False
+            )
             data = lut[(data * 255).astype(np.uint8)]
         else:
-            # convert the image to byte values, since it's faster to display I think.
-            # (ColorMap already does this for mono images)
             data = (data * 255).astype(np.uint8)
-        # profile("Apply color map")
 
-        # add 4th channel with opacity values
         alpha = np.full(
             (data.shape[0], data.shape[1], 1),
-            int(self.settings.opacity * 255),
+            int(self.settings.opacity.get() * 255),
             dtype=np.uint8,
         )
         rgba = np.concatenate((data, alpha), axis=2)
-
-        # profile("set opacity")
-
-        self.cachedRender = rgba  # cache the rendered image
-        # profile.total("Complete Image Render")
+        self.cachedRender = rgba
         return rgba
 
     def getStretchedData(self) -> np.ndarray:
@@ -147,7 +153,6 @@ class ImageRenderer(QObject):
         return self._stretchedData
 
     def getRawBandData(self) -> np.ndarray:
-        # Extract the raster data for the specified band
         if self._rawBandData is None:
             self.render()
         assert self._rawBandData is not None
@@ -156,223 +161,94 @@ class ImageRenderer(QObject):
     def getMinMaxValues(self):
         if self.cachedRender is None:
             self.render()
-        return self.settings.stretch.minMaxVals()
+        return self.settings.stretch.current.minMaxVals()
 
-    def updateSettings(self, settings: RendererSettings):
-        self.settings = settings
-        # delete cache so new image is generated
-        self.cachedRender = None
-        self._stretchedData = None
-        self.sigShouldRefresh.emit()
+    def setManualStretch(self, lo: float, hi: float) -> None:
+        """Switch to the manual stretch and set every channel to [lo, hi]."""
+        manual = self.settings.stretch.option(StretchParameter.MANUAL_NAME)
+        value = Vec2(float(lo), float(hi))
+        # batch the param edits into a single refresh
+        with QSignalBlocker(self.settings):
+            manual.config.redStretch.set(value)
+            manual.config.greenStretch.set(value)
+            manual.config.blueStretch.set(value)
+            self.settings.stretch.selectByName(StretchParameter.MANUAL_NAME)
+        self.settings.sigParameterChanged.emit(self.settings)
+
+    def setStretchMinMax(self, channel: int, lo: float, hi: float) -> None:
+        """Set one channel's manual min/max (0=red, 1=green, 2=blue).
+
+        When switching into the manual stretch, seed all channels from the current
+        stretch's computed min/max so the other channels don't jump.
+        """
+        stretch = self.settings.stretch
+        manual = stretch.option(StretchParameter.MANUAL_NAME)
+        channelParams = [
+            manual.config.redStretch,
+            manual.config.greenStretch,
+            manual.config.blueStretch,
+        ]
+        # batch all edits (seed + select + channel set) into a single refresh
+        with QSignalBlocker(self.settings):
+            if stretch.current is not manual:
+                self.render()  # ensure the current stretch has computed its min/max
+                seed = stretch.current.minMaxVals()
+                if seed is not None:
+                    mins = np.resize(
+                        np.atleast_1d(np.asarray(seed[0], dtype=float)).ravel(), 3
+                    )
+                    maxs = np.resize(
+                        np.atleast_1d(np.asarray(seed[1], dtype=float)).ravel(), 3
+                    )
+                    for i, param in enumerate(channelParams):
+                        param.set(Vec2(float(mins[i]), float(maxs[i])))
+                stretch.selectByName(StretchParameter.MANUAL_NAME)
+            channelParams[channel].set(Vec2(float(lo), float(hi)))
+        self.settings.sigParameterChanged.emit(self.settings)
 
     def getSettingsPanel(self) -> "RendererSettingsPanel":
-        settingsPanel = RendererSettingsPanel(self.settings)
-        settingsPanel.sigSettingsChanged.connect(self.updateSettings)
-        return settingsPanel
-
-
-def getComboBox():
-    comboBox = QComboBox()
-    # None of these seem to work to stop it from expanding to the full width lol.
-    # comboBox.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
-    # comboBox.setSizeAdjustPolicy(
-    #     QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
-    # )
-    return comboBox
+        return RendererSettingsPanel(self.settings)
 
 
 class RendererSettingsPanel(QWidget):
-    """
-    Panel for adjusting image rendering settings.
-    TODO: Update to use new Parameter system
-    """
-
-    sigSettingsChanged: pyqtSignal = pyqtSignal(RendererSettings)
+    """Panel for adjusting render settings, generated from the settings' parameters."""
 
     def __init__(self, settings: RendererSettings, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Image Render Settings")
         self.settings = settings
 
-        ### init UI ###
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         layout.setSpacing(2)
 
-        ## Mode selection ##
-        modeSelector = QButtonGroup(self)
-        modeSelector.addButton(rgbMode := QRadioButton("rgb"))
-        modeSelector.addButton(monoMode := QRadioButton("mono"))
-        modeLayout = QHBoxLayout()
-        modeLayout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        modeLayout.addWidget(rgbMode)
-        modeLayout.addWidget(monoMode)
+        # Mode
         layout.addWidget(QLabel("Mode:"))
-        layout.addLayout(modeLayout)
+        layout.addWidget(settings.mode.getWidget(self))
 
-        ## Band Selection ##
-        self.rgbBands: list[QComboBox] = []
-        self.bandLayout = QStackedLayout()
-        self.bandLayout.setAlignment(
+        # Band / colormap area, swapped by the mode parameter
+        self.bandStack = QStackedLayout()
+        self.bandStack.setAlignment(
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )
-        rgbBandLayout = QHBoxLayout()
-        rgbBandLayout.setAlignment(
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
-        )
-        # generate band layout for rgb mode
-        wavelengths = self.settings.image.wavelengths
-        for i in range(3):
-            comboBox = getComboBox()
-            comboBox.addItems([str(w) for w in wavelengths])
-            comboBox.setMaximumWidth(100)
-            comboBox.currentIndexChanged.connect(self._onBandsChanged)
-            self.rgbBands.append(comboBox)
-            rgbBandLayout.addWidget(comboBox)
-        # generate band layout for mono mode
-        monoBandLayout = QVBoxLayout()
-        monoBandLayout.setAlignment(
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
-        )
-        self.monoBand = getComboBox()
-        self.monoBand.addItems([str(w) for w in wavelengths])
-        self.monoBand.currentIndexChanged.connect(self._onBandsChanged)
-        monoBandLayout.addWidget(self.monoBand)
-        colormapSelector = pg.GradientWidget()
-        colormapSelector.sigGradientChanged.connect(self._onColorMapChanged)
-        monoBandLayout.addWidget(colormapSelector)
+        self._rgbIndex = self.bandStack.addWidget(settings.rgb.createWidget())
+        self._monoIndex = self.bandStack.addWidget(settings.mono.createWidget())
+        layout.addLayout(self.bandStack)
+        self._syncBandStack()
+        settings.mode.sigParameterChanged.connect(self._syncBandStack)
 
-        # add to the stacked layout
-        widgetContainer = QWidget()
-        widgetContainer.setLayout(rgbBandLayout)
-        self.bandLayout.addWidget(widgetContainer)
-        widgetContainer = QWidget()
-        widgetContainer.setLayout(monoBandLayout)
-
-        self.bandLayout.addWidget(widgetContainer)
-
-        layout.addLayout(self.bandLayout)
-
-        ## Stretch Selection ##
-        stretchLayout = QVBoxLayout()
-        stretchLayout.setAlignment(
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
-        )
-        self.stretchAlgSelector = getComboBox()
-        self.stretchAlgSelector.addItems(
-            [key for key in stretchAlgorithmRegistry.keys()]
-        )
-        stretchLayout.addWidget(self.stretchAlgSelector)
-        self.stretchParameters = QStackedLayout()
-        # self.stretchParameters.setSizeConstraint(
-        #     QStackedLayout.SizeConstraint.SetMinimumSize
-        # )
-        self.stretchParameters.setAlignment(
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
-        )
-        # self.stretchParameters.setContentsMargins(0, 0, 0, 0)
-        self.stretchInstances = []  # list of StretchAlgorithm objects, one for each
-        for alg in stretchAlgorithmRegistry.values():
-            instance = alg()
-            parameters = instance.parameters()
-            # parameters are already associated with the stretch algorithm instance,
-            # so we dont need to edit the settings object at all. Just indicate that a refresh is needed.
-            parameters.sigParameterChanged.connect(
-                lambda: self.sigSettingsChanged.emit(self.settings)
-            )
-            self.stretchParameters.addWidget(parameters.createWidget())
-            self.stretchInstances.append(instance)
-        stretchLayout.addLayout(self.stretchParameters)
-
+        # Stretch (self-contained combo + stacked sub-form)
         layout.addWidget(QLabel("Stretch Algorithm:"))
-        layout.addLayout(stretchLayout)
+        layout.addWidget(settings.stretch.getWidget(self))
 
-        # opacity UI
-        opacityParam = FloatParameter(
-            name="Opacity",
-            default=self.settings.opacity,
-            range=(0.0, 1.0),
-            units="%",
-            description="Opacity of the rendered image.",
-            parent=self,
-        )
-        opacityParam.sigParameterChanged.connect(self._onOpacityChanged)
+        # Opacity (labeled form row)
+        layout.addWidget(ParameterGroupWidget([settings.opacity], self))
 
-        layout.addWidget(ParameterGroupWidget([opacityParam], self))
-        ### Finish Init UI ###
         self.setLayout(layout)
 
-        ### Connect Signals ###
-        self.stretchAlgSelector.currentIndexChanged.connect(self._onStretchAlgChanged)
-        modeSelector.buttonToggled.connect(self._onModeToggled)
-
-        self.rgbBands[0].currentIndexChanged.connect(self._onBandsChanged)
-
-        ### Set Defaults ###
-        if self.settings.mode == "rgb":
-            rgbMode.setChecked(True)
-        elif self.settings.mode == "mono":
-            monoMode.setChecked(True)
-        colormapSelector.setColorMap(self.settings.colorMap)
-        self.rgbBands[0].setCurrentIndex(self.settings.bands[0])
-        self.rgbBands[1].setCurrentIndex(self.settings.bands[1])
-        self.rgbBands[2].setCurrentIndex(self.settings.bands[2])
-        self.monoBand.setCurrentIndex(self.settings.bands[0])
-        # this is kinda hacky whoops
-        self.stretchAlgSelector.setCurrentIndex(
-            list(stretchAlgorithmRegistry.values()).index(
-                self.settings.stretch.__class__
-            )
-        )
-
-    def _onModeToggled(self, button, checked):
-        # this gets triggered by both the radio button that was checked and the radio button that was unchecked.
-        # so we skip the unchecked one.
-        if not checked:
-            return
-        self.settings.mode = button.text()
-
-        if self.settings.mode == "rgb":
-            self.bandLayout.setCurrentIndex(0)
-        elif self.settings.mode == "mono":
-            self.bandLayout.setCurrentIndex(1)
-        else:
-            raise ValueError("Invalid mode selected.")
-
-        self.sigSettingsChanged.emit(self.settings)
-
-    def _onStretchAlgChanged(self, index):
-        self.stretchParameters.setCurrentIndex(index)
-        self.settings.stretch = self.stretchInstances[index]
-        self.sigSettingsChanged.emit(self.settings)
-
-    def _onBandsChanged(self, index: int):
-        if self.settings.mode == "rgb":
-            self.settings.bands[0] = self.rgbBands[0].currentIndex()
-            self.settings.bands[1] = self.rgbBands[1].currentIndex()
-            self.settings.bands[2] = self.rgbBands[2].currentIndex()
-        elif self.settings.mode == "mono":
-            self.settings.bands[0] = self.monoBand.currentIndex()
-        else:
-            raise ValueError("Invalid mode selected.")
-
-        self.sigSettingsChanged.emit(self.settings)
-
-    def _onColorMapChanged(self, colorMap: pg.GradientEditorItem):
-        try:
-            newColorMap = colorMap.colorMap()  # may raise NotImplementedError
-            self.settings.colorMap = newColorMap
-            self.sigSettingsChanged.emit(self.settings)
-        except NotImplementedError:
-            QMessageBox.warning(
-                self, "Unsupported Color Map", "HSV color maps are not supported yet."
-            )
-            # revert to previous colormap
-            colorMap.setColorMap(self.settings.colorMap)
-
-    def _onOpacityChanged(self, value: float):
-        self.settings.opacity = value
-        self.sigSettingsChanged.emit(self.settings)
+    def _syncBandStack(self, *args) -> None:
+        isRgb = self.settings.mode.get() == RenderMode.RGB
+        self.bandStack.setCurrentIndex(self._rgbIndex if isRgb else self._monoIndex)
 
 
 if __name__ == "__main__":

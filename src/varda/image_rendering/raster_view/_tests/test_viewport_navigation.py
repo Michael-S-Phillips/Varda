@@ -6,8 +6,11 @@ events (the same entry points pyqtgraph's scene would use), which keeps the test
 real windowing while still driving the production code paths.
 """
 
+from contextlib import contextmanager
+
 import numpy as np
 import pytest
+from psygnal import SignalInstance
 from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QColor
 
@@ -83,6 +86,14 @@ class _FakeDragEvent:
         pass
 
 
+@contextmanager
+def captures(signal: SignalInstance):
+    """Record emissions of a psygnal signal within the block."""
+    received: list[tuple] = []
+    signal.connect(lambda *args: received.append(args))
+    yield received
+
+
 @pytest.fixture
 def makeViewport(qtbot):
     """Factory for ready-to-use Imageviewports backed by a small in-memory raster."""
@@ -101,34 +112,37 @@ def makeViewport(qtbot):
 
 
 class TestSelfNavigation:
-    def test_self_navigating_zoom_changes_own_view(self, makeViewport, qtbot):
+    def test_self_navigating_zoom_changes_own_view(self, makeViewport):
         viewport = makeViewport()
         widthBefore = viewport.viewRect().width()
 
-        with qtbot.waitSignal(viewport.sigViewRangeChangedManually, timeout=500):
-            viewport.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+        with captures(viewport.sigViewRangeChangedManually) as emitted:
+            viewport._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
 
+        assert emitted  # self-navigation reported the manual range change
         assert viewport.viewRect().width() < widthBefore  # scroll up zooms in
 
-    def test_self_navigating_does_not_emit_gesture_signals(self, makeViewport, qtbot):
+    def test_self_navigating_does_not_emit_gesture_signals(self, makeViewport):
         viewport = makeViewport()
-        with qtbot.assertNotEmitted(viewport.sigZoomed):
-            viewport.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+        with captures(viewport.sigZoomed) as emitted:
+            viewport._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+        assert not emitted
 
     def test_disable_self_navigation_freezes_own_view(self, makeViewport):
         viewport = makeViewport()
         viewport.disableSelfNavigation()
         rectBefore = viewport.viewRect()
 
-        viewport.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+        viewport._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
 
         assert viewport.viewRect() == rectBefore  # gesture no longer moves own view
 
-    def test_disabled_viewport_emits_zoom_gesture(self, makeViewport, qtbot):
+    def test_disabled_viewport_emits_zoom_gesture(self, makeViewport):
         viewport = makeViewport()
         viewport.disableSelfNavigation()
-        with qtbot.waitSignal(viewport.sigZoomed, timeout=500):
-            viewport.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+        with captures(viewport.sigZoomed) as emitted:
+            viewport._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+        assert emitted  # gesture re-emitted instead of moving the view
 
 
 class TestRegionController:
@@ -152,13 +166,13 @@ class TestRegionController:
     def test_scroll_up_zooms_in_shrinks_roi(self, wired):
         _controller, _source, target, roi = wired
         sizeBefore = roi.size().x()
-        target.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
+        target._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), 120))
         assert roi.size().x() < sizeBefore
 
     def test_scroll_down_zooms_out_grows_roi(self, wired):
         _controller, _source, target, roi = wired
         sizeBefore = roi.size().x()
-        target.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), -120))
+        target._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), -120))
         assert roi.size().x() > sizeBefore
 
     def test_zoom_stays_within_source_bounds(self, wired):
@@ -166,7 +180,7 @@ class TestRegionController:
         bounds = roi.maxBounds
         # Zoom out hard; the ROI must not grow beyond the source image extent.
         for _ in range(20):
-            target.viewBox.wheelEvent(_FakeWheelEvent(QPointF(150, 150), -120))
+            target._vb.wheelEvent(_FakeWheelEvent(QPointF(150, 150), -120))
         assert roi.size().x() <= bounds.width() + 1e-6
         assert roi.size().y() <= bounds.height() + 1e-6
 
@@ -175,10 +189,61 @@ class TestRegionController:
         posBefore = QPointF(roi.pos())
 
         down = QPointF(150, 150)
-        target.viewBox.mouseDragEvent(_FakeDragEvent(down, down, start=True))
-        target.viewBox.mouseDragEvent(_FakeDragEvent(QPointF(180, 180), down))
-        target.viewBox.mouseDragEvent(
-            _FakeDragEvent(QPointF(180, 180), down, finish=True)
-        )
+        target._vb.mouseDragEvent(_FakeDragEvent(down, down, start=True))
+        target._vb.mouseDragEvent(_FakeDragEvent(QPointF(180, 180), down))
+        target._vb.mouseDragEvent(_FakeDragEvent(QPointF(180, 180), down, finish=True))
 
         assert roi.pos() != posBefore  # the drag moved the ROI on the source
+
+
+def _roiWithinRegion(roi, viewport, tol=1e-6) -> bool:
+    """Whether `roi` lies fully within `viewport`'s displayed region (local coords)."""
+    b = viewport.imageBounds()
+    p, s = roi.pos(), roi.size()
+    return (
+        p.x() >= b.left() - tol
+        and p.y() >= b.top() - tol
+        and p.x() + s.x() <= b.right() + tol
+        and p.y() + s.y() <= b.bottom() + tol
+    )
+
+
+class TestNestedROIClamping:
+    """A region-controller's ROI is clamped to its source viewport's displayed
+    region, so a nested ROI never drifts offscreen when the region shifts."""
+
+    @pytest.fixture
+    def nested(self, makeViewport):
+        """Triple-view wiring: roi2 (on viewport2) is driven within roi1's region."""
+        vp1, vp2, vp3 = makeViewport(), makeViewport(), makeViewport()
+        for v in (vp2, vp3):
+            v.disableSelfUpdating()
+            v.disableSelfNavigation()
+        roi1 = VardaROIItem.rectROI(
+            (20, 20), (20, 20), -1, QColor(255, 0, 0, 0), aspectLocked=True
+        )
+        # roi2 is positioned in viewport2-local coords; viewport2's region is the
+        # 20x20 extent of roi1, so (6,6)+8 sits comfortably inside it.
+        roi2 = VardaROIItem.rectROI(
+            (6, 6), (8, 8), -1, QColor(255, 0, 0, 0), aspectLocked=True
+        )
+        main = RegionController(vp1, vp2, roi1)
+        zoom = RegionController(vp2, vp3, roi2, main)
+        return vp2, roi1, roi2, zoom
+
+    def test_roi2_clamped_when_region_shifts_away(self, nested):
+        vp2, roi1, roi2, _zoom = nested
+        # Move roi1 so viewport2's region no longer contains roi2's anchored position.
+        roi1.setPos(QPointF(0, 0))  # region shifts away from roi2's image position
+        assert _roiWithinRegion(roi2, vp2)
+        roi1.setPos(QPointF(44, 44))  # and to the opposite corner
+        assert _roiWithinRegion(roi2, vp2)
+
+    def test_roi2_stays_anchored_while_it_fits(self, nested):
+        _vp2, roi1, _roi2, zoom = nested
+        absBefore = np.asarray(zoom.internalROI.points, dtype=float)
+        # Shift that keeps roi2 inside the region (region [22..42] still contains it):
+        # the clamp is a no-op, so roi2 stays anchored to its image position.
+        roi1.setPos(QPointF(22, 22))
+        absAfter = np.asarray(zoom.internalROI.points, dtype=float)
+        assert np.allclose(absBefore, absAfter, atol=1e-6)

@@ -10,10 +10,8 @@ import logging
 import pyqtgraph as pg
 from PyQt6.QtCore import QSignalBlocker
 from PyQt6.QtWidgets import (
-    QVBoxLayout,
     QWidget,
     QTabWidget,
-    QStackedWidget,
     QStackedLayout,
 )
 
@@ -21,7 +19,7 @@ from PyQt6.QtWidgets import (
 from varda.image_rendering.image_renderer import (
     ImageRenderer,
     RendererSettings,
-    RendererSettingsPanel,
+    RenderMode,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,9 +41,6 @@ class NewHistogramView(QWidget):
         self.rPlot.setMouseEnabled(x=False, y=False)
         self.gPlot.setMouseEnabled(x=False, y=False)
         self.bPlot.setMouseEnabled(x=False, y=False)
-        self.rRegion = None
-        self.gRegion = None
-        self.bRegion = None
 
         self.tabWidget.addTab(self.rPlot, "Red")
         self.tabWidget.addTab(self.gPlot, "Green")
@@ -53,7 +48,11 @@ class NewHistogramView(QWidget):
 
         self.monoPlot = pg.PlotWidget()
         self.monoPlot.setMouseEnabled(x=False, y=False)
-        self.monoRegion = None
+
+        self.rRegion: pg.LinearRegionItem | None = None
+        self.gRegion: pg.LinearRegionItem | None = None
+        self.bRegion: pg.LinearRegionItem | None = None
+        self.monoRegion: pg.LinearRegionItem | None = None
 
         layout = QStackedLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -65,104 +64,107 @@ class NewHistogramView(QWidget):
         self._updateHistogram()
 
     def _updateHistogram(self):
-        if self.imageRenderer.settings.mode == "mono":
-            self.layout().setCurrentIndex(1)
-        elif self.imageRenderer.settings.mode == "rgb":
-            self.layout().setCurrentIndex(0)
+        renderer = self.imageRenderer
+        mode = renderer.settings.mode.get()
+        self.layout().setCurrentIndex(1 if mode == RenderMode.MONO else 0)
 
-        def plotHistogram(arr, plotWidget, pen, brush):
-            if arr.size:
-                vmin, vmax = np.nanmin(arr), np.nanmax(arr)
-
-                if vmin == vmax:
-                    vmin -= 0.5
-                    vmax += 0.5
-                y, x = np.histogram(arr, bins=256, range=(vmin, vmax))
-                plotWidget.plot(
-                    x[1:],
-                    y,
-                    pen=pen,
-                    fillLevel=0,
-                    brush=brush,
-                )
-
-        # clear old plots
+        # clear curves (this also removes region items; they are re-added below)
         self.rPlot.clear()
         self.gPlot.clear()
         self.bPlot.clear()
         self.monoPlot.clear()
 
-        # plot new ones
-        mode = self.imageRenderer.settings.mode
-
-        minMaxVals = self.imageRenderer.getMinMaxValues()
-        if None not in minMaxVals:
-            data = self.imageRenderer.getRawBandData()
+        minMaxVals = renderer.getMinMaxValues()
+        if minMaxVals is not None:
+            data = renderer.getRawBandData()
         else:
-            data = self.imageRenderer.getStretchedData()
+            data = renderer.getStretchedData()
 
-        if mode == "mono":
+        def plotHistogram(arr, plotWidget, pen, brush):
+            if arr.size:
+                vmin, vmax = np.nanmin(arr), np.nanmax(arr)
+                if vmin == vmax:
+                    vmin -= 0.5
+                    vmax += 0.5
+                y, x = np.histogram(arr, bins=256, range=(vmin, vmax))
+                plotWidget.plot(x[1:], y, pen=pen, fillLevel=0, brush=brush)
+
+        if mode == RenderMode.MONO:
             plotHistogram(data.ravel(), self.monoPlot, "w", (255, 255, 255, 50))
-        elif mode == "rgb":
-            print(f"RGB data shape: {data.shape}")
+            self._syncMonoRegion(minMaxVals)
+        else:
             plotHistogram(data[:, :, 0].ravel(), self.rPlot, "r", (255, 0, 0, 50))
             plotHistogram(data[:, :, 1].ravel(), self.gPlot, "g", (0, 255, 0, 50))
             plotHistogram(data[:, :, 2].ravel(), self.bPlot, "b", (0, 0, 255, 50))
+            self._syncRgbRegions(minMaxVals)
 
-        if minMaxVals is not None and mode == "mono":
+    def _syncMonoRegion(self, minMaxVals):
+        if minMaxVals is None:
+            self.monoRegion = None
+            return
+        lo = float(np.ravel(minMaxVals[0])[0])
+        hi = float(np.ravel(minMaxVals[1])[0])
+        if self.monoRegion is None:
             self.monoRegion = pg.LinearRegionItem(
-                values=minMaxVals,
-                pen="w",
-                brush=(0, 0, 0, 0),
-                movable=False,
+                values=(lo, hi), pen="w", brush=(0, 0, 0, 0), movable=True
             )
-            self.monoPlot.addItem(self.monoRegion)
+            self.monoRegion.sigRegionChangeFinished.connect(self._onMonoRegionChanged)
+        else:
+            with QSignalBlocker(self.monoRegion):
+                self.monoRegion.setRegion((lo, hi))
+        self.monoPlot.addItem(self.monoRegion)
 
-        elif minMaxVals is not None and mode == "rgb":
-            print(f"RGB min max vals: {minMaxVals}")
-            self.rRegion = pg.LinearRegionItem(
-                values=(minMaxVals[0][0], minMaxVals[1][0]),
-                pen="r",
-                brush=(0, 0, 0, 0),
-                movable=False,
-            )
-            self.rPlot.addItem(self.rRegion)
+    def _onMonoRegionChanged(self):
+        lo, hi = self.monoRegion.getRegion()
+        self.imageRenderer.setStretchMinMax(0, lo, hi)
 
-            self.gRegion = pg.LinearRegionItem(
-                values=(minMaxVals[0][1], minMaxVals[1][1]),
-                pen="g",
-                brush=(0, 0, 0, 0),
-                movable=False,
-            )
-            self.gPlot.addItem(self.gRegion)
+    def _syncRgbRegions(self, minMaxVals):
+        if minMaxVals is None:
+            self.rRegion = self.gRegion = self.bRegion = None
+            return
+        mins = np.ravel(minMaxVals[0])
+        maxs = np.ravel(minMaxVals[1])
+        specs = (
+            ("rRegion", self.rPlot, "r", 0, self._onRRegionChanged),
+            ("gRegion", self.gPlot, "g", 1, self._onGRegionChanged),
+            ("bRegion", self.bPlot, "b", 2, self._onBRegionChanged),
+        )
+        for attr, plot, pen, channel, handler in specs:
+            lo, hi = float(mins[channel]), float(maxs[channel])
+            region = getattr(self, attr)
+            if region is None:
+                region = pg.LinearRegionItem(
+                    values=(lo, hi), pen=pen, brush=(0, 0, 0, 0), movable=True
+                )
+                region.sigRegionChangeFinished.connect(handler)
+                setattr(self, attr, region)
+            else:
+                with QSignalBlocker(region):
+                    region.setRegion((lo, hi))
+            plot.addItem(region)
 
-            self.bRegion = pg.LinearRegionItem(
-                values=(minMaxVals[0][2], minMaxVals[1][2]),
-                pen="b",
-                brush=(0, 0, 0, 0),
-                movable=False,
-            )
-            self.bPlot.addItem(self.bRegion)
+    def _onRRegionChanged(self):
+        lo, hi = self.rRegion.getRegion()
+        self.imageRenderer.setStretchMinMax(0, lo, hi)
 
-        elif minMaxVals is None and mode == "mono":
-            self.monoPlot.removeItem(self.monoRegion)
+    def _onGRegionChanged(self):
+        lo, hi = self.gRegion.getRegion()
+        self.imageRenderer.setStretchMinMax(1, lo, hi)
 
-        elif minMaxVals is None and mode == "rgb":
-            self.rPlot.removeItem(self.rRegion)
-            self.gPlot.removeItem(self.gRegion)
-            self.bPlot.removeItem(self.bRegion)
+    def _onBRegionChanged(self):
+        lo, hi = self.bRegion.getRegion()
+        self.imageRenderer.setStretchMinMax(2, lo, hi)
 
 
 if __name__ == "__main__":
     q_app = pg.mkQApp()
     image = varda.utilities.debug.generate_random_image((100, 100, 10), (10, 10, 10))
-    renderSettings = RendererSettings.new(image)
-    renderSettings.bands = np.array([0, 1, 2])
+    renderSettings = RendererSettings(image)
+    renderSettings.mode.set(RenderMode.RGB)
     renderer = ImageRenderer(image, renderSettings)
     settingsPanel = renderer.getSettingsPanel()
 
     view = NewHistogramView(renderer)
-    renderer.sigShouldRefresh.connect(view._updateHistogram)
     view.show()
     settingsPanel.show()
     q_app.exec()

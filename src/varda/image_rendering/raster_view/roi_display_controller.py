@@ -1,25 +1,33 @@
-"""ROI display controller — manages VardaROIGraphicsItems across viewports."""
+"""ROI display controller — manages ROI overlays across viewports."""
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from typing import Any, Callable, TYPE_CHECKING
 
 import numpy as np
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal, QPointF
 
 from varda.rois.roi_collection import ROICollection
-from varda.rois.varda_roi_item import VardaROIGraphicsItem
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
 
+if TYPE_CHECKING:
+    from varda.image_rendering.raster_view.viewport_protocol import ROIOverlayHandle
+
 logger = logging.getLogger(__name__)
+
+
+def _toQPoints(coords: np.ndarray) -> list[QPointF]:
+    """Convert an Nx2 array of (col, row) coordinates to a list of QPointF."""
+    return [QPointF(float(col), float(row)) for col, row in coords]
 
 
 class ROIDisplayController(QObject):
     """Display ROIs from an ROICollection on registered viewports.
 
-    Listens to collection signals and keeps the visual items in sync.
-    Handles coordinate conversion for viewports that display subregions.
+    Listens to collection signals and keeps the visual overlays in sync.
+    Handles coordinate conversion for viewports that display subregions. The
+    overlays are backend-neutral `ROIOverlayHandle`s obtained from each viewport.
     """
 
     roiHighlighted = pyqtSignal(int)  # fid
@@ -34,8 +42,8 @@ class ROIDisplayController(QObject):
 
         # {viewport_id: viewport_object}
         self._viewports: dict[str, ImageViewport] = {}
-        # {viewport_id: {fid: VardaROIGraphicsItem}}
-        self._items: dict[str, dict[int, VardaROIGraphicsItem]] = {}
+        # {viewport_id: {fid: ROIOverlayHandle}}
+        self._items: dict[str, dict[int, ROIOverlayHandle]] = {}
         # {viewport_id: callback} for signal disconnection
         self._viewportCallbacks: dict[str, Callable] = {}
 
@@ -67,8 +75,8 @@ class ROIDisplayController(QObject):
         viewport = self._viewports[viewportId]
         viewport.sigImageChanged.disconnect(self._viewportCallbacks[viewportId])
         del self._viewportCallbacks[viewportId]
-        for item in self._items[viewportId].values():
-            viewport.removeItem(item)
+        for handle in self._items[viewportId].values():
+            handle.remove()
         del self._items[viewportId]
         del self._viewports[viewportId]
 
@@ -79,28 +87,23 @@ class ROIDisplayController(QObject):
             return
         self._highlightedFid = fid
         for viewport_items in self._items.values():
-            for item_fid, item in viewport_items.items():
-                item.setHighlighted(item_fid == fid)
+            for item_fid, handle in viewport_items.items():
+                handle.setHighlighted(item_fid == fid)
         if fid is not None:
             self.roiHighlighted.emit(fid)
 
     # --- Signal handlers ---
 
     def _onROIAdded(self, fid: int) -> None:
-        roi = self._collection.getROI(fid)
-        pixelCoords = self._collection.getPixelCoordinates(fid)
-        for vid, viewport in self._viewports.items():
-            localCoords = viewport.pixelToLocalCoords(pixelCoords)
-            item = VardaROIGraphicsItem(roi, localCoords)
-            viewport.addItem(item)
-            self._items[vid][fid] = item
+        for vid in self._viewports:
+            self._addOverlay(vid, fid)
         self.displayUpdated.emit()
 
     def _onROIRemoved(self, fid: int) -> None:
-        for vid, viewport in self._viewports.items():
-            if fid in self._items[vid]:
-                viewport.removeItem(self._items[vid][fid])
-                del self._items[vid][fid]
+        for vid in self._viewports:
+            handle = self._items[vid].pop(fid, None)
+            if handle is not None:
+                handle.remove()
         if self._highlightedFid == fid:
             self._highlightedFid = None
         self.displayUpdated.emit()
@@ -109,38 +112,42 @@ class ROIDisplayController(QObject):
         roi = self._collection.getROI(fid)
         pixelCoords = self._collection.getPixelCoordinates(fid)
         for vid, viewport in self._viewports.items():
-            if fid in self._items[vid]:
-                localCoords = viewport.pixelToLocalCoords(pixelCoords)
-                self._items[vid][fid].updateData(roi, localCoords)
+            handle = self._items[vid].get(fid)
+            if handle is not None:
+                handle.setPoints(_toQPoints(viewport.pixelToLocalCoords(pixelCoords)))
+                handle.setColor(roi.color.toQColor())
         self.displayUpdated.emit()
 
     # --- Internal ---
 
-    def _refreshViewport(self, viewportId: str) -> None:
-        """Recompute local coordinates for all ROI items on a viewport."""
+    def _addOverlay(self, viewportId: str, fid: int) -> None:
+        """Create (or replace) the overlay for `fid` on a single viewport."""
         viewport = self._viewports[viewportId]
-        for fid, item in self._items[viewportId].items():
-            roi = self._collection.getROI(fid)
+        roi = self._collection.getROI(fid)
+        pixelCoords = self._collection.getPixelCoordinates(fid)
+        localCoords = viewport.pixelToLocalCoords(pixelCoords)
+        handle = viewport.addROIOverlay(_toQPoints(localCoords), roi.color.toQColor())
+        if fid == self._highlightedFid:
+            handle.setHighlighted(True)
+        self._items[viewportId][fid] = handle
+
+    def _refreshViewport(self, viewportId: str) -> None:
+        """Recompute local coordinates for all ROI overlays on a viewport."""
+        viewport = self._viewports[viewportId]
+        for fid, handle in self._items[viewportId].items():
             pixelCoords = self._collection.getPixelCoordinates(fid)
-            localCoords = viewport.pixelToLocalCoords(pixelCoords)
-            item.updateData(roi, localCoords)
+            handle.setPoints(_toQPoints(viewport.pixelToLocalCoords(pixelCoords)))
 
     def _displayAllForViewport(self, viewportId: str) -> None:
-        viewport = self._viewports[viewportId]
         for fid in self._collection.fids:
-            roi = self._collection.getROI(fid)
-            pixelCoords = self._collection.getPixelCoordinates(fid)
-            localCoords = viewport.pixelToLocalCoords(pixelCoords)
-            item = VardaROIGraphicsItem(roi, localCoords)
-            viewport.addItem(item)
-            self._items[viewportId][fid] = item
+            self._addOverlay(viewportId, fid)
 
     def cleanup(self) -> None:
         for vid, viewport in self._viewports.items():
             if vid in self._viewportCallbacks:
                 viewport.sigImageChanged.disconnect(self._viewportCallbacks[vid])
-            for item in self._items[vid].values():
-                viewport.removeItem(item)
+            for handle in self._items[vid].values():
+                handle.remove()
             self._items[vid].clear()
         self._viewports.clear()
         self._items.clear()

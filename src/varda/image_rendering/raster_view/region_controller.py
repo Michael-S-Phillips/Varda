@@ -165,10 +165,18 @@ class RegionController(QObject):
         self.onRegionChanged()
 
     def _repositionDisplayROIFromAbsolute(self):
-        """Move/resize the displayROI so it still covers self.internalROI.
+        """Move/resize the displayROI so it stays within the displayed region.
 
         Converts the persisted absolute image coordinates back into the source
-        viewport's (possibly changed) local coordinates.
+        viewport's (possibly changed) local coordinates, then clamps to the
+        displayed region. While the ROI fits inside the region the clamp is a
+        no-op, so it stays anchored to its image position; once the region edge
+        reaches it, the clamp pulls it along so it never goes offscreen. The
+        clamped position becomes the new anchor via the onRegionChanged() call in
+        _onSourceRegionChanged, so the target viewport follows.
+
+        If the region is smaller than the ROI, the clamp is best-effort: the ROI
+        pins to the region's top-left and overflows the far edges (no resize).
         """
         if self.internalROI is None:
             return
@@ -183,12 +191,18 @@ class RegionController(QObject):
         xMin, yMin = localPoints[:, 0].min(), localPoints[:, 1].min()
         xMax, yMax = localPoints[:, 0].max(), localPoints[:, 1].max()
 
-        # Apply without triggering the forward (local -> absolute) recompute, so
-        # the anchored absolute region stays the source of truth.
+        size = QPointF(xMax - xMin, yMax - yMin)
+        pos = QPointF(xMin, yMin)
+        self._clampPosToBounds(pos, size)
+
+        # Set the (possibly clamped) geometry without triggering the forward
+        # (local -> absolute) recompute mid-update; _onSourceRegionChanged calls
+        # onRegionChanged() afterward, which re-derives the anchor from this
+        # position (a no-op round-trip unless the clamp moved the ROI).
         self._updatingFromSource = True
         try:
-            self.displayROI.setSize([xMax - xMin, yMax - yMin], update=False)
-            self.displayROI.setPos(QPointF(xMin, yMin))
+            self.displayROI.setSize([size.x(), size.y()], update=False)
+            self.displayROI.setPos(pos)
         finally:
             self._updatingFromSource = False
 
