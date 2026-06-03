@@ -194,3 +194,56 @@ class TestRegionController:
         target._vb.mouseDragEvent(_FakeDragEvent(QPointF(180, 180), down, finish=True))
 
         assert roi.pos() != posBefore  # the drag moved the ROI on the source
+
+
+def _roiWithinRegion(roi, viewport, tol=1e-6) -> bool:
+    """Whether `roi` lies fully within `viewport`'s displayed region (local coords)."""
+    b = viewport.imageBounds()
+    p, s = roi.pos(), roi.size()
+    return (
+        p.x() >= b.left() - tol
+        and p.y() >= b.top() - tol
+        and p.x() + s.x() <= b.right() + tol
+        and p.y() + s.y() <= b.bottom() + tol
+    )
+
+
+class TestNestedROIClamping:
+    """A region-controller's ROI is clamped to its source viewport's displayed
+    region, so a nested ROI never drifts offscreen when the region shifts."""
+
+    @pytest.fixture
+    def nested(self, makeViewport):
+        """Triple-view wiring: roi2 (on viewport2) is driven within roi1's region."""
+        vp1, vp2, vp3 = makeViewport(), makeViewport(), makeViewport()
+        for v in (vp2, vp3):
+            v.disableSelfUpdating()
+            v.disableSelfNavigation()
+        roi1 = VardaROIItem.rectROI(
+            (20, 20), (20, 20), -1, QColor(255, 0, 0, 0), aspectLocked=True
+        )
+        # roi2 is positioned in viewport2-local coords; viewport2's region is the
+        # 20x20 extent of roi1, so (6,6)+8 sits comfortably inside it.
+        roi2 = VardaROIItem.rectROI(
+            (6, 6), (8, 8), -1, QColor(255, 0, 0, 0), aspectLocked=True
+        )
+        main = RegionController(vp1, vp2, roi1)
+        zoom = RegionController(vp2, vp3, roi2, main)
+        return vp2, roi1, roi2, zoom
+
+    def test_roi2_clamped_when_region_shifts_away(self, nested):
+        vp2, roi1, roi2, _zoom = nested
+        # Move roi1 so viewport2's region no longer contains roi2's anchored position.
+        roi1.setPos(QPointF(0, 0))  # region shifts away from roi2's image position
+        assert _roiWithinRegion(roi2, vp2)
+        roi1.setPos(QPointF(44, 44))  # and to the opposite corner
+        assert _roiWithinRegion(roi2, vp2)
+
+    def test_roi2_stays_anchored_while_it_fits(self, nested):
+        _vp2, roi1, _roi2, zoom = nested
+        absBefore = np.asarray(zoom.internalROI.points, dtype=float)
+        # Shift that keeps roi2 inside the region (region [22..42] still contains it):
+        # the clamp is a no-op, so roi2 stays anchored to its image position.
+        roi1.setPos(QPointF(22, 22))
+        absAfter = np.asarray(zoom.internalROI.points, dtype=float)
+        assert np.allclose(absBefore, absAfter, atol=1e-6)
