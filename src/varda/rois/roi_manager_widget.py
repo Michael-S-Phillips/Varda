@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pyqtgraph as pg
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget,
@@ -127,15 +128,27 @@ class ROIManagerWidget(QWidget):
         self.sigDenominatorChanged.emit(fid)
 
     def plotSpectrum(self, fid: int) -> None:
-        """Plot the mean spectrum of an ROI into the plot widget."""
+        """Plot the mean spectrum of an ROI, shaded with a +/- std-dev band."""
         stats = self._collection.getROIStatistics(fid, self._image)
         if stats["pixel_count"] == 0:
             logger.warning("ROI fid=%d has no pixels", fid)
             return
         mean = np.asarray(stats["mean"])
+        std = np.asarray(stats["std"])
         wavelengths = VardaPlotWidget.getPlottableWavelengths(self._image, len(mean))
         roi = self._collection.getROI(fid)
-        self._plotWidget.plot(wavelengths, mean, color=roi.color, name=roi.name)
+
+        fillColor = roi.color.toQColor()
+        fillColor.setAlpha(50)
+        self._plotWidget.plotWithFill(
+            wavelengths,
+            mean,
+            yLower=mean - std,
+            yUpper=mean + std,
+            fillBrush=pg.mkBrush(fillColor),
+            color=roi.color,
+            name=roi.name,
+        )
 
     def plotRatioSpectrum(self, fid: int) -> None:
         """Plot an ROI's mean spectrum divided by the denominator's mean."""
