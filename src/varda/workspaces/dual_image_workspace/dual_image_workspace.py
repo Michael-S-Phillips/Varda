@@ -89,8 +89,10 @@ class DualImageWorkspace(QMainWindow):
         self.roiDisplayController = ROIDisplayController(
             self.roiCollection, parent=self
         )
-        self.roiManagerWidget = ROIManagerWidget(self.roiCollection, parent=self)
         self.plotWidget = VardaPlotWidget(parent=self)
+        self.roiManagerWidget = ROIManagerWidget(
+            self.roiCollection, self.image1, self.plotWidget, parent=self
+        )
 
     def _initUI(self):
         if self.displayMode == DisplayMode.SIDE_BY_SIDE:
@@ -237,8 +239,6 @@ class DualImageWorkspace(QMainWindow):
             self.roiDisplayController.highlightROI
         )
 
-        # Wire spectral plot
-        self.roiManagerWidget.sigPlotRequested.connect(self._onPlotRequested)
 
     def _onToolActivated(self, tool) -> None:
         from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
@@ -252,26 +252,6 @@ class DualImageWorkspace(QMainWindow):
         self.roiCollection.addROIFromDrawing(
             geometry=result["geometry"],
             roiType=result["roiType"],
-        )
-
-    def _onPlotRequested(self, fid: int) -> None:
-        """Plot mean spectrum using data from the primary (spectral) image."""
-        stats = self.roiCollection.getROIStatistics(fid, self.image1)
-
-        if stats["pixel_count"] == 0:
-            logger.warning("ROI fid=%d has no pixels in primary image", fid)
-            return
-
-        mean = stats["mean"]
-        wavelengths = VardaPlotWidget.getPlottableWavelengths(self.image1, len(mean))
-        roi = self.roiCollection.getROI(fid)
-        logger.debug(f"plot requested. mean data: {mean}")
-
-        self.plotWidget.plot(
-            wavelengths,
-            mean,
-            pen=roi.color,
-            name=roi.name,
         )
 
     def closeEvent(self, event):
