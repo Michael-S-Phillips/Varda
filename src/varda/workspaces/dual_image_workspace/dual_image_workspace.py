@@ -239,7 +239,6 @@ class DualImageWorkspace(QMainWindow):
             self.roiDisplayController.highlightROI
         )
 
-
     def _onToolActivated(self, tool) -> None:
         from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
             ROIDrawingTool,
