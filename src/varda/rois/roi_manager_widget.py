@@ -120,6 +120,8 @@ class ROIManagerWidget(QWidget):
 
     def setDenominator(self, fid: int | None) -> None:
         """Set (or clear, with None) the ratio reference ROI."""
+        if fid == self._denominatorFid:
+            return
         self._denominatorFid = fid
         self._model.setDenominatorFid(fid)
         self.sigDenominatorChanged.emit(fid)
