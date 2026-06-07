@@ -464,41 +464,21 @@ class TestApplyToImage:
             collection.applyToImage(target)
 
 
-def _make_split_image(width, height, bands, left_fill, right_fill):
-    """Fake image: left half filled with left_fill, right half with right_fill."""
-    data = np.empty((height, width, bands), dtype=np.float64)
-    half = width // 2
-    data[:, :half, :] = left_fill
-    data[:, half:, :] = right_fill
-    return SimpleNamespace(
-        width=width,
-        height=height,
-        bandCount=bands,
-        nodata=None,
-        wavelengths=np.arange(bands, dtype=np.float64),
-        getData=lambda bandIndices=None, window=None: (
-            data[
-                window[0] : window[0] + window[2],
-                window[1] : window[1] + window[3],
-                :,
-            ]
-            if window is not None
-            else data
-        ),
-    )
-
-
 class TestRatioSpectrum:
-    def test_ratio_of_two_rois(self, collection: ROICollection) -> None:
+    def test_ratio_of_two_rois(
+        self, collection: ROICollection, make_split_image
+    ) -> None:
         # numerator ROI in the left half (value 8), denominator in right half (4)
         num_fid = collection.addROI(box(2, 2, 8, 8), "num", RED, ROIMode.RECTANGLE)
         den_fid = collection.addROI(box(31, 2, 38, 8), "den", BLUE, ROIMode.RECTANGLE)
-        image = _make_split_image(40, 20, 3, left_fill=8.0, right_fill=4.0)
+        image = make_split_image(40, 20, 3, left_fill=8.0, right_fill=4.0)
         ratio = collection.getRatioSpectrum(num_fid, den_fid, image)
         np.testing.assert_array_almost_equal(ratio.values, [2.0, 2.0, 2.0])
 
-    def test_ratio_against_self_is_one(self, collection: ROICollection) -> None:
+    def test_ratio_against_self_is_one(
+        self, collection: ROICollection, make_split_image
+    ) -> None:
         fid = collection.addROI(box(2, 2, 8, 8), "roi", RED, ROIMode.RECTANGLE)
-        image = _make_split_image(40, 20, 2, left_fill=5.0, right_fill=9.0)
+        image = make_split_image(40, 20, 2, left_fill=5.0, right_fill=9.0)
         ratio = collection.getRatioSpectrum(fid, fid, image)
         np.testing.assert_array_almost_equal(ratio.values, [1.0, 1.0])

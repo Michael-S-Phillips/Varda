@@ -13,30 +13,6 @@ RED = Color(1.0, 0.0, 0.0, 0.5)
 BLUE = Color(0.0, 0.0, 1.0, 0.5)
 
 
-def _make_split_image(width, height, bands, left_fill, right_fill):
-    data = np.empty((height, width, bands), dtype=np.float64)
-    half = width // 2
-    data[:, :half, :] = left_fill
-    data[:, half:, :] = right_fill
-    return SimpleNamespace(
-        width=width,
-        height=height,
-        bandCount=bands,
-        nodata=None,
-        wavelengths=np.arange(bands, dtype=np.float64),
-        wavelengthsType=float,
-        getData=lambda bandIndices=None, window=None: (
-            data[
-                window[0] : window[0] + window[2],
-                window[1] : window[1] + window[3],
-                :,
-            ]
-            if window is not None
-            else data
-        ),
-    )
-
-
 class _FakePlot:
     """Records plot() calls instead of drawing."""
 
@@ -49,21 +25,21 @@ class _FakePlot:
         )
 
 
-def test_plot_spectrum_records_curve(qtbot):
+def test_plot_spectrum_records_curve(qtbot, make_split_image):
     c = ROICollection()
     fid = c.addROI(box(2, 2, 8, 8), "roi", RED, ROIMode.RECTANGLE)
     plot = _FakePlot()
-    w = ROIManagerWidget(c, _make_split_image(40, 20, 3, 8.0, 4.0), plot)
+    w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), plot)
     w.plotSpectrum(fid)
     assert len(plot.calls) == 1
     np.testing.assert_array_almost_equal(plot.calls[0].y, [8.0, 8.0, 8.0])
     assert plot.calls[0].name == "roi"
 
 
-def test_set_denominator_updates_model_and_emits(qtbot):
+def test_set_denominator_updates_model_and_emits(qtbot, make_split_image):
     c = ROICollection()
     fid = c.addROI(box(2, 2, 8, 8), "roi", RED, ROIMode.RECTANGLE)
-    w = ROIManagerWidget(c, _make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
+    w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
     with qtbot.waitSignal(w.sigDenominatorChanged, timeout=500) as sig:
         w.setDenominator(fid)
     assert w.denominatorFid == fid
@@ -71,24 +47,26 @@ def test_set_denominator_updates_model_and_emits(qtbot):
     assert sig.args == [fid]
 
 
-def test_plot_ratio_without_denominator_does_nothing(qtbot, monkeypatch):
+def test_plot_ratio_without_denominator_does_nothing(
+    qtbot, monkeypatch, make_split_image
+):
     import varda.rois.roi_manager_widget as mod
 
     monkeypatch.setattr(mod.QMessageBox, "information", lambda *a, **k: None)
     c = ROICollection()
     fid = c.addROI(box(2, 2, 8, 8), "roi", RED, ROIMode.RECTANGLE)
     plot = _FakePlot()
-    w = ROIManagerWidget(c, _make_split_image(40, 20, 3, 8.0, 4.0), plot)
+    w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), plot)
     w.plotRatioSpectrum(fid)
     assert plot.calls == []
 
 
-def test_plot_ratio_with_denominator_records_ratio(qtbot):
+def test_plot_ratio_with_denominator_records_ratio(qtbot, make_split_image):
     c = ROICollection()
     num = c.addROI(box(2, 2, 8, 8), "num", RED, ROIMode.RECTANGLE)
     den = c.addROI(box(31, 2, 38, 8), "den", BLUE, ROIMode.RECTANGLE)
     plot = _FakePlot()
-    w = ROIManagerWidget(c, _make_split_image(40, 20, 3, 8.0, 4.0), plot)
+    w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), plot)
     w.setDenominator(den)
     w.plotRatioSpectrum(num)
     assert len(plot.calls) == 1
@@ -96,10 +74,10 @@ def test_plot_ratio_with_denominator_records_ratio(qtbot):
     assert plot.calls[0].name == "num / den"
 
 
-def test_removing_denominator_clears_it(qtbot):
+def test_removing_denominator_clears_it(qtbot, make_split_image):
     c = ROICollection()
     den = c.addROI(box(31, 2, 38, 8), "den", BLUE, ROIMode.RECTANGLE)
-    w = ROIManagerWidget(c, _make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
+    w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
     w.setDenominator(den)
     c.removeROI(den)
     assert w.denominatorFid is None

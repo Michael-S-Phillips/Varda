@@ -38,3 +38,11 @@ def test_integer_inputs_promoted_to_float():
     num = np.array([3, 6], dtype=np.int64)
     den = np.array([2, 2], dtype=np.int64)
     np.testing.assert_array_almost_equal(computeRatioSpectrum(num, den), [1.5, 3.0])
+
+
+def test_negative_values_divide_normally():
+    num = np.array([-2.0, 4.0, -6.0])
+    den = np.array([-1.0, -2.0, 3.0])
+    np.testing.assert_array_almost_equal(
+        computeRatioSpectrum(num, den), [2.0, -2.0, -2.0]
+    )
