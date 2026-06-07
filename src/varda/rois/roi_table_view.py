@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 class ROITableView(QTableView):
     roiSelected = pyqtSignal(int)  # emit fid
+    sigPlotSpectrumRequested = pyqtSignal(int)
+    sigPlotRatioRequested = pyqtSignal(int)
+    sigDenominatorSetRequested = pyqtSignal(int)
+    sigDenominatorClearRequested = pyqtSignal()
 
     def __init__(self, model: ROITableModel, parent=None):
         super().__init__(parent)
@@ -34,10 +38,51 @@ class ROITableView(QTableView):
             header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             header.customContextMenuRequested.connect(self._onHeaderContextMenu)
 
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._onRowContextMenu)
+
     def _onDoubleClick(self, index):
         fid = self._roiModel.fidForRow(index.row())
         if fid is not None:
             self.roiSelected.emit(fid)
+
+    def _onRowContextMenu(self, pos: QPoint) -> None:
+        index = self.indexAt(pos)
+        if not index.isValid():
+            return
+        fid = self._roiModel.fidForRow(index.row())
+        if fid is None:
+            return
+        self._buildRowMenu(fid).popup(QCursor.pos())
+
+    def _buildRowMenu(self, fid: int) -> QMenu:
+        menu = QMenu(self)
+
+        plotAction = QAction("Plot Spectrum", menu)
+        plotAction.triggered.connect(lambda: self.sigPlotSpectrumRequested.emit(fid))
+        menu.addAction(plotAction)
+
+        ratioAction = QAction("Plot Ratio Spectrum", menu)
+        ratioAction.triggered.connect(lambda: self.sigPlotRatioRequested.emit(fid))
+        menu.addAction(ratioAction)
+
+        menu.addSeparator()
+
+        setDenomAction = QAction("Set as Denominator", menu)
+        setDenomAction.setEnabled(fid != self._roiModel.denominatorFid)
+        setDenomAction.triggered.connect(
+            lambda: self.sigDenominatorSetRequested.emit(fid)
+        )
+        menu.addAction(setDenomAction)
+
+        clearDenomAction = QAction("Clear Denominator", menu)
+        clearDenomAction.setEnabled(self._roiModel.denominatorFid is not None)
+        clearDenomAction.triggered.connect(
+            lambda: self.sigDenominatorClearRequested.emit()
+        )
+        menu.addAction(clearDenomAction)
+
+        return menu
 
     def _onHeaderContextMenu(self, pos: QPoint) -> None:
         header = self.horizontalHeader()
