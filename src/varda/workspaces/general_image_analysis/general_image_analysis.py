@@ -7,8 +7,7 @@ ROI drawing, band selection, stretch controls, and metadata management.
 
 import logging
 
-from PyQt6.QtWidgets import QMainWindow, QStatusBar, QWidget
-from pyqtgraph.dockarea import DockArea, Dock
+from PyQt6.QtWidgets import QMainWindow, QStatusBar
 
 from varda.common.entities import VardaRaster
 from varda.image_rendering.image_renderer import ImageRenderer
@@ -111,10 +110,12 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             "viewport3", self.tripleRasterView.viewport3
         )
 
-        self.roiManagerWidget = ROIManagerWidget(self.roiCollection, parent=self)
-
         # --- Spectral plot ---
         self.plotWidget = VardaPlotWidget(parent=self)
+
+        self.roiManagerWidget = ROIManagerWidget(
+            self.roiCollection, image, self.plotWidget, parent=self
+        )
 
     def _initUI(self):
         """Initialize the user interface for the workflow"""
@@ -214,9 +215,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             self.roiDisplayController.highlightROI
         )
 
-        # Wire ROI spectral plot
-        self.roiManagerWidget.sigPlotRequested.connect(self._onPlotRequested)
-
     def _onToolActivated(self, tool) -> None:
         """Connect drawing tool signals when a drawing tool is activated."""
         from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
@@ -232,35 +230,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             geometry=result["geometry"],
             roiType=result["roiType"],
         )
-
-    def _onPlotRequested(self, fid: int) -> None:
-        """Compute ROI statistics and plot mean +/- std spectrum."""
-
-        image = self.config.image.value
-        stats = self.roiCollection.getROIStatistics(fid, image)
-
-        if stats["pixel_count"] == 0:
-            logger.warning("ROI fid=%d has no pixels", fid)
-            return
-
-        mean = stats["mean"]
-        std = stats["std"]
-        wavelengths = VardaPlotWidget.getPlottableWavelengths(image, len(mean))
-
-        roi = self.roiCollection.getROI(fid)
-        # fillColor = roi.color.toQColor()
-        # fillColor.setAlpha(50)
-
-        self.plotWidget.plot(wavelengths, mean, color=roi.color, name=roi.name)
-        # self.plotWidget.plotWithFill(
-        #     wavelengths,
-        #     mean,
-        #     yLower=mean - std,
-        #     yUpper=mean + std,
-        #     fillBrush=pg.mkBrush(fillColor),
-        #     pen=pg.mkPen(color=roi.color, width=2),
-        #     name=roi.name,
-        # )
 
     def setStatusMessage(self, message):
         """Set a status message in the status bar"""
