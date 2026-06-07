@@ -16,6 +16,7 @@ from shapely.geometry import mapping as shapely_mapping
 from shapely.geometry.base import BaseGeometry
 
 from varda.common.entities import ROIMode, Spectrum, VardaROI, VardaRaster, Color
+from varda.rois.ratio import computeRatioSpectrum
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +291,21 @@ class ROICollection:
         stats = self.getROIStatistics(fid, image)
         return Spectrum(
             values=stats["mean"],
+            wavelengths=image.wavelengths,
+        )
+
+    def getRatioSpectrum(
+        self, numeratorFid: int, denominatorFid: int, image: VardaRaster
+    ) -> Spectrum:
+        """Ratio of two ROIs' mean spectra (numerator / denominator).
+
+        Bands where the denominator mean is zero, or where either mean is
+        NaN, come out as NaN. See ``computeRatioSpectrum``.
+        """
+        numerator = np.asarray(self.getROIStatistics(numeratorFid, image)["mean"])
+        denominator = np.asarray(self.getROIStatistics(denominatorFid, image)["mean"])
+        return Spectrum(
+            values=computeRatioSpectrum(numerator, denominator),
             wavelengths=image.wavelengths,
         )
 
