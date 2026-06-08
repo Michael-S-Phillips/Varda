@@ -7,6 +7,11 @@ from app_model import Application
 from varda._actions import ALL_ACTIONS
 from varda._actions._context_keys import IMAGE_COUNT
 from varda.common.di_types import ProjectImages
+from varda.image_rendering.raster_view.viewport_actions import (
+    VIEWPORT_ACTIONS,
+    ViewportClickContext,
+    getCurrentClickContext,
+)
 from varda.plugins import VardaPluginManager
 
 # if TYPE_CHECKING:
@@ -33,6 +38,12 @@ class VardaApplication(Application):
         self.images.sigDataChanged.connect(self._onImagesChanged)
 
         self.register_actions(ALL_ACTIONS)
+        self.register_actions(VIEWPORT_ACTIONS)
+        # Provider for the transient viewport right-click context. Called fresh
+        # each time an action runs; the controller sets it just before exec.
+        self.injection_store.register_provider(
+            getCurrentClickContext, ViewportClickContext
+        )
 
     def _onImagesChanged(self, items: list) -> None:
         count = len(items)
