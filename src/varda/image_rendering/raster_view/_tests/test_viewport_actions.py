@@ -6,7 +6,9 @@ from varda.image_rendering.raster_view import viewport_actions as va
 def test_holder_roundtrip():
     va.setCurrentClickContext(None)
     assert va.getCurrentClickContext() is None
-    ctx = va.ViewportClickContext(placeTemplate=lambda: None, lockColumn=False, hasTemplate=True)
+    ctx = va.ViewportClickContext(
+        placeTemplate=lambda: None, lockColumn=False, hasTemplate=True
+    )
     va.setCurrentClickContext(ctx)
     assert va.getCurrentClickContext() is ctx
     va.setCurrentClickContext(None)

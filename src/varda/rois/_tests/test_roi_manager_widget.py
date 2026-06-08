@@ -162,6 +162,7 @@ def test_place_template_plain_paste(qtbot, make_split_image):
 
 def test_place_template_noop_without_template(qtbot, make_split_image, monkeypatch):
     import varda.rois.roi_manager_widget as mod
+
     monkeypatch.setattr(mod.QMessageBox, "information", lambda *a, **k: None)
     c = ROICollection()
     w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())

@@ -108,6 +108,7 @@ def computeColumnLockedTranslation(
     dy = float(clickRow) - srcCy
     return (dx, dy)
 
+
 _BAND_ALIASES: dict[str, tuple[str, ...]] = {
     "ir_sample": (
         "ir (l-detector) sample",
@@ -158,7 +159,9 @@ def loadColumnGeometry(sourceFilename: str) -> ColumnGeometry | None:
             descs = geom.descriptions or ()
             irIdx = findBandIndex(descs, "ir_sample")
             if irIdx is None:
-                logger.warning("DDR %s has no IR Sample band; column-lock unavailable", geomPath)
+                logger.warning(
+                    "DDR %s has no IR Sample band; column-lock unavailable", geomPath
+                )
                 _geometry_cache[sourceFilename] = None
                 return None
             tgtIdx = findBandIndex(descs, "target_id")

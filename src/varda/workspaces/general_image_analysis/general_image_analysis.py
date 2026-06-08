@@ -142,7 +142,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         # "Lock to sensor column" toggle, enabled only when a CRISM DDR resolves.
         self.lockColumnCheck = QCheckBox("Lock to sensor column")
-        hasDdr = bool(image.filePath) and resolveGeometryFile(image.filePath) is not None
+        hasDdr = (
+            bool(image.filePath) and resolveGeometryFile(image.filePath) is not None
+        )
         self.lockColumnCheck.setEnabled(hasDdr)
         if not hasDdr:
             self.lockColumnCheck.setToolTip(

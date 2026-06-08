@@ -24,7 +24,9 @@ logger = logging.getLogger(__name__)
 class ViewportContextMenuController(QObject):
     """Shows the app_model viewport context menu and owns the column-lock toggle."""
 
-    def __init__(self, roiManager: ROIManagerWidget, parent: QObject | None = None) -> None:
+    def __init__(
+        self, roiManager: ROIManagerWidget, parent: QObject | None = None
+    ) -> None:
         super().__init__(parent)
         self._roiManager = roiManager
         self._lockColumn = False
@@ -36,7 +38,9 @@ class ViewportContextMenuController(QObject):
     def lockColumn(self) -> bool:
         return self._lockColumn
 
-    def onContextMenuRequested(self, imageCol: float, imageRow: float, globalPos: QPoint) -> None:
+    def onContextMenuRequested(
+        self, imageCol: float, imageRow: float, globalPos: QPoint
+    ) -> None:
         app = Application.get_app("varda")
         if app is None:
             logger.warning("No 'varda' app instance; cannot show viewport menu")

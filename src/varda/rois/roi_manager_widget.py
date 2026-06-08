@@ -166,7 +166,9 @@ class ROIManagerWidget(QWidget):
             return
 
         template = self._collection.getROI(self._templateFid)
-        pixelCoords = self._collection.getPixelCoordinates(self._templateFid)  # (N,2) col,row
+        pixelCoords = self._collection.getPixelCoordinates(
+            self._templateFid
+        )  # (N,2) col,row
         srcCx = float(pixelCoords[:, 0].mean())
         srcCy = float(pixelCoords[:, 1].mean())
         dx = float(clickCol) - srcCx

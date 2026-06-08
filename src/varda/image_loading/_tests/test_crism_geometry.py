@@ -60,7 +60,9 @@ def test_translation_keeps_same_column():
     template_px = np.array([[2, 1], [4, 1], [4, 3], [2, 3]], dtype=np.float64)
     # Click far away at row 7, column 6. Column-lock must place the copy back on
     # the template's detector column (2 or 3), NOT at the clicked column 6.
-    dxdy = computeColumnLockedTranslation(template_px, clickRow=7, clickCol=6, geometry=geom)
+    dxdy = computeColumnLockedTranslation(
+        template_px, clickRow=7, clickCol=6, geometry=geom
+    )
     assert dxdy is not None
     dx, dy = dxdy
     src_cx = float(template_px[:, 0].mean())  # 3.0 (vertex centroid)
@@ -77,7 +79,9 @@ def test_translation_none_when_strip_absent_at_dest_row():
     geom.target_id[7, :] = 99
     template_px = np.array([[2, 1], [3, 1], [3, 2], [2, 2]], dtype=np.float64)
     assert (
-        computeColumnLockedTranslation(template_px, clickRow=7, clickCol=6, geometry=geom)
+        computeColumnLockedTranslation(
+            template_px, clickRow=7, clickCol=6, geometry=geom
+        )
         is None
     )
 
@@ -86,7 +90,9 @@ def test_translation_none_when_dest_row_out_of_bounds():
     geom = _geometry()
     template_px = np.array([[2, 1], [3, 1], [3, 2], [2, 2]], dtype=np.float64)
     assert (
-        computeColumnLockedTranslation(template_px, clickRow=999, clickCol=6, geometry=geom)
+        computeColumnLockedTranslation(
+            template_px, clickRow=999, clickCol=6, geometry=geom
+        )
         is None
     )
 
