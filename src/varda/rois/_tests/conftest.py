@@ -34,6 +34,8 @@ def make_split_image() -> Callable[[int, int, int, float, float], SimpleNamespac
             height=height,
             bandCount=bands,
             nodata=None,
+            hasGeospatialData=False,
+            filePath=None,
             wavelengths=np.arange(bands, dtype=np.float64),
             wavelengthsType=float,
             getData=lambda bandIndices=None, window=None: (

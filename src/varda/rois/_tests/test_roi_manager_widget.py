@@ -130,3 +130,49 @@ def test_removing_denominator_clears_it(qtbot, make_split_image):
     w.setDenominator(den)
     c.removeROI(den)
     assert w.denominatorFid is None
+
+
+def test_set_template_updates_model_and_emits(qtbot, make_split_image):
+    c = ROICollection()
+    fid = c.addROI(box(2, 2, 8, 8), "tmpl", RED, ROIMode.RECTANGLE)
+    w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
+    with qtbot.waitSignal(w.sigTemplateChanged, timeout=500) as sig:
+        w.setTemplate(fid)
+    assert w.templateFid == fid
+    assert w.model.templateFid == fid
+    assert sig.args == [fid]
+
+
+def test_place_template_plain_paste(qtbot, make_split_image):
+    # Non-georeferenced collection -> geometries stored in pixel space.
+    c = ROICollection()
+    tmpl = c.addROI(box(2, 2, 6, 6), "tmpl", RED, ROIMode.RECTANGLE)  # centroid (4,4)
+    w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
+    w.setTemplate(tmpl)
+    before = len(c)
+    w.placeTemplate(clickRow=14, clickCol=20, lockColumn=False)
+    assert len(c) == before + 1
+    new_fid = c.fids[-1]
+    coords = c.getPixelCoordinates(new_fid)
+    cx, cy = coords[:, 0].mean(), coords[:, 1].mean()
+    # Copy centroid lands at the click (dx = 20-4 = 16, dy = 14-4 = 10).
+    assert abs(cx - 20) < 1e-6
+    assert abs(cy - 14) < 1e-6
+
+
+def test_place_template_noop_without_template(qtbot, make_split_image, monkeypatch):
+    import varda.rois.roi_manager_widget as mod
+    monkeypatch.setattr(mod.QMessageBox, "information", lambda *a, **k: None)
+    c = ROICollection()
+    w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
+    w.placeTemplate(clickRow=5, clickCol=5, lockColumn=False)
+    assert len(c) == 0
+
+
+def test_removing_template_clears_it(qtbot, make_split_image):
+    c = ROICollection()
+    fid = c.addROI(box(2, 2, 6, 6), "tmpl", RED, ROIMode.RECTANGLE)
+    w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
+    w.setTemplate(fid)
+    c.removeROI(fid)
+    assert w.templateFid is None

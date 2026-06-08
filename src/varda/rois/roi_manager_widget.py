@@ -17,6 +17,12 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
+from shapely.geometry import Polygon
+
+from varda.image_loading.crism_geometry import (
+    computeColumnLockedTranslation,
+    loadColumnGeometry,
+)
 from varda.plotting.plot import VardaPlotWidget
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_table_model import ROITableModel
@@ -38,6 +44,7 @@ class ROIManagerWidget(QWidget):
 
     sigSelectionChanged = pyqtSignal(object)  # emits fid (int) or None
     sigDenominatorChanged = pyqtSignal(object)  # emits fid (int) or None
+    sigTemplateChanged = pyqtSignal(object)  # emits fid (int) or None
 
     def __init__(
         self,
@@ -51,6 +58,7 @@ class ROIManagerWidget(QWidget):
         self._image = image
         self._plotWidget = plotWidget
         self._denominatorFid: int | None = None
+        self._templateFid: int | None = None
 
         # Model / View
         self._model = ROITableModel(collection, parent=self)
@@ -94,6 +102,8 @@ class ROIManagerWidget(QWidget):
         self._table.sigDenominatorClearRequested.connect(
             lambda: self.setDenominator(None)
         )
+        self._table.sigTemplateSetRequested.connect(self.setTemplate)
+        self._table.sigTemplateClearRequested.connect(lambda: self.setTemplate(None))
 
         # Keep denominator state consistent if its ROI is deleted
         collection.sigROIRemoved.connect(self._onROIRemoved)
@@ -126,6 +136,71 @@ class ROIManagerWidget(QWidget):
         self._denominatorFid = fid
         self._model.setDenominatorFid(fid)
         self.sigDenominatorChanged.emit(fid)
+
+    @property
+    def templateFid(self) -> int | None:
+        return self._templateFid
+
+    def setTemplate(self, fid: int | None) -> None:
+        """Set (or clear, with None) the ROI used as a placement template."""
+        if fid == self._templateFid:
+            return
+        self._templateFid = fid
+        self._model.setTemplateFid(fid)
+        self.sigTemplateChanged.emit(fid)
+
+    def placeTemplate(self, clickRow: int, clickCol: int, lockColumn: bool) -> None:
+        """Stamp a copy of the template ROI centered on the clicked pixel.
+
+        With ``lockColumn`` and a resolvable CRISM DDR, the horizontal shift is
+        chosen so the copy sits on the template's detector column; otherwise a
+        plain centroid-to-click translation is used.
+        """
+        if self._templateFid is None:
+            QMessageBox.information(
+                self,
+                "No template set",
+                "Right-click an ROI and choose 'Set as Template' first, then "
+                "right-click the image to place a copy.",
+            )
+            return
+
+        template = self._collection.getROI(self._templateFid)
+        pixelCoords = self._collection.getPixelCoordinates(self._templateFid)  # (N,2) col,row
+        srcCx = float(pixelCoords[:, 0].mean())
+        srcCy = float(pixelCoords[:, 1].mean())
+        dx = float(clickCol) - srcCx
+        dy = float(clickRow) - srcCy
+
+        if lockColumn:
+            colGeom = (
+                loadColumnGeometry(self._image.filePath)
+                if self._image.filePath
+                else None
+            )
+            if colGeom is not None:
+                locked = computeColumnLockedTranslation(
+                    pixelCoords, clickRow=clickRow, clickCol=clickCol, geometry=colGeom
+                )
+                if locked is not None:
+                    dx, dy = locked
+
+        newPixels = pixelCoords + np.array([dx, dy])
+        if self._image.hasGeospatialData:
+            geoCoords = [
+                self._image.pixelToGeo(int(round(c)), int(round(r)))
+                for c, r in newPixels
+            ]
+            geometry = Polygon(geoCoords)
+        else:
+            geometry = Polygon(newPixels)
+
+        self._collection.addROI(
+            geometry=geometry,
+            name=f"{template.name} copy",
+            color=template.color,
+            roiType=template.roiType,
+        )
 
     def plotSpectrum(self, fid: int) -> None:
         """Plot the mean spectrum of an ROI, shaded with a +/- std-dev band."""
@@ -189,6 +264,8 @@ class ROIManagerWidget(QWidget):
     def _onROIRemoved(self, fid: int) -> None:
         if fid == self._denominatorFid:
             self.setDenominator(None)
+        if fid == self._templateFid:
+            self.setTemplate(None)
 
     def _plotSelected(self) -> None:
         fid = self.selectedFid()
