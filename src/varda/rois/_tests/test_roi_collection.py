@@ -482,3 +482,47 @@ class TestRatioSpectrum:
         image = make_split_image(40, 20, 2, left_fill=5.0, right_fill=9.0)
         ratio = collection.getRatioSpectrum(fid, fid, image)
         np.testing.assert_array_almost_equal(ratio.values, [1.0, 1.0])
+
+
+def _make_partial_nodata_image(width, height, bands, nodata=65535.0):
+    """Fake image where band 1 is nodata in the top half but valid elsewhere.
+
+    Simulates an (unmasked) source where one wavelength is mostly nodata
+    (e.g. CRISM's ~2800 nm band), while pixels remain valid in other bands.
+    """
+    data = np.full((height, width, bands), 0.1, dtype=np.float64)
+    data[:, :, 1] = 0.2
+    data[: height // 2, :, 1] = nodata  # top half of band 1 is nodata
+    return SimpleNamespace(
+        width=width,
+        height=height,
+        bandCount=bands,
+        nodata=nodata,
+        wavelengths=np.arange(bands, dtype=np.float64),
+        getData=lambda bandIndices=None, window=None: (
+            data[
+                window[0] : window[0] + window[2],
+                window[1] : window[1] + window[3],
+                :,
+            ]
+            if window is not None
+            else data
+        ),
+    )
+
+
+class TestNodataHandling:
+    def test_per_band_nodata_excluded_from_stats(
+        self, collection: ROICollection
+    ) -> None:
+        # Band 1 is nodata (65535) in half the ROI's pixels but valid elsewhere.
+        # The per-band nodata must not poison band 1's mean/std (the bug behind
+        # the CRISM 2800 nm "outlier" spike).
+        image = _make_partial_nodata_image(6, 6, 3)
+        fid = collection.addROI(box(0, 0, 6, 6), "roi", RED, ROIMode.RECTANGLE)
+        stats = collection.getROIStatistics(fid, image)
+        mean = np.asarray(stats["mean"])
+        std = np.asarray(stats["std"])
+        np.testing.assert_array_almost_equal(mean, [0.1, 0.2, 0.1])
+        assert float(np.nanmax(mean)) < 1.0  # no nodata-driven outlier
+        assert float(np.nanmax(std)) < 1.0  # std not inflated by nodata

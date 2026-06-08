@@ -349,14 +349,20 @@ class ROICollection:
         sub_mask = mask[r_min : r_max + 1, c_min : c_max + 1]
 
         # Extract pixels: (n_pixels, bands)
-        pixels = data[sub_mask]
+        pixels = data[sub_mask].astype(np.float64)
 
-        # Handle nodata
+        # Handle nodata PER ELEMENT: a pixel may be valid at most wavelengths
+        # but nodata at a few (CRISM has bands that are almost entirely nodata,
+        # e.g. ~2800 nm). Replacing nodata with NaN per element keeps those
+        # bands' statistics from being poisoned, rather than only dropping
+        # pixels that are nodata in every band. NaN is then ignored by nan-aware
+        # reductions below.
         nodata = image.nodata
         if nodata is not None:
-            logger.debug(f"nodata value: {nodata}")
-            valid = ~np.all(pixels == nodata, axis=1)
-            pixels = pixels[valid]
+            pixels[pixels == nodata] = np.nan
+
+        # Drop pixels that have no valid band at all.
+        pixels = pixels[~np.all(np.isnan(pixels), axis=1)]
 
         if len(pixels) == 0:
             nbands = data.shape[2] if data.ndim == 3 else 1
