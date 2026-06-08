@@ -24,6 +24,8 @@ class ROITableView(QTableView):
     sigPlotRatioRequested = pyqtSignal(int)
     sigDenominatorSetRequested = pyqtSignal(int)
     sigDenominatorClearRequested = pyqtSignal()
+    sigTemplateSetRequested = pyqtSignal(int)
+    sigTemplateClearRequested = pyqtSignal()
 
     def __init__(self, model: ROITableModel, parent=None):
         super().__init__(parent)
@@ -81,6 +83,22 @@ class ROITableView(QTableView):
             lambda: self.sigDenominatorClearRequested.emit()
         )
         menu.addAction(clearDenomAction)
+
+        menu.addSeparator()
+
+        setTemplateAction = QAction("Set as Template", menu)
+        setTemplateAction.setEnabled(fid != self._roiModel.templateFid)
+        setTemplateAction.triggered.connect(
+            lambda: self.sigTemplateSetRequested.emit(fid)
+        )
+        menu.addAction(setTemplateAction)
+
+        clearTemplateAction = QAction("Clear Template", menu)
+        clearTemplateAction.setEnabled(self._roiModel.templateFid is not None)
+        clearTemplateAction.triggered.connect(
+            lambda: self.sigTemplateClearRequested.emit()
+        )
+        menu.addAction(clearTemplateAction)
 
         return menu
 

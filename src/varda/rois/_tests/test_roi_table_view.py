@@ -73,3 +73,26 @@ def test_clear_denominator_action_emits(qtbot):
     menu = view._buildRowMenu(fid)
     with qtbot.waitSignal(view.sigDenominatorClearRequested, timeout=500):
         _find_action(menu, "Clear Denominator").trigger()
+
+
+def test_set_template_action_emits(qtbot):
+    view, model = _view()
+    fid = model.fidForRow(0)
+    menu = view._buildRowMenu(fid)
+    with qtbot.waitSignal(view.sigTemplateSetRequested, timeout=500) as sig:
+        _find_action(menu, "Set as Template").trigger()
+    assert sig.args == [fid]
+
+
+def test_set_template_disabled_when_already_template(qtbot):
+    view, model = _view()
+    fid = model.fidForRow(0)
+    model.setTemplateFid(fid)
+    menu = view._buildRowMenu(fid)
+    assert not _find_action(menu, "Set as Template").isEnabled()
+
+
+def test_clear_template_disabled_when_none(qtbot):
+    view, model = _view()
+    menu = view._buildRowMenu(model.fidForRow(0))
+    assert not _find_action(menu, "Clear Template").isEnabled()
