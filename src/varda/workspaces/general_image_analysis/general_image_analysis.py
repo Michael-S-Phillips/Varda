@@ -7,9 +7,16 @@ ROI drawing, band selection, stretch controls, and metadata management.
 
 import logging
 
-from PyQt6.QtWidgets import QMainWindow, QStatusBar
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QMainWindow,
+    QStatusBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 from varda.common.entities import VardaRaster
+from varda.image_loading.crism_geometry import resolveGeometryFile
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.new_histogram_view import (
     NewHistogramView,
@@ -18,6 +25,9 @@ import PyQt6Ads as ads
 
 
 from varda.image_rendering.raster_view import TripleRasterView, ROIDisplayController
+from varda.image_rendering.raster_view.viewport_context_menu_controller import (
+    ViewportContextMenuController,
+)
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.common.parameter import ImageParameter, ParameterGroup
 from varda.plotting.plot import VardaPlotWidget
@@ -117,6 +127,31 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             self.roiCollection, image, self.plotWidget, parent=self
         )
 
+        # --- Viewport context menu (place template) ---
+        self.viewportContextMenuController = ViewportContextMenuController(
+            self.roiManagerWidget, parent=self
+        )
+        for vp in (
+            self.tripleRasterView.viewport1,
+            self.tripleRasterView.viewport2,
+            self.tripleRasterView.viewport3,
+        ):
+            vp.sigContextMenuRequested.connect(
+                self.viewportContextMenuController.onContextMenuRequested
+            )
+
+        # "Lock to sensor column" toggle, enabled only when a CRISM DDR resolves.
+        self.lockColumnCheck = QCheckBox("Lock to sensor column")
+        hasDdr = bool(image.filePath) and resolveGeometryFile(image.filePath) is not None
+        self.lockColumnCheck.setEnabled(hasDdr)
+        if not hasDdr:
+            self.lockColumnCheck.setToolTip(
+                "No CRISM DDR geometry found for this image"
+            )
+        self.lockColumnCheck.toggled.connect(
+            self.viewportContextMenuController.setLockColumn
+        )
+
     def _initUI(self):
         """Initialize the user interface for the workflow"""
         self.setWindowTitle(
@@ -156,7 +191,12 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # docks.append(settingsDock)
 
         self.roiDock = VardaDockWidget("ROI Manager")
-        self.roiDock.setWidget(self.roiManagerWidget)
+        roiContainer = QWidget()
+        roiLayout = QVBoxLayout(roiContainer)
+        roiLayout.setContentsMargins(0, 0, 0, 0)
+        roiLayout.addWidget(self.lockColumnCheck)
+        roiLayout.addWidget(self.roiManagerWidget)
+        self.roiDock.setWidget(roiContainer)
 
         # roiDockNew = Dock("ROI Dock", widget=self.roiManagerWidget, size=(100, 100))
         # docks.append(roiDockNew)
