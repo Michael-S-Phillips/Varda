@@ -122,7 +122,12 @@ _BAND_ALIASES: dict[str, tuple[str, ...]] = {
 
 
 def findBandIndex(descriptions: tuple[str, ...], kind: str) -> int | None:
-    """Return the 1-indexed band whose description matches an alias of ``kind``."""
+    """Return the 1-indexed band whose description matches an alias of ``kind``.
+
+    Aliases are matched on a word boundary so that, e.g., the ``ir_sample`` alias
+    ``"ir sample"`` matches ``"IR Sample"`` but not ``"VNIR Sample"`` (where
+    ``"ir sample"`` only appears mid-word). More specific aliases are tried first.
+    """
     aliases = _BAND_ALIASES.get(kind, ())
     lowered = [
         (idx, desc.strip().lower())
@@ -130,8 +135,9 @@ def findBandIndex(descriptions: tuple[str, ...], kind: str) -> int | None:
         if desc
     ]
     for alias in aliases:
+        pattern = re.compile(r"\b" + re.escape(alias))
         for idx, desc in lowered:
-            if alias in desc:
+            if pattern.search(desc):
                 return idx
     return None
 
@@ -215,5 +221,8 @@ def resolveGeometryFile(sourceFilename: str) -> str | None:
             continue
         candidate = os.path.join(directory, newStem + ".img")
         if os.path.exists(candidate):
+            logger.debug(f"CRISM GEOMETRY: geometry file path: {candidate}")
             return candidate
+    logger.debug("CRISM GEOMETRY: NO geometry file path")
+
     return None

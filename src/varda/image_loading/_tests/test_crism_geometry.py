@@ -106,3 +106,21 @@ def test_find_band_index_matches_aliases():
 
 def test_find_band_index_returns_none_when_absent():
     assert findBandIndex(("Latitude", "Longitude"), "ir_sample") is None
+
+
+def test_find_band_index_prefers_ir_over_vnir_sample():
+    # Real CRISM MTRDR _in geometry band order. "VNIR Sample" contains the
+    # substring "ir sample", so a naive substring match wrongly picks it; the
+    # IR detector sample (band 6) is the correct match for an IR cube.
+    descriptions = (
+        "VNIR/IR Spectral Continuity Residual",
+        "VNIR/IR Spatial Gradient Residual",
+        "ATM Correction Spectral Shift Artifact",
+        "VNIR Sample",
+        "VNIR Line",
+        "IR Sample",
+        "IR Line",
+        "VNIR/IR Ground Sampling Offset",
+        "VNIR/IR Mask",
+    )
+    assert findBandIndex(descriptions, "ir_sample") == 6
