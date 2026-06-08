@@ -108,6 +108,87 @@ def computeColumnLockedTranslation(
     dy = float(clickRow) - srcCy
     return (dx, dy)
 
+_BAND_ALIASES: dict[str, tuple[str, ...]] = {
+    "ir_sample": (
+        "ir (l-detector) sample",
+        "ir sample",
+        "l-detector sample",
+        "sample",
+    ),
+    "target_id": ("target id",),
+    "segment_id": ("segment id (counter)", "segment id", "segment"),
+}
+
+
+def findBandIndex(descriptions: tuple[str, ...], kind: str) -> int | None:
+    """Return the 1-indexed band whose description matches an alias of ``kind``."""
+    aliases = _BAND_ALIASES.get(kind, ())
+    lowered = [
+        (idx, desc.strip().lower())
+        for idx, desc in enumerate(descriptions, start=1)
+        if desc
+    ]
+    for alias in aliases:
+        for idx, desc in lowered:
+            if alias in desc:
+                return idx
+    return None
+
+
+_geometry_cache: dict[str, ColumnGeometry | None] = {}
+
+
+def loadColumnGeometry(sourceFilename: str) -> ColumnGeometry | None:
+    """Resolve and read the DDR geometry for a CRISM source file, or None.
+
+    Results (including None) are cached by source path so repeated placements do
+    not re-read the (large) DDR file.
+    """
+    import rasterio as rio  # local import: keep module import-light
+
+    if sourceFilename in _geometry_cache:
+        return _geometry_cache[sourceFilename]
+
+    geomPath = resolveGeometryFile(sourceFilename)
+    if geomPath is None:
+        _geometry_cache[sourceFilename] = None
+        return None
+    try:
+        with rio.open(geomPath) as geom:
+            descs = geom.descriptions or ()
+            irIdx = findBandIndex(descs, "ir_sample")
+            if irIdx is None:
+                logger.warning("DDR %s has no IR Sample band; column-lock unavailable", geomPath)
+                _geometry_cache[sourceFilename] = None
+                return None
+            tgtIdx = findBandIndex(descs, "target_id")
+            segIdx = findBandIndex(descs, "segment_id")
+            nodata = geom.nodata
+
+            def _readBand(arr: np.ndarray) -> np.ndarray:
+                arr = arr.astype(np.float64)
+                if nodata is not None:
+                    arr = np.where(arr == nodata, np.nan, arr)
+                return arr
+
+            def _readOptional(idx: int | None) -> np.ndarray | None:
+                if idx is None:
+                    return None
+                return _readBand(geom.read(idx))
+
+            result = ColumnGeometry(
+                ir_sample=_readBand(geom.read(irIdx)),
+                target_id=_readOptional(tgtIdx),
+                segment_id=_readOptional(segIdx),
+            )
+            _geometry_cache[sourceFilename] = result
+            return result
+    except Exception as e:  # pragma: no cover - I/O error path
+        logger.warning("Failed to read DDR geometry %s: %s", geomPath, e)
+        _geometry_cache[sourceFilename] = None
+        return None
+
+
 # (pattern, replacement) applied to the filename stem to find the DDR companion.
 _GEOMETRY_NAME_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"_mrr(al|if|ir|sr|su|ra)_", re.IGNORECASE), "_mrrde_"),

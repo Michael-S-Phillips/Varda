@@ -7,6 +7,7 @@ import numpy as np
 from varda.image_loading.crism_geometry import (
     ColumnGeometry,
     computeColumnLockedTranslation,
+    findBandIndex,
     resolveGeometryFile,
 )
 
@@ -88,3 +89,14 @@ def test_translation_none_when_dest_row_out_of_bounds():
         computeColumnLockedTranslation(template_px, clickRow=999, clickCol=6, geometry=geom)
         is None
     )
+
+
+def test_find_band_index_matches_aliases():
+    descriptions = ("IR (L-detector) Sample", "Target ID", "Segment ID (counter)")
+    assert findBandIndex(descriptions, "ir_sample") == 1  # 1-indexed for rasterio
+    assert findBandIndex(descriptions, "target_id") == 2
+    assert findBandIndex(descriptions, "segment_id") == 3
+
+
+def test_find_band_index_returns_none_when_absent():
+    assert findBandIndex(("Latitude", "Longitude"), "ir_sample") is None
