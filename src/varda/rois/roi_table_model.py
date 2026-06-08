@@ -24,6 +24,7 @@ class ROITableModel(QAbstractTableModel):
         super().__init__(parent)
         self._collection = collection
         self._denominatorFid: int | None = None
+        self._templateFid: int | None = None
         self._roiCache: list[VardaROI] = []
         self._refreshCache()
 
@@ -45,6 +46,20 @@ class ROITableModel(QAbstractTableModel):
         if fid == self._denominatorFid:
             return
         self._denominatorFid = fid
+        if self.rowCount() > 0:
+            top = self.index(0, 0)
+            bottom = self.index(self.rowCount() - 1, self.columnCount() - 1)
+            self.dataChanged.emit(top, bottom)
+
+    @property
+    def templateFid(self) -> int | None:
+        return self._templateFid
+
+    def setTemplateFid(self, fid: int | None) -> None:
+        """Mark the row with this fid as the placement template (or clear)."""
+        if fid == self._templateFid:
+            return
+        self._templateFid = fid
         if self.rowCount() > 0:
             top = self.index(0, 0)
             bottom = self.index(self.rowCount() - 1, self.columnCount() - 1)
@@ -72,9 +87,12 @@ class ROITableModel(QAbstractTableModel):
             if col == 0:
                 return roi.fid
             if col == 1:
+                suffix = ""
                 if roi.fid == self._denominatorFid:
-                    return f"{roi.name}  ÷"
-                return roi.name
+                    suffix += "  ÷"
+                if roi.fid == self._templateFid:
+                    suffix += "  ⊞"
+                return f"{roi.name}{suffix}"
             if col == 2:
                 return None  # color shown via DecorationRole
             if col == 3:
@@ -88,7 +106,10 @@ class ROITableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.DecorationRole and col == 2:
             return roi.color.toQColor()
 
-        if role == Qt.ItemDataRole.FontRole and roi.fid == self._denominatorFid:
+        if role == Qt.ItemDataRole.FontRole and roi.fid in (
+            self._denominatorFid,
+            self._templateFid,
+        ):
             font = QFont()
             font.setBold(True)
             return font
