@@ -68,6 +68,7 @@ def test_plot_spectrum_fill_band_is_mean_plus_minus_std(qtbot):
         height=2,
         bandCount=1,
         nodata=None,
+        filePath=None,
         wavelengths=np.array([0.0]),
         wavelengthsType=float,
         getData=get_data,
@@ -150,7 +151,7 @@ def test_place_template_plain_paste(qtbot, make_split_image):
     w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
     w.setTemplate(tmpl)
     before = len(c)
-    w.placeTemplate(clickRow=14, clickCol=20, lockColumn=False)
+    w.placeTemplate(clickRow=14, clickCol=20)
     assert len(c) == before + 1
     new_fid = c.fids[-1]
     coords = c.getPixelCoordinates(new_fid)
@@ -166,7 +167,7 @@ def test_place_template_noop_without_template(qtbot, make_split_image, monkeypat
     monkeypatch.setattr(mod.QMessageBox, "information", lambda *a, **k: None)
     c = ROICollection()
     w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
-    w.placeTemplate(clickRow=5, clickCol=5, lockColumn=False)
+    w.placeTemplate(clickRow=5, clickCol=5)
     assert len(c) == 0
 
 

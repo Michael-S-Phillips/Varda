@@ -21,8 +21,6 @@ class ViewportClickContext:
     """Transient state for the current right-click on a viewport."""
 
     placeTemplate: Callable[[], None]
-    lockColumn: bool
-    hasTemplate: bool
 
 
 _current: ViewportClickContext | None = None

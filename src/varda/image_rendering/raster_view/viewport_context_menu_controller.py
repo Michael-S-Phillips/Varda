@@ -29,14 +29,6 @@ class ViewportContextMenuController(QObject):
     ) -> None:
         super().__init__(parent)
         self._roiManager = roiManager
-        self._lockColumn = False
-
-    def setLockColumn(self, enabled: bool) -> None:
-        self._lockColumn = enabled
-
-    @property
-    def lockColumn(self) -> bool:
-        return self._lockColumn
 
     def onContextMenuRequested(
         self, imageCol: float, imageRow: float, globalPos: QPoint
@@ -50,16 +42,9 @@ class ViewportContextMenuController(QObject):
             self._roiManager.placeTemplate(
                 clickRow=int(round(imageRow)),
                 clickCol=int(round(imageCol)),
-                lockColumn=self._lockColumn,
             )
 
-        setCurrentClickContext(
-            ViewportClickContext(
-                placeTemplate=_place,
-                lockColumn=self._lockColumn,
-                hasTemplate=self._roiManager.templateFid is not None,
-            )
-        )
+        setCurrentClickContext(ViewportClickContext(placeTemplate=_place))
         try:
             menu = QModelMenu(VIEWPORT_CONTEXT_MENU_ID, app)
             menu.exec(globalPos)

@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
+    QCheckBox,
     QPushButton,
     QInputDialog,
     QMessageBox,
@@ -22,6 +23,7 @@ from shapely.geometry import Polygon
 from varda.image_loading.crism_geometry import (
     computeColumnLockedTranslation,
     loadColumnGeometry,
+    resolveGeometryFile,
 )
 from varda.plotting.plot import VardaPlotWidget
 from varda.rois.roi_collection import ROICollection
@@ -78,12 +80,21 @@ class ROIManagerWidget(QWidget):
         self._plotBtn.clicked.connect(self._plotSelected)
         self._plotBtn.setEnabled(False)
 
+        # "Lock to sensor column" toggle for template placement, enabled only
+        # when a CRISM DDR geometry companion resolves for this image.
+        self._lockColumnCheck = QCheckBox("Lock to sensor column")
+        hasDdr = bool(image.filePath) and resolveGeometryFile(image.filePath) is not None
+        self._lockColumnCheck.setEnabled(hasDdr)
+        if not hasDdr:
+            self._lockColumnCheck.setToolTip("No CRISM DDR geometry found for this image")
+
         # Layout
         btnRow = QHBoxLayout()
         btnRow.addWidget(self._deleteBtn)
         btnRow.addWidget(self._addColumnBtn)
         btnRow.addWidget(self._exportBtn)
         btnRow.addWidget(self._plotBtn)
+        btnRow.addWidget(self._lockColumnCheck)
         btnRow.addStretch()
 
         layout = QVBoxLayout(self)
@@ -141,6 +152,11 @@ class ROIManagerWidget(QWidget):
     def templateFid(self) -> int | None:
         return self._templateFid
 
+    @property
+    def lockColumn(self) -> bool:
+        """Whether template placement should snap to the same sensor column."""
+        return self._lockColumnCheck.isChecked()
+
     def setTemplate(self, fid: int | None) -> None:
         """Set (or clear, with None) the ROI used as a placement template."""
         if fid == self._templateFid:
@@ -149,12 +165,12 @@ class ROIManagerWidget(QWidget):
         self._model.setTemplateFid(fid)
         self.sigTemplateChanged.emit(fid)
 
-    def placeTemplate(self, clickRow: int, clickCol: int, lockColumn: bool) -> None:
+    def placeTemplate(self, clickRow: int, clickCol: int) -> None:
         """Stamp a copy of the template ROI centered on the clicked pixel.
 
-        With ``lockColumn`` and a resolvable CRISM DDR, the horizontal shift is
-        chosen so the copy sits on the template's detector column; otherwise a
-        plain centroid-to-click translation is used.
+        When ``self.lockColumn`` is set and a CRISM DDR resolves, the horizontal
+        shift is chosen so the copy sits on the template's detector column;
+        otherwise a plain centroid-to-click translation is used.
         """
         if self._templateFid is None:
             QMessageBox.information(
@@ -174,7 +190,7 @@ class ROIManagerWidget(QWidget):
         dx = float(clickCol) - srcCx
         dy = float(clickRow) - srcCy
 
-        if lockColumn:
+        if self.lockColumn:
             colGeom = (
                 loadColumnGeometry(self._image.filePath)
                 if self._image.filePath
