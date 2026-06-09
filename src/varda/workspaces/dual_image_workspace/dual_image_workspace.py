@@ -20,6 +20,9 @@ from varda.image_rendering.raster_view import (
     LinkMode,
 )
 from varda.image_rendering.image_renderer import ImageRenderer
+from varda.image_rendering.raster_view.viewport_context_menu_controller import (
+    ViewportContextMenuController,
+)
 from varda.common.ui import VardaDockWidget
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.rois.roi_collection import ROICollection
@@ -238,6 +241,20 @@ class DualImageWorkspace(QMainWindow):
         self.roiManagerWidget.sigSelectionChanged.connect(
             self.roiDisplayController.highlightROI
         )
+
+        # Wire viewport right-click -> template-placement context menu. The
+        # collection and viewports share a transform (co-registered images), so
+        # a click on either pane maps to the same ROI pixel space.
+        self.viewportContextMenuController = ViewportContextMenuController(
+            self.roiManagerWidget, parent=self
+        )
+        viewports = [self.viewport1]
+        if hasattr(self, "viewport2"):
+            viewports.append(self.viewport2)
+        for vp in viewports:
+            vp.sigContextMenuRequested.connect(
+                self.viewportContextMenuController.onContextMenuRequested
+            )
 
     def _onToolActivated(self, tool) -> None:
         from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
