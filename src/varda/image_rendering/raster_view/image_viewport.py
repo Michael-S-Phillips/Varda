@@ -305,7 +305,10 @@ class ImageViewport(QWidget):
         event until one reports it handled (returns True).
         """
         obj, event = a0, a1
-        if obj is self._imageItem and self._tools:
+        # Note: not gated on self._tools — a right-click should still raise the
+        # context menu on a viewport with no active tool (the tool loop below is
+        # simply a no-op when empty).
+        if obj is self._imageItem:
             action = _POINTER_ACTIONS.get(event.type())
             if action is not None:
                 pointerEvent = self._buildPointerEvent(action, event)

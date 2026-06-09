@@ -137,8 +137,9 @@ class DualImageWorkspace(QMainWindow):
             self.viewport1, self.viewport2, self.linkMode, parent=self
         )
 
-        # Only right viewport drawing tools create ROIs
-        self._drawingToolManagers = [self.toolManager2]
+        # Drawing on either viewport creates ROIs (the images are co-registered,
+        # so an ROI drawn on the primary maps into the shared collection too).
+        self._drawingToolManagers = [self.toolManager1, self.toolManager2]
 
         self._setupDocks()
 
