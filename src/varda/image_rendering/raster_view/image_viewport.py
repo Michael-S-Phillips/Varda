@@ -4,8 +4,8 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from psygnal import Signal
-from PyQt6.QtCore import QEvent, QPointF, QRectF
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import QEvent, QPointF, QRectF, Qt, pyqtSignal
+from PyQt6.QtGui import QColor, QCursor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 import pyqtgraph as pg
 import numpy as np
@@ -73,6 +73,10 @@ class ImageViewport(QWidget):
     # Emitted when a user gesture pans/zooms this viewport's own view (self-navigation on).
     # Mirrors pyqtgraph's viewBox.sigRangeChangedManually but without its mask argument.
     sigViewRangeChangedManually = Signal()
+    # Emitted on a right-click that no active tool consumed, so a consumer can show a
+    # context menu. The viewport stays generic — it just reports where (in image pixels)
+    # and the global cursor position. (imageCol, imageRow, QPoint global).
+    sigContextMenuRequested = pyqtSignal(float, float, object)
 
     def __init__(self, imageRenderer: ImageRenderer, parent=None):
         super().__init__(parent)
@@ -301,14 +305,36 @@ class ImageViewport(QWidget):
         event until one reports it handled (returns True).
         """
         obj, event = a0, a1
-        if obj is self._imageItem and self._tools:
+        # Note: not gated on self._tools — a right-click should still raise the
+        # context menu on a viewport with no active tool (the tool loop below is
+        # simply a no-op when empty).
+        if obj is self._imageItem:
             action = _POINTER_ACTIONS.get(event.type())
             if action is not None:
                 pointerEvent = self._buildPointerEvent(action, event)
+                consumed = False
                 for tool in list(self._tools):
                     if tool.onPointerEvent(pointerEvent):
+                        consumed = True
                         event.accept()
-                        return True
+                        break
+                # A right-click that no tool consumed (e.g. it didn't cancel an active
+                # drawing) requests a context menu. Tools that consume the right-click
+                # — like drawing cancel — short-circuit above and never reach here.
+                if (
+                    not consumed
+                    and pointerEvent.action == PointerAction.PRESS
+                    and pointerEvent.button == Qt.MouseButton.RightButton
+                ):
+                    self.sigContextMenuRequested.emit(
+                        float(pointerEvent.imagePos.x()),
+                        float(pointerEvent.imagePos.y()),
+                        QCursor.pos(),
+                    )
+                    event.accept()
+                    return True
+                if consumed:
+                    return True
         return super().eventFilter(obj, event)
 
     def _buildPointerEvent(self, action: PointerAction, event) -> PointerEvent:

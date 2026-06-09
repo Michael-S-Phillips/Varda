@@ -20,6 +20,9 @@ from varda.image_rendering.raster_view import (
     LinkMode,
 )
 from varda.image_rendering.image_renderer import ImageRenderer
+from varda.image_rendering.raster_view.viewport_context_menu_controller import (
+    ViewportContextMenuController,
+)
 from varda.common.ui import VardaDockWidget
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.rois.roi_collection import ROICollection
@@ -89,8 +92,10 @@ class DualImageWorkspace(QMainWindow):
         self.roiDisplayController = ROIDisplayController(
             self.roiCollection, parent=self
         )
-        self.roiManagerWidget = ROIManagerWidget(self.roiCollection, parent=self)
         self.plotWidget = VardaPlotWidget(parent=self)
+        self.roiManagerWidget = ROIManagerWidget(
+            self.roiCollection, self.image1, self.plotWidget, parent=self
+        )
 
     def _initUI(self):
         if self.displayMode == DisplayMode.SIDE_BY_SIDE:
@@ -132,8 +137,9 @@ class DualImageWorkspace(QMainWindow):
             self.viewport1, self.viewport2, self.linkMode, parent=self
         )
 
-        # Only right viewport drawing tools create ROIs
-        self._drawingToolManagers = [self.toolManager2]
+        # Drawing on either viewport creates ROIs (the images are co-registered,
+        # so an ROI drawn on the primary maps into the shared collection too).
+        self._drawingToolManagers = [self.toolManager1, self.toolManager2]
 
         self._setupDocks()
 
@@ -237,8 +243,19 @@ class DualImageWorkspace(QMainWindow):
             self.roiDisplayController.highlightROI
         )
 
-        # Wire spectral plot
-        self.roiManagerWidget.sigPlotRequested.connect(self._onPlotRequested)
+        # Wire viewport right-click -> template-placement context menu. The
+        # collection and viewports share a transform (co-registered images), so
+        # a click on either pane maps to the same ROI pixel space.
+        self.viewportContextMenuController = ViewportContextMenuController(
+            self.roiManagerWidget, parent=self
+        )
+        viewports = [self.viewport1]
+        if hasattr(self, "viewport2"):
+            viewports.append(self.viewport2)
+        for vp in viewports:
+            vp.sigContextMenuRequested.connect(
+                self.viewportContextMenuController.onContextMenuRequested
+            )
 
     def _onToolActivated(self, tool) -> None:
         from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
@@ -252,26 +269,6 @@ class DualImageWorkspace(QMainWindow):
         self.roiCollection.addROIFromDrawing(
             geometry=result["geometry"],
             roiType=result["roiType"],
-        )
-
-    def _onPlotRequested(self, fid: int) -> None:
-        """Plot mean spectrum using data from the primary (spectral) image."""
-        stats = self.roiCollection.getROIStatistics(fid, self.image1)
-
-        if stats["pixel_count"] == 0:
-            logger.warning("ROI fid=%d has no pixels in primary image", fid)
-            return
-
-        mean = stats["mean"]
-        wavelengths = VardaPlotWidget.getPlottableWavelengths(self.image1, len(mean))
-        roi = self.roiCollection.getROI(fid)
-        logger.debug(f"plot requested. mean data: {mean}")
-
-        self.plotWidget.plot(
-            wavelengths,
-            mean,
-            pen=roi.color,
-            name=roi.name,
         )
 
     def closeEvent(self, event):
