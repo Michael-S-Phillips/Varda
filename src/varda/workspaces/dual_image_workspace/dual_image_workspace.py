@@ -20,6 +20,7 @@ from varda.image_rendering.raster_view import (
     LinkMode,
 )
 from varda.image_rendering.image_renderer import ImageRenderer
+from varda.image_rendering.new_histogram_view import NewHistogramView
 from varda.image_rendering.raster_view.viewport_context_menu_controller import (
     ViewportContextMenuController,
 )
@@ -86,6 +87,10 @@ class DualImageWorkspace(QMainWindow):
         self.primaryRenderer = ImageRenderer(image=self.image1)
         self.secondaryRenderer = ImageRenderer(image=self.image2)
 
+        # Histograms self-wire to their renderer's sigShouldRefresh.
+        self.primaryHistogram = NewHistogramView(self.primaryRenderer, self)
+        self.secondaryHistogram = NewHistogramView(self.secondaryRenderer, self)
+
         # ROI system — collection uses secondary image's CRS/transform
         # (both images assumed to share the same transform)
         self.roiCollection = ROICollection.fromImage(self.image2)
@@ -120,6 +125,12 @@ class DualImageWorkspace(QMainWindow):
 
         self.secondarySettingsDock = VardaDockWidget("Secondary Render Settings")
         self.secondarySettingsDock.setWidget(self.secondaryRenderer.getSettingsPanel())
+
+        self.primaryHistogramDock = VardaDockWidget("Primary Histogram")
+        self.primaryHistogramDock.setWidget(self.primaryHistogram)
+
+        self.secondaryHistogramDock = VardaDockWidget("Secondary Histogram")
+        self.secondaryHistogramDock.setWidget(self.secondaryHistogram)
 
     def _initSideBySide(self):
         self.viewport1 = ImageViewport(self.primaryRenderer, parent=self)
@@ -172,6 +183,18 @@ class DualImageWorkspace(QMainWindow):
             self.viewport2Dock.dockAreaWidget(),
         )
 
+        # Tab each histogram alongside its matching render-settings panel
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.primaryHistogramDock,
+            self.primarySettingsDock.dockAreaWidget(),
+        )
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.secondaryHistogramDock,
+            self.secondarySettingsDock.dockAreaWidget(),
+        )
+
         # Bottom row: ROI manager and plot side by side
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.BottomDockWidgetArea, self.roiDock
@@ -211,12 +234,18 @@ class DualImageWorkspace(QMainWindow):
             ads.DockWidgetArea.CenterDockWidgetArea, self.viewport1Dock
         )
 
-        # Both settings panels as auto-hide on the bottom sidebar
+        # Both settings panels and histograms as auto-hide on the bottom sidebar
         self.dockManager.addAutoHideDockWidget(
             ads.SideBarLocation.SideBarBottom, self.primarySettingsDock
         )
         self.dockManager.addAutoHideDockWidget(
             ads.SideBarLocation.SideBarBottom, self.secondarySettingsDock
+        )
+        self.dockManager.addAutoHideDockWidget(
+            ads.SideBarLocation.SideBarBottom, self.primaryHistogramDock
+        )
+        self.dockManager.addAutoHideDockWidget(
+            ads.SideBarLocation.SideBarBottom, self.secondaryHistogramDock
         )
 
         # Bottom row: ROI manager and plot side by side
