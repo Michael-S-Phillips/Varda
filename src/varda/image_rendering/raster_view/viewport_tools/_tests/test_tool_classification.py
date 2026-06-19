@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from typing import cast
+
 from PyQt6.QtCore import QPointF
 
+from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import (
     ViewportTool,
 )
@@ -83,7 +86,7 @@ def test_registry_lists_pixel_select_as_ambient():
 
 def test_completed_signal_fires_on_roi_completion(qtbot):
     viewport = _FakeViewport()
-    tool = RectangleROITool(viewport)
+    tool = RectangleROITool(cast(ImageViewport, viewport))
     tool.activate()
     tool.points = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]
     tool.startPoint = QPointF(0.0, 0.0)

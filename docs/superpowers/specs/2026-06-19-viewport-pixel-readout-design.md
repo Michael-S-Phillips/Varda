@@ -7,7 +7,8 @@ that, while the cursor hovers over the image, displays:
 
 - the pixel coordinate (column, row)
 - the geospatial coordinate, when the image has a CRS — both native CRS
-  coordinates and reprojected WGS84 lat/lon degrees
+  coordinates and reprojected lat/lon degrees in the CRS's own geographic datum
+  (works for planetary data such as Mars CRISM, not just Earth)
 - the raw band data value(s) for the currently-displayed band(s): a single
   `Value` in MONO mode, or `R`/`G`/`B` in RGB mode
 
@@ -33,17 +34,23 @@ Reprojection to lat/lon must NOT live in the readout code. Add it to
 
 ```python
 @cached_property
-def _wgs84Transformer(self) -> Transformer | None:
+def _geodeticTransformer(self) -> Transformer | None:
+    # Target the CRS's own geographic datum (crs.geodetic_crs), NOT a hardcoded
+    # Earth EPSG:4326 — reprojecting across celestial bodies (e.g. Mars -> Earth)
+    # raises a pyproj ProjError.
     if self.crs is None:
         return None
-    return Transformer.from_crs(self.crs, CRS.from_epsg(4326), always_xy=True)
+    geodetic = self.crs.geodetic_crs
+    if geodetic is None:
+        return None
+    return Transformer.from_crs(self.crs, geodetic, always_xy=True)
 
 def pixelToLatLon(self, col: int, row: int) -> tuple[float, float] | None:
-    """Pixel center as (lat, lon) in WGS84 degrees, or None if no CRS."""
-    if self._wgs84Transformer is None:
+    """Pixel center as (lat, lon) degrees in the CRS's own geographic datum."""
+    if self._geodeticTransformer is None:
         return None
     x, y = self.pixelToGeo(col, row)
-    lon, lat = self._wgs84Transformer.transform(x, y)
+    lon, lat = self._geodeticTransformer.transform(x, y)
     return lat, lon
 ```
 
