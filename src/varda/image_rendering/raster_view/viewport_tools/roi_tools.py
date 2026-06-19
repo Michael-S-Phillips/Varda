@@ -125,6 +125,7 @@ class ROIDrawingTool(ViewportTool):
         )
 
         self.stopDrawing()
+        self.sigCompleted.emit()
 
     # --- Input dispatch ---
 

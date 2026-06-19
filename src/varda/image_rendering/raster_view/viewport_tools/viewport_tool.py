@@ -31,12 +31,18 @@ class ViewportTool(QObject):
 
     sigActivated = pyqtSignal()
     sigDeactivated = pyqtSignal()
+    # Emitted by a modal tool when its one-shot action completes, so a controller
+    # can disarm the tool across every viewport. Persistent tools never emit it.
+    sigCompleted = pyqtSignal()
 
     # Class attributes that subclasses should override
     toolName = "Generic Tool"
     toolDescription = "Base tool class"
     toolIcon = None  # Path to icon or QIcon
     toolCategory = "General"
+    # Ambient tools are installed on every viewport permanently and never shown in
+    # the toolbar (e.g. Pixel Select, which is gated on Ctrl+Click).
+    isAmbient = False
 
     def __init__(self, viewport: ImageViewport, parent=None):
         super().__init__(parent)

@@ -91,6 +91,10 @@ class ToolRegistry:
         """
         return list(self._tools)
 
+    def getAmbientTools(self) -> List[Type[ViewportTool]]:
+        """Get all registered ambient tool classes (installed on every viewport)."""
+        return [tool for tool in self._tools if tool.isAmbient]
+
     def getToolsByCategory(self, category: str) -> List[Type[ViewportTool]]:
         """
         Get all registered tool classes in a specific category.

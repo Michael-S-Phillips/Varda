@@ -27,6 +27,7 @@ class PixelSelectTool(ViewportTool):
     toolName = "Pixel Select"
     toolDescription = "Select individual pixels (Ctrl+Click)"
     toolCategory = "Selection"
+    isAmbient = True
 
     def __init__(self, viewport: ImageViewport, parent=None):
         super().__init__(viewport, parent)
@@ -36,7 +37,6 @@ class PixelSelectTool(ViewportTool):
         self.sigPixelSelected.connect(
             self.onPixelSelected
         )  # TODO: This is probably temp
-        self.activate()
 
     def activate(self):
         super().activate()
