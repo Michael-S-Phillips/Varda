@@ -1,8 +1,7 @@
 """Declarative app_model actions for the raster viewport's right-click menu.
 
-Co-located with the viewport (not in the global ``_actions/`` package): each
-subsystem owns its actions. The actions operate on a transient
-``ViewportClickContext`` set just before the menu is shown, supplied to callbacks
+The actions operate on a transient ``ViewportClickContext``
+set just before the menu is shown, supplied to callbacks
 via the app's injection store (app_model resolves callback args by type).
 """
 

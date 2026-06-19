@@ -101,6 +101,33 @@ class VardaRaster:
         """Convert CRS coordinates to pixel coordinates."""
         return self._dataSource.geoToPixel(x, y)
 
+    @cached_property
+    def _geodeticTransformer(self) -> Transformer | None:
+        """Cached transformer from this raster's CRS to its geographic (lat/lon) CRS.
+
+        Targets ``crs.geodetic_crs`` rather than a hardcoded Earth datum, so this
+        works for planetary data too (e.g. Mars CRISM images) — converting to an
+        Earth CRS across celestial bodies raises a pyproj ``ProjError``.
+        """
+        if self.crs is None:
+            return None
+        geodetic = self.crs.geodetic_crs
+        if geodetic is None:
+            return None
+        return Transformer.from_crs(self.crs, geodetic, always_xy=True)
+
+    def pixelToLatLon(self, col: int, row: int) -> tuple[float, float] | None:
+        """Pixel center as (lat, lon) in degrees, in the CRS's own geographic datum.
+
+        Returns ``None`` if the raster has no CRS. The datum matches the image's
+        celestial body (Earth, Mars, etc.), not a hardcoded WGS84.
+        """
+        if self._geodeticTransformer is None:
+            return None
+        x, y = self.pixelToGeo(col, row)
+        lon, lat = self._geodeticTransformer.transform(x, y)
+        return lat, lon
+
     # --- Delegated properties from DataSource ---
 
     @property

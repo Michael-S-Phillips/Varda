@@ -5,14 +5,15 @@ from typing import TYPE_CHECKING
 
 from psygnal import Signal
 from PyQt6.QtCore import QEvent, QPointF, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QCursor
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
+from PyQt6.QtGui import QColor, QCursor, QFontDatabase
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 import pyqtgraph as pg
 import numpy as np
 
 from varda import log
 from varda.common.entities import VardaRaster
 from varda.image_rendering import ImageRenderer
+from varda.image_rendering.image_renderer import RenderMode
 from varda.image_rendering.raster_view.navigable_view_box import NavigableViewBox
 from varda.image_rendering.raster_view.image_region_item import (
     VardaImageItem,
@@ -51,6 +52,46 @@ _POINTER_ACTIONS = {
     QEvent.Type.GraphicsSceneMouseMove: PointerAction.MOVE,
     QEvent.Type.GraphicsSceneMouseRelease: PointerAction.RELEASE,
 }
+
+
+class _PixelReadoutOverlay(QLabel):
+    """A floating HUD pinned to the bottom-left of its parent viewport.
+
+    Shows the hovered pixel's coordinate, geospatial position, and band values.
+    Parented to the viewport widget (not the pyqtgraph scene) so it stays fixed
+    while the view pans/zooms. Transparent to mouse events so it never blocks
+    navigation when the cursor passes over the corner.
+    """
+
+    _MARGIN = 8
+
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self.setTextFormat(Qt.TextFormat.PlainText)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
+        self.setStyleSheet(
+            "background-color: rgba(0, 0, 0, 160); color: #eeeeee;"
+            "padding: 4px 6px; border-radius: 4px;"
+        )
+        self.hide()
+
+    def showReadout(self, text: str) -> None:
+        self.setText(text)
+        self.reposition()
+        self.show()
+        self.raise_()
+
+    def hideReadout(self) -> None:
+        self.hide()
+
+    def reposition(self) -> None:
+        """Re-pin to the bottom-left corner of the parent (call after text/size changes)."""
+        parent = self.parentWidget()
+        if parent is None:
+            return
+        self.adjustSize()
+        self.move(self._MARGIN, parent.height() - self.height() - self._MARGIN)
 
 
 class ImageViewport(QWidget):
@@ -109,6 +150,16 @@ class ImageViewport(QWidget):
         # scene events and delivers translated PointerEvents to each tool.
         self._tools: list[ViewportTool] = []
         self._imageItem.installEventFilter(self)
+
+        # Bottom-left HUD showing the hovered pixel's coordinate / geo position / values.
+        # Hover-moves arrive as the scene's sigMouseMoved (in scene coords, no button
+        # needed); _onHover updates the readout, or hides it when the cursor is off the
+        # image. The scene has no "mouse left" signal and stops emitting once the cursor
+        # exits the view, so the final hide comes from the widget-level Leave event. A
+        # QGraphicsView routes enter/leave to its viewport() child, so we filter that.
+        self._readoutOverlay = _PixelReadoutOverlay(self)
+        self._gv.scene().sigMouseMoved.connect(self._onHover)
+        self._gv.viewport().installEventFilter(self)
 
     def overlayImage(self, overlayImageRenderer: ImageRenderer):
         """Overlay an image on top of the current image.
@@ -298,13 +349,20 @@ class ImageViewport(QWidget):
             self._tools.remove(tool)
 
     def eventFilter(self, a0, a1):
-        """Translate the imageItem's scene mouse events into PointerEvents.
+        """Filter events for two installed sources.
 
-        Mapping scene -> local -> image pixel coordinates happens here, once, so
-        tools never touch the pyqtgraph scene graph. Each installed tool gets the
-        event until one reports it handled (returns True).
+        On the imageItem: translate scene mouse events into PointerEvents. Mapping
+        scene -> local -> image pixel coordinates happens here, once, so tools never
+        touch the pyqtgraph scene graph. Each installed tool gets the event until one
+        reports it handled (returns True).
+
+        On the view's viewport widget: hide the hover readout on Leave (see __init__).
         """
         obj, event = a0, a1
+        # The viewport reports Leave when the cursor exits the plot entirely — the one
+        # hide case sigMouseMoved/_onHover can't see. Observed, not consumed.
+        if obj is self._gv.viewport() and event.type() == QEvent.Type.Leave:
+            self._readoutOverlay.hideReadout()
         # Note: not gated on self._tools — a right-click should still raise the
         # context menu on a viewport with no active tool (the tool loop below is
         # simply a no-op when empty).
@@ -347,6 +405,63 @@ class ImageViewport(QWidget):
             button=event.button(),
             modifiers=event.modifiers(),
         )
+
+    # --- Hover readout ---
+
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
+        self._readoutOverlay.reposition()
+
+    def _onHover(self, scenePos: QPointF) -> None:
+        """Update the bottom-left readout for the pixel under the cursor."""
+        local = self._imageItem.mapFromScene(scenePos)
+        imagePos = self._imageItem.localToImage(local)
+        col, row = int(imagePos.x()), int(imagePos.y())
+        image = self._imageRenderer.image
+        if col < 0 or row < 0 or col >= image.width or row >= image.height:
+            self._readoutOverlay.hideReadout()
+            return
+        self._readoutOverlay.showReadout(self._buildReadoutText(col, row))
+
+    def _buildReadoutText(self, col: int, row: int) -> str:
+        image = self._imageRenderer.image
+        lines = [f"px {col}, {row}"]
+        if image.hasGeospatialData:
+            crs = image.crs
+            if crs is not None and not crs.is_geographic:
+                x, y = image.pixelToGeo(col, row)
+                lines.append(f"xy  {x:.2f}, {y:.2f}")
+            latLon = image.pixelToLatLon(col, row)
+            if latLon is not None:
+                lat, lon = latLon
+                lines.append(f"lat/lon  {lat:.5f}°, {lon:.5f}°")
+        lines.append(self._formatBandValues(image, col, row))
+        return "\n".join(lines)
+
+    def _displayedBands(self) -> list[tuple[str, int]]:
+        """The (label, band index) pairs currently being rendered."""
+        settings = self._imageRenderer.settings
+        if settings.mode.get() == RenderMode.MONO:
+            return [("Value", int(settings.mono.band.get()))]
+        return [
+            ("R", int(settings.rgb.red.get())),
+            ("G", int(settings.rgb.green.get())),
+            ("B", int(settings.rgb.blue.get())),
+        ]
+
+    def _formatBandValues(self, image: VardaRaster, col: int, row: int) -> str:
+        nodata = image.nodata
+        parts = []
+        for label, band in self._displayedBands():
+            value = image[row, col, band]
+            if np.ma.is_masked(value) or (nodata is not None and value == nodata):
+                shown = "nodata"
+            elif np.issubdtype(np.asarray(value).dtype, np.integer):
+                shown = str(int(value))
+            else:
+                shown = f"{float(value):.4g}"
+            parts.append(f"{label} {shown}")
+        return "  ".join(parts)
 
     def addToolBar(self, toolbar):
         """Add a toolbar to the viewport."""
