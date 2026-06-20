@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from PyQt6.QtCore import QObject, QEvent, pyqtSignal
-from PyQt6.QtGui import QAction, QActionGroup
+from PyQt6.QtGui import QAction, QActionGroup, QKeyEvent
 from PyQt6.QtWidgets import QToolBar
 
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
@@ -37,6 +37,7 @@ class ViewportToolController(QObject):
         self.toolRegistry = ToolRegistry()
 
         self._modalInstances: dict[ImageViewport, ViewportTool] = {}
+        # Holds ambient tool instances to keep them alive for the controller's lifetime.
         self._ambientInstances: list[ViewportTool] = []
         self._currentModalClass: type[ViewportTool] | None = None
         self._actions: dict[type[ViewportTool], QAction] = {}
@@ -119,6 +120,7 @@ class ViewportToolController(QObject):
         for tool in list(self._modalInstances.values()):
             tool.deactivate()
             self.sigToolDeactivated.emit(tool)
+            tool.deleteLater()
         self._modalInstances.clear()
         self._currentModalClass = None
 
@@ -133,13 +135,19 @@ class ViewportToolController(QObject):
 
     # --- key forwarding ---
 
-    def eventFilter(self, a0, a1):
+    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
         """Forward KeyPress events to the active modal tool of the source viewport.
 
         Without this, key presses are consumed before reaching the imageItem, so
         tools like polygon-drawing never see Enter/Escape/Backspace.
         """
         obj, event = a0, a1
-        if event.type() == QEvent.Type.KeyPress and obj in self._modalInstances:
-            return self._modalInstances[obj].onKeyEvent(KeyEvent.fromQt(event))
+        if (
+            event is not None
+            and isinstance(a0, ImageViewport)
+            and event.type() == QEvent.Type.KeyPress
+            and a0 in self._modalInstances
+        ):
+            if isinstance(event, QKeyEvent):
+                return self._modalInstances[a0].onKeyEvent(KeyEvent.fromQt(event))
         return False
