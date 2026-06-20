@@ -116,7 +116,7 @@ class ViewportToolController(QObject):
         if not self._modalInstances:
             self._currentModalClass = None
             return
-        for tool in self._modalInstances.values():
+        for tool in list(self._modalInstances.values()):
             tool.deactivate()
             self.sigToolDeactivated.emit(tool)
         self._modalInstances.clear()
