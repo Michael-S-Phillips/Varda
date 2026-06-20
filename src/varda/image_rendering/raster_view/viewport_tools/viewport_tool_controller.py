@@ -141,7 +141,7 @@ class ViewportToolController(QObject):
         Without this, key presses are consumed before reaching the imageItem, so
         tools like polygon-drawing never see Enter/Escape/Backspace.
         """
-        obj, event = a0, a1
+        event = a1
         if (
             event is not None
             and isinstance(a0, ImageViewport)
