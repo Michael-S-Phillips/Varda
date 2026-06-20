@@ -463,10 +463,6 @@ class ImageViewport(QWidget):
             parts.append(f"{label} {shown}")
         return "  ".join(parts)
 
-    def addToolBar(self, toolbar):
-        """Add a toolbar to the viewport."""
-        self.layout().addWidget(toolbar)
-
     # --- Escape hatches ---
 
     @property

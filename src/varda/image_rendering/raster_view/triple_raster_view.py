@@ -74,14 +74,3 @@ class TripleRasterView(QWidget):
         self.zoomController = RegionController(
             self.viewport2, self.viewport3, self.roi2, self.mainController
         )
-
-    def addToolbarToViewport(self, viewport, toolbar):
-        """Add a toolbar to a specific viewport."""
-        if viewport is self.viewport1:
-            self.viewport1.addToolBar(toolbar)
-        elif viewport is self.viewport2:
-            self.viewport2.addToolBar(toolbar)
-        elif viewport is self.viewport3:
-            self.viewport3.addToolBar(toolbar)
-        else:
-            raise ValueError("Invalid viewport specified.")

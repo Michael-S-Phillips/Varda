@@ -29,7 +29,6 @@ import numpy as np
 from psygnal import SignalInstance
 from PyQt6.QtCore import QPointF, QRectF
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QWidget
 
 if TYPE_CHECKING:
     from varda.common.entities import VardaRaster
@@ -218,8 +217,6 @@ class RasterViewport(Protocol):
     def installTool(self, tool: ViewportTool) -> None: ...
 
     def removeTool(self, tool: ViewportTool) -> None: ...
-
-    def addToolBar(self, toolbar: QWidget) -> None: ...
 
     # --- domain accessors (already backend-agnostic) ---
 
