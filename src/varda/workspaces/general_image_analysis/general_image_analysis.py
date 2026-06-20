@@ -24,7 +24,9 @@ from varda.image_rendering.raster_view import TripleRasterView, ROIDisplayContro
 from varda.image_rendering.raster_view.viewport_context_menu_controller import (
     ViewportContextMenuController,
 )
-from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
+from varda.image_rendering.raster_view.viewport_tools.viewport_tool_controller import (
+    ViewportToolController,
+)
 from varda.common.parameter import ImageParameter, ParameterGroup
 from varda.plotting.plot import VardaPlotWidget
 from varda.rois.roi_collection import ROICollection
@@ -86,15 +88,16 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         self.tripleRasterView = TripleRasterView(self.imageRenderer, self)
 
-        # Initialize tool management for each viewport
-        self.toolManager1 = ToolManager(self.tripleRasterView.viewport1, self)
-        self.toolManager2 = ToolManager(self.tripleRasterView.viewport2, self)
-        self.toolManager3 = ToolManager(self.tripleRasterView.viewport3, self)
-
-        # Create toolbars for each viewport
-        self.tripleRasterView.viewport1.addToolBar(self.toolManager1.getToolbar())
-        self.tripleRasterView.viewport2.addToolBar(self.toolManager2.getToolbar())
-        self.tripleRasterView.viewport3.addToolBar(self.toolManager3.getToolbar())
+        # One shared toolbar drives a tool across all three viewports.
+        self.toolController = ViewportToolController(
+            [
+                self.tripleRasterView.viewport1,
+                self.tripleRasterView.viewport2,
+                self.tripleRasterView.viewport3,
+            ],
+            self,
+        )
+        self.addToolBar(self.toolController.toolBar)
 
         # initialize histogram view
         self.histogram = NewHistogramView(self.imageRenderer, self)
@@ -225,9 +228,8 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     def _connectSignals(self):
         """Connect signals between workflow components"""
 
-        # Wire ROI drawing tools to collection via ToolManager signals
-        for tm in (self.toolManager1, self.toolManager2, self.toolManager3):
-            tm.sigToolActivated.connect(self._onToolActivated)
+        # Wire ROI drawing tools to the collection via the shared controller.
+        self.toolController.sigToolActivated.connect(self._onToolActivated)
 
         # Wire table selection to display controller highlight
         self.roiManagerWidget.sigSelectionChanged.connect(
