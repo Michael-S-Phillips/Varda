@@ -25,7 +25,9 @@ from varda.image_rendering.raster_view.viewport_context_menu_controller import (
     ViewportContextMenuController,
 )
 from varda.common.ui import VardaDockWidget
-from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
+from varda.image_rendering.raster_view.viewport_tools.viewport_tool_controller import (
+    ViewportToolController,
+)
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
 from varda.plotting.plot import VardaPlotWidget
@@ -136,10 +138,12 @@ class DualImageWorkspace(QMainWindow):
         self.viewport1 = ImageViewport(self.primaryRenderer, parent=self)
         self.viewport2 = ImageViewport(self.secondaryRenderer, parent=self)
 
-        self.toolManager1 = ToolManager(self.viewport1, self)
-        self.toolManager2 = ToolManager(self.viewport2, self)
-        self.viewport1.addToolBar(self.toolManager1.getToolbar())
-        self.viewport2.addToolBar(self.toolManager2.getToolbar())
+        # Drawing on either viewport creates ROIs (the images are co-registered,
+        # so an ROI drawn on either pane maps into the shared collection).
+        self.toolController = ViewportToolController(
+            [self.viewport1, self.viewport2], self
+        )
+        self.addToolBar(self.toolController.toolBar)
 
         self.roiDisplayController.registerViewport("primary", self.viewport1)
         self.roiDisplayController.registerViewport("secondary", self.viewport2)
@@ -147,10 +151,6 @@ class DualImageWorkspace(QMainWindow):
         self.viewportLinkController = ViewportLinkController(
             self.viewport1, self.viewport2, self.linkMode, parent=self
         )
-
-        # Drawing on either viewport creates ROIs (the images are co-registered,
-        # so an ROI drawn on the primary maps into the shared collection too).
-        self._drawingToolManagers = [self.toolManager1, self.toolManager2]
 
         self._setupDocks()
 
@@ -217,12 +217,10 @@ class DualImageWorkspace(QMainWindow):
         self.viewport1 = ImageViewport(self.primaryRenderer, self)
         self.viewport1.overlayImage(self.secondaryRenderer)
 
-        self.toolManager1 = ToolManager(self.viewport1, self)
-        self.viewport1.addToolBar(self.toolManager1.getToolbar())
+        self.toolController = ViewportToolController([self.viewport1], self)
+        self.addToolBar(self.toolController.toolBar)
 
         self.roiDisplayController.registerViewport("overlay", self.viewport1)
-
-        self._drawingToolManagers = [self.toolManager1]
 
         self._setupDocks()
 
@@ -263,9 +261,8 @@ class DualImageWorkspace(QMainWindow):
         rootSplitter.setSizes([600, 200])
 
     def _connectSignals(self):
-        # Wire drawing tools (only right viewport in side-by-side, single viewport in overlay)
-        for tm in self._drawingToolManagers:
-            tm.sigToolActivated.connect(self._onToolActivated)
+        # Wire drawing tools to the collection via the shared controller.
+        self.toolController.sigToolActivated.connect(self._onToolActivated)
 
         # Wire table selection to highlight
         self.roiManagerWidget.sigSelectionChanged.connect(
