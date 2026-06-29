@@ -7,7 +7,7 @@ from varda.image_loading import ImageLoadingService
 
 
 def importImage(images: ProjectImages) -> None:
-    ImageLoadingService.load_image_data(on_success_callback=images.append)
+    ImageLoadingService.load_images(on_success_callback=images.append)
 
 
 def exitApp() -> None:
@@ -17,7 +17,7 @@ def exitApp() -> None:
 FILE_ACTIONS: list[Action] = [
     Action(
         id="varda.file.import_image",
-        title="Import Image",
+        title="Import Image(s)",
         icon="fa6-solid:folder-open",
         callback=importImage,
         menus=[MenuRule(id=MenuId.FILE, group=MenuGroup.FILE_IO, order=1)],

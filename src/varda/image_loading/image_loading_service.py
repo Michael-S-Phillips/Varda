@@ -229,6 +229,30 @@ class ImageLoadingService:
         msg_box.exec()
 
     @classmethod
+    def load_images(
+        cls, file_paths=None, on_success_callback=None, on_failure_callback=None
+    ):
+        """Load one or more images.
+
+        If file_paths is None, prompts the user to select one or more files.
+        Each file is loaded independently in its own background process, so the
+        callbacks are invoked once per file (on_success_callback receives a
+        VardaRaster, on_failure_callback receives an error message string).
+        """
+        if file_paths is None:
+            file_paths = cls._request_file_paths()
+            if not file_paths:
+                logger.info("No file paths provided.")
+                return
+
+        for file_path in file_paths:
+            cls.load_image_data(
+                file_path=file_path,
+                on_success_callback=on_success_callback,
+                on_failure_callback=on_failure_callback,
+            )
+
+    @classmethod
     def load_image_sync(cls, file_path=None):
         """Load an image synchronously. Blocks until complete.
 
@@ -268,6 +292,17 @@ class ImageLoadingService:
             get_image_type_filter(),
         )
         return file_name if file_name else None
+
+    @staticmethod
+    def _request_file_paths():
+        """Opens a file dialog to request one or more image file paths."""
+        file_names, _ = QFileDialog.getOpenFileNames(
+            None,
+            "Open File(s)",
+            "",
+            get_image_type_filter(),
+        )
+        return file_names if file_names else None
 
     class ImageLoadProcess(QRunnable):
         """Represents a single image loading process running in a thread.
