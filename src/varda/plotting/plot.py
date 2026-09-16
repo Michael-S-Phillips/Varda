@@ -23,6 +23,10 @@ from varda.plotting.library_spectra import (
     listSpectra,
     loadSpectrum,
 )
+from varda.plotting.spectrum_matching import (
+    harmonizeWavelengthUnits,
+    matchToReference,
+)
 from varda.common.parameter import (
     ParameterGroup,
     FloatParameter,
@@ -96,6 +100,17 @@ class Curve(QObject):
             .scale(1.0, self.config.scale.value)
             .translate(0.0, self.config.offset.value)
         )
+
+    def displayedData(self) -> tuple[np.ndarray, np.ndarray]:
+        """The curve's data as shown, i.e. with its Y scale and offset applied."""
+        x, y = self.plotDataItem.getData()
+        if x is None or y is None:
+            return np.array([]), np.array([])
+        shownY = (
+            np.asarray(y, dtype=float) * self.config.scale.value
+            + self.config.offset.value
+        )
+        return np.asarray(x, dtype=float), shownY
 
     def setClickable(self, clickable: bool):
         self.plotDataItem.setCurveClickable(clickable, width=20)
@@ -324,6 +339,12 @@ class VardaPlotWidget(QWidget):
                 QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
             )
             self.libraryCombo.addItems(spectraNames)
+            libraryHint = QLabel(
+                "Added spectra are scaled to overlay the selected curve "
+                "within the visible wavelength range."
+            )
+            libraryHint.setWordWrap(True)
+            libraryHint.setStyleSheet("color: palette(mid);")
             sidebar.withWidget(
                 SectionBox(
                     "Library Spectra",
@@ -331,7 +352,8 @@ class VardaPlotWidget(QWidget):
                     .withWidget(self.libraryCombo)
                     .withWidget(
                         ButtonBuilder("Add to Plot").onClick(self._addLibrarySpectrum)
-                    ),
+                    )
+                    .withWidget(libraryHint),
                 )
             )
 
@@ -497,7 +519,39 @@ class VardaPlotWidget(QWidget):
     def _addLibrarySpectrum(self) -> None:
         folderName = self.libraryCombo.currentText()
         name, wavelengths, reflectance = loadSpectrum(self.libraryPath, folderName)
-        self.plot(wavelengths, reflectance, name=name)
+        self.addReferenceSpectrum(name, wavelengths, reflectance)
+
+    def addReferenceSpectrum(self, name: str, x, y) -> Curve:
+        """Plot a reference (e.g. library) spectrum so it is immediately comparable.
+
+        When a curve to compare against exists (see ``_referenceCurve``), the
+        new spectrum's wavelengths are converted to the same unit and its Y
+        scale/offset are set so it overlays that curve within the visible
+        wavelength range. The view itself is left where it is.
+        """
+        x = np.asarray(x, dtype=float)
+        y = np.asarray(y, dtype=float)
+        target = self._referenceCurve()
+        if target is None:
+            return self.plot(x, y, name=name)
+
+        targetX, targetY = target.displayedData()
+        x = harmonizeWavelengthUnits(x, targetX)
+        curve = self.plot(x, y, name=name)
+        visibleX = self.viewBox.viewRange()[0]
+        scale, offset = matchToReference(
+            x, y, targetX, targetY, (float(visibleX[0]), float(visibleX[1]))
+        )
+        curve.config.scale.set(scale)
+        curve.config.offset.set(offset)
+        return curve
+
+    def _referenceCurve(self) -> Curve | None:
+        """The curve a new reference spectrum is matched to: the selected one,
+        else the most recently added."""
+        if self.selectedCurve is not None:
+            return self.selectedCurve
+        return self.plots[-1] if self.plots else None
 
     def removePlot(self, curve: Curve) -> None:
         if curve not in self.plots:

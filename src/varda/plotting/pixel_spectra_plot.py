@@ -147,6 +147,12 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
         if curve in self.pixelCurves:
             self.pixelCurves.remove(curve)
 
+    def _referenceCurve(self) -> Curve | None:
+        """Prefer the latest pixel spectrum over other curves when none is selected."""
+        if self.selectedCurve is None and self.pixelCurves:
+            return self.pixelCurves[-1]
+        return super()._referenceCurve()
+
     def _nextColor(self) -> Color:
         scheme = self.pixelConfig.colorScheme.value
         assert isinstance(scheme, ColorScheme)
