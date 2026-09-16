@@ -6,6 +6,11 @@ from app_model import Application
 
 from varda._actions import ALL_ACTIONS
 from varda._actions._context_keys import IMAGE_COUNT
+from varda.all_images_view_list.image_list_actions import (
+    IMAGE_LIST_ACTIONS,
+    ImageListClickContext,
+    getCurrentClickContext as getImageListClickContext,
+)
 from varda.common.di_types import ProjectImages
 from varda.image_rendering.raster_view.viewport_actions import (
     VIEWPORT_ACTIONS,
@@ -43,6 +48,10 @@ class VardaApplication(Application):
         # each time an action runs; the controller sets it just before exec.
         self.injection_store.register_provider(
             getCurrentClickContext, ViewportClickContext
+        )
+        self.register_actions(IMAGE_LIST_ACTIONS)
+        self.injection_store.register_provider(
+            getImageListClickContext, ImageListClickContext
         )
 
     def _onImagesChanged(self, items: list) -> None:

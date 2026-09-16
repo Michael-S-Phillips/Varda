@@ -12,6 +12,9 @@ from PyQt6.QtCore import QSize
 
 import varda
 from varda._actions import MENUBAR
+from varda.all_images_view_list.image_list_menu_controller import (
+    ImageListMenuController,
+)
 from varda.app import VardaApplication
 from varda.maingui import MainGUI
 from varda.utilities.resources import resource_path
@@ -49,6 +52,13 @@ def initVarda() -> None:
 
     app.maingui = MainGUI(app=app)
     app.maingui.setModelMenuBar(MENUBAR)
+    imageListController = ImageListMenuController(app, parent=app.maingui)
+    app.maingui.imageList.sigImagesActivated.connect(
+        imageListController.onImagesActivated
+    )
+    app.maingui.imageList.sigContextMenuRequested.connect(
+        imageListController.onContextMenuRequested
+    )
     app.context.changed.connect(
         lambda _keys: app.maingui.menuBar().update_from_context(app.context)
     )

@@ -3,8 +3,13 @@
 # third party imports
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtGui import QPixmap, QIcon
-from PyQt6.QtWidgets import QListView, QListWidget, QListWidgetItem
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QListView,
+    QListWidget,
+    QListWidgetItem,
+)
+from PyQt6.QtCore import QPoint, Qt, pyqtSignal
 
 # local imports
 from varda.common import ObservableList
@@ -18,21 +23,45 @@ class ImageListWidget(QListWidget):
     """Widget for displaying all the images of a project.
 
     This class gives users a way to see previews of all the images in the project.
-    Users can also select images, which other classes can use to provide context
-    actions based on which image is selected.
+    Interactions are surfaced as signals carrying the affected images, so this
+    widget stays independent of what "opening" an image means:
+
+    - ``sigImagesActivated(list[VardaRaster])`` on double-click.
+    - ``sigContextMenuRequested(list[VardaRaster], QPoint)`` on right-click over an
+      item; the clicked image comes first, followed by any other selected images.
     """
+
+    sigImagesActivated = pyqtSignal(list)
+    sigContextMenuRequested = pyqtSignal(list, QPoint)
 
     def __init__(self, imageList: ObservableList, parent=None):
         super().__init__(parent)
         self.setViewMode(QListWidget.ViewMode.IconMode)
         self.setResizeMode(QListView.ResizeMode.Adjust)
         self.setIconSize(QtCore.QSize(64, 64))  # Set icon size
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.imageList = imageList
 
         self.setItemDelegate(ImageItemDelegate(self))
 
         self._updateItems()
         self.imageList.sigDataChanged.connect(self._updateItems)
+        self.itemDoubleClicked.connect(self._onItemDoubleClicked)
+        self.customContextMenuRequested.connect(self._onContextMenuRequested)
+
+    def _onItemDoubleClicked(self, item: QListWidgetItem) -> None:
+        self.sigImagesActivated.emit([item.data(Qt.ItemDataRole.UserRole)])
+
+    def _onContextMenuRequested(self, pos: QPoint) -> None:
+        clicked = self.itemAt(pos)
+        if clicked is None:
+            return
+        others = [
+            item for item in self.selectedItems() if self.row(item) != self.row(clicked)
+        ]
+        images = [item.data(Qt.ItemDataRole.UserRole) for item in [clicked, *others]]
+        self.sigContextMenuRequested.emit(images, self.viewport().mapToGlobal(pos))
 
     def _updateItems(self):
         self.clear()

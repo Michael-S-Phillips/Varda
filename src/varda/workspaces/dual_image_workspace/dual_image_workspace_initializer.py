@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import QDialog, QMessageBox
 from PyQt6.QtCore import pyqtSignal
+from varda.common.entities import VardaRaster
 from varda.workspaces.dual_image_workspace.dual_image_workspace import (
     DualImageWorkspaceConfig,
     DualImageWorkspace,
@@ -11,7 +12,16 @@ from varda.common.ui import VBoxBuilder, HBoxBuilder, ButtonBuilder
 class NewDualImageWorkspaceDialog(QDialog):
     sigCreateWorkspace = pyqtSignal(object)
 
-    def __init__(self, imageList, parent=None):
+    def __init__(
+        self,
+        imageList,
+        parent=None,
+        *,
+        primary: VardaRaster | None = None,
+        secondary: VardaRaster | None = None,
+    ):
+        """``primary``/``secondary`` pre-select images in the dialog; unset slots
+        keep their default (the first image in ``imageList``)."""
         super().__init__(parent)
         self.setWindowTitle("Create New Dual Image Workspace")
         if len(imageList) == 0:
@@ -22,6 +32,10 @@ class NewDualImageWorkspaceDialog(QDialog):
             return
 
         self.dualImageWorkspaceConfig = DualImageWorkspaceConfig(imageList)
+        if primary is not None:
+            self.dualImageWorkspaceConfig.image1Param.set(primary)
+        if secondary is not None:
+            self.dualImageWorkspaceConfig.image2Param.set(secondary)
         self.accepted.connect(
             lambda: self.sigCreateWorkspace.emit(
                 DualImageWorkspace(self.dualImageWorkspaceConfig)
