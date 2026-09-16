@@ -727,7 +727,11 @@ class ImageParameter(Parameter[VardaRaster]):
                 "Image Parameter requires at least 1 available image!"
             )
             self.comboBox.addItems([image.name for image in self.imageList])
+            # Show the parameter's current value (it may have been set before
+            # the widget existed) before wiring user changes back to it.
+            self._showValue(self.param.get())
             self.comboBox.currentIndexChanged.connect(self.imageSelectionChanged)
+            self.param.sigParameterChanged.connect(self.onParamChanged)
 
             paramLayout = paramLayoutDefault()
             paramLayout.addWidget(self.comboBox)
@@ -738,6 +742,19 @@ class ImageParameter(Parameter[VardaRaster]):
                 # do nothing if the list is empty. This might happen if user selects the "No Images Available!" item.
                 return
             self.param.set(self.imageList[index])
+
+        @pyqtSlot(object)
+        def onParamChanged(self, value: VardaRaster) -> None:
+            with QSignalBlocker(self.comboBox):
+                self._showValue(value)
+
+        def _showValue(self, value: VardaRaster | None) -> None:
+            # identity, not equality: two rasters are distinct choices even if equal
+            index = next(
+                (i for i, image in enumerate(self.imageList) if image is value), -1
+            )
+            if index >= 0 and index != self.comboBox.currentIndex():
+                self.comboBox.setCurrentIndex(index)
 
 
 if __name__ == "__main__":
