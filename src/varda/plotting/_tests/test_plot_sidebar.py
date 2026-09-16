@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QLabel
 from varda.common.ui import SectionBox
 from varda.common.vec2 import Vec2
 from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
-from varda.plotting.plot import VardaPlotWidget
+from varda.plotting.plot import RangeMode, VardaPlotWidget
 
 
 def _sectionTitles(widget: VardaPlotWidget) -> list[str]:
@@ -56,7 +56,7 @@ def test_fit_to_data_frames_the_curves_and_leaves_auto_range_off(qtbot):
     widget = VardaPlotWidget()
     qtbot.addWidget(widget)
     widget.plot(np.arange(10.0), np.linspace(0.0, 1.0, 10), name="c")
-    widget.viewConfig.autoViewRange.set(False)
+    widget.viewConfig.rangeMode.set(RangeMode.MANUAL)
     widget.rangeConfig.viewRangeX.set(Vec2(4.0, 5.0))
     widget.rangeConfig.viewRangeY.set(Vec2(0.4, 0.5))
 
@@ -65,6 +65,6 @@ def test_fit_to_data_frames_the_curves_and_leaves_auto_range_off(qtbot):
     (xMin, xMax), (yMin, yMax) = widget.viewBox.viewRange()
     assert xMin <= 0.0 and xMax >= 9.0
     assert yMin <= 0.0 and yMax >= 1.0
-    assert widget.viewConfig.autoViewRange.value is False
+    assert widget.viewConfig.rangeMode.value is RangeMode.MANUAL
     # manual range boxes reflect the fitted view
     assert widget.rangeConfig.viewRangeX.value.x <= 0.0

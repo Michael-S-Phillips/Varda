@@ -1,4 +1,5 @@
 import json
+from enum import Enum
 from pathlib import Path
 
 import numpy as np
@@ -33,6 +34,7 @@ from varda.common.parameter import (
     Vec2Parameter,
     ColorParameter,
     BoolParameter,
+    EnumParameter,
 )
 
 CURVE_MIME_TYPE = "application/x-varda-curve"
@@ -165,12 +167,22 @@ class Curve(QObject):
         return curve
 
 
+class RangeMode(Enum):
+    AUTO = 1
+    FIT_Y_TO_X_RANGE = 2
+    MANUAL = 3
+
+
 class ViewConfig(ParameterGroup):
-    autoViewRange = BoolParameter(
-        "Auto Range",
-        True,
-        "Should view range be manually set or automatically adjust?",
+    rangeMode = EnumParameter(
+        "Range",
+        RangeMode,
+        RangeMode.AUTO,
+        "Auto fits both axes to all data. Fit Y To X Range keeps your X window "
+        "and refits Y to the data inside it whenever spectra change. Manual "
+        "uses the ranges below.",
     )
+    showLegend = BoolParameter("Show Legend", True, "Show the curve legend.")
 
 
 class AppearanceConfig(ParameterGroup):
@@ -287,7 +299,7 @@ class VardaPlotWidget(QWidget):
         self.gv.scene().sigMouseClicked.connect(self.onSceneClicked)
         self.viewBox = _PlotViewBox()
         self.plotItem = pg.PlotItem(viewBox=self.viewBox)
-        self.plotItem.addLegend()
+        self.legend = self.plotItem.addLegend()
         # Left-drag pans, Shift/Cmd+left-drag zooms to the dragged box,
         # right-drag stretches the axes, wheel zooms about the cursor.
         self.viewBox.setMouseMode(pg.ViewBox.PanMode)
@@ -392,20 +404,38 @@ class VardaPlotWidget(QWidget):
         self.gv.setBackground(self.appearanceConfig.backgroundColor.value)
 
     def onViewParamsChanged(self):
-        if self.viewConfig.autoViewRange.value:
+        self.legend.setVisible(self.viewConfig.showLegend.value)
+        mode = self.viewConfig.rangeMode.value
+        if mode is RangeMode.AUTO:
+            self.viewBox.setAutoVisible(y=False)
             self.plotItem.enableAutoRange()
-        else:
+            return
+        if not self._manualRangeInitialized:
+            self._seedManualRangeFromView()
+        if mode is RangeMode.MANUAL:
+            self.viewBox.setAutoVisible(y=False)
             self.plotItem.disableAutoRange()
-            if not self._manualRangeInitialized:
-                self._seedManualRangeFromView()
-            self.onRangeParamsChanged()
+        else:
+            # Fit Y to X range: X comes from the range boxes; Y keeps fitting
+            # itself to the data inside that window as curves come and go.
+            self.viewBox.disableAutoRange(pg.ViewBox.XAxis)
+            self.viewBox.setAutoVisible(y=True)
+            self.viewBox.enableAutoRange(pg.ViewBox.YAxis)
+        self.onRangeParamsChanged()
 
     def onRangeParamsChanged(self):
-        if not self.viewConfig.autoViewRange.value:
-            xRange = self.rangeConfig.viewRangeX.value
+        mode = self.viewConfig.rangeMode.value
+        if mode is RangeMode.AUTO:
+            return
+        xRange = self.rangeConfig.viewRangeX.value
+        self.plotItem.setXRange(xRange.x, xRange.y, padding=0)
+        if mode is RangeMode.MANUAL:
             yRange = self.rangeConfig.viewRangeY.value
-            self.plotItem.setXRange(xRange.x, xRange.y, padding=0)
             self.plotItem.setYRange(yRange.x, yRange.y, padding=0)
+        else:
+            # pyqtgraph only re-fits a visible-only axis on an X change when X
+            # is auto-ranged too, so ask for the Y re-fit explicitly.
+            self.viewBox.enableAutoRange(pg.ViewBox.YAxis)
 
     def _seedManualRangeFromView(self) -> None:
         xRange, yRange = self.viewBox.viewRange()
@@ -414,12 +444,17 @@ class VardaPlotWidget(QWidget):
         self._manualRangeInitialized = True
 
     def _onUserViewChange(self) -> None:
-        # User did a rubber-band zoom, pan, or wheel zoom. Sync our manual
-        # range params to the new view and switch out of auto mode so the UI
-        # reflects what the user just did.
+        # User did a rubber-band zoom, pan, or wheel zoom: sync the range
+        # params to the new view. In Auto mode the user has taken over, so
+        # switch to Manual. In Fit-Y mode keep the mode: the X window is
+        # theirs, and Y goes back to fitting the data inside it (the mouse
+        # interaction turned Y auto-range off).
         self._seedManualRangeFromView()
-        if self.viewConfig.autoViewRange.value:
-            self.viewConfig.autoViewRange.set(False)
+        mode = self.viewConfig.rangeMode.value
+        if mode is RangeMode.AUTO:
+            self.viewConfig.rangeMode.set(RangeMode.MANUAL)
+        elif mode is RangeMode.FIT_Y_TO_X_RANGE:
+            self.viewBox.enableAutoRange(pg.ViewBox.YAxis)
 
     def fitToData(self) -> None:
         """Frame all curves once, leaving the range under manual control."""
