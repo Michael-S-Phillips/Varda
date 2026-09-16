@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, QPoint, QByteArray, QMimeData, QSize
 from PyQt6.QtGui import QDrag, QColor
-from PyQt6.QtWidgets import QWidget, QComboBox, QLabel
+from PyQt6.QtWidgets import QWidget, QComboBox, QGraphicsItem, QLabel
 import pyqtgraph as pg
 
 from varda.common.entities import VardaRaster, Color
@@ -87,6 +87,9 @@ class Curve(QObject):
         self.plotDataItem = plotDataItem
         self.plotDataItem.sigClicked.connect(lambda: self.sigClicked.emit(self))
         self.config = config
+        # Extra graphics that belong to this curve (e.g. a +/- std-dev band):
+        # they follow its Y offset/scale and are removed with it.
+        self.bandItems: list[QGraphicsItem] = []
 
         self.config.sigParameterChanged.connect(self.onConfigChanged)
 
@@ -98,11 +101,14 @@ class Curve(QObject):
         # translate-then-scale composes to y -> y * scale + offset, matching
         # displayedData() and the view limits. (scale-then-translate would
         # give scale * (y + offset).)
-        self.plotDataItem.setTransform(
+        transform = (
             pg.QtGui.QTransform()
             .translate(0.0, self.config.offset.value)
             .scale(1.0, self.config.scale.value)
         )
+        self.plotDataItem.setTransform(transform)
+        for item in self.bandItems:
+            item.setTransform(transform)
 
     def displayedData(self) -> tuple[np.ndarray, np.ndarray]:
         """The curve's data as shown, i.e. with its Y scale and offset applied."""
@@ -276,7 +282,6 @@ class VardaPlotWidget(QWidget):
         self.libraryPath = libraryPath
 
         self.plots: list[Curve] = []
-        self._fillItems: list[pg.GraphicsObject] = []
         self.gv = _PlotGraphicsView(self)
         # if the user clicks on the plot area and none of the plots catch the click (therefore selecting it), deselect any selected plot
         self.gv.scene().sigMouseClicked.connect(self.onSceneClicked)
@@ -560,7 +565,7 @@ class VardaPlotWidget(QWidget):
         if curve not in self.plots:
             return
         self.plots.remove(curve)
-        self.plotItem.removeItem(curve.plotDataItem)
+        self._removeCurveItems(curve)
         if self.selectedCurve is curve:
             self.deselectPlot()
         self._updateViewLimits()
@@ -579,21 +584,22 @@ class VardaPlotWidget(QWidget):
         self._updateViewLimits()
         event.accept()
 
-    def plotWithFill(self, x, y, yLower, yUpper, fillBrush, **kwargs):
+    def plotWithFill(self, x, y, yLower, yUpper, fillBrush, **kwargs) -> Curve:
         """Plot a curve with a filled region between yLower and yUpper.
 
-        Useful for displaying mean +/- standard deviation.
+        Useful for displaying mean +/- standard deviation. The band belongs to
+        the returned curve: it follows its Y offset/scale and is removed with it.
         """
-        self.plot(x, y, **kwargs)
+        curve = self.plot(x, y, **kwargs)
 
         upperCurve = pg.PlotDataItem(x, yUpper, pen=pg.mkPen(None))
         lowerCurve = pg.PlotDataItem(x, yLower, pen=pg.mkPen(None))
         fill = pg.FillBetweenItem(lowerCurve, upperCurve, brush=fillBrush)
-
-        self.plotItem.addItem(upperCurve)
-        self.plotItem.addItem(lowerCurve)
-        self.plotItem.addItem(fill)
-        self._fillItems.extend([upperCurve, lowerCurve, fill])
+        for item in (upperCurve, lowerCurve, fill):
+            self.plotItem.addItem(item)
+        curve.bandItems = [upperCurve, lowerCurve, fill]
+        curve.onConfigChanged()  # apply the curve's transform to the band
+        return curve
 
     @staticmethod
     def getPlottableWavelengths(image: VardaRaster, bandCount: int) -> np.ndarray:
@@ -607,13 +613,15 @@ class VardaPlotWidget(QWidget):
         return np.arange(bandCount, dtype=float)
 
     def clearPlots(self):
-        for plot in self.plots:
-            self.plotItem.removeItem(plot.plotDataItem)
+        for curve in self.plots:
+            self._removeCurveItems(curve)
         self.plots.clear()
-        for item in self._fillItems:
-            self.plotItem.removeItem(item)
-        self._fillItems.clear()
         self._updateViewLimits()
+
+    def _removeCurveItems(self, curve: Curve) -> None:
+        self.plotItem.removeItem(curve.plotDataItem)
+        for item in curve.bandItems:
+            self.plotItem.removeItem(item)
 
 
 if __name__ == "__main__":
