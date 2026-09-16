@@ -67,10 +67,63 @@ def test_translation_keeps_same_column():
     dx, dy = dxdy
     src_cx = float(template_px[:, 0].mean())  # 3.0 (vertex centroid)
     src_cy = float(template_px[:, 1].mean())  # 2.0
-    new_col = int(round(src_cx + dx))
-    assert new_col in (2, 3)  # locked to the template's column, not the click (6)
-    # dy moves the centroid row to the clicked row.
-    assert abs((src_cy + dy) - 7) < 1e-6
+    # The template's mean IR sample (2.5) lies between columns 2 and 3, i.e. at
+    # continuous x = 3.0 — exactly where the template already is. Locked to the
+    # template's columns, not the click (6).
+    assert abs((src_cx + dx) - 3.0) < 1e-6
+    # dy moves the centroid to the centre of the clicked row (7 -> 7.5).
+    assert abs((src_cy + dy) - 7.5) < 1e-6
+
+
+def _pixelsCovered(polygon: np.ndarray, shape: tuple[int, int]) -> tuple[set, set]:
+    """(rows, cols) of the pixels a (col,row) corner polygon rasterises to."""
+    import rasterio.features
+    from shapely.geometry import Polygon, mapping
+
+    mask = rasterio.features.rasterize(
+        [(mapping(Polygon([tuple(p) for p in polygon])), 1)],
+        out_shape=shape,
+        fill=0,
+        dtype=np.uint8,
+    ).astype(bool)
+    rows, cols = np.nonzero(mask)
+    return set(rows.tolist()), set(cols.tolist())
+
+
+def _box(left: int, top: int, width: int, height: int) -> np.ndarray:
+    return np.array(
+        [
+            [left, top],
+            [left + width, top],
+            [left + width, top + height],
+            [left, top + height],
+        ],
+        dtype=np.float64,
+    )
+
+
+def test_locked_copy_of_odd_box_keeps_columns_and_centres_on_clicked_row():
+    geom = _geometry()
+    template = _box(left=2, top=1, width=5, height=5)  # pixels cols 2..6, rows 1..5
+    dx, dy = computeColumnLockedTranslation(
+        template, clickRow=7, clickCol=0, geometry=geom
+    )
+
+    rows, cols = _pixelsCovered(template + np.array([dx, dy]), geom.ir_sample.shape)
+    assert cols == {2, 3, 4, 5, 6}
+    assert rows == {5, 6, 7, 8, 9}  # centred on the clicked row 7
+
+
+def test_locked_copy_of_even_box_keeps_columns():
+    geom = _geometry()
+    template = _box(left=2, top=1, width=2, height=2)  # pixels cols 2..3, rows 1..2
+    dx, dy = computeColumnLockedTranslation(
+        template, clickRow=7, clickCol=6, geometry=geom
+    )
+
+    rows, cols = _pixelsCovered(template + np.array([dx, dy]), geom.ir_sample.shape)
+    assert cols == {2, 3}
+    assert rows == {6, 7}
 
 
 def test_translation_none_when_strip_absent_at_dest_row():

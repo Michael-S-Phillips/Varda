@@ -83,10 +83,14 @@ class ROIManagerWidget(QWidget):
         # "Lock to sensor column" toggle for template placement, enabled only
         # when a CRISM DDR geometry companion resolves for this image.
         self._lockColumnCheck = QCheckBox("Lock to sensor column")
-        hasDdr = bool(image.filePath) and resolveGeometryFile(image.filePath) is not None
+        hasDdr = (
+            bool(image.filePath) and resolveGeometryFile(image.filePath) is not None
+        )
         self._lockColumnCheck.setEnabled(hasDdr)
         if not hasDdr:
-            self._lockColumnCheck.setToolTip("No CRISM DDR geometry found for this image")
+            self._lockColumnCheck.setToolTip(
+                "No CRISM DDR geometry found for this image"
+            )
 
         # Layout
         btnRow = QHBoxLayout()
@@ -185,10 +189,12 @@ class ROIManagerWidget(QWidget):
         pixelCoords = self._collection.getPixelCoordinates(
             self._templateFid
         )  # (N,2) col,row
+        # Polygon coordinates are pixel corners, so centre the copy on the
+        # clicked pixel's centre (c + 0.5), not its top-left corner.
         srcCx = float(pixelCoords[:, 0].mean())
         srcCy = float(pixelCoords[:, 1].mean())
-        dx = float(clickCol) - srcCx
-        dy = float(clickRow) - srcCy
+        dx = (float(clickCol) + 0.5) - srcCx
+        dy = (float(clickRow) + 0.5) - srcCy
 
         if self.lockColumn:
             colGeom = (

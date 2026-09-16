@@ -156,9 +156,11 @@ def test_place_template_plain_paste(qtbot, make_split_image):
     new_fid = c.fids[-1]
     coords = c.getPixelCoordinates(new_fid)
     cx, cy = coords[:, 0].mean(), coords[:, 1].mean()
-    # Copy centroid lands at the click (dx = 20-4 = 16, dy = 14-4 = 10).
-    assert abs(cx - 20) < 1e-6
-    assert abs(cy - 14) < 1e-6
+    # Copy centroid lands on the centre of the clicked pixel (20.5, 14.5), so
+    # the copy covers the clicked pixel rather than sitting half a pixel
+    # up-left of it.
+    assert abs(cx - 20.5) < 1e-6
+    assert abs(cy - 14.5) < 1e-6
 
 
 def test_place_template_noop_without_template(qtbot, make_split_image, monkeypatch):
