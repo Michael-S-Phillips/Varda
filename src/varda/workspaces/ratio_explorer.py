@@ -9,7 +9,7 @@ on, and can save the pair as ROIs so a promising spot is not lost.
 from __future__ import annotations
 
 import functools
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Protocol
 
 import numpy as np
@@ -52,7 +52,7 @@ class RatioExplorerConfig(ParameterGroup):
 
 
 class SpectrumSink(Protocol):
-    def addSpectrum(self, wavelengths, values, label: str): ...
+    def addSpectra(self, entries: Sequence[tuple]): ...
 
 
 class MirrorViewport(Protocol):
@@ -82,12 +82,20 @@ class RatioExplorerController(QObject):
         docks: SpectrumSink,
         config: RatioExplorerConfig,
         parent: QObject | None = None,
+        *,
+        imagesFor: Callable[[VardaRaster], Sequence[VardaRaster]] | None = None,
+        labelWithImageName: bool = False,
     ) -> None:
+        """``imagesFor(clickedImage)`` names the image(s) a selection is measured
+        on (default: the clicked image itself); a workspace with co-registered
+        images uses it to apply its Spectrum Source setting."""
         super().__init__(parent)
         self.config = config
         self._collection = collection
         self._roiManager = roiManager
         self._docks = docks
+        self._imagesFor = imagesFor or (lambda clicked: [clicked])
+        self._labelWithImageName = labelWithImageName
         self._current: tuple[VardaRaster, RatioSelection] | None = None
         self._saveCount = 0
         self._mirrorViewports: list[MirrorViewport] = []
@@ -190,22 +198,28 @@ class RatioExplorerController(QObject):
         self._current = (image, selection)
         if selection.numerator is None or selection.denominator is None:
             return
-        numerator = np.asarray(
-            computeRegionStatistics(selection.numerator, image)["mean"]
-        )
-        denominator = np.asarray(
-            computeRegionStatistics(selection.denominator, image)["mean"]
-        )
-        ratio = computeRatioSpectrum(numerator, denominator)
-        wavelengths = VardaPlotWidget.getPlottableWavelengths(image, len(ratio))
-        self._docks.addSpectrum(wavelengths, ratio, self._label(selection))
+        entries = []
+        for source in self._imagesFor(image):
+            numerator = np.asarray(
+                computeRegionStatistics(selection.numerator, source)["mean"]
+            )
+            denominator = np.asarray(
+                computeRegionStatistics(selection.denominator, source)["mean"]
+            )
+            ratio = computeRatioSpectrum(numerator, denominator)
+            wavelengths = VardaPlotWidget.getPlottableWavelengths(source, len(ratio))
+            entries.append((wavelengths, ratio, self._label(source, selection)))
+        # one batch, so Replace mode keeps every image of this selection
+        self._docks.addSpectra(entries)
 
-    @staticmethod
-    def _label(selection: RatioSelection) -> str:
+    def _label(self, image: VardaRaster, selection: RatioSelection) -> str:
         assert selection.numerator is not None and selection.denominator is not None
         nc, nr = _centerPixel(selection.numerator)
         dc, dr = _centerPixel(selection.denominator)
-        return f"Ratio ({nc}, {nr}) / ({dc}, {dr})"
+        boxes = f"({nc}, {nr}) / ({dc}, {dr})"
+        if self._labelWithImageName:
+            return f"{image.name} ratio {boxes}"
+        return f"Ratio {boxes}"
 
     @staticmethod
     def _geometryFor(image: VardaRaster, pixels: np.ndarray) -> Polygon:

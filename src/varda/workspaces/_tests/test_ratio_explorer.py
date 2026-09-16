@@ -25,9 +25,11 @@ NO_MOD = Qt.KeyboardModifier.NoModifier
 class FakeDocks:
     def __init__(self):
         self.spectra = []
+        self.batches = []
 
-    def addSpectrum(self, wavelengths, values, label):
-        self.spectra.append((wavelengths, values, label))
+    def addSpectra(self, entries):
+        self.batches.append(list(entries))
+        self.spectra.extend(entries)
 
 
 class FakeROIManager:
@@ -153,6 +155,74 @@ def test_column_lock_places_the_denominator_on_the_numerators_sensor_column(
     np.testing.assert_array_equal(
         tool.selection.denominator, boxPolygonPixels(11, 5, 5, 5)
     )
+
+
+def _selectBoxes(tool):
+    tool.onPointerEvent(_press(Qt.MouseButton.LeftButton, 11.0, 21.0))
+    tool.onPointerEvent(_press(Qt.MouseButton.RightButton, 31.0, 5.0))
+
+
+def _expectedRatio(image):
+    numerator = computeRegionStatistics(boxPolygonPixels(11, 21, 5, 5), image)["mean"]
+    denominator = computeRegionStatistics(boxPolygonPixels(31, 5, 5, 5), image)["mean"]
+    return numerator / denominator
+
+
+def test_ratio_can_be_computed_from_an_image_other_than_the_clicked_one(qtbot):
+    clicked = generate_random_image((40, 40, 10))
+    spectral = generate_random_image((40, 40, 10))
+    viewport = ImageViewport(ImageRenderer(image=clicked))
+    qtbot.addWidget(viewport)
+    tool = RatioExplorerTool(viewport)
+    tool.activate()
+    docks = FakeDocks()
+    controller = RatioExplorerController(
+        ROICollection.fromImage(clicked),
+        FakeROIManager(),
+        docks,
+        RatioExplorerConfig(),
+        imagesFor=lambda _clicked: [spectral],
+        labelWithImageName=True,
+    )
+    controller.bindTool(tool)
+
+    _selectBoxes(tool)
+
+    (_w, values, label) = docks.spectra[-1]
+    np.testing.assert_allclose(values, _expectedRatio(spectral))
+    assert label == f"{spectral.name} ratio (11, 21) / (31, 5)"
+    tool.deactivate()
+    del viewport
+
+
+def test_several_source_images_are_plotted_as_one_selection(qtbot):
+    a = generate_random_image((40, 40, 10))
+    b = generate_random_image((40, 40, 10))
+    viewport = ImageViewport(ImageRenderer(image=a))
+    qtbot.addWidget(viewport)
+    tool = RatioExplorerTool(viewport)
+    tool.activate()
+    docks = FakeDocks()
+    controller = RatioExplorerController(
+        ROICollection.fromImage(a),
+        FakeROIManager(),
+        docks,
+        RatioExplorerConfig(),
+        imagesFor=lambda _clicked: [a, b],
+        labelWithImageName=True,
+    )
+    controller.bindTool(tool)
+
+    _selectBoxes(tool)
+
+    assert len(docks.batches[-1]) == 2  # one batch, so Replace mode keeps both
+    labels = [entry[2] for entry in docks.batches[-1]]
+    assert labels == [
+        f"{a.name} ratio (11, 21) / (31, 5)",
+        f"{b.name} ratio (11, 21) / (31, 5)",
+    ]
+    tool.deactivate()
+    del viewport
 
 
 def test_boxes_are_mirrored_onto_the_other_viewports(setup):

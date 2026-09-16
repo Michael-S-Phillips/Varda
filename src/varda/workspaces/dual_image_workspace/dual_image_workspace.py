@@ -252,6 +252,8 @@ class DualImageWorkspace(QMainWindow):
             self.pixelSpectraDocks,
             self.ratioExplorerConfig,
             parent=self,
+            imagesFor=self._imagesForSource,  # honours Spectrum Source
+            labelWithImageName=True,
         )
         # The images are co-registered: show the boxes on both views
         self.ratioExplorer.setMirrorViewports(self._allViewports())
@@ -324,6 +326,8 @@ class DualImageWorkspace(QMainWindow):
             self.pixelSpectraDocks,
             self.ratioExplorerConfig,
             parent=self,
+            imagesFor=self._imagesForSource,  # honours Spectrum Source
+            labelWithImageName=True,
         )
         # The images are co-registered: show the boxes on both views
         self.ratioExplorer.setMirrorViewports(self._allViewports())
@@ -382,17 +386,24 @@ class DualImageWorkspace(QMainWindow):
         )
         plot.insertSidebarSection(3, self.ratioExplorer.createSidebarSection())
 
-    def _onPixelSelected(self, clickedImage: VardaRaster, pos: QPointF) -> None:
+    def _imagesForSource(self, clickedImage: VardaRaster) -> list[VardaRaster]:
+        """The image(s) a selection on ``clickedImage`` reads, per Spectrum Source.
+        Shared by Pixel Select and the Ratio Explorer."""
         source = self.pixelSourceConfig.source.value
         assert isinstance(source, PixelSpectrumSource)
-        images = {
+        return {
             PixelSpectrumSource.CLICKED_VIEWPORT: [clickedImage],
             PixelSpectrumSource.PRIMARY: [self.image1],
             PixelSpectrumSource.SECONDARY: [self.image2],
             PixelSpectrumSource.BOTH: [self.image1, self.image2],
         }[source]
+
+    def _onPixelSelected(self, clickedImage: VardaRaster, pos: QPointF) -> None:
         self.pixelSpectraDocks.addPixelSpectra(
-            images, int(pos.x()), int(pos.y()), labelWithImageName=True
+            self._imagesForSource(clickedImage),
+            int(pos.x()),
+            int(pos.y()),
+            labelWithImageName=True,
         )
 
     @property

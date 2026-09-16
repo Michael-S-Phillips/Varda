@@ -119,6 +119,10 @@ class PixelSpectraDocks(QObject):
         """Plot any spectrum on the active plot, re-showing its dock if closed."""
         return self._shownActivePlot().addSpectrum(wavelengths, values, label)
 
+    def addSpectra(self, entries: Sequence[tuple]) -> list[Curve]:
+        """Plot several spectra as one selection on the active plot."""
+        return self._shownActivePlot().addSpectra(entries)
+
     def _shownActivePlot(self) -> PixelSpectraPlotWidget:
         plot = self.active
         dock = self.dockFor(plot)

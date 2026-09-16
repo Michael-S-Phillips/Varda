@@ -149,8 +149,13 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
 
     def addSpectrum(self, wavelengths, values, label: str) -> Curve:
         """Plot any spectrum under the pixel-plot rules (mode and palette)."""
+        return self.addSpectra([(wavelengths, values, label)])[0]
+
+    def addSpectra(self, entries: Sequence[tuple]) -> list[Curve]:
+        """Plot several (wavelengths, values, label) spectra as one selection:
+        Replace mode clears once, so all of them stay."""
         self._applyMode()
-        return self._addTracked(wavelengths, values, label)
+        return [self._addTracked(w, v, label) for w, v, label in entries]
 
     def _applyMode(self) -> None:
         if self.pixelConfig.mode.value is SpectrumMode.REPLACE:
