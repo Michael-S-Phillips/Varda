@@ -11,6 +11,7 @@ general multi-instrument abstraction until a second instrument needs one.
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 
@@ -108,12 +109,21 @@ def computeColumnLockedTranslation(
     destCol = _interpolateColumn(validXs, rowIr[validXs], srcIrMean)
 
     # Polygon coordinates are pixel corners, so pixel column c is centred on
-    # c + 0.5; the same holds for the clicked row.
-    srcCx = float(templatePolygonPixels[:, 0].mean())
-    srcCy = float(templatePolygonPixels[:, 1].mean())
-    dx = (destCol + 0.5) - srcCx
-    dy = (float(clickRow) + 0.5) - srcCy
+    # c + 0.5; the same holds for the clicked row. Use the true centroid: a
+    # vertex mean is biased when the ring repeats its first vertex to close.
+    # The shift is rounded to whole pixels so the copy is an exact pixel-set
+    # translate of the template (a fractional shift would leave an even-sized
+    # footprint's edges on pixel centres, where rasterisation is ambiguous).
+    centroid = poly.centroid
+    dx = wholePixels((destCol + 0.5) - centroid.x)
+    dy = wholePixels((float(clickRow) + 0.5) - centroid.y)
     return (dx, dy)
+
+
+def wholePixels(shift: float) -> float:
+    """Round a pixel shift half-up, so an even-sized footprint centred between two
+    pixels extends right/down — the same convention as ``boxPolygonPixels``."""
+    return float(math.floor(shift + 0.5))
 
 
 def _interpolateColumn(cols: np.ndarray, irSamples: np.ndarray, target: float) -> float:

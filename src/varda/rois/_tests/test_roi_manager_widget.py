@@ -154,13 +154,41 @@ def test_place_template_plain_paste(qtbot, make_split_image):
     w.placeTemplate(clickRow=14, clickCol=20)
     assert len(c) == before + 1
     new_fid = c.fids[-1]
-    coords = c.getPixelCoordinates(new_fid)
-    cx, cy = coords[:, 0].mean(), coords[:, 1].mean()
-    # Copy centroid lands on the centre of the clicked pixel (20.5, 14.5), so
-    # the copy covers the clicked pixel rather than sitting half a pixel
-    # up-left of it.
-    assert abs(cx - 20.5) < 1e-6
-    assert abs(cy - 14.5) < 1e-6
+    from shapely.geometry import Polygon
+
+    copy = Polygon(c.getPixelCoordinates(new_fid))
+    # The copy is the template shifted by a whole number of pixels (so it has
+    # the template's exact footprint), centred as close as that allows to the
+    # clicked pixel's centre (20.5, 14.5).
+    assert abs(copy.centroid.x - 20.5) <= 0.5
+    assert abs(copy.centroid.y - 14.5) <= 0.5
+    shift = (copy.centroid.x - 4.0, copy.centroid.y - 4.0)
+    assert all(abs(s - round(s)) < 1e-6 for s in shift)
+
+
+def test_place_template_copy_covers_pixels_centred_on_the_click(
+    qtbot, make_split_image
+):
+    import rasterio.features
+    from shapely.geometry import Polygon, mapping
+
+    c = ROICollection()
+    # 4x4 pixels (cols 2..5, rows 2..5); stored with a closing vertex, which
+    # must not bias the copy's centre.
+    tmpl = c.addROI(box(2, 2, 6, 6), "tmpl", RED, ROIMode.RECTANGLE)
+    w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
+    w.setTemplate(tmpl)
+    w.placeTemplate(clickRow=14, clickCol=20)
+
+    copy = Polygon(c.getPixelCoordinates(c.fids[-1]))
+    mask = rasterio.features.rasterize(
+        [(mapping(copy), 1)], out_shape=(40, 40), fill=0, dtype=np.uint8
+    ).astype(bool)
+    rows, cols = np.nonzero(mask)
+    # An even-sized copy centred on the click extends right/down, the same
+    # convention as boxPolygonPixels.
+    assert set(cols.tolist()) == {19, 20, 21, 22}
+    assert set(rows.tolist()) == {13, 14, 15, 16}
 
 
 def test_place_template_noop_without_template(qtbot, make_split_image, monkeypatch):

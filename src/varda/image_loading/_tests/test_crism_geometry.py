@@ -71,8 +71,10 @@ def test_translation_keeps_same_column():
     # continuous x = 3.0 — exactly where the template already is. Locked to the
     # template's columns, not the click (6).
     assert abs((src_cx + dx) - 3.0) < 1e-6
-    # dy moves the centroid to the centre of the clicked row (7 -> 7.5).
-    assert abs((src_cy + dy) - 7.5) < 1e-6
+    # The shift is a whole number of pixels, so this 2-row template can't be
+    # centred exactly on row 7's centre (7.5); it extends down to cover rows
+    # 7..8 (centroid 8.0), the same convention as boxPolygonPixels.
+    assert abs((src_cy + dy) - 8.0) < 1e-6
 
 
 def _pixelsCovered(polygon: np.ndarray, shape: tuple[int, int]) -> tuple[set, set]:
@@ -123,7 +125,7 @@ def test_locked_copy_of_even_box_keeps_columns():
 
     rows, cols = _pixelsCovered(template + np.array([dx, dy]), geom.ir_sample.shape)
     assert cols == {2, 3}
-    assert rows == {6, 7}
+    assert rows == {7, 8}  # even height: clicked row and the one below
 
 
 def test_translation_none_when_strip_absent_at_dest_row():

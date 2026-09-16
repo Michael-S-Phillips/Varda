@@ -24,6 +24,7 @@ from varda.image_loading.crism_geometry import (
     computeColumnLockedTranslation,
     loadColumnGeometry,
     resolveGeometryFile,
+    wholePixels,
 )
 from varda.plotting.plot import VardaPlotWidget
 from varda.rois.roi_collection import ROICollection
@@ -190,11 +191,13 @@ class ROIManagerWidget(QWidget):
             self._templateFid
         )  # (N,2) col,row
         # Polygon coordinates are pixel corners, so centre the copy on the
-        # clicked pixel's centre (c + 0.5), not its top-left corner.
-        srcCx = float(pixelCoords[:, 0].mean())
-        srcCy = float(pixelCoords[:, 1].mean())
-        dx = (float(clickCol) + 0.5) - srcCx
-        dy = (float(clickRow) + 0.5) - srcCy
+        # clicked pixel's centre (c + 0.5), not its top-left corner. Use the
+        # true centroid (the stored ring repeats its first vertex, which would
+        # bias a vertex mean) and shift by whole pixels so the copy is an exact
+        # pixel-set translate of the template.
+        centroid = Polygon(pixelCoords).centroid
+        dx = wholePixels((float(clickCol) + 0.5) - centroid.x)
+        dy = wholePixels((float(clickRow) + 0.5) - centroid.y)
 
         if self.lockColumn:
             colGeom = (
