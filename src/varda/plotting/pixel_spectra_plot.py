@@ -32,8 +32,15 @@ class SpectrumMode(Enum):
 
 
 class ColorScheme(Enum):
-    """Qualitative matplotlib palettes; values are the colormap names."""
+    """matplotlib colormaps; values are the colormap names.
 
+    Qualitative palettes (a handful of distinct entries) are cycled entry by
+    entry. Continuous maps are sampled at ``CONTINUOUS_STEPS`` evenly spread
+    positions and then cycle, so successive spectra stay clearly distinct
+    instead of taking near-identical neighbouring shades.
+    """
+
+    # qualitative
     TAB10 = "tab10"
     TAB20 = "tab20"
     SET1 = "Set1"
@@ -41,12 +48,31 @@ class ColorScheme(Enum):
     DARK2 = "Dark2"
     PAIRED = "Paired"
     ACCENT = "Accent"
+    # continuous
+    VIRIDIS = "viridis"
+    PLASMA = "plasma"
+    INFERNO = "inferno"
+    MAGMA = "magma"
+    CIVIDIS = "cividis"
+    TURBO = "turbo"
+    SPECTRAL = "Spectral"
+    COOLWARM = "coolwarm"
+
+
+# Distinct samples taken from a continuous colormap before it cycles.
+CONTINUOUS_STEPS = 8
+# Colormaps with at most this many entries are treated as qualitative palettes.
+_MAX_QUALITATIVE_ENTRIES = 24
 
 
 def paletteColor(scheme: ColorScheme, index: int) -> Color:
-    """The ``index``-th color of the palette, cycling past its end."""
+    """The ``index``-th color of the scheme, cycling past its end."""
     colormap = matplotlib.colormaps[scheme.value]
-    r, g, b, _a = colormap(index % colormap.N)
+    if colormap.N <= _MAX_QUALITATIVE_ENTRIES:
+        r, g, b, _a = colormap(index % colormap.N)
+    else:
+        position = (index % CONTINUOUS_STEPS) / (CONTINUOUS_STEPS - 1)
+        r, g, b, _a = colormap(position)
     return Color(float(r), float(g), float(b), 1.0)
 
 
