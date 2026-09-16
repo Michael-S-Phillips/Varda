@@ -1,25 +1,24 @@
 from __future__ import annotations
 
-import logging
 from typing import override, TYPE_CHECKING
 
 import pyqtgraph as pg
-import numpy as np
 from PyQt6.QtCore import Qt, pyqtSignal, QPointF
 
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.image_rendering.raster_view.pointer_event import PointerAction, PointerEvent
-from varda.plotting.plot import VardaPlotWidget
 
 if TYPE_CHECKING:
     from varda.image_rendering.raster_view.viewport_protocol import CrosshairHandle
 
-logger = logging.getLogger(__name__)
-
 
 class PixelSelectTool(ViewportTool):
-    """Click+Ctrl to select a pixel; emits its integer coords upon mouse release."""
+    """Click+Ctrl to select a pixel; emits its image coords upon mouse release.
+
+    The tool only reports the selection; the owning workspace decides what to
+    do with it (e.g. plot the spectrum in its Pixel Spectra dock).
+    """
 
     sigPixelSelected = pyqtSignal(QPointF)
 
@@ -32,10 +31,6 @@ class PixelSelectTool(ViewportTool):
         super().__init__(viewport, parent)
         self._crosshair: CrosshairHandle | None = None
         self.isDragging = False
-
-        self.sigPixelSelected.connect(
-            self.onPixelSelected
-        )  # TODO: This is probably temp
         self.activate()
 
     def activate(self):
@@ -94,30 +89,3 @@ class PixelSelectTool(ViewportTool):
             self._crosshair.setPos(centeredPos)
         if emitSignal:
             self.sigPixelSelected.emit(event.imagePos)
-
-    def onPixelSelected(self, pixelCoords):
-        # TODO: This is prob temp. Should somehow integrate with the more complex plotting system Michael was working on.
-        # check that coordinates are within range
-        x = int(pixelCoords.x())
-        y = int(pixelCoords.y())
-        image = self.viewport.imageEntity
-        if x < 0 or y < 0 or x >= image.width or y >= image.height:
-            logger.warning(f"Selected pixel ({x}, {y}) is out of image bounds")
-            return
-
-        wavelengths = (
-            image.wavelengths
-            if image.wavelengthsType is not str
-            else np.arange(image.bandCount)
-        )
-
-        spectrum = image.getSpectrum(x, y)
-        self.plotWidget = VardaPlotWidget()
-        self.plotWidget.plot(
-            wavelengths,
-            spectrum.values,
-            name=f"Pixel {spectrum.pixel_coordinates}",
-        )
-        self.plotWidget.show()
-        # self.pixelPlot = PixelPlot()
-        # self.pixelPlot.plot(self.viewport.imageEntity, pixelCoords)

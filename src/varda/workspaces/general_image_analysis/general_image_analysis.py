@@ -5,8 +5,10 @@ A comprehensive workflow for performing general image analysis with integrated
 ROI drawing, band selection, stretch controls, and metadata management.
 """
 
+import functools
 import logging
 
+from PyQt6.QtCore import QPointF
 from PyQt6.QtWidgets import (
     QMainWindow,
     QStatusBar,
@@ -24,8 +26,12 @@ from varda.image_rendering.raster_view import TripleRasterView, ROIDisplayContro
 from varda.image_rendering.raster_view.viewport_context_menu_controller import (
     ViewportContextMenuController,
 )
+from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
+    PixelSelectTool,
+)
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.common.parameter import ImageParameter, ParameterGroup
+from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
@@ -116,8 +122,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             "viewport3", self.tripleRasterView.viewport3
         )
 
-        # --- Spectral plot ---
+        # --- Spectral plots ---
         self.plotWidget = VardaPlotWidget(parent=self)
+        self.pixelPlotWidget = PixelSpectraPlotWidget(parent=self)
 
         self.roiManagerWidget = ROIManagerWidget(
             self.roiCollection, image, self.plotWidget, parent=self
@@ -189,6 +196,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.plotDock = VardaDockWidget("ROI Plots")
         self.plotDock.setWidget(self.plotWidget)
 
+        self.pixelPlotDock = VardaDockWidget("Pixel Spectra")
+        self.pixelPlotDock.setWidget(self.pixelPlotWidget)
+
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.RightDockWidgetArea, self.rasterDock
         )
@@ -211,6 +221,12 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             ads.DockWidgetArea.RightDockWidgetArea,
             self.plotDock,
             self.roiDock.dockAreaWidget(),
+        )
+        # Tab the pixel plot alongside the ROI plot
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.pixelPlotDock,
+            self.plotDock.dockAreaWidget(),
         )
 
         # plotDock = Dock("Spectral Plot", widget=self.plotWidget, size=(400, 300))
@@ -242,6 +258,13 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         if isinstance(tool, ROIDrawingTool):
             tool.sigROIDrawingComplete.connect(self._onROIDrawn)
+        elif isinstance(tool, PixelSelectTool):
+            tool.sigPixelSelected.connect(
+                functools.partial(self._onPixelSelected, tool.viewport.imageEntity)
+            )
+
+    def _onPixelSelected(self, image: VardaRaster, pos: QPointF) -> None:
+        self.pixelPlotWidget.addPixelSpectrum(image, int(pos.x()), int(pos.y()))
 
     def _onROIDrawn(self, result: dict) -> None:
         """Handle completion of an ROI drawing tool."""

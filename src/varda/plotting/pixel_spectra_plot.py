@@ -1,0 +1,124 @@
+"""A plot for exploring pixel spectra from viewport clicks.
+
+Spectra either accumulate (Collect) or supersede the previous one (Replace), and
+each new spectrum takes the next color of a user-selected palette so it reads as
+new. Pixel curves are tracked separately from other curves (e.g. library spectra
+added for comparison), so Replace and Clear only touch spectra that came from
+clicks.
+"""
+
+from __future__ import annotations
+
+import logging
+from enum import Enum
+from pathlib import Path
+
+import matplotlib
+from PyQt6.QtWidgets import QWidget
+
+from varda.common.entities import Color, VardaRaster
+from varda.common.parameter import EnumParameter, ParameterGroup
+from varda.common.ui import ButtonBuilder, SectionBox, VBoxBuilder
+from varda.plotting.library_spectra import DEFAULT_LIBRARY_PATH
+from varda.plotting.plot import Curve, VardaPlotWidget
+
+logger = logging.getLogger(__name__)
+
+
+class SpectrumMode(Enum):
+    COLLECT = 1
+    REPLACE = 2
+
+
+class ColorScheme(Enum):
+    """Qualitative matplotlib palettes; values are the colormap names."""
+
+    TAB10 = "tab10"
+    TAB20 = "tab20"
+    SET1 = "Set1"
+    SET2 = "Set2"
+    DARK2 = "Dark2"
+    PAIRED = "Paired"
+    ACCENT = "Accent"
+
+
+def paletteColor(scheme: ColorScheme, index: int) -> Color:
+    """The ``index``-th color of the palette, cycling past its end."""
+    colormap = matplotlib.colormaps[scheme.value]
+    r, g, b, _a = colormap(index % colormap.N)
+    return Color(float(r), float(g), float(b), 1.0)
+
+
+class PixelSpectraConfig(ParameterGroup):
+    mode = EnumParameter(
+        "Mode",
+        SpectrumMode,
+        SpectrumMode.COLLECT,
+        "Collect keeps every clicked spectrum; Replace shows only the latest.",
+    )
+    colorScheme = EnumParameter(
+        "Color Scheme",
+        ColorScheme,
+        ColorScheme.TAB10,
+        "Palette cycled through so each new spectrum is distinct.",
+    )
+
+
+class PixelSpectraPlotWidget(VardaPlotWidget):
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        libraryPath: Path = DEFAULT_LIBRARY_PATH,
+    ):
+        super().__init__(parent, libraryPath)
+        self.pixelConfig = PixelSpectraConfig()
+        self.pixelCurves: list[Curve] = []
+        self._colorIndex = 0
+
+        self.insertSidebarSection(
+            0,
+            SectionBox(
+                "Pixel Spectra",
+                VBoxBuilder()
+                .withWidget(self.pixelConfig.createWidget())
+                .withWidget(
+                    ButtonBuilder("Clear Spectra").onClick(self.clearPixelSpectra)
+                ),
+            ),
+        )
+
+    def addPixelSpectrum(self, image: VardaRaster, x: int, y: int) -> Curve | None:
+        """Plot the spectrum at pixel (x, y); returns None if out of bounds."""
+        if not (0 <= x < image.width and 0 <= y < image.height):
+            logger.warning(f"Selected pixel ({x}, {y}) is outside the image bounds")
+            return None
+        if self.pixelConfig.mode.value is SpectrumMode.REPLACE:
+            self.clearPixelSpectra()
+
+        spectrum = image.getSpectrum(x, y)
+        wavelengths = self.getPlottableWavelengths(image, len(spectrum.values))
+        curve = self.plot(
+            wavelengths,
+            spectrum.values,
+            color=self._nextColor(),
+            name=f"Pixel ({x}, {y})",
+        )
+        self.pixelCurves.append(curve)
+        return curve
+
+    def clearPixelSpectra(self) -> None:
+        for curve in list(self.pixelCurves):
+            self.removePlot(curve)
+        self._colorIndex = 0
+
+    def removePlot(self, curve: Curve) -> None:
+        super().removePlot(curve)
+        if curve in self.pixelCurves:
+            self.pixelCurves.remove(curve)
+
+    def _nextColor(self) -> Color:
+        scheme = self.pixelConfig.colorScheme.value
+        assert isinstance(scheme, ColorScheme)
+        color = paletteColor(scheme, self._colorIndex)
+        self._colorIndex += 1
+        return color

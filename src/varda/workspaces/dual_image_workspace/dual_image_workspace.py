@@ -1,8 +1,10 @@
 # standard library
+import functools
 import logging
 from enum import Enum
 
 # third party imports
+from PyQt6.QtCore import QPointF
 from PyQt6.QtWidgets import QMainWindow
 import PyQt6Ads as ads
 
@@ -25,9 +27,13 @@ from varda.image_rendering.raster_view.viewport_context_menu_controller import (
     ViewportContextMenuController,
 )
 from varda.common.ui import VardaDockWidget
+from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
+    PixelSelectTool,
+)
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
+from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
 
 logger = logging.getLogger(__name__)
@@ -98,6 +104,7 @@ class DualImageWorkspace(QMainWindow):
             self.roiCollection, parent=self
         )
         self.plotWidget = VardaPlotWidget(parent=self)
+        self.pixelPlotWidget = PixelSpectraPlotWidget(parent=self)
         self.roiManagerWidget = ROIManagerWidget(
             self.roiCollection, self.image1, self.plotWidget, parent=self
         )
@@ -119,6 +126,9 @@ class DualImageWorkspace(QMainWindow):
 
         self.plotDock = VardaDockWidget("ROI Plots")
         self.plotDock.setWidget(self.plotWidget)
+
+        self.pixelPlotDock = VardaDockWidget("Pixel Spectra")
+        self.pixelPlotDock.setWidget(self.pixelPlotWidget)
 
         self.primarySettingsDock = VardaDockWidget("Primary Render Settings")
         self.primarySettingsDock.setWidget(self.primaryRenderer.getSettingsPanel())
@@ -204,6 +214,12 @@ class DualImageWorkspace(QMainWindow):
             self.plotDock,
             self.roiDock.dockAreaWidget(),
         )
+        # Tab the pixel plot alongside the ROI plot
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.pixelPlotDock,
+            self.plotDock.dockAreaWidget(),
+        )
         self.dockManager.setSplitterSizes(self.viewport1Dock.dockAreaWidget(), [4, 1])
         # Within each viewport column, give viewport more space than its settings
         viewport1Splitter = self.viewport1Dock.dockAreaWidget().parentSplitter()
@@ -257,6 +273,12 @@ class DualImageWorkspace(QMainWindow):
             self.plotDock,
             self.roiDock.dockAreaWidget(),
         )
+        # Tab the pixel plot alongside the ROI plot
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.pixelPlotDock,
+            self.plotDock.dockAreaWidget(),
+        )
 
         # Give viewport most vertical space, settings and ROI/plot less
         rootSplitter = self.dockManager.rootSplitter()
@@ -293,6 +315,13 @@ class DualImageWorkspace(QMainWindow):
 
         if isinstance(tool, ROIDrawingTool):
             tool.sigROIDrawingComplete.connect(self._onROIDrawn)
+        elif isinstance(tool, PixelSelectTool):
+            tool.sigPixelSelected.connect(
+                functools.partial(self._onPixelSelected, tool.viewport.imageEntity)
+            )
+
+    def _onPixelSelected(self, image: VardaRaster, pos: QPointF) -> None:
+        self.pixelPlotWidget.addPixelSpectrum(image, int(pos.x()), int(pos.y()))
 
     def _onROIDrawn(self, result: dict) -> None:
         self.roiCollection.addROIFromDrawing(

@@ -282,12 +282,17 @@ class VardaPlotWidget(QWidget):
                 .withWidget(self.rangeConfigWidget),
             )
         )
+        self._sidebar = sidebar
 
         self.setLayout(
             HBoxBuilder()
             .withWidget(self.gv, stretch=2)
             .withWidget(VerticalScrollArea(sidebar))
         )
+
+    def insertSidebarSection(self, index: int, section: QWidget) -> None:
+        """Insert a section into the settings sidebar (0 = top)."""
+        self._sidebar.insertWidget(index, section)
 
     def sizeHint(self) -> QSize:
         # Sensible window size so plot isn't squashed by default.
