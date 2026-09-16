@@ -41,23 +41,32 @@ class CurveConfig(ParameterGroup):
         range=(0.1, 10.0),
         units="px",
         description="Width of the curve in pixels",
+        step=0.5,
     )
     color = ColorParameter(
         "Curve Color",
         default="#ff0000",
         description="Color of the curve",
     )
+    # Steps are sized for reflectance (0-1) data: a whole-unit step would move
+    # or flatten a spectrum right out of view.
     offset = FloatParameter(
         "Y Offset",
         default=0.0,
         units="y",
         description="Vertical offset of the curve",
+        step=0.01,
+        decimals=4,
     )
     scale = FloatParameter(
         "Y Scale",
         default=1.0,
+        range=(0.001, 1000.0),
         units="y",
         description="Vertical scale of the curve",
+        step=0.1,
+        decimals=3,
+        showSlider=False,
     )
 
 
@@ -143,11 +152,41 @@ class WindowConfig(ParameterGroup):
 
 class RangeConfig(ParameterGroup):
     viewRangeX = Vec2Parameter(
-        "X View Range", default=Vec2(0.0, 1.0), valueNames=("Min", "Max")
+        "X View Range",
+        default=Vec2(0.0, 1.0),
+        valueNames=("Min", "Max"),
+        step=1.0,
+        decimals=2,
     )
     viewRangeY = Vec2Parameter(
-        "Y View Range", default=Vec2(0.0, 1.0), valueNames=("Min", "Max")
+        "Y View Range",
+        default=Vec2(0.0, 1.0),
+        valueNames=("Min", "Max"),
+        step=0.01,
+        decimals=4,
     )
+
+
+_RECT_ZOOM_MODIFIERS = (
+    Qt.KeyboardModifier.ShiftModifier
+    | Qt.KeyboardModifier.ControlModifier  # Cmd on macOS
+    | Qt.KeyboardModifier.MetaModifier
+)
+
+
+def dragMouseMode(modifiers: Qt.KeyboardModifier) -> int:
+    """A plain drag pans; a Shift/Ctrl/Cmd-drag zooms to the dragged box."""
+    if modifiers & _RECT_ZOOM_MODIFIERS:
+        return pg.ViewBox.RectMode
+    return pg.ViewBox.PanMode
+
+
+class _PlotViewBox(pg.ViewBox):
+    """ViewBox whose left-drag behaviour follows the keyboard modifiers."""
+
+    def mouseDragEvent(self, ev, axis=None):
+        self.setMouseMode(dragMouseMode(ev.modifiers()))
+        super().mouseDragEvent(ev, axis)
 
 
 class _PlotGraphicsView(pg.GraphicsView):
@@ -220,15 +259,16 @@ class VardaPlotWidget(QWidget):
         self.gv = _PlotGraphicsView(self)
         # if the user clicks on the plot area and none of the plots catch the click (therefore selecting it), deselect any selected plot
         self.gv.scene().sigMouseClicked.connect(self.onSceneClicked)
-        self.plotItem = pg.PlotItem()
+        self.viewBox = _PlotViewBox()
+        self.plotItem = pg.PlotItem(viewBox=self.viewBox)
         self.plotItem.addLegend()
-        viewBox = self.plotItem.getViewBox()
-        assert viewBox is not None
-        self.viewBox: pg.ViewBox = viewBox
-        # Left-drag draws a rubber-band rectangle and zooms in on release;
-        # right-drag pans, wheel zooms.
-        self.viewBox.setMouseMode(pg.ViewBox.RectMode)
+        # Left-drag pans, Shift/Cmd+left-drag zooms to the dragged box,
+        # right-drag stretches the axes, wheel zooms about the cursor.
+        self.viewBox.setMouseMode(pg.ViewBox.PanMode)
         self.viewBox.setMouseEnabled(x=True, y=True)
+        # pyqtgraph's default (-1/8) zooms ~26% per wheel notch, which feels
+        # jumpy on a trackpad; this is roughly a third of that.
+        self.viewBox.state["wheelScaleFactor"] = -1.0 / 24.0
         self.gv.setCentralItem(self.plotItem)
 
         # Whether manual range params have been seeded with a starting value.

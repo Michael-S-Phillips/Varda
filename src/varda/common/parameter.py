@@ -301,9 +301,18 @@ class FloatParameter(Parameter[float]):
         units: str | None = None,
         description: str | None = None,
         parent: QObject | None = None,
+        *,
+        step: float | None = None,
+        decimals: int | None = None,
+        showSlider: bool = True,
     ):
+        """``step``/``decimals`` configure the spin box (Qt defaults when None).
+        ``showSlider`` adds a slider when a range is given."""
         self.units = units
         self.range = range
+        self.step = step
+        self.decimals = decimals
+        self.showSlider = showSlider
         if range is not None:
             default = max(range[0], min(range[1], default))  # clamp default to range
         super().__init__(name, default, description, parent)
@@ -319,6 +328,9 @@ class FloatParameter(Parameter[float]):
             units=self.units,
             description=self.description,
             parent=parent,
+            step=self.step,
+            decimals=self.decimals,
+            showSlider=self.showSlider,
         )
 
     class FloatParameterWidget(QWidget):
@@ -331,10 +343,15 @@ class FloatParameter(Parameter[float]):
             paramLayout = paramLayoutDefault()
 
             self.spinBox = QDoubleSpinBox(parent=self)
+            # decimals first: the spin box rounds its range and value to them
+            if self.param.decimals is not None:
+                self.spinBox.setDecimals(self.param.decimals)
             if self.param.range is not None:
                 self.spinBox.setRange(self.param.range[0], self.param.range[1])
             else:
                 self.spinBox.setRange(-100000.0, 100000.0)
+            if self.param.step is not None:
+                self.spinBox.setSingleStep(self.param.step)
             self.spinBox.setValue(self.param.get())
             self.spinBox.valueChanged.connect(self.onWidgetChanged)
             paramLayout.addWidget(self.spinBox)
@@ -343,7 +360,7 @@ class FloatParameter(Parameter[float]):
                 self.unitLabel = QLabel(self.param.units)
                 paramLayout.addWidget(self.unitLabel)
 
-            if self.param.range is not None:
+            if self.param.range is not None and self.param.showSlider:
                 self.slider = FloatSlider(parent=self)
                 self.slider.setOrientation(Qt.Orientation.Horizontal)
                 self.slider.setRange(self.param.range[0], self.param.range[1])
@@ -380,12 +397,18 @@ class Vec2Parameter(Parameter[Vec2]):
         valueNames: tuple[str, str] = ("X", "Y"),
         description=None,
         parent=None,
+        *,
+        step: float | None = None,
+        decimals: int | None = None,
     ):
+        """``step``/``decimals`` configure both spin boxes (Qt defaults when None)."""
         if default is None:
             default = Vec2.zero()
         super().__init__(name, default, description, parent)
         self.range = range
         self.valueNames = valueNames
+        self.step = step
+        self.decimals = decimals
 
     def getWidget(self, parent=None) -> QWidget:
         return self.Vec2ParameterWidget(self, parent)
@@ -398,6 +421,8 @@ class Vec2Parameter(Parameter[Vec2]):
             self.valueNames,
             self.description,
             parent,
+            step=self.step,
+            decimals=self.decimals,
         )
 
     class Vec2ParameterWidget(QWidget):
@@ -407,22 +432,28 @@ class Vec2Parameter(Parameter[Vec2]):
             self.param.sigParameterChanged.connect(self.onParamChanged)
 
             paramLayout = paramLayoutDefault()
-            self.xSpinBox = QDoubleSpinBox(parent=self)
-            self.xSpinBox.setRange(self.param.range[0].x, self.param.range[0].y)
-            self.xSpinBox.setValue(self.param.get().x)
+            self.xSpinBox = self._makeSpinBox(self.param.range[0], self.param.get().x)
             self.xSpinBox.valueChanged.connect(self.onXChanged)
-
             paramLayout.addWidget(QLabel(self.param.valueNames[0]))
             paramLayout.addWidget(self.xSpinBox)
 
-            self.ySpinBox = QDoubleSpinBox(parent=self)
-            self.ySpinBox.setRange(self.param.range[1].x, self.param.range[1].y)
-            self.ySpinBox.setValue(self.param.get().y)
+            self.ySpinBox = self._makeSpinBox(self.param.range[1], self.param.get().y)
             self.ySpinBox.valueChanged.connect(self.onYChanged)
             paramLayout.addWidget(QLabel(self.param.valueNames[1]))
             paramLayout.addWidget(self.ySpinBox)
 
             self.setLayout(paramLayout)
+
+        def _makeSpinBox(self, range: Vec2, value: float) -> QDoubleSpinBox:
+            spinBox = QDoubleSpinBox(parent=self)
+            # decimals first: the spin box rounds its range and value to them
+            if self.param.decimals is not None:
+                spinBox.setDecimals(self.param.decimals)
+            spinBox.setRange(range.x, range.y)
+            if self.param.step is not None:
+                spinBox.setSingleStep(self.param.step)
+            spinBox.setValue(value)
+            return spinBox
 
         def onXChanged(self, value):
             vec = self.param.get()
