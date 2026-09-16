@@ -15,11 +15,11 @@ from enum import Enum
 from pathlib import Path
 
 import matplotlib
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QCheckBox, QPushButton, QWidget
 
 from varda.common.entities import Color, VardaRaster
 from varda.common.parameter import EnumParameter, ParameterGroup
-from varda.common.ui import ButtonBuilder, SectionBox, VBoxBuilder
+from varda.common.ui import ButtonBuilder, HBoxBuilder, SectionBox, VBoxBuilder
 from varda.plotting.library_spectra import DEFAULT_LIBRARY_PATH
 from varda.plotting.plot import Curve, VardaPlotWidget
 
@@ -76,6 +76,16 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
         self.pixelCurves: list[Curve] = []
         self._colorIndex = 0
 
+        # Multi-plot controls; a workspace's PixelSpectraDocks wires these up.
+        # Standalone, the box stays checked and the button does nothing.
+        self.activeCheckBox = QCheckBox("Receives pixel clicks")
+        self.activeCheckBox.setChecked(True)
+        self.activeCheckBox.setToolTip("Ctrl+click pixel selections are plotted here")
+        self.newPlotButton = QPushButton("New Pixel Plot")
+        self.newPlotButton.setToolTip(
+            "Open another plot, e.g. to collect spectra from a different region"
+        )
+
         # Directly after the base widget's "View" section
         self.insertSidebarSection(
             1,
@@ -83,8 +93,13 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
                 "Pixel Spectra",
                 VBoxBuilder()
                 .withWidget(self.pixelConfig.createWidget())
-                .withWidget(
-                    ButtonBuilder("Clear Spectra").onClick(self.clearPixelSpectra)
+                .withWidget(self.activeCheckBox)
+                .withLayout(
+                    HBoxBuilder()
+                    .withWidget(
+                        ButtonBuilder("Clear Spectra").onClick(self.clearPixelSpectra)
+                    )
+                    .withWidget(self.newPlotButton)
                 ),
             ),
         )

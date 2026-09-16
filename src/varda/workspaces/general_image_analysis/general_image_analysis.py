@@ -33,6 +33,7 @@ from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolMa
 from varda.common.parameter import ImageParameter, ParameterGroup
 from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
+from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
 from varda.common.ui import VardaDockWidget
@@ -122,9 +123,8 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             "viewport3", self.tripleRasterView.viewport3
         )
 
-        # --- Spectral plots ---
+        # --- Spectral plot (pixel-spectra plots are created with the docks) ---
         self.plotWidget = VardaPlotWidget(parent=self)
-        self.pixelPlotWidget = PixelSpectraPlotWidget(parent=self)
 
         self.roiManagerWidget = ROIManagerWidget(
             self.roiCollection, image, self.plotWidget, parent=self
@@ -196,9 +196,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.plotDock = VardaDockWidget("ROI Plots")
         self.plotDock.setWidget(self.plotWidget)
 
-        self.pixelPlotDock = VardaDockWidget("Pixel Spectra")
-        self.pixelPlotDock.setWidget(self.pixelPlotWidget)
-
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.RightDockWidgetArea, self.rasterDock
         )
@@ -222,12 +219,11 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             self.plotDock,
             self.roiDock.dockAreaWidget(),
         )
-        # Tab the pixel plot alongside the ROI plot
-        self.dockManager.addDockWidget(
-            ads.DockWidgetArea.CenterDockWidgetArea,
-            self.pixelPlotDock,
-            self.plotDock.dockAreaWidget(),
+        # Pixel-spectra plots are tabbed alongside the ROI plot
+        self.pixelSpectraDocks = PixelSpectraDocks(
+            self.dockManager, self.plotDock, parent=self
         )
+        self.pixelSpectraDocks.newPlot()
 
         # plotDock = Dock("Spectral Plot", widget=self.plotWidget, size=(400, 300))
         # docks.append(plotDock)
@@ -264,7 +260,16 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             )
 
     def _onPixelSelected(self, image: VardaRaster, pos: QPointF) -> None:
-        self.pixelPlotWidget.addPixelSpectrum(image, int(pos.x()), int(pos.y()))
+        self.pixelSpectraDocks.addPixelSpectra([image], int(pos.x()), int(pos.y()))
+
+    @property
+    def pixelPlotWidget(self) -> PixelSpectraPlotWidget:
+        """The pixel-spectra plot currently receiving selections."""
+        return self.pixelSpectraDocks.active
+
+    @property
+    def pixelPlotDock(self) -> VardaDockWidget:
+        return self.pixelSpectraDocks.activeDock
 
     def _onROIDrawn(self, result: dict) -> None:
         """Handle completion of an ROI drawing tool."""

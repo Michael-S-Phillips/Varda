@@ -35,6 +35,7 @@ from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
 from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
+from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
 
 logger = logging.getLogger(__name__)
 
@@ -123,12 +124,7 @@ class DualImageWorkspace(QMainWindow):
             self.roiCollection, parent=self
         )
         self.plotWidget = VardaPlotWidget(parent=self)
-        self.pixelPlotWidget = PixelSpectraPlotWidget(parent=self)
         self.pixelSourceConfig = PixelSourceConfig()
-        # After the plot's "View" and "Pixel Spectra" sections
-        self.pixelPlotWidget.insertSidebarSection(
-            2, SectionBox("Dual Image", self.pixelSourceConfig.createWidget())
-        )
         self.roiManagerWidget = ROIManagerWidget(
             self.roiCollection, self.image1, self.plotWidget, parent=self
         )
@@ -150,9 +146,6 @@ class DualImageWorkspace(QMainWindow):
 
         self.plotDock = VardaDockWidget("ROI Plots")
         self.plotDock.setWidget(self.plotWidget)
-
-        self.pixelPlotDock = VardaDockWidget("Pixel Spectra")
-        self.pixelPlotDock.setWidget(self.pixelPlotWidget)
 
         self.primarySettingsDock = VardaDockWidget("Primary Render Settings")
         self.primarySettingsDock.setWidget(self.primaryRenderer.getSettingsPanel())
@@ -238,12 +231,14 @@ class DualImageWorkspace(QMainWindow):
             self.plotDock,
             self.roiDock.dockAreaWidget(),
         )
-        # Tab the pixel plot alongside the ROI plot
-        self.dockManager.addDockWidget(
-            ads.DockWidgetArea.CenterDockWidgetArea,
-            self.pixelPlotDock,
-            self.plotDock.dockAreaWidget(),
+        # Pixel-spectra plots are tabbed alongside the ROI plot
+        self.pixelSpectraDocks = PixelSpectraDocks(
+            self.dockManager,
+            self.plotDock,
+            configurePlot=self._configurePixelPlot,
+            parent=self,
         )
+        self.pixelSpectraDocks.newPlot()
         self.dockManager.setSplitterSizes(self.viewport1Dock.dockAreaWidget(), [4, 1])
         # Within each viewport column, give viewport more space than its settings
         viewport1Splitter = self.viewport1Dock.dockAreaWidget().parentSplitter()
@@ -299,12 +294,14 @@ class DualImageWorkspace(QMainWindow):
             self.plotDock,
             self.roiDock.dockAreaWidget(),
         )
-        # Tab the pixel plot alongside the ROI plot
-        self.dockManager.addDockWidget(
-            ads.DockWidgetArea.CenterDockWidgetArea,
-            self.pixelPlotDock,
-            self.plotDock.dockAreaWidget(),
+        # Pixel-spectra plots are tabbed alongside the ROI plot
+        self.pixelSpectraDocks = PixelSpectraDocks(
+            self.dockManager,
+            self.plotDock,
+            configurePlot=self._configurePixelPlot,
+            parent=self,
         )
+        self.pixelSpectraDocks.newPlot()
 
         # Give viewport most vertical space, settings and ROI/plot less
         rootSplitter = self.dockManager.rootSplitter()
@@ -346,6 +343,12 @@ class DualImageWorkspace(QMainWindow):
                 functools.partial(self._onPixelSelected, tool.viewport.imageEntity)
             )
 
+    def _configurePixelPlot(self, plot: PixelSpectraPlotWidget) -> None:
+        # After the plot's "View" and "Pixel Spectra" sections
+        plot.insertSidebarSection(
+            2, SectionBox("Dual Image", self.pixelSourceConfig.createWidget())
+        )
+
     def _onPixelSelected(self, clickedImage: VardaRaster, pos: QPointF) -> None:
         source = self.pixelSourceConfig.source.value
         assert isinstance(source, PixelSpectrumSource)
@@ -355,9 +358,18 @@ class DualImageWorkspace(QMainWindow):
             PixelSpectrumSource.SECONDARY: [self.image2],
             PixelSpectrumSource.BOTH: [self.image1, self.image2],
         }[source]
-        self.pixelPlotWidget.addPixelSpectra(
+        self.pixelSpectraDocks.addPixelSpectra(
             images, int(pos.x()), int(pos.y()), labelWithImageName=True
         )
+
+    @property
+    def pixelPlotWidget(self) -> PixelSpectraPlotWidget:
+        """The pixel-spectra plot currently receiving selections."""
+        return self.pixelSpectraDocks.active
+
+    @property
+    def pixelPlotDock(self) -> VardaDockWidget:
+        return self.pixelSpectraDocks.activeDock
 
     def _onROIDrawn(self, result: dict) -> None:
         self.roiCollection.addROIFromDrawing(

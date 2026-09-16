@@ -23,3 +23,16 @@ def test_pixel_selections_accumulate_in_the_pixel_spectra_dock(qapp):
 
     assert workflow.pixelPlotDock.widget() is workflow.pixelPlotWidget
     assert len(workflow.pixelPlotWidget.pixelCurves) == 2
+
+
+def test_closing_the_pixel_dock_then_selecting_a_pixel_reopens_it(qapp):
+    image = generate_random_image((20, 20, 10))
+    workflow = GeneralImageAnalysisWorkflow(GeneralImageAnalysisConfig([image]))
+    workflow.toolManager1.activateTool(PixelSelectTool)
+    workflow.pixelPlotDock.toggleView(False)
+    assert workflow.pixelPlotDock.isClosed()
+
+    workflow.toolManager1.activeTool.sigPixelSelected.emit(QPointF(2.0, 3.0))
+
+    assert not workflow.pixelPlotDock.isClosed()
+    assert len(workflow.pixelPlotWidget.pixelCurves) == 1
