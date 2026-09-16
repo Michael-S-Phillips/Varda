@@ -142,7 +142,9 @@ class RatioExplorerController(QObject):
         self._mirrors.clear()
 
     def createSidebarSection(self) -> SectionBox:
-        hint = QLabel("Left-click: numerator · Right-click: denominator · S: save")
+        hint = QLabel(
+            "Ctrl/⌘+left-click: numerator · Ctrl/⌘+right-click: denominator · S: save"
+        )
         hint.setWordWrap(True)
         hint.setStyleSheet("color: palette(mid);")
         return SectionBox(

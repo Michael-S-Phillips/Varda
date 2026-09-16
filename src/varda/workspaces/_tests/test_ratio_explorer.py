@@ -19,7 +19,7 @@ from varda.utilities.debug import generate_random_image
 from varda.workspaces import ratio_explorer
 from varda.workspaces.ratio_explorer import RatioExplorerConfig, RatioExplorerController
 
-NO_MOD = Qt.KeyboardModifier.NoModifier
+CTRL = Qt.KeyboardModifier.ControlModifier  # boxes are placed with Ctrl/Cmd held
 
 
 class FakeDocks:
@@ -69,7 +69,7 @@ class FakeViewport:
 
 def _press(button, x, y):
     pos = QPointF(x, y)
-    return PointerEvent(PointerAction.PRESS, pos, pos, button, NO_MOD)
+    return PointerEvent(PointerAction.PRESS, pos, pos, button, CTRL)
 
 
 @pytest.fixture

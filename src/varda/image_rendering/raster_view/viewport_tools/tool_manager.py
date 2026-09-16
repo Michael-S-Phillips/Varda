@@ -64,9 +64,10 @@ class ToolManager(QObject):
         """Create a toolbar with actions for all available tools."""
         toolbar = QToolBar("Tools")
 
-        # Create action group for mutual exclusion
+        # One tool at a time, but the active one can be clicked again to turn
+        # it off and go back to plain navigation.
         actionGroup = QActionGroup(toolbar)
-        actionGroup.setExclusive(True)
+        actionGroup.setExclusionPolicy(QActionGroup.ExclusionPolicy.ExclusiveOptional)
 
         # Get all registered tools from the registry
 
@@ -93,18 +94,16 @@ class ToolManager(QObject):
             for toolClass in tools:
                 action = toolClass.createAction(toolbar)
                 action.triggered.connect(
-                    lambda checked, tc=toolClass: self._onToolTriggered(tc)
+                    lambda checked, tc=toolClass: self._onToolTriggered(tc, checked)
                 )
                 actionGroup.addAction(action)
                 toolbar.addAction(action)
 
         return toolbar
 
-    def _onToolTriggered(self, toolClass: Type[ViewportTool]):
-        """
-        Handle tool activation.
-
-        Args:
-            toolClass: The tool class to activate
-        """
-        self.activateTool(toolClass)
+    def _onToolTriggered(self, toolClass: Type[ViewportTool], checked: bool = True):
+        """Activate the tool, or deactivate it when its button was toggled off."""
+        if checked:
+            self.activateTool(toolClass)
+        else:
+            self.deactivateCurrentTool()

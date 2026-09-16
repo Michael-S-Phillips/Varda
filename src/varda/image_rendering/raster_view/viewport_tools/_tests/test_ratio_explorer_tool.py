@@ -1,4 +1,4 @@
-"""Ratio Explorer: left-click numerator box, right-click denominator box."""
+"""Ratio Explorer: Ctrl+left-click numerator box, Ctrl+right-click denominator box."""
 
 import numpy as np
 import pytest
@@ -18,11 +18,12 @@ from varda.rois.region_statistics import boxPolygonPixels
 from varda.utilities.debug import generate_random_image
 
 NO_MOD = Qt.KeyboardModifier.NoModifier
+CTRL = Qt.KeyboardModifier.ControlModifier  # Cmd on macOS
 
 
-def _press(button: Qt.MouseButton, x: float, y: float) -> PointerEvent:
+def _press(button: Qt.MouseButton, x: float, y: float, modifiers=CTRL) -> PointerEvent:
     pos = QPointF(x, y)
-    return PointerEvent(PointerAction.PRESS, pos, pos, button, NO_MOD)
+    return PointerEvent(PointerAction.PRESS, pos, pos, button, modifiers)
 
 
 def _left(x: float, y: float) -> PointerEvent:
@@ -45,13 +46,26 @@ def tool(qtbot):
     del viewport
 
 
-def test_left_click_places_a_numerator_box_centred_on_the_pixel(qtbot, tool):
+def test_ctrl_left_click_places_a_numerator_box_centred_on_the_pixel(qtbot, tool):
     with qtbot.waitSignal(tool.sigSelectionChanged) as blocker:
         assert tool.onPointerEvent(_left(10.4, 20.7)) is True
 
     (selection,) = blocker.args
     np.testing.assert_array_equal(selection.numerator, boxPolygonPixels(10, 20, 5, 5))
     assert selection.denominator is None
+
+
+def test_plain_clicks_pass_through_so_the_view_can_be_navigated(qtbot, tool):
+    with qtbot.assertNotEmitted(tool.sigSelectionChanged):
+        assert (
+            tool.onPointerEvent(_press(Qt.MouseButton.LeftButton, 10.0, 20.0, NO_MOD))
+            is False
+        )
+        assert (
+            tool.onPointerEvent(_press(Qt.MouseButton.RightButton, 10.0, 20.0, NO_MOD))
+            is False
+        )
+    assert tool.selection.numerator is None
 
 
 def test_box_size_comes_from_the_provider(qtbot, tool):

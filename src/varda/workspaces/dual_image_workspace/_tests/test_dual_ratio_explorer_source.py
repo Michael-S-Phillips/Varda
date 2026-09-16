@@ -15,12 +15,12 @@ from varda.workspaces.dual_image_workspace.dual_image_workspace import (
     PixelSpectrumSource,
 )
 
-NO_MOD = Qt.KeyboardModifier.NoModifier
+CTRL = Qt.KeyboardModifier.ControlModifier  # boxes are placed with Ctrl/Cmd held
 
 
 def _press(button, x, y):
     pos = QPointF(x, y)
-    return PointerEvent(PointerAction.PRESS, pos, pos, button, NO_MOD)
+    return PointerEvent(PointerAction.PRESS, pos, pos, button, CTRL)
 
 
 def test_boxes_on_the_secondary_ratio_the_primary_when_source_is_primary(qapp):
@@ -39,8 +39,6 @@ def test_boxes_on_the_secondary_ratio_the_primary_when_source_is_primary(qapp):
     (curve,) = workspace.pixelPlotWidget.pixelCurves
     _x, values = curve.plotDataItem.getData()
     numerator = computeRegionStatistics(boxPolygonPixels(11, 21, 5, 5), primary)["mean"]
-    denominator = computeRegionStatistics(boxPolygonPixels(31, 5, 5, 5), primary)[
-        "mean"
-    ]
-    np.testing.assert_allclose(values, numerator / denominator)
+    denominator = computeRegionStatistics(boxPolygonPixels(31, 5, 5, 5), primary)
+    np.testing.assert_allclose(values, numerator / denominator["mean"])
     assert curve.plotDataItem.name().startswith(primary.name)

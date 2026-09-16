@@ -43,7 +43,8 @@ def boxSize(polygon: np.ndarray) -> tuple[int, int]:
 
 
 class RatioExplorerTool(ViewportTool):
-    """Left-click drops a numerator box, right-click a same-size denominator box.
+    """Ctrl+left-click drops a numerator box, Ctrl+right-click a same-size
+    denominator box; plain clicks still navigate (pan, zoom, context menu).
 
     The tool only reports the boxes; the workspace computes and plots the
     ratio. Box size comes from a provider so a workspace setting applies
@@ -53,8 +54,8 @@ class RatioExplorerTool(ViewportTool):
 
     toolName = "Ratio Explorer"
     toolDescription = (
-        "Left-click: numerator box, right-click: denominator box. "
-        "S saves both as ROIs, Esc clears."
+        "Ctrl/Cmd+left-click: numerator box, Ctrl/Cmd+right-click: denominator "
+        "box. S saves both as ROIs, Esc clears."
     )
     toolCategory = "Selection"
 
@@ -92,6 +93,8 @@ class RatioExplorerTool(ViewportTool):
     def onPointerEvent(self, event: PointerEvent) -> bool:
         if event.button not in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
             return False
+        if not (event.modifiers & Qt.KeyboardModifier.ControlModifier):
+            return False  # plain clicks navigate: pan, zoom, context menu
         if event.action == PointerAction.RELEASE:
             return True  # consumed: the press already acted
         if event.action != PointerAction.PRESS:
