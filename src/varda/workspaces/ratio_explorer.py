@@ -9,10 +9,12 @@ on, and can save the pair as ROIs so a promising spot is not lost.
 from __future__ import annotations
 
 import functools
+from collections.abc import Sequence
 from typing import Protocol
 
 import numpy as np
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, QPointF
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QLabel
 from shapely.geometry import Polygon
 
@@ -23,7 +25,10 @@ from varda.image_loading.crism_geometry import (
     computeColumnLockedTranslation,
     loadColumnGeometry,
 )
+from varda.image_rendering.raster_view.viewport_protocol import ROIOverlayHandle
 from varda.image_rendering.raster_view.viewport_tools.ratio_explorer_tool import (
+    DENOMINATOR_COLOR,
+    NUMERATOR_COLOR,
     RatioExplorerTool,
     RatioSelection,
     boxSize,
@@ -48,6 +53,16 @@ class RatioExplorerConfig(ParameterGroup):
 
 class SpectrumSink(Protocol):
     def addSpectrum(self, wavelengths, values, label: str): ...
+
+
+class MirrorViewport(Protocol):
+    """The part of a viewport needed to show a box on it."""
+
+    def pixelToLocalCoords(self, pixelCoords: np.ndarray) -> np.ndarray: ...
+
+    def addROIOverlay(
+        self, points: Sequence[QPointF], color: QColor
+    ) -> ROIOverlayHandle: ...
 
 
 class DenominatorOwner(Protocol):
@@ -75,6 +90,15 @@ class RatioExplorerController(QObject):
         self._docks = docks
         self._current: tuple[VardaRaster, RatioSelection] | None = None
         self._saveCount = 0
+        self._mirrorViewports: list[MirrorViewport] = []
+        # per mirrored viewport: (numerator overlay, denominator overlay)
+        self._mirrors: dict[int, list[ROIOverlayHandle | None]] = {}
+
+    def setMirrorViewports(self, viewports: Sequence[MirrorViewport]) -> None:
+        """Viewports that should also show the boxes (the images are assumed
+        co-registered). The tool's own viewport draws its own and is skipped."""
+        self._clearMirrors()
+        self._mirrorViewports = list(viewports)
 
     def bindTool(self, tool: RatioExplorerTool) -> None:
         """Drive a freshly activated tool: box size, placement, plotting, saving."""
@@ -84,7 +108,30 @@ class RatioExplorerController(QObject):
         )
         tool.setDenominatorPlacer(functools.partial(self._placeDenominator, image))
         tool.sigSelectionChanged.connect(functools.partial(self._onSelection, image))
+        tool.sigSelectionChanged.connect(
+            functools.partial(self._mirrorSelection, tool.viewport)
+        )
+        tool.sigDeactivated.connect(self._clearMirrors)
         tool.sigSaveRequested.connect(self.saveCurrentBoxes)
+
+    def _mirrorSelection(self, ownViewport: object, selection: RatioSelection) -> None:
+        for viewport in self._mirrorViewports:
+            if viewport is ownViewport:
+                continue
+            handles = self._mirrors.setdefault(id(viewport), [None, None])
+            boxes = (
+                (selection.numerator, NUMERATOR_COLOR),
+                (selection.denominator, DENOMINATOR_COLOR),
+            )
+            for i, (polygon, color) in enumerate(boxes):
+                handles[i] = _drawMirroredBox(viewport, handles[i], polygon, color)
+
+    def _clearMirrors(self) -> None:
+        for handles in self._mirrors.values():
+            for handle in handles:
+                if handle is not None:
+                    handle.remove()
+        self._mirrors.clear()
 
     def createSidebarSection(self) -> SectionBox:
         hint = QLabel("Left-click: numerator · Right-click: denominator · S: save")
@@ -167,6 +214,25 @@ class RatioExplorerController(QObject):
                 [image.pixelToGeo(int(round(c)), int(round(r))) for c, r in pixels]
             )
         return Polygon(pixels)
+
+
+def _drawMirroredBox(
+    viewport: MirrorViewport,
+    handle: ROIOverlayHandle | None,
+    polygon: np.ndarray | None,
+    color: QColor,
+) -> ROIOverlayHandle | None:
+    if polygon is None:
+        if handle is not None:
+            handle.remove()
+        return None
+    points = [
+        QPointF(float(c), float(r)) for c, r in viewport.pixelToLocalCoords(polygon)
+    ]
+    if handle is None:
+        return viewport.addROIOverlay(points, color)
+    handle.setPoints(points)
+    return handle
 
 
 def _centerPixel(polygon: np.ndarray) -> tuple[int, int]:

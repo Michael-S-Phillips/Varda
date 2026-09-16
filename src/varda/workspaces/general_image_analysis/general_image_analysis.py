@@ -241,6 +241,14 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             self.ratioExplorerConfig,
             parent=self,
         )
+        # All three views show the same image: show the boxes in each
+        self.ratioExplorer.setMirrorViewports(
+            [
+                self.tripleRasterView.viewport1,
+                self.tripleRasterView.viewport2,
+                self.tripleRasterView.viewport3,
+            ]
+        )
         self.pixelSpectraDocks.newPlot()
 
     def _configurePixelPlot(self, plot: PixelSpectraPlotWidget) -> None:

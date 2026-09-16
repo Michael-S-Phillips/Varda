@@ -253,6 +253,8 @@ class DualImageWorkspace(QMainWindow):
             self.ratioExplorerConfig,
             parent=self,
         )
+        # The images are co-registered: show the boxes on both views
+        self.ratioExplorer.setMirrorViewports(self._allViewports())
         self.pixelSpectraDocks.newPlot()
         self.dockManager.setSplitterSizes(self.viewport1Dock.dockAreaWidget(), [4, 1])
         # Within each viewport column, give viewport more space than its settings
@@ -323,6 +325,8 @@ class DualImageWorkspace(QMainWindow):
             self.ratioExplorerConfig,
             parent=self,
         )
+        # The images are co-registered: show the boxes on both views
+        self.ratioExplorer.setMirrorViewports(self._allViewports())
         self.pixelSpectraDocks.newPlot()
 
         # Give viewport most vertical space, settings and ROI/plot less
@@ -345,13 +349,17 @@ class DualImageWorkspace(QMainWindow):
         self.viewportContextMenuController = ViewportContextMenuController(
             self.roiManagerWidget, parent=self
         )
-        viewports = [self.viewport1]
-        if hasattr(self, "viewport2"):
-            viewports.append(self.viewport2)
-        for vp in viewports:
+        for vp in self._allViewports():
             vp.sigContextMenuRequested.connect(
                 self.viewportContextMenuController.onContextMenuRequested
             )
+
+    def _allViewports(self) -> list[ImageViewport]:
+        """Both viewports side by side, or the single overlay viewport."""
+        viewports = [self.viewport1]
+        if hasattr(self, "viewport2"):
+            viewports.append(self.viewport2)
+        return viewports
 
     def _onToolActivated(self, tool) -> None:
         from varda.image_rendering.raster_view.viewport_tools.roi_tools import (

@@ -39,6 +39,32 @@ class FakeROIManager:
         self.denominatorFid = fid
 
 
+class FakeOverlay:
+    def __init__(self, points, color):
+        self.points, self.color, self.removed = points, color, False
+
+    def setPoints(self, points):
+        self.points = points
+
+    def remove(self):
+        self.removed = True
+
+
+class FakeViewport:
+    """Just enough of a viewport to receive mirrored box overlays."""
+
+    def __init__(self):
+        self.overlays: list[FakeOverlay] = []
+
+    def pixelToLocalCoords(self, pixels):
+        return pixels
+
+    def addROIOverlay(self, points, color):
+        overlay = FakeOverlay(points, color)
+        self.overlays.append(overlay)
+        return overlay
+
+
 def _press(button, x, y):
     pos = QPointF(x, y)
     return PointerEvent(PointerAction.PRESS, pos, pos, button, NO_MOD)
@@ -127,3 +153,46 @@ def test_column_lock_places_the_denominator_on_the_numerators_sensor_column(
     np.testing.assert_array_equal(
         tool.selection.denominator, boxPolygonPixels(11, 5, 5, 5)
     )
+
+
+def test_boxes_are_mirrored_onto_the_other_viewports(setup):
+    _i, tool, _c, _d, _m, ctrl = setup
+    other = FakeViewport()
+    ctrl.setMirrorViewports([tool.viewport, other])
+
+    tool.onPointerEvent(_press(Qt.MouseButton.LeftButton, 11.0, 21.0))
+    assert len(other.overlays) == 1  # numerator only so far
+    tool.onPointerEvent(_press(Qt.MouseButton.RightButton, 31.0, 5.0))
+
+    assert len(other.overlays) == 2
+    numeratorOverlay, denominatorOverlay = other.overlays
+    assert [(p.x(), p.y()) for p in numeratorOverlay.points] == [
+        tuple(pt) for pt in boxPolygonPixels(11, 21, 5, 5)
+    ]
+    assert numeratorOverlay.color != denominatorOverlay.color
+
+
+def test_mirrored_boxes_move_rather_than_multiply(setup):
+    _i, tool, _c, _d, _m, ctrl = setup
+    other = FakeViewport()
+    ctrl.setMirrorViewports([other])
+    tool.onPointerEvent(_press(Qt.MouseButton.LeftButton, 11.0, 21.0))
+    tool.onPointerEvent(_press(Qt.MouseButton.LeftButton, 13.0, 23.0))
+
+    assert len(other.overlays) == 1
+    assert [(p.x(), p.y()) for p in other.overlays[0].points] == [
+        tuple(pt) for pt in boxPolygonPixels(13, 23, 5, 5)
+    ]
+
+
+def test_mirrored_boxes_are_removed_when_the_tool_deactivates(setup):
+    _i, tool, _c, _d, _m, ctrl = setup
+    other = FakeViewport()
+    ctrl.setMirrorViewports([other])
+    tool.onPointerEvent(_press(Qt.MouseButton.LeftButton, 11.0, 21.0))
+    tool.onPointerEvent(_press(Qt.MouseButton.RightButton, 31.0, 5.0))
+
+    tool.deactivate()
+
+    assert all(overlay.removed for overlay in other.overlays)
+    tool.activate()  # so the fixture's deactivate is balanced
