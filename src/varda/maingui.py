@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QWidget
 from app_model.backends.qt import QModelMainWindow
 from varda.common.ui import DetachableTabWidget
 from varda.all_images_view_list.imageview_list import ImageListWidget
+from varda.context_keys import WORKSPACE_COUNT
 
 if TYPE_CHECKING:
     from varda.app import VardaApplication
@@ -39,7 +40,11 @@ class MainGUI(QModelMainWindow):
         self.newDock("Image List", self.imageList, Qt.DockWidgetArea.LeftDockWidgetArea)
 
         self.centralTabs = DetachableTabWidget(self)
+        self.centralTabs.tabCloseRequested.connect(
+            lambda index: self.closeWorkspace(self.centralTabs.widget(index))
+        )
         self.setCentralWidget(self.centralTabs)
+        self._updateWorkspaceCount()
 
     def newDock(self, title, widget, dockArea):
         dock = QtWidgets.QDockWidget(title, self)
@@ -52,6 +57,25 @@ class MainGUI(QModelMainWindow):
         """Add a new tab to the central tab widget."""
         self.childWindows.append(widget)
         self.centralTabs.addTab(widget, title)
+        self._updateWorkspaceCount()
+
+    def currentWorkspace(self) -> QWidget | None:
+        return self.centralTabs.currentWidget()
+
+    def closeWorkspace(self, widget: QWidget | None) -> None:
+        """Remove a workspace from the tabs (or its detached window), run its
+        close handler so it releases controllers, and destroy it."""
+        if widget is None or widget not in self.childWindows:
+            return
+        self.centralTabs.discardTab(widget)
+        self.childWindows.remove(widget)
+        widget.close()
+        widget.deleteLater()
+        self._updateWorkspaceCount()
+
+    def _updateWorkspaceCount(self) -> None:
+        # drives enablement of workspace actions such as "Close Workspace"
+        self.app.context[WORKSPACE_COUNT] = len(self.childWindows)
 
     def closeAllChildWindows(self):
         """Close all child windows before shutting down."""

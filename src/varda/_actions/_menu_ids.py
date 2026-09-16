@@ -11,6 +11,7 @@ class MenuGroup(StrEnum):
     FILE_IO = "1_io"
     FILE_EXIT = "9_exit"
     WORKSPACE_NEW = "1_new"
+    WORKSPACE_MANAGE = "2_manage"
     DEBUG_TESTING = "1_testing"
 
 

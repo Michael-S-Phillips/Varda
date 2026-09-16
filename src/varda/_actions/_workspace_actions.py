@@ -1,7 +1,7 @@
-from app_model.types import Action, MenuRule
+from app_model.types import Action, MenuRule, StandardKeyBinding
 
-from varda._actions._context_keys import EXPR_HAS_IMAGES
 from varda._actions._menu_ids import MenuGroup, MenuId
+from varda.context_keys import EXPR_HAS_IMAGES, EXPR_HAS_WORKSPACE
 from varda.common.di_types import ProjectImages
 from varda.maingui import MainGUI
 from varda.workspaces.dual_image_workspace import NewDualImageWorkspaceDialog
@@ -22,6 +22,10 @@ def newGeneralAnalysisWorkspace(images: ProjectImages, mainGui: MainGUI) -> None
     ).open()
 
 
+def closeCurrentWorkspace(mainGui: MainGUI) -> None:
+    mainGui.closeWorkspace(mainGui.currentWorkspace())
+
+
 WORKSPACE_ACTIONS: list[Action] = [
     Action(
         id="varda.workspace.new_dual_image",
@@ -36,5 +40,15 @@ WORKSPACE_ACTIONS: list[Action] = [
         callback=newGeneralAnalysisWorkspace,
         enablement=EXPR_HAS_IMAGES,
         menus=[MenuRule(id=MenuId.WORKSPACE, group=MenuGroup.WORKSPACE_NEW, order=2)],
+    ),
+    Action(
+        id="varda.workspace.close",
+        title="Close Workspace",
+        callback=closeCurrentWorkspace,
+        enablement=EXPR_HAS_WORKSPACE,
+        menus=[
+            MenuRule(id=MenuId.WORKSPACE, group=MenuGroup.WORKSPACE_MANAGE, order=1)
+        ],
+        keybindings=[StandardKeyBinding.Close.to_keybinding_rule()],
     ),
 ]

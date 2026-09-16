@@ -309,5 +309,4 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     def closeEvent(self, event):
         """Handle workflow closure"""
         self.roiDisplayController.cleanup()
-        self.workflowClosed.emit()  # Emit signal before closing
         super().closeEvent(event)

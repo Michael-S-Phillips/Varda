@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from app_model import Application
 
 from varda._actions import ALL_ACTIONS
-from varda._actions._context_keys import IMAGE_COUNT
+from varda.context_keys import IMAGE_COUNT
 from varda.all_images_view_list.image_list_actions import (
     IMAGE_LIST_ACTIONS,
     ImageListClickContext,

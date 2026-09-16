@@ -348,7 +348,20 @@ class DetachableTabWidget(QTabWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setTabBar(self.DetachableTabBar(self))
+        self.setTabsClosable(True)
         self.detachedWindows = {}
+
+    def discardTab(self, widget: QWidget) -> None:
+        """Take a widget out of the tabs — docked, or detached into its own
+        window — without destroying it. The caller decides its fate."""
+        window = self.detachedWindows.pop(widget, None)
+        if window is not None:
+            window.discard()
+        else:
+            index = self.indexOf(widget)
+            if index != -1:
+                self.removeTab(index)
+        widget.setParent(None)
 
     def detachTab(self, index):
         widget = self.widget(index)
@@ -391,9 +404,16 @@ class DetachableTabWidget(QTabWidget):
             self.newTabWidget.addTab(self.widget, self.label)
             self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
+        def discard(self) -> None:
+            """Close without reattaching the widget to the main tab widget."""
+            self.newTabWidget.removeTab(0)
+            self.widget = None
+            self.close()
+
         def closeEvent(self, event):
-            # Reattach the widget back into the main tab widget
-            self.tabWidget.reattachTab(self.widget, self.label)
+            # Closing the window normally puts the widget back into the main tabs
+            if self.widget is not None:
+                self.tabWidget.reattachTab(self.widget, self.label)
             super().closeEvent(event)
 
 
