@@ -76,8 +76,9 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
         self.pixelCurves: list[Curve] = []
         self._colorIndex = 0
 
+        # Directly after the base widget's "View" section
         self.insertSidebarSection(
-            0,
+            1,
             SectionBox(
                 "Pixel Spectra",
                 VBoxBuilder()

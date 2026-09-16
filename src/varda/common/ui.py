@@ -204,6 +204,7 @@ class SectionBox(QWidget):
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
+        self.title = name
         self.frame = QFrame()
         self.frame.setFrameShape(QFrame.Shape.NoFrame)
         self.frame.setObjectName("SectionBox")

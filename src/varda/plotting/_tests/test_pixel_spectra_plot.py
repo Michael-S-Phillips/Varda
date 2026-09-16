@@ -98,7 +98,7 @@ def test_manual_view_range_persists_when_spectrum_added(widget, image):
     widget.addPixelSpectrum(image, 1, 1)
     values = image.getSpectrum(1, 1).values
     yLow, yHigh = np.percentile(values, [25, 75])
-    widget.windowConfig.autoViewRange.set(False)
+    widget.viewConfig.autoViewRange.set(False)
     widget.rangeConfig.viewRangeX.set(Vec2(2.0, 6.0))
     widget.rangeConfig.viewRangeY.set(Vec2(float(yLow), float(yHigh)))
     before = widget.viewBox.viewRange()

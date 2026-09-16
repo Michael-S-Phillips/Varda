@@ -125,8 +125,9 @@ class DualImageWorkspace(QMainWindow):
         self.plotWidget = VardaPlotWidget(parent=self)
         self.pixelPlotWidget = PixelSpectraPlotWidget(parent=self)
         self.pixelSourceConfig = PixelSourceConfig()
+        # After the plot's "View" and "Pixel Spectra" sections
         self.pixelPlotWidget.insertSidebarSection(
-            1, SectionBox("Dual Image", self.pixelSourceConfig.createWidget())
+            2, SectionBox("Dual Image", self.pixelSourceConfig.createWidget())
         )
         self.roiManagerWidget = ROIManagerWidget(
             self.roiCollection, self.image1, self.plotWidget, parent=self
