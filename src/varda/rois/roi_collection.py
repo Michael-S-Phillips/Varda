@@ -17,6 +17,7 @@ from shapely.geometry.base import BaseGeometry
 
 from varda.common.entities import ROIMode, Spectrum, VardaROI, VardaRaster, Color
 from varda.rois.ratio import computeRatioSpectrum
+from varda.rois.region_statistics import computeRegionStatistics
 
 logger = logging.getLogger(__name__)
 
@@ -321,66 +322,9 @@ class ROICollection:
 
         Returns:
             Dict with keys: mean, std, min, max, pixel_count — all per-band
-            numpy arrays except pixel_count (int).
+            numpy arrays except pixel_count (int). See ``computeRegionStatistics``.
         """
-        mask = self.getMask(fid, image)
-
-        # Compute bounding box of the mask to read a small window
-        rows, cols = np.where(mask)
-        if len(rows) == 0:
-            nbands = image.bandCount
-            return {
-                "mean": np.zeros(nbands),
-                "std": np.zeros(nbands),
-                "min": np.zeros(nbands),
-                "max": np.zeros(nbands),
-                "pixel_count": 0,
-            }
-
-        r_min, r_max = int(rows.min()), int(rows.max())
-        c_min, c_max = int(cols.min()), int(cols.max())
-        win_h = r_max - r_min + 1
-        win_w = c_max - c_min + 1
-
-        # Read windowed data: (win_h, win_w, bands)
-        data = image.getData(bandIndices=None, window=(r_min, c_min, win_h, win_w))
-
-        # Crop mask to the same window
-        sub_mask = mask[r_min : r_max + 1, c_min : c_max + 1]
-
-        # Extract pixels: (n_pixels, bands)
-        pixels = data[sub_mask].astype(np.float64)
-
-        # Handle nodata PER ELEMENT: a pixel may be valid at most wavelengths
-        # but nodata at a few (CRISM has bands that are almost entirely nodata,
-        # e.g. ~2800 nm). Replacing nodata with NaN per element keeps those
-        # bands' statistics from being poisoned, rather than only dropping
-        # pixels that are nodata in every band. NaN is then ignored by nan-aware
-        # reductions below.
-        nodata = image.nodata
-        if nodata is not None:
-            pixels[pixels == nodata] = np.nan
-
-        # Drop pixels that have no valid band at all.
-        pixels = pixels[~np.all(np.isnan(pixels), axis=1)]
-
-        if len(pixels) == 0:
-            nbands = data.shape[2] if data.ndim == 3 else 1
-            return {
-                "mean": np.zeros(nbands),
-                "std": np.zeros(nbands),
-                "min": np.zeros(nbands),
-                "max": np.zeros(nbands),
-                "pixel_count": 0,
-            }
-
-        return {
-            "mean": np.nanmean(pixels, axis=0).astype(np.float64),
-            "std": np.nanstd(pixels, axis=0).astype(np.float64),
-            "min": np.nanmin(pixels, axis=0),
-            "max": np.nanmax(pixels, axis=0),
-            "pixel_count": len(pixels),
-        }
+        return computeRegionStatistics(self.getPixelCoordinates(fid), image)
 
     # --- Convenience ---
 

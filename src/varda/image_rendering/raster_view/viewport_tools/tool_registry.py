@@ -10,6 +10,9 @@ from varda.image_rendering.raster_view.viewport_tools.viewport_tool import Viewp
 from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
     PixelSelectTool,
 )
+from varda.image_rendering.raster_view.viewport_tools.ratio_explorer_tool import (
+    RatioExplorerTool,
+)
 from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
     FreehandROITool,
     RectangleROITool,
@@ -116,6 +119,7 @@ class ToolRegistry:
         """Register the built-in tools."""
         # Selection tools
         self.registerTool(PixelSelectTool)
+        self.registerTool(RatioExplorerTool)
 
         # ROI drawing tools
         self.registerTool(FreehandROITool)

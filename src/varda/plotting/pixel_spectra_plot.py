@@ -133,8 +133,7 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
                 )
         if not inBounds:
             return []
-        if self.pixelConfig.mode.value is SpectrumMode.REPLACE:
-            self.clearPixelSpectra()
+        self._applyMode()
 
         curves = []
         for image in inBounds:
@@ -145,12 +144,22 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
                 if labelWithImageName
                 else f"Pixel ({x}, {y})"
             )
-            curve = self.plot(
-                wavelengths, spectrum.values, color=self._nextColor(), name=label
-            )
-            self.pixelCurves.append(curve)
-            curves.append(curve)
+            curves.append(self._addTracked(wavelengths, spectrum.values, label))
         return curves
+
+    def addSpectrum(self, wavelengths, values, label: str) -> Curve:
+        """Plot any spectrum under the pixel-plot rules (mode and palette)."""
+        self._applyMode()
+        return self._addTracked(wavelengths, values, label)
+
+    def _applyMode(self) -> None:
+        if self.pixelConfig.mode.value is SpectrumMode.REPLACE:
+            self.clearPixelSpectra()
+
+    def _addTracked(self, wavelengths, values, label: str) -> Curve:
+        curve = self.plot(wavelengths, values, color=self._nextColor(), name=label)
+        self.pixelCurves.append(curve)
+        return curve
 
     def clearPixelSpectra(self) -> None:
         for curve in list(self.pixelCurves):

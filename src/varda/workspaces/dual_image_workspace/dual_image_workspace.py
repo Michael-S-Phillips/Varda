@@ -30,12 +30,19 @@ from varda.common.ui import SectionBox, VardaDockWidget
 from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
     PixelSelectTool,
 )
+from varda.image_rendering.raster_view.viewport_tools.ratio_explorer_tool import (
+    RatioExplorerTool,
+)
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
 from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
 from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
+from varda.workspaces.ratio_explorer import (
+    RatioExplorerConfig,
+    RatioExplorerController,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +132,7 @@ class DualImageWorkspace(QMainWindow):
         )
         self.plotWidget = VardaPlotWidget(parent=self)
         self.pixelSourceConfig = PixelSourceConfig()
+        self.ratioExplorerConfig = RatioExplorerConfig()
         self.roiManagerWidget = ROIManagerWidget(
             self.roiCollection, self.image1, self.plotWidget, parent=self
         )
@@ -238,6 +246,13 @@ class DualImageWorkspace(QMainWindow):
             configurePlot=self._configurePixelPlot,
             parent=self,
         )
+        self.ratioExplorer = RatioExplorerController(
+            self.roiCollection,
+            self.roiManagerWidget,
+            self.pixelSpectraDocks,
+            self.ratioExplorerConfig,
+            parent=self,
+        )
         self.pixelSpectraDocks.newPlot()
         self.dockManager.setSplitterSizes(self.viewport1Dock.dockAreaWidget(), [4, 1])
         # Within each viewport column, give viewport more space than its settings
@@ -301,6 +316,13 @@ class DualImageWorkspace(QMainWindow):
             configurePlot=self._configurePixelPlot,
             parent=self,
         )
+        self.ratioExplorer = RatioExplorerController(
+            self.roiCollection,
+            self.roiManagerWidget,
+            self.pixelSpectraDocks,
+            self.ratioExplorerConfig,
+            parent=self,
+        )
         self.pixelSpectraDocks.newPlot()
 
         # Give viewport most vertical space, settings and ROI/plot less
@@ -342,12 +364,15 @@ class DualImageWorkspace(QMainWindow):
             tool.sigPixelSelected.connect(
                 functools.partial(self._onPixelSelected, tool.viewport.imageEntity)
             )
+        elif isinstance(tool, RatioExplorerTool):
+            self.ratioExplorer.bindTool(tool)
 
     def _configurePixelPlot(self, plot: PixelSpectraPlotWidget) -> None:
         # After the plot's "View" and "Pixel Spectra" sections
         plot.insertSidebarSection(
             2, SectionBox("Dual Image", self.pixelSourceConfig.createWidget())
         )
+        plot.insertSidebarSection(3, self.ratioExplorer.createSidebarSection())
 
     def _onPixelSelected(self, clickedImage: VardaRaster, pos: QPointF) -> None:
         source = self.pixelSourceConfig.source.value

@@ -111,11 +111,20 @@ class PixelSpectraDocks(QObject):
         labelWithImageName: bool = False,
     ) -> list[Curve]:
         """Plot a selection on the active plot, re-showing its dock if closed."""
+        return self._shownActivePlot().addPixelSpectra(
+            images, x, y, labelWithImageName=labelWithImageName
+        )
+
+    def addSpectrum(self, wavelengths, values, label: str) -> Curve:
+        """Plot any spectrum on the active plot, re-showing its dock if closed."""
+        return self._shownActivePlot().addSpectrum(wavelengths, values, label)
+
+    def _shownActivePlot(self) -> PixelSpectraPlotWidget:
         plot = self.active
         dock = self.dockFor(plot)
         if dock.isClosed():
             dock.toggleView(True)
-        return plot.addPixelSpectra(images, x, y, labelWithImageName=labelWithImageName)
+        return plot
 
     def _onActiveToggled(self, plot: PixelSpectraPlotWidget, checked: bool) -> None:
         if checked:

@@ -29,11 +29,18 @@ from varda.image_rendering.raster_view.viewport_context_menu_controller import (
 from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
     PixelSelectTool,
 )
+from varda.image_rendering.raster_view.viewport_tools.ratio_explorer_tool import (
+    RatioExplorerTool,
+)
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.common.parameter import ImageParameter, ParameterGroup
 from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
 from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
+from varda.workspaces.ratio_explorer import (
+    RatioExplorerConfig,
+    RatioExplorerController,
+)
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
 from varda.common.ui import VardaDockWidget
@@ -129,6 +136,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.roiManagerWidget = ROIManagerWidget(
             self.roiCollection, image, self.plotWidget, parent=self
         )
+        self.ratioExplorerConfig = RatioExplorerConfig()
 
         # --- Viewport context menu (place template) ---
         self.viewportContextMenuController = ViewportContextMenuController(
@@ -221,9 +229,23 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         )
         # Pixel-spectra plots are tabbed alongside the ROI plot
         self.pixelSpectraDocks = PixelSpectraDocks(
-            self.dockManager, self.plotDock, parent=self
+            self.dockManager,
+            self.plotDock,
+            configurePlot=self._configurePixelPlot,
+            parent=self,
+        )
+        self.ratioExplorer = RatioExplorerController(
+            self.roiCollection,
+            self.roiManagerWidget,
+            self.pixelSpectraDocks,
+            self.ratioExplorerConfig,
+            parent=self,
         )
         self.pixelSpectraDocks.newPlot()
+
+    def _configurePixelPlot(self, plot: PixelSpectraPlotWidget) -> None:
+        # After the plot's "View" and "Pixel Spectra" sections
+        plot.insertSidebarSection(2, self.ratioExplorer.createSidebarSection())
 
         # plotDock = Dock("Spectral Plot", widget=self.plotWidget, size=(400, 300))
         # docks.append(plotDock)
@@ -258,6 +280,8 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             tool.sigPixelSelected.connect(
                 functools.partial(self._onPixelSelected, tool.viewport.imageEntity)
             )
+        elif isinstance(tool, RatioExplorerTool):
+            self.ratioExplorer.bindTool(tool)
 
     def _onPixelSelected(self, image: VardaRaster, pos: QPointF) -> None:
         self.pixelSpectraDocks.addPixelSpectra([image], int(pos.x()), int(pos.y()))
