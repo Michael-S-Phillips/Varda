@@ -95,10 +95,13 @@ class Curve(QObject):
     def onConfigChanged(self):
         pen = pg.mkPen(color=self.config.color.value, width=self.config.width.value)
         self.plotDataItem.setPen(pen)
+        # translate-then-scale composes to y -> y * scale + offset, matching
+        # displayedData() and the view limits. (scale-then-translate would
+        # give scale * (y + offset).)
         self.plotDataItem.setTransform(
             pg.QtGui.QTransform()
-            .scale(1.0, self.config.scale.value)
             .translate(0.0, self.config.offset.value)
+            .scale(1.0, self.config.scale.value)
         )
 
     def displayedData(self) -> tuple[np.ndarray, np.ndarray]:
