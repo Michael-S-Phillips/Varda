@@ -41,6 +41,7 @@ class ImageListWidget(QListWidget):
         self.setIconSize(QtCore.QSize(64, 64))  # Set icon size
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.setMouseTracking(True)  # hover state for the item delegate
         self.imageList = imageList
 
         self.setItemDelegate(ImageItemDelegate(self))
@@ -112,10 +113,23 @@ class ImageItemDelegate(QtWidgets.QStyledItemDelegate):
         # Set the painter to the scene
         scene.render(painter, QtCore.QRectF(option.rect))
 
-        # Apply darkening effect if the item is selected
+        # Selection: a translucent tint plus a solid frame in the palette's
+        # highlight colour over the whole item (thumbnail and label), so it
+        # reads at a glance. Hover: a thin frame as a clickability cue.
+        highlight = option.palette.highlight().color()
+        frame = option.rect.adjusted(1, 1, -2, -2)
+        painter.save()
         if option.state & QtWidgets.QStyle.StateFlag.State_Selected:
-            imageRect = QtCore.QRect(option.rect.topLeft(), self.iconSize.size())
-            painter.fillRect(imageRect, QtGui.QColor(0, 0, 0, 60))
+            tint = QtGui.QColor(highlight)
+            tint.setAlpha(60)
+            painter.setBrush(tint)
+            painter.setPen(QtGui.QPen(highlight, 3))
+            painter.drawRoundedRect(frame, 3, 3)
+        elif option.state & QtWidgets.QStyle.StateFlag.State_MouseOver:
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QtGui.QPen(highlight, 1))
+            painter.drawRoundedRect(frame, 3, 3)
+        painter.restore()
 
     def _get_current_stretch_index(self, image_index):
         """Get the current stretch index for an image from the main view"""
