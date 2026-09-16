@@ -10,6 +10,7 @@ clicks.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from enum import Enum
 from pathlib import Path
 
@@ -89,22 +90,51 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
 
     def addPixelSpectrum(self, image: VardaRaster, x: int, y: int) -> Curve | None:
         """Plot the spectrum at pixel (x, y); returns None if out of bounds."""
-        if not (0 <= x < image.width and 0 <= y < image.height):
-            logger.warning(f"Selected pixel ({x}, {y}) is outside the image bounds")
-            return None
+        curves = self.addPixelSpectra([image], x, y)
+        return curves[0] if curves else None
+
+    def addPixelSpectra(
+        self,
+        images: Sequence[VardaRaster],
+        x: int,
+        y: int,
+        *,
+        labelWithImageName: bool = False,
+    ) -> list[Curve]:
+        """Plot the spectrum at pixel (x, y) of each image as one selection.
+
+        In Replace mode the previous selection is cleared once, so every image
+        of this selection stays. Images where (x, y) is out of bounds are
+        skipped; a selection that hits no image leaves the plot unchanged.
+        """
+        inBounds = []
+        for image in images:
+            if 0 <= x < image.width and 0 <= y < image.height:
+                inBounds.append(image)
+            else:
+                logger.warning(
+                    f"Pixel ({x}, {y}) is outside the bounds of {image.name}"
+                )
+        if not inBounds:
+            return []
         if self.pixelConfig.mode.value is SpectrumMode.REPLACE:
             self.clearPixelSpectra()
 
-        spectrum = image.getSpectrum(x, y)
-        wavelengths = self.getPlottableWavelengths(image, len(spectrum.values))
-        curve = self.plot(
-            wavelengths,
-            spectrum.values,
-            color=self._nextColor(),
-            name=f"Pixel ({x}, {y})",
-        )
-        self.pixelCurves.append(curve)
-        return curve
+        curves = []
+        for image in inBounds:
+            spectrum = image.getSpectrum(x, y)
+            wavelengths = self.getPlottableWavelengths(image, len(spectrum.values))
+            label = (
+                f"{image.name} ({x}, {y})"
+                if labelWithImageName
+                else f"Pixel ({x}, {y})"
+            )
+            curve = self.plot(
+                wavelengths, spectrum.values, color=self._nextColor(), name=label
+            )
+            self.pixelCurves.append(curve)
+            curves.append(curve)
+        return curves
 
     def clearPixelSpectra(self) -> None:
         for curve in list(self.pixelCurves):

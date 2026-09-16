@@ -107,3 +107,38 @@ def test_manual_view_range_persists_when_spectrum_added(widget, image):
 
     after = widget.viewBox.viewRange()
     np.testing.assert_allclose(after, before)
+
+
+def test_default_label_names_the_pixel(widget, image):
+    curve = widget.addPixelSpectrum(image, 4, 5)
+    assert curve.plotDataItem.name() == "Pixel (4, 5)"
+
+
+def test_batch_selection_in_replace_mode_keeps_every_image_of_that_selection(
+    widget, image
+):
+    other = generate_random_image((20, 20, 10))
+    widget.pixelConfig.mode.set(SpectrumMode.REPLACE)
+    widget.addPixelSpectra([image, other], 1, 1)
+    curves = widget.addPixelSpectra([image, other], 2, 2)
+
+    assert len(curves) == 2
+    assert widget.pixelCurves == curves
+
+
+def test_batch_selection_can_label_curves_with_image_names(widget, image):
+    other = generate_random_image((20, 20, 10))
+    curves = widget.addPixelSpectra([image, other], 1, 2, labelWithImageName=True)
+
+    assert [c.plotDataItem.name() for c in curves] == [
+        f"{image.name} (1, 2)",
+        f"{other.name} (1, 2)",
+    ]
+
+
+def test_batch_selection_skips_images_where_pixel_is_out_of_bounds(widget, image):
+    small = generate_random_image((10, 10, 10))
+    curves = widget.addPixelSpectra([image, small], 15, 15)
+
+    assert len(curves) == 1
+    assert curves[0].plotDataItem.name() == "Pixel (15, 15)"

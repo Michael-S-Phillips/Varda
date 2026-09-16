@@ -26,7 +26,7 @@ from varda.image_rendering.new_histogram_view import NewHistogramView
 from varda.image_rendering.raster_view.viewport_context_menu_controller import (
     ViewportContextMenuController,
 )
-from varda.common.ui import VardaDockWidget
+from varda.common.ui import SectionBox, VardaDockWidget
 from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
     PixelSelectTool,
 )
@@ -42,6 +42,25 @@ logger = logging.getLogger(__name__)
 class DisplayMode(Enum):
     SIDE_BY_SIDE = 1
     OVERLAY = 2
+
+
+class PixelSpectrumSource(Enum):
+    """Which image(s) a pixel selection plots, regardless of the viewport clicked."""
+
+    CLICKED_VIEWPORT = 1
+    PRIMARY = 2
+    SECONDARY = 3
+    BOTH = 4
+
+
+class PixelSourceConfig(ParameterGroup):
+    source = EnumParameter(
+        "Spectrum Source",
+        PixelSpectrumSource,
+        PixelSpectrumSource.CLICKED_VIEWPORT,
+        "Which image's spectrum a Ctrl+click plots. The images are assumed to be "
+        "co-registered, so the clicked pixel is looked up in both.",
+    )
 
 
 class DualImageWorkspaceConfig(ParameterGroup):
@@ -105,6 +124,10 @@ class DualImageWorkspace(QMainWindow):
         )
         self.plotWidget = VardaPlotWidget(parent=self)
         self.pixelPlotWidget = PixelSpectraPlotWidget(parent=self)
+        self.pixelSourceConfig = PixelSourceConfig()
+        self.pixelPlotWidget.insertSidebarSection(
+            1, SectionBox("Dual Image", self.pixelSourceConfig.createWidget())
+        )
         self.roiManagerWidget = ROIManagerWidget(
             self.roiCollection, self.image1, self.plotWidget, parent=self
         )
@@ -164,10 +187,10 @@ class DualImageWorkspace(QMainWindow):
 
         self._setupDocks()
 
-        self.viewport1Dock = VardaDockWidget("Primary Viewport")
+        self.viewport1Dock = VardaDockWidget(f"Primary: {self.image1.name}")
         self.viewport1Dock.setWidget(self.viewport1)
 
-        self.viewport2Dock = VardaDockWidget("Secondary Viewport")
+        self.viewport2Dock = VardaDockWidget(f"Secondary: {self.image2.name}")
         self.viewport2Dock.setWidget(self.viewport2)
 
         # Top row: two viewports side by side
@@ -242,7 +265,9 @@ class DualImageWorkspace(QMainWindow):
 
         self._setupDocks()
 
-        self.viewport1Dock = VardaDockWidget("Overlay Viewport")
+        self.viewport1Dock = VardaDockWidget(
+            f"Overlay: {self.image1.name} + {self.image2.name}"
+        )
         self.viewport1Dock.setWidget(self.viewport1)
 
         # Viewport as the main area
@@ -320,8 +345,18 @@ class DualImageWorkspace(QMainWindow):
                 functools.partial(self._onPixelSelected, tool.viewport.imageEntity)
             )
 
-    def _onPixelSelected(self, image: VardaRaster, pos: QPointF) -> None:
-        self.pixelPlotWidget.addPixelSpectrum(image, int(pos.x()), int(pos.y()))
+    def _onPixelSelected(self, clickedImage: VardaRaster, pos: QPointF) -> None:
+        source = self.pixelSourceConfig.source.value
+        assert isinstance(source, PixelSpectrumSource)
+        images = {
+            PixelSpectrumSource.CLICKED_VIEWPORT: [clickedImage],
+            PixelSpectrumSource.PRIMARY: [self.image1],
+            PixelSpectrumSource.SECONDARY: [self.image2],
+            PixelSpectrumSource.BOTH: [self.image1, self.image2],
+        }[source]
+        self.pixelPlotWidget.addPixelSpectra(
+            images, int(pos.x()), int(pos.y()), labelWithImageName=True
+        )
 
     def _onROIDrawn(self, result: dict) -> None:
         self.roiCollection.addROIFromDrawing(
