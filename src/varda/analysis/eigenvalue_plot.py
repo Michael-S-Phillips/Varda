@@ -55,7 +55,7 @@ class EigenvaluePlot(pg.PlotWidget):
             label="keep {value:.0f}",
             labelOpts={"position": 0.9, "color": "#ffff00", "fill": "#00000080"},
         )
-        self.plotItem.addItem(self.cutoff, ignoreBounds=True)
+        self.getPlotItem().addItem(self.cutoff, ignoreBounds=True)
         self.cutoff.sigPositionChanged.connect(self._onCutoffMoved)
         components.sigParameterChanged.connect(self._onComponentsChanged)
 

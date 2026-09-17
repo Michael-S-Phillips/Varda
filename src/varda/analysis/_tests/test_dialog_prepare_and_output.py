@@ -66,6 +66,32 @@ def test_an_analysis_can_veto_the_image_with_a_reason(qtbot):
     assert dialog.statusLabel.text() == ""
 
 
+class _KnobAnalysis(_RecordingAnalysis):
+    analysisId = "knob"
+    name = "Knob"
+    # ParameterGroup only clones parameters defined on the concrete class
+    knob = IntParameter("Knob", 1, range=(0, 10))
+
+    def unavailableReason(self, image):
+        return "" if self.knob.get() > 0 else "Turn the knob up first."
+
+
+def test_run_state_follows_setting_changes(qtbot):
+    image = generate_random_image((20, 20, 10))
+    dialog = RunAnalysisDialog([image], [_KnobAnalysis], image=image)
+    qtbot.addWidget(dialog)
+    analysis = dialog.selectedAnalysis()
+    assert isinstance(analysis, _KnobAnalysis)
+    assert dialog.runButton.isEnabled()
+
+    analysis.knob.set(0)
+    assert not dialog.runButton.isEnabled()
+    assert dialog.statusLabel.text() == "Turn the knob up first."
+
+    analysis.knob.set(3)
+    assert dialog.runButton.isEnabled()
+
+
 def test_an_analysis_preview_is_shown_and_follows_the_image(qtbot):
     good, bad = generate_random_image((20, 20, 10)), generate_random_image((20, 20, 10))
     good._name, bad._name = "ok", "nope"

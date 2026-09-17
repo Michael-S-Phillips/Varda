@@ -7,6 +7,7 @@ names in the metadata.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from types import ModuleType
 from typing import ClassVar
 
@@ -17,7 +18,7 @@ from varda.analysis.mlp import MlpClassifier
 from varda.analysis.patches import extractPatches, iterPatchChunks
 from varda.analysis.rasters import validPixels
 from varda.common.entities import VardaRaster
-from varda.common.parameter import FloatParameter, IntParameter
+from varda.common.parameter import FloatParameter, IntParameter, MultiChoiceParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.rois.roi_collection import ROICollection
 
@@ -35,14 +36,24 @@ _PREDICT_CHUNK = 65_536
 _PATCH_CHUNK = 4_096
 
 
+def roiLabels(rois: ROICollection) -> list[tuple[int, str]]:
+    """(fid, label) for every ROI; ROIs sharing a name are told apart by id."""
+    names = [rois.getROI(fid).name for fid in rois.fids]
+    return [
+        (fid, f"{name} (ROI {fid})" if names.count(name) > 1 else name)
+        for fid, name in zip(rois.fids, names)
+    ]
+
+
 def _trainingSet(
-    rois: ROICollection, image: VardaRaster, valid: np.ndarray
+    rois: ROICollection, image: VardaRaster, valid: np.ndarray, fids: Sequence[int]
 ) -> tuple[list[str], np.ndarray, np.ndarray, np.ndarray]:
-    """Class names and the (rows, cols, labels) of valid pixels inside each ROI."""
-    if len(rois) < 2:
+    """Class names and the (rows, cols, labels) of valid pixels inside each of
+    the chosen ROIs."""
+    if len(fids) < 2:
         raise ValueError("Training needs at least two ROIs (one per class).")
     names, rows, cols, labels = [], [], [], []
-    for label, fid in enumerate(rois.fids):
+    for label, fid in enumerate(fids):
         names.append(rois.getROI(fid).name)
         mask = rois.getMask(fid, image) & valid
         r, c = np.nonzero(mask)
@@ -63,6 +74,46 @@ def _requireRois(analysis: Analysis) -> ROICollection:
             "and draw them."
         )
     return rois
+
+
+def _roiChoiceParameter() -> MultiChoiceParameter:
+    # Each analysis declares its own copy: ParameterGroup only picks up
+    # Parameters defined directly on the class.
+    return MultiChoiceParameter(
+        "ROIs (one class each)",
+        description="Which of the workspace's ROIs to train on; all of them by default.",
+    )
+
+
+class _RoiTrainingAnalysis(Analysis):
+    """Shared plumbing for classifiers trained on the workspace's ROIs: the
+    user ticks which ROIs become classes."""
+
+    category = "Classification"
+    needsRois = True
+    rois: MultiChoiceParameter  # declared here, assigned by each subclass
+
+    def prepareFor(self, image: VardaRaster) -> None:
+        collection = self.context.rois
+        labels = [label for _, label in roiLabels(collection)] if collection else []
+        # Keep the user's selection when the same ROIs are offered again
+        kept = [label for label in self.rois.get() if label in labels]
+        self.rois.setChoices(labels, selected=kept if kept else None)
+
+    def unavailableReason(self, image: VardaRaster) -> str:
+        collection = self.context.rois
+        if collection is None or len(collection) < 2:
+            return ""  # the dialog already explains missing ROIs
+        if self.rois.choices and len(self.rois.get()) < 2:
+            return "Tick at least two ROIs (one class each)."
+        return ""
+
+    def _chosenFids(self, collection: ROICollection) -> list[int]:
+        labels = roiLabels(collection)
+        if not self.rois.choices:  # never prepared for an image: every ROI
+            return [fid for fid, _ in labels]
+        chosen = set(self.rois.get())
+        return [fid for fid, label in labels if label in chosen]
 
 
 def _classificationRaster(
@@ -91,18 +142,17 @@ def _classificationRaster(
     return VardaRaster(source, name=f"{image.name} {suffix}")
 
 
-class MlpClassificationAnalysis(Analysis):
+class MlpClassificationAnalysis(_RoiTrainingAnalysis):
     analysisId = "mlp_classification"
     name = "Train MLP on ROIs"
-    category = "Classification"
     description = (
-        "Trains a multi-layer perceptron on the spectra inside each ROI of the "
-        "current workspace (one class per ROI) and classifies every pixel. The "
-        "result has a Class band (0-based ROI index) and one probability band "
-        "per class."
+        "Trains a multi-layer perceptron on the spectra inside the chosen ROIs "
+        "of the current workspace (one class per ROI) and classifies every "
+        "pixel. The result has a Class band (0-based class index) and one "
+        "probability band per class."
     )
-    needsRois = True
 
+    rois = _roiChoiceParameter()
     hiddenLayers = IntParameter("Hidden Layers", 2, range=(1, 6))
     neuronsPerLayer = IntParameter("Neurons Per Layer", 32, range=(2, 512))
     epochs = IntParameter("Epochs", 200, range=(1, 5000))
@@ -122,7 +172,7 @@ class MlpClassificationAnalysis(Analysis):
         valid = validPixels(cube, image.nodata)
 
         reportProgress(5, "collecting training spectra")
-        names, rows, cols, y = _trainingSet(rois, image, valid)
+        names, rows, cols, y = _trainingSet(rois, image, valid, self._chosenFids(rois))
         X = cube[rows, cols]
 
         model = MlpClassifier(
@@ -186,12 +236,10 @@ def _batchSizeParameter() -> IntParameter:
     return IntParameter("Batch Size", 64, range=(4, 4096))
 
 
-class _PatchClassificationAnalysis(Analysis):
+class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
     """Shared plumbing for the PyTorch classifiers: patches around ROI pixels
     as training data, chunked whole-image prediction."""
 
-    category = "Classification"
-    needsRois = True
     requirement = "PyTorch"
     suffix: ClassVar[str] = ""
     # Declared here, supplied by each subclass (ParameterGroup only picks up
@@ -224,7 +272,7 @@ class _PatchClassificationAnalysis(Analysis):
         cube[~valid] = bandMeans
 
         reportProgress(5, "collecting training patches")
-        names, rows, cols, y = _trainingSet(rois, image, valid)
+        names, rows, cols, y = _trainingSet(rois, image, valid, self._chosenFids(rois))
         training = extractPatches(cube, rows, cols, size)
         mean = training.reshape(-1, cube.shape[2]).mean(axis=0)
         std = training.reshape(-1, cube.shape[2]).std(axis=0)
@@ -276,6 +324,7 @@ class CnnClassificationAnalysis(_PatchClassificationAnalysis):
     )
     suffix = "CNN classes"
 
+    rois = _roiChoiceParameter()
     patchSize = _patchSizeParameter()
     channels = IntParameter("Channels", 32, range=(4, 256))
     convLayers = IntParameter("Conv Layers", 2, range=(1, 4))
@@ -300,6 +349,7 @@ class VitClassificationAnalysis(_PatchClassificationAnalysis):
     )
     suffix = "ViT classes"
 
+    rois = _roiChoiceParameter()
     patchSize = _patchSizeParameter()
     embedDim = IntParameter("Embedding Size", 64, range=(8, 512))
     heads = IntParameter("Attention Heads", 4, range=(1, 16))

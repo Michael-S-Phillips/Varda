@@ -49,6 +49,8 @@ class RunAnalysisDialog(QDialog):
         self._context = AnalysisContext(rois=rois)
         # One instance per analysis class, so settings persist while switching
         self._instances: dict[type[Analysis], Analysis] = {}
+        # Analyses whose setting changes already re-check whether Run is allowed
+        self._watched: set[Analysis] = set()
 
         self.imageParam = ImageParameter("Image", "The image to analyse")
         self.imageParam.setProvider(lambda: list(images))
@@ -165,6 +167,9 @@ class RunAnalysisDialog(QDialog):
     def _showSettings(self) -> None:
         analysis = self.selectedAnalysis()
         analysis.setContext(self._context)
+        if analysis not in self._watched:
+            analysis.sigParameterChanged.connect(lambda _: self._updateRunState())
+            self._watched.add(analysis)
         image = self.selectedImage()
         if image is not None:
             analysis.prepareFor(image)
