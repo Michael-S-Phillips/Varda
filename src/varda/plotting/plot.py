@@ -3,7 +3,16 @@ from enum import Enum
 from pathlib import Path
 
 import numpy as np
-from PyQt6.QtCore import Qt, QObject, pyqtSignal, QPoint, QByteArray, QMimeData, QSize
+from PyQt6.QtCore import (
+    Qt,
+    QObject,
+    pyqtSignal,
+    QPoint,
+    QPointF,
+    QByteArray,
+    QMimeData,
+    QSize,
+)
 from PyQt6.QtGui import QDrag, QColor
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -196,6 +205,37 @@ class AppearanceConfig(ParameterGroup):
     backgroundColor = ColorParameter("Background Color", "#000000")
 
 
+class MarkerConfig(ParameterGroup):
+    showLabels = BoolParameter(
+        "Show Labels", True, "Show each marker's wavelength beside its line"
+    )
+    verticalLabels = BoolParameter(
+        "Vertical Labels",
+        False,
+        "Run the labels along the marker lines so close markers stay legible",
+    )
+
+
+# Where marker labels sit along the line (fraction of the view height), and how
+# far each one steps down when it would overlap a neighbour.
+MARKER_LABEL_TOP = 0.95
+MARKER_LABEL_STEP = 0.07
+
+
+class _MarkerLabel(pg.InfLineLabel):
+    """A marker's wavelength label. Draggable along its line; once the user has
+    placed it, the automatic collision avoidance leaves it alone."""
+
+    def __init__(self, line: pg.InfiniteLine, **kwds) -> None:
+        super().__init__(line, movable=True, **kwds)
+        self.userPlaced = False
+
+    def mouseDragEvent(self, ev) -> None:
+        super().mouseDragEvent(ev)
+        if ev.isAccepted():
+            self.userPlaced = True
+
+
 class RangeConfig(ParameterGroup):
     viewRangeX = Vec2Parameter(
         "X View Range",
@@ -328,6 +368,11 @@ class VardaPlotWidget(QWidget):
         self.rangeConfig = RangeConfig()
         self.rangeConfig.sigParameterChanged.connect(self.onRangeParamsChanged)
 
+        self.markerConfig = MarkerConfig()
+        self.markerConfig.sigParameterChanged.connect(
+            lambda _: self._applyMarkerLabelStyle()
+        )
+
         self.appearanceConfig = AppearanceConfig()
         self.appearanceConfig.sigParameterChanged.connect(
             self.onAppearanceParamsChanged
@@ -396,9 +441,14 @@ class VardaPlotWidget(QWidget):
                         )
                     )
                     .withWidget(ButtonBuilder("Clear").onClick(self.clearMarkers))
-                ),
+                )
+                .withWidget(self.markerConfig.createWidget()),
             )
         )
+        # Labels dodge each other in pixel space, so re-lay them out whenever
+        # the mapping from wavelengths to pixels changes.
+        self.viewBox.sigRangeChanged.connect(lambda *_: self._layoutMarkerLabels())
+        self.viewBox.sigResized.connect(lambda *_: self._layoutMarkerLabels())
 
         spectraNames = listSpectra(libraryPath) if libraryPath else []
         if spectraNames:
@@ -529,14 +579,22 @@ class VardaPlotWidget(QWidget):
             movable=True,
             pen=pg.mkPen("#ffffffaa", width=1, style=Qt.PenStyle.DashLine),
             hoverPen=pg.mkPen("#ffff00", width=2),
-            label="{value:.1f}",
-            labelOpts={"position": 0.95, "color": "#ffffff", "fill": "#00000080"},
         )
+        marker.label = _MarkerLabel(
+            marker,
+            text="{value:.1f}",
+            position=MARKER_LABEL_TOP,
+            color="#ffffff",
+            fill="#00000080",
+            angle=90 if self.markerConfig.verticalLabels.value else 0,
+        )
+        marker.label.setVisible(self.markerConfig.showLabels.value)
         # ignoreBounds: markers must not affect auto-range or the view limits
         self.plotItem.addItem(marker, ignoreBounds=True)
-        marker.sigPositionChanged.connect(self._refreshMarkerList)
+        marker.sigPositionChanged.connect(self._onMarkerMoved)
         self.markers.append(marker)
         self._refreshMarkerList()
+        self._layoutMarkerLabels()
         return marker
 
     def removeMarker(self, marker: pg.InfiniteLine) -> None:
@@ -545,6 +603,38 @@ class VardaPlotWidget(QWidget):
         self.plotItem.removeItem(marker)
         self.markers.remove(marker)
         self._refreshMarkerList()
+        self._layoutMarkerLabels()
+
+    def _onMarkerMoved(self) -> None:
+        self._refreshMarkerList()
+        self._layoutMarkerLabels()
+
+    def _applyMarkerLabelStyle(self) -> None:
+        for marker in self.markers:
+            marker.label.setVisible(self.markerConfig.showLabels.value)
+            marker.label.setAngle(90 if self.markerConfig.verticalLabels.value else 0)
+        self._layoutMarkerLabels()
+
+    def _layoutMarkerLabels(self) -> None:
+        """Step a label down its line while it would overlap (in pixels) an
+        already placed label at the same height. Labels the user dragged keep
+        their place."""
+        placed: list[tuple[float, float, float]] = []  # (left px, right px, position)
+        for marker in sorted(self.markers, key=lambda m: m.value()):
+            label = marker.label
+            if not isinstance(label, _MarkerLabel) or label.userPlaced:
+                continue
+            centre = self.viewBox.mapViewToScene(QPointF(marker.value(), 0.0)).x()
+            half = label.boundingRect().width() / 2.0
+            left, right = centre - half, centre + half
+            position = MARKER_LABEL_TOP
+            while position > MARKER_LABEL_STEP and any(
+                pos == position and lo < right and hi > left for lo, hi, pos in placed
+            ):
+                position -= MARKER_LABEL_STEP
+            placed.append((left, right, position))
+            if label.orthoPos != position:
+                label.setPosition(position)
 
     def clearMarkers(self) -> None:
         for marker in list(self.markers):
