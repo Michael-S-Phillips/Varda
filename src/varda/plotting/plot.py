@@ -5,7 +5,14 @@ from pathlib import Path
 import numpy as np
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, QPoint, QByteArray, QMimeData, QSize
 from PyQt6.QtGui import QDrag, QColor
-from PyQt6.QtWidgets import QWidget, QComboBox, QGraphicsItem, QLabel
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QDoubleSpinBox,
+    QGraphicsItem,
+    QLabel,
+    QListWidget,
+    QWidget,
+)
 import pyqtgraph as pg
 
 from varda.common.entities import VardaRaster, Color
@@ -352,6 +359,47 @@ class VardaPlotWidget(QWidget):
             )
         )
 
+        # Markers: draggable vertical wavelength lines spanning every spectrum,
+        # for reading off where features sit and comparing them across curves.
+        self.markers: list[pg.InfiniteLine] = []
+        self.markerWavelength = QDoubleSpinBox()
+        self.markerWavelength.setRange(0.0, 1_000_000.0)
+        self.markerWavelength.setDecimals(1)
+        self.markerWavelength.setSpecialValueText("view centre")
+        self.markerWavelength.setToolTip(
+            "Wavelength for a new marker; leave at 0 to add it at the centre of "
+            "the visible range and drag it into place."
+        )
+        self.markerList = QListWidget()
+        self.markerList.setMaximumHeight(90)
+        sidebar.withWidget(
+            SectionBox(
+                "Markers",
+                VBoxBuilder()
+                .withLayout(
+                    HBoxBuilder()
+                    .withWidget(self.markerWavelength)
+                    .withWidget(
+                        ButtonBuilder("Add").onClick(
+                            lambda: self.addMarker(
+                                self.markerWavelength.value() or None
+                            )
+                        )
+                    )
+                )
+                .withWidget(self.markerList)
+                .withLayout(
+                    HBoxBuilder()
+                    .withWidget(
+                        ButtonBuilder("Remove Selected").onClick(
+                            self._removeSelectedMarker
+                        )
+                    )
+                    .withWidget(ButtonBuilder("Clear").onClick(self.clearMarkers))
+                ),
+            )
+        )
+
         spectraNames = listSpectra(libraryPath) if libraryPath else []
         if spectraNames:
             self.libraryCombo = QComboBox()
@@ -466,6 +514,51 @@ class VardaPlotWidget(QWidget):
         label = QLabel("Click a curve to edit it.")
         label.setStyleSheet("color: palette(mid);")
         return label
+
+    # --- Wavelength markers ---
+
+    def addMarker(self, wavelength: float | None = None) -> pg.InfiniteLine:
+        """Add a draggable vertical marker at ``wavelength`` (default: the centre
+        of the visible wavelength range) with a label showing its position."""
+        if wavelength is None:
+            xMin, xMax = self.viewBox.viewRange()[0]
+            wavelength = (xMin + xMax) / 2.0
+        marker = pg.InfiniteLine(
+            pos=wavelength,
+            angle=90,
+            movable=True,
+            pen=pg.mkPen("#ffffffaa", width=1, style=Qt.PenStyle.DashLine),
+            hoverPen=pg.mkPen("#ffff00", width=2),
+            label="{value:.1f}",
+            labelOpts={"position": 0.95, "color": "#ffffff", "fill": "#00000080"},
+        )
+        # ignoreBounds: markers must not affect auto-range or the view limits
+        self.plotItem.addItem(marker, ignoreBounds=True)
+        marker.sigPositionChanged.connect(self._refreshMarkerList)
+        self.markers.append(marker)
+        self._refreshMarkerList()
+        return marker
+
+    def removeMarker(self, marker: pg.InfiniteLine) -> None:
+        if marker not in self.markers:
+            return
+        self.plotItem.removeItem(marker)
+        self.markers.remove(marker)
+        self._refreshMarkerList()
+
+    def clearMarkers(self) -> None:
+        for marker in list(self.markers):
+            self.removeMarker(marker)
+
+    def _removeSelectedMarker(self) -> None:
+        row = self.markerList.currentRow()
+        if 0 <= row < len(self.markers):
+            self.removeMarker(self.markers[row])
+
+    def _refreshMarkerList(self) -> None:
+        self.markerList.clear()
+        for marker in self.markers:
+            self.markerList.addItem(f"{marker.value():.1f}")
 
     def _updateViewLimits(self) -> None:
         # Constrain panning and zooming so the view never extends past the
