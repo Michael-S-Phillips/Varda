@@ -10,6 +10,7 @@ class MenuId(StrEnum):
 
 class MenuGroup(StrEnum):
     FILE_IO = "1_io"
+    FILE_SESSION = "2_session"
     FILE_EXIT = "9_exit"
     WORKSPACE_NEW = "1_new"
     WORKSPACE_MANAGE = "2_manage"

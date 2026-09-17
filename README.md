@@ -25,6 +25,13 @@ uv sync
 uv run varda
 ```
 
+## Sessions
+**File → Save Session…** (⌘S) writes a `.varda` file recording the open
+images (by path), the open workspaces and their ROIs; **File → Open Session…**
+(⌘O) loads the images and reopens the workspaces alongside whatever is already
+open. Images that exist only in memory (analysis results you have not exported)
+are left out — export them first.
+
 ## Saving results
 Every Processing result joins the project's image list. Tick **Save result to
 file** in the analysis dialog to also write it to disk (ENVI `.img`/`.hdr` or
