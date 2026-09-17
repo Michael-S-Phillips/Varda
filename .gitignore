@@ -40,3 +40,7 @@ UnitTest.log.*
 .vscode
 /testImages/
 /test_images/
+
+# Logs, model checkpoints
+*.log
+*.pt
