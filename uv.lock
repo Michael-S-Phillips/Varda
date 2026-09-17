@@ -278,6 +278,24 @@ wheels = [
 ]
 
 [[package]]
+name = "hypyrameter"
+version = "0.2.3"
+source = { git = "https://github.com/Michael-S-Phillips/HyPyRameter.git?rev=99d5551aaf58e2251c2e193a4fb77c56f319a7e8#99d5551aaf58e2251c2e193a4fb77c56f319a7e8" }
+dependencies = [
+    { name = "ipython" },
+    { name = "matplotlib" },
+    { name = "multiprocess" },
+    { name = "numpy" },
+    { name = "opencv-python" },
+    { name = "openpyxl" },
+    { name = "outlier-utils" },
+    { name = "pandas" },
+    { name = "scipy" },
+    { name = "spectral" },
+    { name = "tqdm" },
+]
+
+[[package]]
 name = "idna"
 version = "3.11"
 source = { registry = "https://pypi.org/simple" }
@@ -1453,12 +1471,7 @@ dependencies = [
 
 [package.optional-dependencies]
 hypyrameter = [
-    { name = "ipython" },
-    { name = "multiprocess" },
-    { name = "openpyxl" },
-    { name = "outlier-utils" },
-    { name = "pandas" },
-    { name = "tqdm" },
+    { name = "hypyrameter" },
 ]
 
 [package.dev-dependencies]
@@ -1479,17 +1492,13 @@ requires-dist = [
     { name = "attrs", specifier = ">=25.4.0" },
     { name = "geopandas", specifier = ">=1.1.1" },
     { name = "h5py", specifier = ">=3.15.1" },
+    { name = "hypyrameter", marker = "extra == 'hypyrameter'", git = "https://github.com/Michael-S-Phillips/HyPyRameter.git?rev=99d5551aaf58e2251c2e193a4fb77c56f319a7e8" },
     { name = "in-n-out", specifier = ">=0.2.1" },
-    { name = "ipython", marker = "extra == 'hypyrameter'", specifier = ">=8.0" },
     { name = "matplotlib", specifier = ">=3.9.2" },
-    { name = "multiprocess", marker = "extra == 'hypyrameter'", specifier = ">=0.70" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2.1.1" },
     { name = "numpydantic", specifier = ">=1.6.11" },
     { name = "opencv-python", specifier = ">=4.10.0.84" },
-    { name = "openpyxl", marker = "extra == 'hypyrameter'", specifier = ">=3.1" },
-    { name = "outlier-utils", marker = "extra == 'hypyrameter'", specifier = ">=0.0.5" },
-    { name = "pandas", marker = "extra == 'hypyrameter'", specifier = ">=2.0" },
     { name = "pillow", specifier = ">=10.1.0" },
     { name = "pluggy", specifier = ">=1.6.0" },
     { name = "psygnal", specifier = ">=0.15.1" },
@@ -1506,7 +1515,6 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.15.1" },
     { name = "spectral", specifier = ">=0.23.1" },
     { name = "superqt", specifier = ">=0.8.0" },
-    { name = "tqdm", marker = "extra == 'hypyrameter'", specifier = ">=4.66" },
 ]
 provides-extras = ["hypyrameter"]
 

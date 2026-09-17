@@ -29,10 +29,10 @@ uv run varda
 **Processing → Spectral Parameters → Band Parameters (HyPyRameter)** computes
 CRISM-style spectral parameters with
 [HyPyRameter](https://github.com/Michael-S-Phillips/HyPyRameter).
-It is optional: without it Varda runs normally and simply does not offer that
-analysis. HyPyRameter is not on PyPI, so install it from GitHub into Varda's
-environment, then its remaining runtime dependencies:
+It is optional: without it Varda runs normally and lists that analysis as
+unavailable. HyPyRameter is not on PyPI; the `hypyrameter` extra pins it to a
+commit of its GitHub repository:
 ```bash
-uv pip install "git+https://github.com/Michael-S-Phillips/HyPyRameter.git"
 uv sync --extra hypyrameter
+# or, with pip:  pip install "varda[hypyrameter]"
 ```
