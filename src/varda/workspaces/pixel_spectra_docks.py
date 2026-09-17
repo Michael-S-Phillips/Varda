@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 
 import PyQt6Ads as ads
-from PyQt6.QtCore import QObject, QSignalBlocker
+from PyQt6.QtCore import QEvent, QObject, QSignalBlocker
+from PyQt6.QtWidgets import QApplication, QWidget
 
 from varda.common.entities import VardaRaster
 from varda.common.ui import VardaDockWidget
@@ -43,6 +44,29 @@ class PixelSpectraDocks(QObject):
         self._docks: dict[PixelSpectraPlotWidget, VardaDockWidget] = {}
         self._baseTitles: dict[PixelSpectraPlotWidget, str] = {}
         self._active: PixelSpectraPlotWidget | None = None
+        # Clicking in a plot, or on its dock tab, makes it the active one; those
+        # presses go to child widgets, so watch them application-wide.
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self)
+
+    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
+        if (
+            a1 is not None
+            and a1.type() == QEvent.Type.MouseButtonPress
+            and isinstance(a0, QWidget)
+        ):
+            clicked = self._plotAt(a0)
+            if clicked is not None and clicked is not self._active:
+                self.setActive(clicked)
+        return False
+
+    def _plotAt(self, widget: QWidget) -> PixelSpectraPlotWidget | None:
+        for plot in self.plots:
+            tab = self._docks[plot].tabWidget()
+            if _within(widget, plot) or (tab is not None and _within(widget, tab)):
+                return plot
+        return None
 
     @property
     def active(self) -> PixelSpectraPlotWidget:
@@ -137,3 +161,7 @@ class PixelSpectraDocks(QObject):
             # exactly one plot stays active
             with QSignalBlocker(plot.activeCheckBox):
                 plot.activeCheckBox.setChecked(True)
+
+
+def _within(widget: QWidget, container: QWidget) -> bool:
+    return widget is container or container.isAncestorOf(widget)

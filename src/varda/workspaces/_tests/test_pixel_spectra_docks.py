@@ -2,6 +2,7 @@
 
 import PyQt6Ads as ads
 import pytest
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QMainWindow
 
 from varda.common.ui import VardaDockWidget
@@ -82,6 +83,27 @@ def test_unchecking_the_only_active_plot_keeps_it_active(docks):
     plot.activeCheckBox.setChecked(False)
     assert docks.active is plot
     assert plot.activeCheckBox.isChecked()
+
+
+def test_clicking_inside_a_plot_makes_it_active(qtbot, docks):
+    first = docks.newPlot()
+    second = docks.newPlot()
+    assert docks.active is second
+
+    qtbot.mouseClick(first, Qt.MouseButton.LeftButton)
+
+    assert docks.active is first
+    assert first.activeCheckBox.isChecked()
+    assert "active" in docks.dockFor(first).windowTitle()
+
+
+def test_clicking_a_plots_dock_tab_makes_it_active(qtbot, docks):
+    first = docks.newPlot()
+    docks.newPlot()
+
+    qtbot.mouseClick(docks.dockFor(first).tabWidget(), Qt.MouseButton.LeftButton)
+
+    assert docks.active is first
 
 
 def test_new_plot_button_opens_another_plot(docks):
