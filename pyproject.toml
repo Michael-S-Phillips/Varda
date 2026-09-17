@@ -40,6 +40,24 @@ dependencies = [
     "pyconify>=0.2.1",
 ]
 
+[project.optional-dependencies]
+# Band-parameter analyses (Analysis > Band Parameters) need HyPyRameter, which
+# is not on PyPI. Once its GitHub repository carries packaging metadata, pin it
+# here as
+#   "hypyrameter @ git+https://github.com/Michael-S-Phillips/HyPyRameter.git@<commit>",
+# so that `uv sync --extra hypyrameter` / `pip install "varda[hypyrameter]"`
+# install it. Until then install it by hand (see README); Varda runs without it
+# and simply does not offer the Band Parameters analysis. The packages below are
+# what HyPyRameter imports at runtime but does not declare.
+hypyrameter = [
+    "tqdm>=4.66",
+    "multiprocess>=0.70",
+    "openpyxl>=3.1",
+    "outlier-utils>=0.0.5",
+    "ipython>=8.0",
+    "pandas>=2.0",
+]
+
 [dependency-groups]
 dev = [
     "mypy>=1.18.2",

@@ -10,6 +10,7 @@ from __future__ import annotations
 import attrs
 from app_model.types import Action, MenuRule
 
+from varda._actions._analysis_actions import openRunAnalysisDialog
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
 from varda.maingui import MainGUI
@@ -22,6 +23,7 @@ from varda.workspaces.general_image_analysis import (
 IMAGE_LIST_CONTEXT_MENU_ID = "varda/image_list/context"
 OPEN_GENERAL_ANALYSIS_ID = "varda.image_list.open_general_analysis"
 OPEN_DUAL_IMAGE_ID = "varda.image_list.open_dual_image"
+ANALYZE_ID = "varda.image_list.analyze"
 
 
 @attrs.define
@@ -70,7 +72,19 @@ def _openInDualImage(
     ).open()
 
 
+def _analyze(
+    ctx: ImageListClickContext, images: ProjectImages, mainGui: MainGUI
+) -> None:
+    openRunAnalysisDialog(images, mainGui, image=ctx.images[0])
+
+
 IMAGE_LIST_ACTIONS: list[Action] = [
+    Action(
+        id=ANALYZE_ID,
+        title="Analyze…",
+        callback=_analyze,
+        menus=[MenuRule(id=IMAGE_LIST_CONTEXT_MENU_ID, order=3)],
+    ),
     Action(
         id=OPEN_GENERAL_ANALYSIS_ID,
         title="Open in New General Analysis Workspace",
