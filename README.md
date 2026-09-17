@@ -36,3 +36,14 @@ commit of its GitHub repository:
 uv sync --extra hypyrameter
 # or, with pip:  pip install "varda[hypyrameter]"
 ```
+
+## Optional: CNN / ViT classifiers (PyTorch)
+**Processing → Classification → Train CNN on ROIs / Train ViT on ROIs** train
+small neural networks on spatial-spectral patches around your ROI pixels. They
+need PyTorch, which is large, so it lives in the `ml` extra (the MLP classifier
+is pure numpy and always available):
+```bash
+uv sync --extra ml
+# or, with pip:  pip install "varda[ml]"
+```
+Training runs on CUDA or Apple MPS when available, otherwise on the CPU.

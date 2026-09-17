@@ -49,6 +49,12 @@ dependencies = [
 hypyrameter = [
     "hypyrameter @ git+https://github.com/Michael-S-Phillips/HyPyRameter.git@99d5551aaf58e2251c2e193a4fb77c56f319a7e8",
 ]
+# Processing > Classification > CNN / ViT classifiers need PyTorch (large;
+# platform-specific wheels). Install with `uv sync --extra ml`; without it
+# those analyses are listed as unavailable.
+ml = [
+    "torch>=2.4",
+]
 
 [dependency-groups]
 dev = [
