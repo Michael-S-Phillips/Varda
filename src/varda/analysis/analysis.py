@@ -55,5 +55,10 @@ class Analysis(ParameterGroup):
         """False when an optional dependency the analysis needs is missing."""
         return True
 
+    def prepareFor(self, image: VardaRaster) -> None:
+        """Adapt the settings to the image about to be analysed, e.g. offer the
+        choices its wavelengths support. Called on the GUI thread whenever the
+        dialog's image changes, before the settings widget is (re)built."""
+
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         raise NotImplementedError

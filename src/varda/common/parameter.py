@@ -1,5 +1,6 @@
 from __future__ import annotations
 import re
+from collections.abc import Sequence
 from enum import Enum
 from typing import Type, Callable
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QSignalBlocker, Qt, QObject
@@ -17,6 +18,8 @@ from PyQt6.QtWidgets import (
     QColorDialog,
     QPushButton,
     QLayout,
+    QListWidget,
+    QListWidgetItem,
 )
 
 from varda.common.ui import (
@@ -24,6 +27,7 @@ from varda.common.ui import (
     HBoxBuilder,
     SliderBuilder,
     SpinBoxBuilder,
+    VBoxBuilder,
 )
 from varda.common.entities import VardaRaster
 from varda.common.vec2 import Vec2
@@ -628,6 +632,135 @@ class EnumParameter(Parameter[Enum]):
         def onParamChanged(self, value):
             with QSignalBlocker(self.comboBox):
                 self.refreshComboBox()
+
+
+class MultiChoiceParameter(Parameter[list[str]]):
+    """Any subset of a list of named choices. The choices can be replaced at
+    runtime (``setChoices``) once whatever they depend on is known, e.g. the
+    spectral parameters an image's wavelength range supports. The value is
+    always in choice order and never names an unknown choice."""
+
+    sigChoicesChanged: pyqtSignal = pyqtSignal(object)  # the new list of choices
+
+    def __init__(
+        self,
+        name: str,
+        choices: Sequence[str] = (),
+        default: Sequence[str] | None = None,
+        description: str | None = None,
+        parent=None,
+    ):
+        """``default`` None selects every choice."""
+        self.choices: list[str] = list(choices)
+        self._explicitDefault = None if default is None else list(default)
+        super().__init__(
+            name,
+            self._inChoiceOrder(self.choices if default is None else default),
+            description,
+            parent,
+        )
+
+    def set(self, value: Sequence[str]) -> None:
+        super().set(self._inChoiceOrder(value))
+
+    def setChoices(
+        self, choices: Sequence[str], selected: Sequence[str] | None = None
+    ) -> None:
+        """Replace the choices; ``selected`` None selects all of them."""
+        self.choices = list(choices)
+        self.sigChoicesChanged.emit(list(self.choices))
+        self.set(self.choices if selected is None else selected)
+
+    def selectAll(self) -> None:
+        self.set(self.choices)
+
+    def selectNone(self) -> None:
+        self.set([])
+
+    def _inChoiceOrder(self, selected: Sequence[str]) -> list[str]:
+        chosen = set(selected)
+        return [choice for choice in self.choices if choice in chosen]
+
+    def getWidget(self, parent=None) -> QWidget:
+        return self.MultiChoiceParameterWidget(self, parent)
+
+    def clone(self, parent=None) -> MultiChoiceParameter:
+        return MultiChoiceParameter(
+            self.name, self.choices, self._explicitDefault, self.description, parent
+        )
+
+    class MultiChoiceParameterWidget(QWidget):
+        """A checkable list of the choices with All / None buttons."""
+
+        LIST_HEIGHT = 180
+
+        def __init__(self, param: "MultiChoiceParameter", parent=None):
+            super().__init__(parent)
+            self.param = param
+
+            self.listWidget = QListWidget(self)
+            self.listWidget.setMaximumHeight(self.LIST_HEIGHT)
+            self.allButton = QPushButton("All", self)
+            self.noneButton = QPushButton("None", self)
+            self._rebuild()
+
+            self.listWidget.itemChanged.connect(self._itemChanged)
+            self.allButton.clicked.connect(self.param.selectAll)
+            self.noneButton.clicked.connect(self.param.selectNone)
+            self.param.sigChoicesChanged.connect(lambda _: self._rebuild())
+            self.param.sigParameterChanged.connect(self.onParamChanged)
+
+            self.setLayout(
+                VBoxBuilder(margins=0)
+                .withWidget(self.listWidget)
+                .withLayout(
+                    HBoxBuilder(margins=0)
+                    .withWidget(self.allButton)
+                    .withWidget(self.noneButton)
+                    .withStretch()
+                )
+            )
+
+        def _rebuild(self) -> None:
+            selected = set(self.param.get())
+            with QSignalBlocker(self.listWidget):
+                self.listWidget.clear()
+                for choice in self.param.choices:
+                    item = QListWidgetItem(choice)
+                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                    item.setCheckState(
+                        Qt.CheckState.Checked
+                        if choice in selected
+                        else Qt.CheckState.Unchecked
+                    )
+                    self.listWidget.addItem(item)
+
+        def _items(self) -> list[QListWidgetItem]:
+            return [
+                item
+                for i in range(self.listWidget.count())
+                if (item := self.listWidget.item(i)) is not None
+            ]
+
+        def _itemChanged(self, _item: QListWidgetItem) -> None:
+            self.param.set(
+                [
+                    item.text()
+                    for item in self._items()
+                    if item.checkState() == Qt.CheckState.Checked
+                ]
+            )
+
+        @pyqtSlot(object)
+        def onParamChanged(self, value: list[str]) -> None:
+            selected = set(value)
+            with QSignalBlocker(self.listWidget):
+                for item in self._items():
+                    item.setCheckState(
+                        Qt.CheckState.Checked
+                        if item.text() in selected
+                        else Qt.CheckState.Unchecked
+                    )
 
 
 class ColorParameter(Parameter[QColor]):
