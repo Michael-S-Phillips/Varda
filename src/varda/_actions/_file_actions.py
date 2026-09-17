@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from app_model.types import Action, MenuRule, StandardKeyBinding
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox
@@ -10,6 +11,7 @@ from varda.image_loading import ImageLoadingService
 from varda.image_loading.export_image_dialog import ExportImageDialog
 from varda.maingui import MainGUI
 from varda.session import SESSION_FILE_FILTER, captureSession, readSession, writeSession
+from varda.session_autosave import defaultAutosavePath
 from varda.session_restore import RestoreReport, SessionRestorer
 
 logger = logging.getLogger(__name__)
@@ -46,8 +48,25 @@ def openSession(images: ProjectImages, mainGui: MainGUI) -> None:
     path, _ = QFileDialog.getOpenFileName(
         mainGui, "Open Session", "", SESSION_FILE_FILTER
     )
-    if not path:
+    if path:
+        _restoreSession(Path(path), images, mainGui)
+
+
+def restoreLastSession(images: ProjectImages, mainGui: MainGUI) -> None:
+    """Reopen the autosaved session (written every few minutes and on quit)."""
+    path = defaultAutosavePath()
+    if not path.exists():
+        QMessageBox.information(
+            mainGui,
+            "No autosaved session yet",
+            f"Varda autosaves the session every few minutes to\n{path}\n"
+            "once an image is open. Nothing has been saved yet.",
+        )
         return
+    _restoreSession(path, images, mainGui)
+
+
+def _restoreSession(path: Path, images: ProjectImages, mainGui: MainGUI) -> None:
     try:
         state = readSession(path)
     except (OSError, ValueError, KeyError) as error:
@@ -116,6 +135,13 @@ FILE_ACTIONS: list[Action] = [
         enablement=EXPR_HAS_IMAGES,
         menus=[MenuRule(id=MenuId.FILE, group=MenuGroup.FILE_SESSION, order=2)],
         keybindings=[StandardKeyBinding.Save.to_keybinding_rule()],
+    ),
+    Action(
+        id="varda.file.restore_last_session",
+        title="Restore Last Session",
+        icon="fa6-solid:clock-rotate-left",
+        callback=restoreLastSession,
+        menus=[MenuRule(id=MenuId.FILE, group=MenuGroup.FILE_SESSION, order=3)],
     ),
     Action(
         id="varda.file.exit",

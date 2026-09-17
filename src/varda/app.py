@@ -22,6 +22,9 @@ from varda.plugins import VardaPluginManager
 # if TYPE_CHECKING:
 from varda.maingui import MainGUI
 
+if TYPE_CHECKING:
+    from varda.session_autosave import SessionAutosaver
+
 
 class VardaApplication(Application):
     """Subclasses app-model's Application to co-locate Varda state
@@ -33,6 +36,7 @@ class VardaApplication(Application):
         super().__init__("varda")
         self.pluginManager = VardaPluginManager()
         self.maingui: MainGUI | None = None
+        self.autosaver: SessionAutosaver | None = None  # set up in main.initVarda
         self.images = ProjectImages()
 
         # the lambdas defer resolution till later, since self.maingui isn't assigned right away

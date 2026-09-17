@@ -32,6 +32,10 @@ images (by path), the open workspaces and their ROIs; **File → Open Session…
 open. Images that exist only in memory (analysis results you have not exported)
 are left out — export them first.
 
+Varda also autosaves the session every three minutes and on quit (to
+`autosave.varda` in its app-data folder, next to the logs); after a crash,
+**File → Restore Last Session** brings it back.
+
 ## Choosing how many PCA / MNF / ICA components to keep
 The forward transforms (**Processing → Transforms**) default to every
 component and attach the eigenvalues and inverse to the result. Open the

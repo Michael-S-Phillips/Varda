@@ -18,6 +18,7 @@ from varda.all_images_view_list.image_list_menu_controller import (
 )
 from varda.app import VardaApplication
 from varda.maingui import MainGUI
+from varda.session_autosave import SessionAutosaver
 from varda.utilities.resources import resource_path
 
 
@@ -67,6 +68,8 @@ def initVarda() -> None:
     app.context.changed.connect(
         lambda _keys: app.maingui.menuBar().update_from_context(app.context)
     )
+    # Autosave the session every few minutes and on quit (File > Restore Last Session)
+    app.autosaver = SessionAutosaver(app.images, app.maingui, parent=app.maingui)
     app.maingui.showMaximized()
 
     varda.log.info("Varda initialized successfully!")
