@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6 import QtWidgets
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QMimeData, Qt, pyqtSignal
 from PyQt6.QtWidgets import QWidget
 from app_model.backends.qt import QModelMainWindow
 from varda.common.ui import DetachableTabWidget
@@ -19,9 +19,13 @@ logger = logging.getLogger(__name__)
 
 
 class MainGUI(QModelMainWindow):
+    # Local file paths dragged onto the window; main.py routes them to the importer.
+    sigFilesDropped = pyqtSignal(list)
+
     def __init__(self, app: VardaApplication):
         super().__init__(app)
         self.setWindowTitle("Varda")
+        self.setAcceptDrops(True)
 
         self.app = app
         self.childWindows: list[QWidget] = []
@@ -86,6 +90,28 @@ class MainGUI(QModelMainWindow):
         self.childWindows.clear()
 
         logger.info("All child windows closed")
+
+    # --- Drag and drop of image files ---
+
+    def dragEnterEvent(self, event):
+        if self._localFiles(event.mimeData()):
+            event.acceptProposedAction()
+
+    def dragMoveEvent(self, event):
+        if self._localFiles(event.mimeData()):
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        paths = self._localFiles(event.mimeData())
+        if paths:
+            event.acceptProposedAction()
+            self.sigFilesDropped.emit(paths)
+
+    @staticmethod
+    def _localFiles(mime: QMimeData | None) -> list[str]:
+        if mime is None or not mime.hasUrls():
+            return []
+        return [url.toLocalFile() for url in mime.urls() if url.isLocalFile()]
 
     def closeEvent(self, event):
         """Handle the window close event to ensure proper cleanup."""

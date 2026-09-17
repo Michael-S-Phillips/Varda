@@ -7,7 +7,15 @@ from varda.image_loading import ImageLoadingService
 
 
 def importImage(images: ProjectImages) -> None:
+    """Prompt for one or more image files and load them into the project."""
     ImageLoadingService.load_images(on_success_callback=images.append)
+
+
+def importImagePaths(filePaths: list[str], images: ProjectImages) -> None:
+    """Load the given image files into the project (e.g. files dropped on the window)."""
+    ImageLoadingService.load_images(
+        file_paths=filePaths, on_success_callback=images.append
+    )
 
 
 def exitApp() -> None:

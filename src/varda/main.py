@@ -12,6 +12,7 @@ from PyQt6.QtCore import QSize
 
 import varda
 from varda._actions import MENUBAR
+from varda._actions._file_actions import importImagePaths
 from varda.all_images_view_list.image_list_menu_controller import (
     ImageListMenuController,
 )
@@ -58,6 +59,10 @@ def initVarda() -> None:
     )
     app.maingui.imageList.sigContextMenuRequested.connect(
         imageListController.onContextMenuRequested
+    )
+    # Files dragged onto the window import like File > Import Image(s)
+    app.maingui.sigFilesDropped.connect(
+        lambda paths: importImagePaths(paths, app.images)
     )
     app.context.changed.connect(
         lambda _keys: app.maingui.menuBar().update_from_context(app.context)
