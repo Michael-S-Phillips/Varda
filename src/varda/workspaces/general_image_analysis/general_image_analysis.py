@@ -153,9 +153,8 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
     def _initUI(self):
         """Initialize the user interface for the workflow"""
-        self.setWindowTitle(
-            f"General Image Analysis - Image {self.config.image.value.name}"
-        )
+        # The tab is named after the image so several workspaces stay tellable apart
+        self.setWindowTitle(self.config.image.value.name)
 
         self._setupDocks()
         # Set the raster view as the central widget

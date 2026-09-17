@@ -53,9 +53,7 @@ def _openInGeneralAnalysis(
     # The workflow reads its image once at construction, so a snapshot suffices.
     config = GeneralImageAnalysisConfig(list(images))
     config.image.set(ctx.images[0])
-    mainGui.addTab(
-        GeneralImageAnalysisWorkflow(config), "General Image Analysis Workspace"
-    )
+    mainGui.addTab(GeneralImageAnalysisWorkflow(config))
 
 
 def _openInDualImage(
@@ -66,9 +64,7 @@ def _openInDualImage(
     secondary = ctx.images[1] if len(ctx.images) == 2 else None
     NewDualImageWorkspaceDialog(
         images, primary=ctx.images[0], secondary=secondary
-    ).connectOnAccept(
-        lambda workspace: mainGui.addTab(workspace, "Dual Image Workspace")
-    ).open()
+    ).connectOnAccept(mainGui.addTab).open()
 
 
 def _exportImage(

@@ -90,12 +90,11 @@ class SessionRestorer(QObject):
             images = [self._byPath(path) for path in workspace.images]
             if any(image is None for image in images):
                 continue
-            built = self._build(workspace, [image for image in images if image])
-            if built is None:
+            widget = self._build(workspace, [image for image in images if image])
+            if widget is None:
                 continue
-            widget, title = built
             roisFromJson(workspace.rois, widget.roiCollection)
-            self._mainGui.addTab(widget, title)
+            self._mainGui.addTab(widget)
             count += 1
         self.sigFinished.emit(
             RestoreReport(tuple(self._loaded), tuple(self._failed), count)
@@ -105,13 +104,11 @@ class SessionRestorer(QObject):
         if workspace.kind == "general":
             config = GeneralImageAnalysisConfig(list(self._images))
             config.image.set(images[0])
-            return GeneralImageAnalysisWorkflow(
-                config
-            ), "General Image Analysis Workspace"
+            return GeneralImageAnalysisWorkflow(config)
         if workspace.kind == "dual" and len(images) == 2:
             config = DualImageWorkspaceConfig(list(self._images))
             config.image1Param.set(images[0])
             config.image2Param.set(images[1])
-            return DualImageWorkspace(config), "Dual Image Workspace"
+            return DualImageWorkspace(config)
         logger.warning("Unknown workspace kind %r in session; skipped", workspace.kind)
         return None

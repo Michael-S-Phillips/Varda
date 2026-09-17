@@ -109,6 +109,8 @@ class DualImageWorkspace(QMainWindow):
         self.image2 = config.image2Param.get()
         self.displayMode = config.displayModeParam.get()
         self.linkMode = config.linkModeParam.get()
+        # The tab is named after the images so several workspaces stay tellable apart
+        self.setWindowTitle(f"{self.image1.name} | {self.image2.name}")
 
         self.viewportLinkController = None
 

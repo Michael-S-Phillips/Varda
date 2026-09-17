@@ -11,14 +11,12 @@ from varda.workspaces.general_image_analysis import (
 
 
 def newDualImageWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
-    NewDualImageWorkspaceDialog(images).connectOnAccept(
-        lambda workspace: mainGui.addTab(workspace, "Dual Image Workspace")
-    ).open()
+    NewDualImageWorkspaceDialog(images).connectOnAccept(mainGui.addTab).open()
 
 
 def newGeneralAnalysisWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
     NewGeneralImageAnalysisWorkspaceDialog(images).connectOnAccept(
-        lambda workspace: mainGui.addTab(workspace, "General Image Analysis Workspace")
+        mainGui.addTab
     ).open()
 
 
