@@ -20,7 +20,10 @@ _DEFAULT_DISPLAY = ("R637", "R550", "R463")
 
 
 class BandParametersAnalysis(Analysis):
+    analysisId = "band_parameters"
     name = "Band Parameters (HyPyRameter)"
+    category = "Spectral Parameters"
+    requirement = "HyPyRameter"
     description = (
         "Computes every HyPyRameter spectral parameter the image's wavelength "
         "range supports and produces a parameter image with one band per "

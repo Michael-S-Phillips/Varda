@@ -26,7 +26,9 @@ class RunAnalysisDialog(QDialog):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Run Analysis")
+        # Opened for one analysis (from its menu entry), the dialog is that
+        # analysis's dialog: no picker, its name as the title.
+        self.setWindowTitle(analysis.name if analysis is not None else "Run Analysis")
         self._analyses = list(analyses)
         # One instance per analysis class, so settings persist while switching
         self._instances: dict[type[Analysis], Analysis] = {}
@@ -49,6 +51,8 @@ class RunAnalysisDialog(QDialog):
         form = QFormLayout()
         form.addRow("Image", self.imageParam.getWidget())
         form.addRow("Analysis", self.analysisCombo)
+        if analysis is not None:
+            form.setRowVisible(self.analysisCombo, False)
         self.setLayout(
             VBoxBuilder(Qt.AlignmentFlag.AlignTop)
             .withLayout(form)

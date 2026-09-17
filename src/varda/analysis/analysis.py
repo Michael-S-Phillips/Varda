@@ -21,8 +21,14 @@ class Analysis(ParameterGroup):
     ``reportProgress`` as it goes.
     """
 
+    # Stable identifier used in action ids (snake_case).
+    analysisId: ClassVar[str] = "analysis"
     name: ClassVar[str] = "Analysis"
     description: ClassVar[str] = ""
+    # Processing-menu submenu the analysis is listed under.
+    category: ClassVar[str] = "General"
+    # What the analysis needs when isAvailable() is False, e.g. "HyPyRameter".
+    requirement: ClassVar[str] = ""
 
     @classmethod
     def isAvailable(cls) -> bool:

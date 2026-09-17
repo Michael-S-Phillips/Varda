@@ -11,3 +11,5 @@ WORKSPACE_COUNT = "workspace_count"
 
 EXPR_HAS_IMAGES = parse_expression(f"{IMAGE_COUNT} > 0")
 EXPR_HAS_WORKSPACE = parse_expression(f"{WORKSPACE_COUNT} > 0")
+# For actions that should be listed but never enabled (missing optional dependency)
+EXPR_NEVER = parse_expression("False")

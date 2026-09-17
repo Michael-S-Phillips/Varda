@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from app_model import Application
 
-from varda._actions import ALL_ACTIONS
+from varda._actions import ALL_ACTIONS, PROCESSING_SUBMENUS
 from varda.context_keys import IMAGE_COUNT
 from varda.all_images_view_list.image_list_actions import (
     IMAGE_LIST_ACTIONS,
@@ -43,6 +43,7 @@ class VardaApplication(Application):
         self.images.sigDataChanged.connect(self._onImagesChanged)
 
         self.register_actions(ALL_ACTIONS)
+        self.menus.append_menu_items(PROCESSING_SUBMENUS)  # Processing categories
         self.register_actions(VIEWPORT_ACTIONS)
         # Provider for the transient viewport right-click context. Called fresh
         # each time an action runs; the controller sets it just before exec.

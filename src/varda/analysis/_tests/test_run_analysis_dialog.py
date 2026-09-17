@@ -43,6 +43,18 @@ def test_dialog_can_be_preselected(qtbot):
     assert dialog.selectedImage() is images[1]
 
 
+def test_a_preselected_analysis_hides_the_picker_and_names_the_dialog(qtbot):
+    images = [generate_random_image((10, 10, 10))]
+    dialog = RunAnalysisDialog(
+        images, [AlphaAnalysis, BetaAnalysis], analysis=BetaAnalysis
+    )
+    qtbot.addWidget(dialog)
+
+    assert dialog.windowTitle() == "Beta"
+    assert dialog.analysisCombo.isHidden()
+    assert isinstance(dialog.selectedAnalysis(), BetaAnalysis)
+
+
 def test_settings_follow_the_chosen_analysis_and_persist(qtbot):
     images = [generate_random_image((10, 10, 10))]
     dialog = RunAnalysisDialog(images, [AlphaAnalysis, BetaAnalysis])
