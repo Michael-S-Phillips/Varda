@@ -90,7 +90,7 @@ def test_fastica_recovers_independent_non_gaussian_sources():
     mixing = np.array([[1.0, 0.5], [0.3, 1.0]])
     X = sources @ mixing
 
-    recovered, _mixing = fastIca(X, components=2, maxIterations=400, seed=0)
+    recovered = fastIca(X, components=2, maxIterations=400, seed=0).scores
 
     corr = np.abs(np.corrcoef(recovered.T, sources.T)[:2, 2:])
     # each recovered component matches exactly one source (up to sign/permutation)

@@ -5,6 +5,11 @@ valid pixels; ``flattenValid``/``unflatten`` convert to and from it, leaving
 nodata pixels as NaN in results. Covariances are accumulated in row chunks so
 a full CRISM cube (hundreds of thousands of pixels x hundreds of bands) never
 needs a second full-size copy.
+
+Every transform also returns what its inverse needs (``mean`` and ``inverse``),
+so the number of components to keep can be decided afterwards, ENVI-style:
+transform with everything, look at the eigenvalues and the component images,
+then rebuild the image from the first N.
 """
 
 from __future__ import annotations
@@ -14,17 +19,27 @@ import numpy as np
 
 _CHUNK_ROWS = 65_536
 
+# Fraction of the variance the suggested PCA/ICA component count captures.
+_SUGGESTED_VARIANCE = 0.99
+# MNF eigenvalues are SNR + 1; components below this are taken to be noise.
+_MNF_NOISE_EIGENVALUE = 2.0
+
 
 @attrs.frozen
 class TransformResult:
     """``scores``: (samples, k) transformed data. ``loadings``: (bands, k)
     component vectors in band space. ``explainedVariance``: (k,) each
-    component's share (of variance for PCA/ICA whitening, of noise-whitened
-    variance for MNF), in decreasing order."""
+    component's share (of variance for PCA/ICA, of noise-whitened variance for
+    MNF), in decreasing order. ``eigenvalues``: (k,) the unnormalised values
+    behind those shares. ``mean``: (bands,) and ``inverse``: (k, bands) such that
+    ``data ~ scores @ inverse + mean``."""
 
     scores: np.ndarray
     loadings: np.ndarray
     explainedVariance: np.ndarray
+    eigenvalues: np.ndarray
+    mean: np.ndarray
+    inverse: np.ndarray
 
 
 def flattenValid(cube, nodata: float | None) -> tuple[np.ndarray, np.ndarray]:
@@ -46,6 +61,28 @@ def unflatten(
     return out
 
 
+def inverseTransform(
+    scores: np.ndarray, inverse: np.ndarray, mean: np.ndarray, components: int
+) -> np.ndarray:
+    """Rebuild (samples, bands) data from the first ``components`` scores."""
+    k = min(components, scores.shape[1], inverse.shape[0])
+    return scores[:, :k] @ inverse[:k] + mean
+
+
+def suggestedComponents(eigenvalues: np.ndarray, kind: str) -> int:
+    """A starting point for how many components to keep: for MNF, those with
+    an eigenvalue clearly above the noise floor; otherwise enough to capture
+    99% of the variance. At least one."""
+    values = np.asarray(eigenvalues, dtype=np.float64)
+    if kind == "MNF":
+        return max(1, int(np.sum(values > _MNF_NOISE_EIGENVALUE)))
+    total = values.sum()
+    if total <= 0:
+        return 1
+    cumulative = np.cumsum(values) / total
+    return int(np.searchsorted(cumulative, _SUGGESTED_VARIANCE) + 1)
+
+
 def pca(X: np.ndarray, components: int) -> TransformResult:
     """Principal components of the rows of ``X``, most variance first."""
     n, bands = X.shape
@@ -63,6 +100,9 @@ def pca(X: np.ndarray, components: int) -> TransformResult:
         scores=_project(X, mean, eigenvectors),
         loadings=eigenvectors,
         explainedVariance=share,
+        eigenvalues=eigenvalues,
+        mean=mean,
+        inverse=eigenvectors.T,  # orthonormal
     )
 
 
@@ -83,14 +123,18 @@ def mnf(X: np.ndarray, noiseCov: np.ndarray, components: int) -> TransformResult
     are ordered by signal-to-noise rather than by variance."""
     noiseValues, noiseVectors = np.linalg.eigh(noiseCov)
     floor = max(noiseValues.max(), 1e-300) * 1e-10  # guard near-singular noise
-    whitening = (
-        noiseVectors @ np.diag(np.maximum(noiseValues, floor) ** -0.5) @ noiseVectors.T
-    )
-    whitened = pca((X - X.mean(axis=0)) @ whitening, components)
+    noiseValues = np.maximum(noiseValues, floor)
+    whitening = noiseVectors @ np.diag(noiseValues**-0.5) @ noiseVectors.T
+    unwhitening = noiseVectors @ np.diag(noiseValues**0.5) @ noiseVectors.T
+    mean = X.mean(axis=0)
+    whitened = pca((X - mean) @ whitening, components)
     return TransformResult(
         scores=whitened.scores,
         loadings=whitening @ whitened.loadings,
         explainedVariance=whitened.explainedVariance,
+        eigenvalues=whitened.eigenvalues,
+        mean=mean,
+        inverse=whitened.loadings.T @ unwhitening,
     )
 
 
@@ -100,13 +144,15 @@ def fastIca(
     maxIterations: int = 200,
     tolerance: float = 1e-5,
     seed: int = 0,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> TransformResult:
     """FastICA (parallel, logcosh contrast) on PCA-whitened data.
 
-    Returns unit-variance independent sources (samples, k) and the mixing
-    matrix in band space (bands, k) such that ``X - mean ~ sources @ mixing.T``.
+    ``scores`` are unit-variance independent sources ordered by how much of the
+    data's variance each explains; ``loadings`` is the mixing matrix in band
+    space (bands, k), so ``X - mean ~ scores @ loadings.T``.
     """
     n = X.shape[0]
+    mean = X.mean(axis=0)
     whitened = pca(X, components)
     k = whitened.scores.shape[1]
     Z = whitened.scores / np.sqrt(whitened.scores.var(axis=0, ddof=1))
@@ -124,8 +170,21 @@ def fastIca(
             break
 
     sources = Z @ W.T
-    mixing, *_ = np.linalg.lstsq(sources, X - X.mean(axis=0), rcond=None)
-    return sources, mixing.T
+    mixing, *_ = np.linalg.lstsq(sources, X - mean, rcond=None)  # (k, bands)
+    # Unit-variance sources: each one's share of the variance is its mixing
+    # vector's squared norm. Order the components by it, largest first.
+    variance = np.sum(mixing**2, axis=1)
+    order = np.argsort(variance)[::-1]
+    sources, mixing, variance = sources[:, order], mixing[order], variance[order]
+    total = variance.sum()
+    return TransformResult(
+        scores=sources,
+        loadings=mixing.T,
+        explainedVariance=variance / total if total > 0 else np.zeros(k),
+        eigenvalues=variance,
+        mean=mean,
+        inverse=mixing,
+    )
 
 
 def _symmetricDecorrelation(W: np.ndarray) -> np.ndarray:

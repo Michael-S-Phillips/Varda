@@ -7,6 +7,7 @@ from typing import ClassVar
 
 import attrs
 from PyQt6.QtCore import QObject
+from PyQt6.QtWidgets import QWidget
 
 from varda.common.entities import VardaRaster
 from varda.common.parameter import ParameterGroup
@@ -59,6 +60,16 @@ class Analysis(ParameterGroup):
         """Adapt the settings to the image about to be analysed, e.g. offer the
         choices its wavelengths support. Called on the GUI thread whenever the
         dialog's image changes, before the settings widget is (re)built."""
+
+    def unavailableReason(self, image: VardaRaster) -> str:
+        """Why this analysis cannot run on ``image`` (shown instead of Run), or
+        "" when it can."""
+        return ""
+
+    def createPreviewWidget(self, image: VardaRaster) -> QWidget | None:
+        """An optional widget shown below the settings, e.g. a plot that helps
+        choose them. Rebuilt whenever the image changes."""
+        return None
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         raise NotImplementedError

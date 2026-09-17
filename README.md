@@ -32,6 +32,15 @@ images (by path), the open workspaces and their ROIs; **File → Open Session…
 open. Images that exist only in memory (analysis results you have not exported)
 are left out — export them first.
 
+## Choosing how many PCA / MNF / ICA components to keep
+The forward transforms (**Processing → Transforms**) default to every
+component and attach the eigenvalues and inverse to the result. Open the
+result in a workspace and step through its bands to see where the components
+turn into noise, then run **Transforms → Inverse Transform (Keep N
+Components)** on it: the dialog plots the eigenvalues with a draggable cutoff,
+and rebuilds a denoised image in the original bands from the first N (or keeps
+just those N component bands).
+
 ## Saving results
 Every Processing result joins the project's image list. Tick **Save result to
 file** in the analysis dialog to also write it to disk (ENVI `.img`/`.hdr` or

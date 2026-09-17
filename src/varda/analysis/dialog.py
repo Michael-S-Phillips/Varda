@@ -64,6 +64,8 @@ class RunAnalysisDialog(QDialog):
         self.descriptionLabel.setWordWrap(True)
         self.descriptionLabel.setStyleSheet("color: palette(mid);")
         self.settingsBox = SectionBox("Settings")
+        # Analyses may offer a widget that helps choose their settings
+        self.previewBox = SectionBox("Preview")
 
         # Output: the result always joins the project; optionally it is also
         # written to disk.
@@ -99,6 +101,7 @@ class RunAnalysisDialog(QDialog):
             .withLayout(form)
             .withWidget(self.descriptionLabel)
             .withWidget(self.settingsBox)
+            .withWidget(self.previewBox)
             .withWidget(outputBox)
             .withWidget(self.statusLabel)
             .withStretch()
@@ -170,12 +173,18 @@ class RunAnalysisDialog(QDialog):
             self.settingsBox.setContent(analysis.createWidget())
         else:
             self.settingsBox.setContent(QLabel("This analysis has no settings."))
+        preview = analysis.createPreviewWidget(image) if image is not None else None
+        self.previewBox.setContent(preview)
+        self.previewBox.setVisible(preview is not None)
         self._updateRunState()
 
     def _updateRunState(self) -> None:
         analysis = self.selectedAnalysis()
+        image = self.selectedImage()
         rois = self._context.rois
-        if analysis.needsRois and (rois is None or len(rois) == 0):
+        if image is not None and analysis.unavailableReason(image):
+            reason = analysis.unavailableReason(image)
+        elif analysis.needsRois and (rois is None or len(rois) == 0):
             reason = (
                 "This analysis trains on ROIs: open the image in a workspace and "
                 "draw at least two ROIs first."

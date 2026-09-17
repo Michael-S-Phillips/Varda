@@ -12,7 +12,6 @@ from PyQt6.QtWidgets import (
     QSplitter,
     QLayout,
     QFormLayout,
-    QDockWidget,
     QLineEdit,
     QPushButton,
     QFileDialog,
@@ -214,7 +213,7 @@ class SectionBox(QWidget):
             border-radius: 6px;
         }
         """)
-        self.currentContent = None
+        self.content: QWidget | QLayout | None = content
         self.frameLayout = QVBoxLayout()
         if isinstance(content, QLayout):
             self.frameLayout.addLayout(content)
@@ -233,6 +232,7 @@ class SectionBox(QWidget):
     def setContent(self, content: QWidget | QLayout | None):
         # clear existing items
         self._clearLayout(self.frameLayout)
+        self.content = content
         # now set new layout
         if content is None:
             return
@@ -248,8 +248,8 @@ class SectionBox(QWidget):
             item = layout.takeAt(0)
             if w := item.widget():
                 w.setParent(None)
-            elif l := item.layout():
-                self._clearLayout(l)
+            elif nested := item.layout():
+                self._clearLayout(nested)
 
 
 class FilePathBox(QWidget):

@@ -203,6 +203,8 @@ def paramLayoutDefault() -> QLayout:
 
 
 class IntParameter(Parameter[int]):
+    sigRangeChanged: pyqtSignal = pyqtSignal(object)  # the new (min, max)
+
     def __init__(
         self,
         name,
@@ -217,6 +219,15 @@ class IntParameter(Parameter[int]):
         if range is not None:
             default = max(range[0], min(range[1], default))  # clamp default to range
         super().__init__(name, default, description=description, parent=parent)
+
+    def setRange(self, range: tuple[int, int], value: int | None = None) -> None:
+        """Change the allowed range once it is known (e.g. an image's band
+        count); the value is clamped into it, or replaced by ``value``."""
+        self.range = range
+        wanted = self.value if value is None else value
+        self.value = max(range[0], min(range[1], wanted))
+        self.sigRangeChanged.emit(range)  # widgets re-read range and value
+        self.sigParameterChanged.emit(self.value)
 
     def getWidget(self, parent=None) -> QWidget:
         return self.IntParameterWidget(self, parent)
@@ -283,6 +294,17 @@ class IntParameter(Parameter[int]):
                 .withWidget(self.unitLabel)
                 .withWidget(self.slider)
             )
+            self.param.sigRangeChanged.connect(self.onRangeChanged)
+
+        @pyqtSlot(object)
+        def onRangeChanged(self, range: tuple[int, int]) -> None:
+            with QSignalBlocker(self.spinBox):
+                self.spinBox.setRange(*range)
+                self.spinBox.setValue(self.param.get())
+            if self.slider is not None:
+                with QSignalBlocker(self.slider):
+                    self.slider.setRange(*range)
+                    self.slider.setValue(self.param.get())
 
         @pyqtSlot(int)
         def valueChanged(self, value):

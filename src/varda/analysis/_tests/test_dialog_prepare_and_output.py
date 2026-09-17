@@ -1,6 +1,8 @@
 """The Run dialog prepares the analysis for the chosen image and offers to save
 the result to a file."""
 
+from PyQt6.QtWidgets import QLabel
+
 from varda.analysis.analysis import Analysis
 from varda.analysis.dialog import RunAnalysisDialog
 from varda.common.parameter import IntParameter
@@ -37,6 +39,54 @@ def test_dialog_prepares_the_analysis_for_the_initial_and_changed_image(qtbot):
     dialog.imageParam.set(second)
 
     assert analysis.preparedFor == [first, second]
+
+
+class _PickyAnalysis(_RecordingAnalysis):
+    analysisId = "picky"
+    name = "Picky"
+
+    def unavailableReason(self, image):
+        return "" if image.name == "ok" else "Picky needs an image named ok."
+
+    def createPreviewWidget(self, image):
+        return QLabel(f"preview of {image.name}")
+
+
+def test_an_analysis_can_veto_the_image_with_a_reason(qtbot):
+    good, bad = generate_random_image((20, 20, 10)), generate_random_image((20, 20, 10))
+    good._name, bad._name = "ok", "nope"
+    dialog = RunAnalysisDialog([good, bad], [_PickyAnalysis], image=bad)
+    qtbot.addWidget(dialog)
+
+    assert not dialog.runButton.isEnabled()
+    assert dialog.statusLabel.text() == "Picky needs an image named ok."
+
+    dialog.imageParam.set(good)
+    assert dialog.runButton.isEnabled()
+    assert dialog.statusLabel.text() == ""
+
+
+def test_an_analysis_preview_is_shown_and_follows_the_image(qtbot):
+    good, bad = generate_random_image((20, 20, 10)), generate_random_image((20, 20, 10))
+    good._name, bad._name = "ok", "nope"
+    dialog = RunAnalysisDialog([good, bad], [_PickyAnalysis], image=good)
+    qtbot.addWidget(dialog)
+
+    def previewText() -> str:
+        preview = dialog.previewBox.content
+        assert isinstance(preview, QLabel)
+        return preview.text()
+
+    assert previewText() == "preview of ok"
+    dialog.imageParam.set(bad)
+    assert previewText() == "preview of nope"
+
+
+def test_analyses_without_a_preview_hide_the_preview_box(qtbot):
+    image = generate_random_image((20, 20, 10))
+    dialog = RunAnalysisDialog([image], [_RecordingAnalysis], image=image)
+    qtbot.addWidget(dialog)
+    assert dialog.previewBox.isHidden()
 
 
 def test_output_path_is_none_unless_saving_is_enabled(qtbot):
