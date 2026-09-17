@@ -44,6 +44,7 @@ from varda.plotting.spectrum_matching import (
     harmonizeWavelengthUnits,
     matchToReference,
 )
+from varda.plotting.view_box import ModifierDragViewBox
 from varda.common.parameter import (
     ParameterGroup,
     FloatParameter,
@@ -253,28 +254,6 @@ class RangeConfig(ParameterGroup):
     )
 
 
-_RECT_ZOOM_MODIFIERS = (
-    Qt.KeyboardModifier.ShiftModifier
-    | Qt.KeyboardModifier.ControlModifier  # Cmd on macOS
-    | Qt.KeyboardModifier.MetaModifier
-)
-
-
-def dragMouseMode(modifiers: Qt.KeyboardModifier) -> int:
-    """A plain drag pans; a Shift/Ctrl/Cmd-drag zooms to the dragged box."""
-    if modifiers & _RECT_ZOOM_MODIFIERS:
-        return pg.ViewBox.RectMode
-    return pg.ViewBox.PanMode
-
-
-class _PlotViewBox(pg.ViewBox):
-    """ViewBox whose left-drag behaviour follows the keyboard modifiers."""
-
-    def mouseDragEvent(self, ev, axis=None):
-        self.setMouseMode(dragMouseMode(ev.modifiers()))
-        super().mouseDragEvent(ev, axis)
-
-
 class _PlotGraphicsView(pg.GraphicsView):
     def __init__(self, parent: "VardaPlotWidget"):
         super().__init__(parent)
@@ -344,7 +323,7 @@ class VardaPlotWidget(QWidget):
         self.gv = _PlotGraphicsView(self)
         # if the user clicks on the plot area and none of the plots catch the click (therefore selecting it), deselect any selected plot
         self.gv.scene().sigMouseClicked.connect(self.onSceneClicked)
-        self.viewBox = _PlotViewBox()
+        self.viewBox = ModifierDragViewBox()
         self.plotItem = pg.PlotItem(viewBox=self.viewBox)
         self.legend = self.plotItem.addLegend()
         # Left-drag pans, Shift/Cmd+left-drag zooms to the dragged box,

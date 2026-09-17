@@ -3,7 +3,8 @@
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt
 
-from varda.plotting.plot import CurveConfig, RangeConfig, VardaPlotWidget, dragMouseMode
+from varda.plotting.plot import CurveConfig, RangeConfig, VardaPlotWidget
+from varda.plotting.view_box import dragMouseMode
 
 Modifier = Qt.KeyboardModifier
 

@@ -1,28 +1,25 @@
-# varda/features/image_view_histogram/histogram_view.py
-import numpy as np
+"""Histograms of the bands an image renderer displays, with the stretch range
+drawn on top as a draggable region.
 
-import varda
+The X axis can be zoomed (wheel, drag; Shift/Ctrl/Cmd-drag zooms to a box).
+Each zoom re-bins the histogram over the visible range and refits the Y axis,
+so a distribution of valid values stays readable next to a stack of fill
+values far out in the tail.
+"""
 
-# standard library
 import logging
 
-# third-party imports
+import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import QSignalBlocker
-from PyQt6.QtWidgets import (
-    QWidget,
-    QTabWidget,
-    QStackedLayout,
-)
+from PyQt6.QtWidgets import QStackedLayout, QTabWidget, QWidget
 
-# local imports
-from varda.image_rendering.image_renderer import (
-    ImageRenderer,
-    RendererSettings,
-    RenderMode,
-)
+from varda.image_rendering.image_renderer import ImageRenderer, RenderMode
+from varda.plotting.view_box import ModifierDragViewBox
 
 logger = logging.getLogger(__name__)
+
+BINS = 256
 
 
 class NewHistogramView(QWidget):
@@ -35,19 +32,17 @@ class NewHistogramView(QWidget):
         self.setWindowTitle("Histogram")
         ## Init UI ##
         self.tabWidget = QTabWidget()
-        self.rPlot = pg.PlotWidget()
-        self.gPlot = pg.PlotWidget()
-        self.bPlot = pg.PlotWidget()
-        self.rPlot.setMouseEnabled(x=False, y=False)
-        self.gPlot.setMouseEnabled(x=False, y=False)
-        self.bPlot.setMouseEnabled(x=False, y=False)
-
+        self.rPlot = self._makePlot()
+        self.gPlot = self._makePlot()
+        self.bPlot = self._makePlot()
         self.tabWidget.addTab(self.rPlot, "Red")
         self.tabWidget.addTab(self.gPlot, "Green")
         self.tabWidget.addTab(self.bPlot, "Blue")
+        self.monoPlot = self._makePlot()
 
-        self.monoPlot = pg.PlotWidget()
-        self.monoPlot.setMouseEnabled(x=False, y=False)
+        # The values each plot shows and its curve, so a zoom can re-bin them
+        self._values: dict[pg.PlotWidget, np.ndarray] = {}
+        self._curves: dict[pg.PlotWidget, pg.PlotDataItem] = {}
 
         self.rRegion: pg.LinearRegionItem | None = None
         self.gRegion: pg.LinearRegionItem | None = None
@@ -63,16 +58,24 @@ class NewHistogramView(QWidget):
 
         self._updateHistogram()
 
+    def _makePlot(self) -> pg.PlotWidget:
+        plot = pg.PlotWidget(viewBox=ModifierDragViewBox())
+        plot.setMouseEnabled(x=True, y=False)
+        viewBox = plot.getViewBox()
+        viewBox.setAutoVisible(y=True)  # Y fits what is visible in X
+        viewBox.sigXRangeChanged.connect(lambda *_: self._rebin(plot))
+        return plot
+
     def _updateHistogram(self):
         renderer = self.imageRenderer
         mode = renderer.settings.mode.get()
         self.layout().setCurrentIndex(1 if mode == RenderMode.MONO else 0)
 
         # clear curves (this also removes region items; they are re-added below)
-        self.rPlot.clear()
-        self.gPlot.clear()
-        self.bPlot.clear()
-        self.monoPlot.clear()
+        for plot in (self.rPlot, self.gPlot, self.bPlot, self.monoPlot):
+            plot.clear()
+        self._values.clear()
+        self._curves.clear()
 
         minMaxVals = renderer.getMinMaxValues()
         if minMaxVals is not None:
@@ -80,23 +83,37 @@ class NewHistogramView(QWidget):
         else:
             data = renderer.getStretchedData()
 
-        def plotHistogram(arr, plotWidget, pen, brush):
-            if arr.size:
-                vmin, vmax = np.nanmin(arr), np.nanmax(arr)
-                if vmin == vmax:
-                    vmin -= 0.5
-                    vmax += 0.5
-                y, x = np.histogram(arr, bins=256, range=(vmin, vmax))
-                plotWidget.plot(x[1:], y, pen=pen, fillLevel=0, brush=brush)
-
         if mode == RenderMode.MONO:
-            plotHistogram(data.ravel(), self.monoPlot, "w", (255, 255, 255, 50))
+            self._plotHistogram(data.ravel(), self.monoPlot, "w", (255, 255, 255, 50))
             self._syncMonoRegion(minMaxVals)
         else:
-            plotHistogram(data[:, :, 0].ravel(), self.rPlot, "r", (255, 0, 0, 50))
-            plotHistogram(data[:, :, 1].ravel(), self.gPlot, "g", (0, 255, 0, 50))
-            plotHistogram(data[:, :, 2].ravel(), self.bPlot, "b", (0, 0, 255, 50))
+            self._plotHistogram(data[:, :, 0].ravel(), self.rPlot, "r", (255, 0, 0, 50))
+            self._plotHistogram(data[:, :, 1].ravel(), self.gPlot, "g", (0, 255, 0, 50))
+            self._plotHistogram(data[:, :, 2].ravel(), self.bPlot, "b", (0, 0, 255, 50))
             self._syncRgbRegions(minMaxVals)
+
+    def _plotHistogram(self, values: np.ndarray, plot: pg.PlotWidget, pen, brush):
+        values = values[np.isfinite(values)]
+        if not values.size:
+            return
+        self._values[plot] = values
+        x, y = _histogram(values, (float(values.min()), float(values.max())))
+        self._curves[plot] = plot.plot(x, y, pen=pen, fillLevel=0, brush=brush)
+        plot.getViewBox().enableAutoRange()  # a new image: show all of it
+
+    def _rebin(self, plot: pg.PlotWidget) -> None:
+        """Re-bin the plot's histogram over the visible X range."""
+        values = self._values.get(plot)
+        curve = self._curves.get(plot)
+        if values is None or curve is None:
+            return
+        viewBox = plot.getViewBox()
+        xMin, xMax = viewBox.viewRange()[0]
+        if xMax <= xMin:
+            return
+        x, y = _histogram(values, (xMin, xMax))
+        curve.setData(x, y)
+        viewBox.enableAutoRange(axis=pg.ViewBox.YAxis)
 
     def _syncMonoRegion(self, minMaxVals):
         if minMaxVals is None:
@@ -112,7 +129,7 @@ class NewHistogramView(QWidget):
         else:
             with QSignalBlocker(self.monoRegion):
                 self.monoRegion.setRegion((lo, hi))
-        self.monoPlot.addItem(self.monoRegion)
+        self.monoPlot.plotItem.addItem(self.monoRegion, ignoreBounds=True)
 
     def _onMonoRegionChanged(self):
         lo, hi = self.monoRegion.getRegion()
@@ -141,7 +158,7 @@ class NewHistogramView(QWidget):
             else:
                 with QSignalBlocker(region):
                     region.setRegion((lo, hi))
-            plot.addItem(region)
+            plot.plotItem.addItem(region, ignoreBounds=True)
 
     def _onRRegionChanged(self):
         lo, hi = self.rRegion.getRegion()
@@ -156,15 +173,12 @@ class NewHistogramView(QWidget):
         self.imageRenderer.setStretchMinMax(2, lo, hi)
 
 
-if __name__ == "__main__":
-    q_app = pg.mkQApp()
-    image = varda.utilities.debug.generate_random_image((100, 100, 10), (10, 10, 10))
-    renderSettings = RendererSettings(image)
-    renderSettings.mode.set(RenderMode.RGB)
-    renderer = ImageRenderer(image, renderSettings)
-    settingsPanel = renderer.getSettingsPanel()
-
-    view = NewHistogramView(renderer)
-    view.show()
-    settingsPanel.show()
-    q_app.exec()
+def _histogram(
+    values: np.ndarray, valueRange: tuple[float, float]
+) -> tuple[np.ndarray, np.ndarray]:
+    """Bin centres and counts of ``values`` within ``valueRange``."""
+    lo, hi = valueRange
+    if lo == hi:
+        lo, hi = lo - 0.5, hi + 0.5
+    counts, edges = np.histogram(values, bins=BINS, range=(lo, hi))
+    return (edges[:-1] + edges[1:]) / 2.0, counts
