@@ -25,12 +25,19 @@ uv sync
 uv run varda
 ```
 
+## Saving results
+Every Processing result joins the project's image list. Tick **Save result to
+file** in the analysis dialog to also write it to disk (ENVI `.img`/`.hdr` or
+GeoTIFF), or export any image later with **File → Export Image…** / right-click
+an image → **Export Image…**.
+
 ## Optional: Band Parameters (HyPyRameter)
 **Processing → Spectral Parameters → Band Parameters (HyPyRameter)** computes
 CRISM-style spectral parameters with
-[HyPyRameter](https://github.com/Michael-S-Phillips/HyPyRameter).
-It is optional: without it Varda runs normally and lists that analysis as
-unavailable. HyPyRameter is not on PyPI; the `hypyrameter` extra pins it to a
+[HyPyRameter](https://github.com/Michael-S-Phillips/HyPyRameter); the dialog
+lists every parameter the image's wavelength range supports and lets you pick
+which to compute. It is optional: without it Varda runs normally and lists that
+analysis as unavailable. HyPyRameter is not on PyPI; the `hypyrameter` extra pins it to a
 commit of its GitHub repository:
 ```bash
 uv sync --extra hypyrameter

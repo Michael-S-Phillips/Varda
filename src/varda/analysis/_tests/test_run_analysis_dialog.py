@@ -107,10 +107,13 @@ def test_accepting_emits_the_analysis_and_image(qtbot):
     dialog = RunAnalysisDialog(images, [AlphaAnalysis], image=images[1])
     qtbot.addWidget(dialog)
     received = []
-    dialog.connectOnRun(lambda analysis, image: received.append((analysis, image)))
+    dialog.connectOnRun(
+        lambda analysis, image, path: received.append((analysis, image, path))
+    )
 
     dialog.accept()
 
-    ((analysis, image),) = received
+    ((analysis, image, path),) = received
     assert isinstance(analysis, AlphaAnalysis)
     assert image is images[1]
+    assert path is None  # saving to a file is off by default

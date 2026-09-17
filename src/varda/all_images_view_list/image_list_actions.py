@@ -12,6 +12,7 @@ from app_model.types import Action, MenuRule
 
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
+from varda.image_loading.export_image_dialog import ExportImageDialog
 from varda.maingui import MainGUI
 from varda.workspaces.dual_image_workspace import NewDualImageWorkspaceDialog
 from varda.workspaces.general_image_analysis import (
@@ -70,7 +71,21 @@ def _openInDualImage(
     ).open()
 
 
+def _exportImage(
+    ctx: ImageListClickContext, images: ProjectImages, mainGui: MainGUI
+) -> None:
+    ExportImageDialog(list(images), image=ctx.images[0], parent=mainGui).open()
+
+
+EXPORT_IMAGE_ID = "varda.image_list.export_image"
+
 IMAGE_LIST_ACTIONS: list[Action] = [
+    Action(
+        id=EXPORT_IMAGE_ID,
+        title="Export Image…",
+        callback=_exportImage,
+        menus=[MenuRule(id=IMAGE_LIST_CONTEXT_MENU_ID, order=3)],
+    ),
     Action(
         id=OPEN_GENERAL_ANALYSIS_ID,
         title="Open in New General Analysis Workspace",

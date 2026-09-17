@@ -3,19 +3,31 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from pathlib import Path
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import QComboBox, QDialog, QFormLayout, QLabel, QWidget
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QWidget,
+)
 
 from varda.analysis.analysis import Analysis, AnalysisContext
 from varda.common.entities import VardaRaster
 from varda.common.parameter import ImageParameter
 from varda.common.ui import ButtonBuilder, HBoxBuilder, SectionBox, VBoxBuilder
+from varda.image_loading.raster_writer import SAVE_FILE_FILTER, suggestedOutputPath
 from varda.rois.roi_collection import ROICollection
 
 
 class RunAnalysisDialog(QDialog):
-    sigRunRequested = pyqtSignal(object, object)  # (Analysis, VardaRaster)
+    # (Analysis, VardaRaster, output file path or None)
+    sigRunRequested = pyqtSignal(object, object, object)
 
     def __init__(
         self,
@@ -52,6 +64,26 @@ class RunAnalysisDialog(QDialog):
         self.descriptionLabel.setWordWrap(True)
         self.descriptionLabel.setStyleSheet("color: palette(mid);")
         self.settingsBox = SectionBox("Settings")
+
+        # Output: the result always joins the project; optionally it is also
+        # written to disk.
+        self.saveCheck = QCheckBox("Save result to file")
+        self.pathEdit = QLineEdit()
+        self.pathEdit.setPlaceholderText("ENVI (.img / .hdr) or GeoTIFF (.tif)")
+        self.browseButton = ButtonBuilder("Browse…").onClick(self._browse)
+        outputBox = SectionBox("Output")
+        outputContent = QWidget()
+        outputContent.setLayout(
+            VBoxBuilder(margins=0)
+            .withWidget(self.saveCheck)
+            .withLayout(
+                HBoxBuilder(margins=0)
+                .withWidget(self.pathEdit)
+                .withWidget(self.browseButton)
+            )
+        )
+        outputBox.setContent(outputContent)
+
         # Why Run is unavailable (e.g. the analysis needs ROIs and there are none)
         self.statusLabel = QLabel()
         self.statusLabel.setWordWrap(True)
@@ -67,6 +99,7 @@ class RunAnalysisDialog(QDialog):
             .withLayout(form)
             .withWidget(self.descriptionLabel)
             .withWidget(self.settingsBox)
+            .withWidget(outputBox)
             .withWidget(self.statusLabel)
             .withStretch()
             .withLayout(
@@ -78,10 +111,13 @@ class RunAnalysisDialog(QDialog):
         )
 
         self.analysisCombo.currentIndexChanged.connect(self._showSettings)
+        self.imageParam.sigParameterChanged.connect(lambda _: self._showSettings())
+        self.saveCheck.toggled.connect(self._updateRunState)
+        self.pathEdit.textChanged.connect(self._updateRunState)
         self._showSettings()
         self.accepted.connect(
             lambda: self.sigRunRequested.emit(
-                self.selectedAnalysis(), self.selectedImage()
+                self.selectedAnalysis(), self.selectedImage(), self.outputPath()
             )
         )
 
@@ -94,25 +130,61 @@ class RunAnalysisDialog(QDialog):
     def selectedImage(self) -> VardaRaster:
         return self.imageParam.get()
 
-    def connectOnRun(self, callback: Callable[[Analysis, VardaRaster], None]):
+    def outputPath(self) -> str | None:
+        """Where to save the result, or None to only add it to the project."""
+        path = self.pathEdit.text().strip()
+        return path if self.saveCheck.isChecked() and path else None
+
+    def connectOnRun(
+        self, callback: Callable[[Analysis, VardaRaster, str | None], None]
+    ):
         self.sigRunRequested.connect(callback)
         return self
+
+    def _browse(self) -> None:
+        image = self.selectedImage()
+        start = self.pathEdit.text().strip() or (
+            str(
+                suggestedOutputPath(
+                    image, f"{image.name} {self.selectedAnalysis().name}"
+                )
+            )
+            if image is not None
+            else ""
+        )
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save result as", start, SAVE_FILE_FILTER
+        )
+        if path:
+            self.pathEdit.setText(str(Path(path)))
+            self.saveCheck.setChecked(True)
 
     def _showSettings(self) -> None:
         analysis = self.selectedAnalysis()
         analysis.setContext(self._context)
+        image = self.selectedImage()
+        if image is not None:
+            analysis.prepareFor(image)
         self.descriptionLabel.setText(analysis.description)
         if analysis.params:
             self.settingsBox.setContent(analysis.createWidget())
         else:
             self.settingsBox.setContent(QLabel("This analysis has no settings."))
+        self._updateRunState()
 
+    def _updateRunState(self) -> None:
+        analysis = self.selectedAnalysis()
         rois = self._context.rois
-        missingRois = analysis.needsRois and (rois is None or len(rois) == 0)
-        self.runButton.setEnabled(not missingRois)
-        self.statusLabel.setText(
-            "This analysis trains on ROIs: open the image in a workspace and draw "
-            "at least two ROIs first."
-            if missingRois
-            else ""
-        )
+        if analysis.needsRois and (rois is None or len(rois) == 0):
+            reason = (
+                "This analysis trains on ROIs: open the image in a workspace and "
+                "draw at least two ROIs first."
+            )
+        elif self.saveCheck.isChecked() and not self.pathEdit.text().strip():
+            reason = (
+                "Enter a file path for the result, or untick “Save result to file”."
+            )
+        else:
+            reason = ""
+        self.runButton.setEnabled(not reason)
+        self.statusLabel.setText(reason)

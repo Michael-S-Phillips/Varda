@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QMessageBox, QProgressDialog, QWidget
 from varda.analysis.analysis import Analysis
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
+from varda.image_loading.raster_writer import writeRaster
 
 logger = logging.getLogger(__name__)
 
@@ -21,15 +22,21 @@ class _JobSignals(QObject):
 
 
 class _AnalysisJob(QRunnable):
-    def __init__(self, analysis: Analysis, image: VardaRaster) -> None:
+    def __init__(
+        self, analysis: Analysis, image: VardaRaster, outputPath: str | None
+    ) -> None:
         super().__init__()
         self.analysis = analysis
         self.image = image
+        self.outputPath = outputPath
         self.signals = _JobSignals()
 
     def run(self) -> None:
         try:
             result = self.analysis.run(self.image, self.signals.progress.emit)
+            if self.outputPath is not None:
+                self.signals.progress.emit(100, f"saving to {self.outputPath}")
+                writeRaster(result, self.outputPath)
         except Exception as error:  # reported to the user by the runner
             logger.exception("Analysis %s failed", self.analysis.name)
             self.signals.failed.emit(error)
@@ -51,7 +58,10 @@ class AnalysisRunner(QObject):
         self._parentWidget = parent
         self._jobs: list[_AnalysisJob] = []  # keep running jobs alive
 
-    def run(self, analysis: Analysis, image: VardaRaster) -> None:
+    def run(
+        self, analysis: Analysis, image: VardaRaster, outputPath: str | None = None
+    ) -> None:
+        """``outputPath``: also write the result there (ENVI or GeoTIFF)."""
         dialog = QProgressDialog(
             f"Running {analysis.name} on {image.name}…",
             None,  # no cancel button: analyses run to completion
@@ -63,7 +73,7 @@ class AnalysisRunner(QObject):
         dialog.setMinimumDuration(0)
         dialog.setValue(0)
 
-        job = _AnalysisJob(analysis, image)
+        job = _AnalysisJob(analysis, image, outputPath)
         self._jobs.append(job)
 
         def onProgress(percent: int, message: str) -> None:

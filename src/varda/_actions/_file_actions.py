@@ -3,7 +3,15 @@ from PyQt6.QtWidgets import QApplication
 
 from varda._actions._menu_ids import MenuGroup, MenuId
 from varda.common.di_types import ProjectImages
+from varda.context_keys import EXPR_HAS_IMAGES
 from varda.image_loading import ImageLoadingService
+from varda.image_loading.export_image_dialog import ExportImageDialog
+from varda.maingui import MainGUI
+
+
+def exportImage(images: ProjectImages, mainGui: MainGUI) -> None:
+    """Write one of the project's images to an ENVI or GeoTIFF file."""
+    ExportImageDialog(list(images), parent=mainGui).open()
 
 
 def importImage(images: ProjectImages) -> None:
@@ -30,6 +38,14 @@ FILE_ACTIONS: list[Action] = [
         callback=importImage,
         menus=[MenuRule(id=MenuId.FILE, group=MenuGroup.FILE_IO, order=1)],
         keybindings=[StandardKeyBinding.New.to_keybinding_rule()],
+    ),
+    Action(
+        id="varda.file.export_image",
+        title="Export Image…",
+        icon="fa6-solid:floppy-disk",
+        callback=exportImage,
+        enablement=EXPR_HAS_IMAGES,
+        menus=[MenuRule(id=MenuId.FILE, group=MenuGroup.FILE_IO, order=2)],
     ),
     Action(
         id="varda.file.exit",
