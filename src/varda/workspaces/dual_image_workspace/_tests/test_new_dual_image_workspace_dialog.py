@@ -42,16 +42,20 @@ def test_dialog_dropdowns_display_the_prefilled_images(qapp):
     assert shown == {"Primary Image": 1, "Secondary Image": 2}
 
 
-def test_accepting_a_prefilled_dialog_opens_the_workspace_on_those_images(qapp):
+def test_accepting_a_prefilled_dialog_opens_the_workspace_on_those_images(qtbot):
     first, second, third = _images(3)
     dialog = NewDualImageWorkspaceDialog(
         [first, second, third], primary=second, secondary=third
     )
+    qtbot.addWidget(dialog)
     created = []
     dialog.connectOnAccept(created.append)
 
     dialog.accept()
 
     (workspace,) = created
+    # qtbot closes the workspace and drains its posted events before deletion;
+    # letting it be garbage-collected instead leaves dangling scene events.
+    qtbot.addWidget(workspace)
     assert workspace.image1 is second
     assert workspace.image2 is third

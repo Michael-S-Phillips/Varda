@@ -15,12 +15,13 @@ from varda.workspaces.dual_image_workspace.dual_image_workspace import (
 )
 
 
-def test_dropdown_set_to_primary_plots_primary_from_a_secondary_click(qapp):
+def test_dropdown_set_to_primary_plots_primary_from_a_secondary_click(qtbot):
     primary = generate_random_image((20, 20, 10))
     secondary = generate_random_image((20, 20, 10))
     config = DualImageWorkspaceConfig([primary, secondary])
     config.image2Param.set(secondary)
     workspace = DualImageWorkspace(config)
+    qtbot.addWidget(workspace)
 
     dropdowns = [
         w
