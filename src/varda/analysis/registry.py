@@ -2,8 +2,15 @@
 
 from varda.analysis.analysis import Analysis
 from varda.analysis.band_parameters import BandParametersAnalysis
+from varda.analysis.transforms import IcaAnalysis, MnfAnalysis, PcaAnalysis
 
-ANALYSES: list[type[Analysis]] = [BandParametersAnalysis]
+# Menu order: categories appear in first-appearance order, entries in list order.
+ANALYSES: list[type[Analysis]] = [
+    BandParametersAnalysis,
+    PcaAnalysis,
+    MnfAnalysis,
+    IcaAnalysis,
+]
 
 
 def availableAnalyses() -> list[type[Analysis]]:
