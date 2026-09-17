@@ -2,6 +2,7 @@
 
 from varda.analysis.analysis import Analysis
 from varda.analysis.band_parameters import BandParametersAnalysis
+from varda.analysis.classification import MlpClassificationAnalysis
 from varda.analysis.derivatives import (
     SpatialGradientAnalysis,
     SpectralDerivativeAnalysis,
@@ -21,6 +22,7 @@ ANALYSES: list[type[Analysis]] = [
     SpectralDerivativeAnalysis,
     SpectralSlopeAnalysis,
     SpatialGradientAnalysis,
+    MlpClassificationAnalysis,
 ]
 
 

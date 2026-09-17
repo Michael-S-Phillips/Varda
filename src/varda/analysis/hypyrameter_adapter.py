@@ -57,17 +57,17 @@ def _stubTkinterIfMissing() -> None:
     sys.modules.setdefault("tkinter.filedialog", filedialog)
 
 
+_Calculator: type | None
 try:
     _stubTkinterIfMissing()
-    from hypyrameter.paramCalculator import (  # ty: ignore[unresolved-import]
-        cubeParamCalculator as _Calculator,
-    )
+    from hypyrameter.paramCalculator import cubeParamCalculator
+
+    _Calculator = cubeParamCalculator
+    HYPYRAMETER_AVAILABLE = True
 except ImportError as error:  # the optional "hypyrameter" extra is not installed
     logger.info("HyPyRameter unavailable (%s); Band Parameters disabled", error)
-    HYPYRAMETER_AVAILABLE = False
     _Calculator = None
-else:
-    HYPYRAMETER_AVAILABLE = True
+    HYPYRAMETER_AVAILABLE = False
 
 
 def toNanometres(wavelengths) -> np.ndarray:
@@ -143,7 +143,7 @@ def computeParameterCube(
     return np.dstack(layers)
 
 
-def _require():
+def _require() -> type:
     if _Calculator is None:
         raise ImportError(
             "HyPyRameter is not installed; install Varda's 'hypyrameter' extra."
@@ -154,7 +154,7 @@ def _require():
 def _shell(cube: np.ndarray | None = None, wavelengthsNm: np.ndarray | None = None):
     """A cubeParamCalculator with just the state its parameter methods read,
     bypassing the constructor (which opens file dialogs and reads ENVI files)."""
-    calculator = _require().__new__(_require())
+    calculator = object.__new__(_require())  # instance without running __init__
     calculator.f = cube
     calculator.cube = cube
     calculator.wvt = [] if wavelengthsNm is None else [float(w) for w in wavelengthsNm]

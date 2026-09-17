@@ -7,10 +7,11 @@ from collections.abc import Callable, Sequence
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QComboBox, QDialog, QFormLayout, QLabel, QWidget
 
-from varda.analysis.analysis import Analysis
+from varda.analysis.analysis import Analysis, AnalysisContext
 from varda.common.entities import VardaRaster
 from varda.common.parameter import ImageParameter
 from varda.common.ui import ButtonBuilder, HBoxBuilder, SectionBox, VBoxBuilder
+from varda.rois.roi_collection import ROICollection
 
 
 class RunAnalysisDialog(QDialog):
@@ -23,13 +24,17 @@ class RunAnalysisDialog(QDialog):
         *,
         image: VardaRaster | None = None,
         analysis: type[Analysis] | None = None,
+        rois: ROICollection | None = None,
         parent: QWidget | None = None,
     ) -> None:
+        """``rois``: the current workspace's ROI collection, handed to analyses
+        that train on or use ROIs."""
         super().__init__(parent)
         # Opened for one analysis (from its menu entry), the dialog is that
         # analysis's dialog: no picker, its name as the title.
         self.setWindowTitle(analysis.name if analysis is not None else "Run Analysis")
         self._analyses = list(analyses)
+        self._context = AnalysisContext(rois=rois)
         # One instance per analysis class, so settings persist while switching
         self._instances: dict[type[Analysis], Analysis] = {}
 
@@ -47,6 +52,10 @@ class RunAnalysisDialog(QDialog):
         self.descriptionLabel.setWordWrap(True)
         self.descriptionLabel.setStyleSheet("color: palette(mid);")
         self.settingsBox = SectionBox("Settings")
+        # Why Run is unavailable (e.g. the analysis needs ROIs and there are none)
+        self.statusLabel = QLabel()
+        self.statusLabel.setWordWrap(True)
+        self.runButton = ButtonBuilder("Run").onClick(self.accept)
 
         form = QFormLayout()
         form.addRow("Image", self.imageParam.getWidget())
@@ -58,10 +67,11 @@ class RunAnalysisDialog(QDialog):
             .withLayout(form)
             .withWidget(self.descriptionLabel)
             .withWidget(self.settingsBox)
+            .withWidget(self.statusLabel)
             .withStretch()
             .withLayout(
                 HBoxBuilder()
-                .withWidget(ButtonBuilder("Run").onClick(self.accept))
+                .withWidget(self.runButton)
                 .withStretch()
                 .withWidget(ButtonBuilder("Cancel").onClick(self.reject))
             )
@@ -90,8 +100,19 @@ class RunAnalysisDialog(QDialog):
 
     def _showSettings(self) -> None:
         analysis = self.selectedAnalysis()
+        analysis.setContext(self._context)
         self.descriptionLabel.setText(analysis.description)
         if analysis.params:
             self.settingsBox.setContent(analysis.createWidget())
         else:
             self.settingsBox.setContent(QLabel("This analysis has no settings."))
+
+        rois = self._context.rois
+        missingRois = analysis.needsRois and (rois is None or len(rois) == 0)
+        self.runButton.setEnabled(not missingRois)
+        self.statusLabel.setText(
+            "This analysis trains on ROIs: open the image in a workspace and draw "
+            "at least two ROIs first."
+            if missingRois
+            else ""
+        )

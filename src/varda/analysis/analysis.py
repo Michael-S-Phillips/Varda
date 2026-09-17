@@ -5,11 +5,22 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import ClassVar
 
+import attrs
+from PyQt6.QtCore import QObject
+
 from varda.common.entities import VardaRaster
 from varda.common.parameter import ParameterGroup
+from varda.rois.roi_collection import ROICollection
 
 # (percent 0-100, message)
 ProgressCallback = Callable[[int, str], None]
+
+
+@attrs.frozen
+class AnalysisContext:
+    """What the workspace offers an analysis beyond the image itself."""
+
+    rois: ROICollection | None = None
 
 
 class Analysis(ParameterGroup):
@@ -29,6 +40,15 @@ class Analysis(ParameterGroup):
     category: ClassVar[str] = "General"
     # What the analysis needs when isAvailable() is False, e.g. "HyPyRameter".
     requirement: ClassVar[str] = ""
+    # Whether the analysis trains on / uses the workspace's ROIs.
+    needsRois: ClassVar[bool] = False
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.context = AnalysisContext()
+
+    def setContext(self, context: AnalysisContext) -> None:
+        self.context = context
 
     @classmethod
     def isAvailable(cls) -> bool:

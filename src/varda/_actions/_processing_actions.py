@@ -35,8 +35,11 @@ def openRunAnalysisDialog(
         )
         return
     runner = AnalysisRunner(images, parent=mainGui)
+    # Analyses that use ROIs get the current workspace's collection (the
+    # workspaces assume their images are co-registered with it).
+    rois = getattr(mainGui.currentWorkspace(), "roiCollection", None)
     RunAnalysisDialog(
-        list(images), [analysis], analysis=analysis, parent=mainGui
+        list(images), [analysis], analysis=analysis, rois=rois, parent=mainGui
     ).connectOnRun(runner.run).open()
 
 

@@ -71,6 +71,37 @@ def test_settings_follow_the_chosen_analysis_and_persist(qtbot):
     assert alpha.knob.value == 7
 
 
+class NeedsRoisAnalysis(Analysis):
+    name = "Needs ROIs"
+    needsRois = True
+
+    def run(self, image, reportProgress):
+        return image
+
+
+def test_dialog_hands_the_workspace_rois_to_the_analysis(qtbot):
+    from varda.analysis.analysis import AnalysisContext
+    from varda.rois.roi_collection import ROICollection
+
+    images = [generate_random_image((10, 10, 10))]
+    rois = ROICollection()
+    dialog = RunAnalysisDialog(
+        images, [NeedsRoisAnalysis], analysis=NeedsRoisAnalysis, rois=rois
+    )
+    qtbot.addWidget(dialog)
+
+    assert dialog.selectedAnalysis().context == AnalysisContext(rois=rois)
+
+
+def test_dialog_blocks_an_analysis_that_needs_rois_when_there_are_none(qtbot):
+    images = [generate_random_image((10, 10, 10))]
+    dialog = RunAnalysisDialog(images, [NeedsRoisAnalysis], analysis=NeedsRoisAnalysis)
+    qtbot.addWidget(dialog)
+
+    assert not dialog.runButton.isEnabled()
+    assert "ROI" in dialog.statusLabel.text()
+
+
 def test_accepting_emits_the_analysis_and_image(qtbot):
     images = [generate_random_image((10, 10, 10)) for _ in range(2)]
     dialog = RunAnalysisDialog(images, [AlphaAnalysis], image=images[1])

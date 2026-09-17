@@ -5,7 +5,7 @@ import pytest
 
 hypyrameter = pytest.importorskip("hypyrameter")
 
-from hypyrameter import utils as hpu  # noqa: E402  # ty: ignore[unresolved-import]
+from hypyrameter import utils as hpu  # noqa: E402
 
 from varda.analysis.hypyrameter_adapter import (  # noqa: E402
     HYPYRAMETER_AVAILABLE,
