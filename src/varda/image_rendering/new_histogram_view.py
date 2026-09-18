@@ -43,6 +43,7 @@ class NewHistogramView(QWidget):
         # The values each plot shows and its curve, so a zoom can re-bin them
         self._values: dict[pg.PlotWidget, np.ndarray] = {}
         self._curves: dict[pg.PlotWidget, pg.PlotDataItem] = {}
+        self._rebinning = False
 
         self.rRegion: pg.LinearRegionItem | None = None
         self.gRegion: pg.LinearRegionItem | None = None
@@ -97,23 +98,34 @@ class NewHistogramView(QWidget):
         if not values.size:
             return
         self._values[plot] = values
-        x, y = _histogram(values, (float(values.min()), float(values.max())))
+        lo, hi = float(values.min()), float(values.max())
+        x, y = _histogram(values, (lo, hi))
         self._curves[plot] = plot.plot(x, y, pen=pen, fillLevel=0, brush=brush)
-        plot.getViewBox().enableAutoRange()  # a new image: show all of it
+        # X shows the whole data range and then only moves when the user zooms:
+        # with X auto-range on, every re-bin would re-pad the range around the
+        # new bins and the view would zoom out forever.
+        viewBox = plot.getViewBox()
+        viewBox.disableAutoRange()
+        viewBox.setXRange(lo, hi, padding=0.02)
+        viewBox.enableAutoRange(axis=pg.ViewBox.YAxis)
 
     def _rebin(self, plot: pg.PlotWidget) -> None:
         """Re-bin the plot's histogram over the visible X range."""
         values = self._values.get(plot)
         curve = self._curves.get(plot)
-        if values is None or curve is None:
+        if values is None or curve is None or self._rebinning:
             return
         viewBox = plot.getViewBox()
         xMin, xMax = viewBox.viewRange()[0]
         if xMax <= xMin:
             return
-        x, y = _histogram(values, (xMin, xMax))
-        curve.setData(x, y)
-        viewBox.enableAutoRange(axis=pg.ViewBox.YAxis)
+        self._rebinning = True
+        try:
+            x, y = _histogram(values, (xMin, xMax))
+            curve.setData(x, y)
+            viewBox.enableAutoRange(axis=pg.ViewBox.YAxis)
+        finally:
+            self._rebinning = False
 
     def _syncMonoRegion(self, minMaxVals):
         if minMaxVals is None:
