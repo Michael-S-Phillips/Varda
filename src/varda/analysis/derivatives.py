@@ -6,7 +6,7 @@ import numpy as np
 from scipy import ndimage
 
 from varda.analysis.analysis import Analysis, ProgressCallback
-from varda.analysis.rasters import bandIndex, singleBandRaster, validPixels
+from varda.analysis.rasters import bandIndex, readCube, singleBandRaster
 from varda.common.entities import VardaRaster
 from varda.common.parameter import FloatParameter, IntParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
@@ -32,8 +32,7 @@ class SpectralDerivativeAnalysis(Analysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
-        cube = np.asarray(image.getData(), dtype=np.float64)
-        cube[~validPixels(cube, image.nodata)] = np.nan
+        cube, _valid = readCube(image)  # unusable pixels are NaN throughout
         wavelengths = _numericWavelengths(image)
         x = (
             wavelengths
@@ -91,8 +90,8 @@ class SpectralSlopeAnalysis(Analysis):
             )
 
         reportProgress(0, "reading bands")
-        cube = np.asarray(image.getData(bandIndices=list(selected)), dtype=np.float64)
-        valid = validPixels(cube, image.nodata)
+        cube, valid = readCube(image)
+        cube = cube[:, :, selected]
 
         reportProgress(50, "fitting slopes")
         xCentred = wavelengths[selected] - wavelengths[selected].mean()

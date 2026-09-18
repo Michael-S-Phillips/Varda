@@ -6,7 +6,7 @@ import numpy as np
 from scipy import ndimage
 
 from varda.analysis.analysis import Analysis, ProgressCallback
-from varda.analysis.rasters import bandIndex, singleBandRaster, validPixels
+from varda.analysis.rasters import bandIndex, readCube, singleBandRaster
 from varda.common.entities import VardaRaster
 from varda.common.parameter import IntParameter
 
@@ -23,8 +23,7 @@ class SpectralEntropyAnalysis(Analysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
-        cube = np.asarray(image.getData(), dtype=np.float64)
-        valid = validPixels(cube, image.nodata)
+        cube, valid = readCube(image)
 
         reportProgress(40, "computing entropy")
         weights = np.clip(np.nan_to_num(cube), 0.0, None)

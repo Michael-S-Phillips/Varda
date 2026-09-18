@@ -16,7 +16,7 @@ import numpy as np
 from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.mlp import MlpClassifier
 from varda.analysis.patches import extractPatches, iterPatchChunks
-from varda.analysis.rasters import validPixels
+from varda.analysis.rasters import readCube
 from varda.common.entities import VardaRaster
 from varda.common.parameter import FloatParameter, IntParameter, MultiChoiceParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
@@ -168,8 +168,7 @@ class MlpClassificationAnalysis(_RoiTrainingAnalysis):
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         rois = _requireRois(self)
         reportProgress(0, "reading image")
-        cube = np.asarray(image.getData(), dtype=np.float64)
-        valid = validPixels(cube, image.nodata)
+        cube, valid = readCube(image)
 
         reportProgress(5, "collecting training spectra")
         names, rows, cols, y = _trainingSet(rois, image, valid, self._chosenFids(rois))
@@ -265,8 +264,8 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
         batchSize = int(self.batchSize.value)
 
         reportProgress(0, "reading image")
-        cube = np.asarray(image.getData(), dtype=np.float32)
-        valid = validPixels(cube, image.nodata)
+        cube, valid = readCube(image)
+        cube = cube.astype(np.float32)
         # Patches may straddle invalid pixels: neutralise those with band means.
         bandMeans = cube[valid].mean(axis=0)
         cube[~valid] = bandMeans

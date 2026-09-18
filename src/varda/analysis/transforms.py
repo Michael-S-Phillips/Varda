@@ -28,6 +28,7 @@ from varda.analysis.linear_algebra import (
     suggestedComponents,
     unflatten,
 )
+from varda.analysis.rasters import readCube
 from varda.common.entities import VardaRaster
 from varda.common.parameter import EnumParameter, IntParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
@@ -81,8 +82,8 @@ class _ComponentAnalysis(Analysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
-        cube = np.asarray(image.getData(), dtype=np.float64)
-        X, valid = flattenValid(cube, image.nodata)
+        cube, _ = readCube(image)  # bad bands filled, unusable pixels NaN
+        X, valid = flattenValid(cube, None)
         components = min(int(self.components.value), image.bandCount)
 
         reportProgress(20, "computing components")
@@ -240,7 +241,7 @@ class InverseTransformAnalysis(Analysis):
         count = min(int(self.components.value), len(info["eigenvalues"]))
 
         reportProgress(0, "reading components")
-        cube = np.asarray(image.getData(), dtype=np.float64)
+        cube, _ = readCube(image)
         if self.output.value is InverseOutput.FIRST_COMPONENTS:
             kept = {
                 **info,
@@ -261,7 +262,7 @@ class InverseTransformAnalysis(Analysis):
             )
             return VardaRaster(source, name=f"{sourceName} {kind} ({count} components)")
 
-        scores, valid = flattenValid(cube, image.nodata)
+        scores, valid = flattenValid(cube, None)
         reportProgress(30, f"rebuilding from {count} components")
         rebuilt = inverseTransform(
             scores, np.asarray(info["inverse"]), np.asarray(info["mean"]), count

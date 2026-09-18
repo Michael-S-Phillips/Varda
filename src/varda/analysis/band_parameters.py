@@ -11,6 +11,7 @@ from varda.analysis.hypyrameter_adapter import (
     toNanometres,
     validParameterNames,
 )
+from varda.analysis.rasters import readCube
 from varda.common.entities import VardaRaster
 from varda.common.parameter import BoolParameter, MultiChoiceParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
@@ -75,9 +76,7 @@ class BandParametersAnalysis(Analysis):
             )
         names = self._chosenNames(image)
         reportProgress(0, "reading image")
-        cube = np.asarray(image.getData(), dtype=np.float64)
-        if image.nodata is not None:
-            cube[cube == image.nodata] = np.nan
+        cube, _valid = readCube(image)
         if self.clampReflectance.value:
             cube[np.abs(cube) > 1.0] = np.nan
 
