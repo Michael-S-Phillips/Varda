@@ -114,24 +114,42 @@ class PyqtgraphTextOverlay:
 
 
 class PyqtgraphPointOverlay:
-    """An "x" of fixed screen size at a viewport-local position (a one-point
+    """A marker of fixed screen size at a viewport-local position (a one-point
     `ScatterPlotItem`, which keeps its pixel size across zooms)."""
 
     SIZE = 14
+    _HIGHLIGHT = QColor(255, 255, 0)
 
-    def __init__(self, viewBox: pg.ViewBox, pos: QPointF, color: QColor):
+    def __init__(
+        self, viewBox: pg.ViewBox, pos: QPointF, color: QColor, symbol: str = "x"
+    ):
         self._item = pg.ScatterPlotItem(
-            [pos.x()], [pos.y()], symbol="x", size=self.SIZE, pxMode=True
+            [pos.x()], [pos.y()], symbol=symbol, size=self.SIZE, pxMode=True
         )
         self._viewBox = viewBox
-        self.setColor(color)
+        self._color = color
+        self._highlighted = False
+        self._updateStyle()
         viewBox.addItem(self._item, ignoreBounds=True)
 
     def setPos(self, pos: QPointF) -> None:
         self._item.setData([pos.x()], [pos.y()])
 
     def setColor(self, color: QColor) -> None:
-        self._item.setPen(pg.mkPen(color, width=2))
+        self._color = color
+        self._updateStyle()
+
+    def setHighlighted(self, highlighted: bool) -> None:
+        self._highlighted = highlighted
+        self._updateStyle()
+
+    def _updateStyle(self) -> None:
+        pen = (
+            pg.mkPen(self._HIGHLIGHT, width=3)
+            if self._highlighted
+            else pg.mkPen(self._color, width=2)
+        )
+        self._item.setPen(pen)
         self._item.setBrush(pg.mkBrush(None))
 
     def setVisible(self, visible: bool) -> None:

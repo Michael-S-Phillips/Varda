@@ -14,7 +14,7 @@ from varda.common.parameter import (
     ParameterGroup,
     EnumParameter,
 )
-from varda.common.entities import VardaRaster
+from varda.common.entities import Color, VardaRaster
 from varda.image_rendering.raster_view import (
     ImageViewport,
     ROIDisplayController,
@@ -38,8 +38,11 @@ from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
 from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
+from varda.points.point_collection import PointCollection
+from varda.points.point_manager_widget import PointManagerWidget
 from varda.workspaces.pixel_markers import PixelMarkerController
 from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
+from varda.workspaces.saved_point_markers import SavedPointMarkers
 from varda.workspaces.ratio_explorer import (
     RatioExplorerConfig,
     RatioExplorerController,
@@ -139,6 +142,9 @@ class DualImageWorkspace(QMainWindow):
         self.roiManagerWidget = ROIManagerWidget(
             self.roiCollection, self.image1, self.plotWidget, parent=self
         )
+        # Saved pixel points (from the pixel-spectra plots' Save Point)
+        self.pointCollection = PointCollection()
+        self.pointManagerWidget = PointManagerWidget(self.pointCollection, parent=self)
 
     def _initUI(self):
         if self.displayMode == DisplayMode.SIDE_BY_SIDE:
@@ -154,6 +160,8 @@ class DualImageWorkspace(QMainWindow):
 
         self.roiDock = VardaDockWidget("ROI Manager")
         self.roiDock.setWidget(self.roiManagerWidget)
+        self.pointsDock = VardaDockWidget("Points Manager")
+        self.pointsDock.setWidget(self.pointManagerWidget)
 
         self.plotDock = VardaDockWidget("ROI Plots")
         self.plotDock.setWidget(self.plotWidget)
@@ -237,6 +245,13 @@ class DualImageWorkspace(QMainWindow):
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.BottomDockWidgetArea, self.roiDock
         )
+        # Points Manager tabbed with the ROI Manager
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.pointsDock,
+            self.roiDock.dockAreaWidget(),
+        )
+        self.roiDock.setAsCurrentTab()
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.RightDockWidgetArea,
             self.plotDock,
@@ -249,9 +264,16 @@ class DualImageWorkspace(QMainWindow):
             configurePlot=self._configurePixelPlot,
             parent=self,
         )
-        # Every plotted pixel spectrum is marked on both views in its colour
+        # Every plotted pixel spectrum is marked on both views in its colour;
+        # saved points stay marked as circles
         self.pixelMarkers = PixelMarkerController(
             self.pixelSpectraDocks, self._allViewports(), parent=self
+        )
+        self.savedPointMarkers = SavedPointMarkers(
+            self.pointCollection, self._allViewports(), parent=self
+        )
+        self.pointManagerWidget.sigSelectionChanged.connect(
+            self.savedPointMarkers.highlight
         )
         self.ratioExplorer = RatioExplorerController(
             self.roiCollection,
@@ -315,6 +337,13 @@ class DualImageWorkspace(QMainWindow):
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.BottomDockWidgetArea, self.roiDock
         )
+        # Points Manager tabbed with the ROI Manager
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.pointsDock,
+            self.roiDock.dockAreaWidget(),
+        )
+        self.roiDock.setAsCurrentTab()
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.RightDockWidgetArea,
             self.plotDock,
@@ -327,9 +356,16 @@ class DualImageWorkspace(QMainWindow):
             configurePlot=self._configurePixelPlot,
             parent=self,
         )
-        # Every plotted pixel spectrum is marked on both views in its colour
+        # Every plotted pixel spectrum is marked on both views in its colour;
+        # saved points stay marked as circles
         self.pixelMarkers = PixelMarkerController(
             self.pixelSpectraDocks, self._allViewports(), parent=self
+        )
+        self.savedPointMarkers = SavedPointMarkers(
+            self.pointCollection, self._allViewports(), parent=self
+        )
+        self.pointManagerWidget.sigSelectionChanged.connect(
+            self.savedPointMarkers.highlight
         )
         self.ratioExplorer = RatioExplorerController(
             self.roiCollection,
@@ -396,6 +432,19 @@ class DualImageWorkspace(QMainWindow):
             2, SectionBox("Dual Image", self.pixelSourceConfig.createWidget())
         )
         plot.insertSidebarSection(3, self.ratioExplorer.createSidebarSection())
+        plot.sigSavePointRequested.connect(functools.partial(self._savePoint, plot))
+
+    def _savePoint(self, plot: PixelSpectraPlotWidget, curve) -> None:
+        """Save a pixel curve's pixel to the Points Manager, in the curve's colour."""
+        origin = plot.pixelOrigins.get(curve)
+        if origin is not None:
+            self.pointCollection.addPixel(
+                origin.image,
+                origin.x,
+                origin.y,
+                name=curve.plotDataItem.name(),
+                color=Color.fromQColor(curve.config.color.value),
+            )
 
     def _imagesForSource(self, clickedImage: VardaRaster) -> list[VardaRaster]:
         """The image(s) a selection on ``clickedImage`` reads, per Spectrum Source.

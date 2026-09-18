@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QStatusBar,
 )
 
-from varda.common.entities import VardaRaster
+from varda.common.entities import Color, VardaRaster
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.new_histogram_view import (
     NewHistogramView,
@@ -36,8 +36,11 @@ from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolMa
 from varda.common.parameter import ImageParameter, ParameterGroup
 from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
+from varda.points.point_collection import PointCollection
+from varda.points.point_manager_widget import PointManagerWidget
 from varda.workspaces.pixel_markers import PixelMarkerController
 from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
+from varda.workspaces.saved_point_markers import SavedPointMarkers
 from varda.workspaces.ratio_explorer import (
     RatioExplorerConfig,
     RatioExplorerController,
@@ -137,6 +140,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.roiManagerWidget = ROIManagerWidget(
             self.roiCollection, image, self.plotWidget, parent=self
         )
+        # Saved pixel points (from the pixel-spectra plots' Save Point)
+        self.pointCollection = PointCollection()
+        self.pointManagerWidget = PointManagerWidget(self.pointCollection, parent=self)
         self.ratioExplorerConfig = RatioExplorerConfig()
 
         # --- Viewport context menu (place template) ---
@@ -191,6 +197,8 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
 
         self.roiDock = VardaDockWidget("ROI Manager")
         self.roiDock.setWidget(self.roiManagerWidget)
+        self.pointsDock = VardaDockWidget("Points Manager")
+        self.pointsDock.setWidget(self.pointManagerWidget)
 
         # roiDockNew = Dock("ROI Dock", widget=self.roiManagerWidget, size=(100, 100))
         # docks.append(roiDockNew)
@@ -221,6 +229,13 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.BottomDockWidgetArea, self.roiDock
         )
+        # Points Manager tabbed with the ROI Manager
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.pointsDock,
+            self.roiDock.dockAreaWidget(),
+        )
+        self.roiDock.setAsCurrentTab()
 
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.RightDockWidgetArea,
@@ -239,9 +254,16 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             self.tripleRasterView.viewport2,
             self.tripleRasterView.viewport3,
         ]
-        # Every plotted pixel spectrum is marked on the image in its colour
+        # Every plotted pixel spectrum is marked on the image in its colour;
+        # saved points stay marked as circles
         self.pixelMarkers = PixelMarkerController(
             self.pixelSpectraDocks, viewports, parent=self
+        )
+        self.savedPointMarkers = SavedPointMarkers(
+            self.pointCollection, viewports, parent=self
+        )
+        self.pointManagerWidget.sigSelectionChanged.connect(
+            self.savedPointMarkers.highlight
         )
         self.ratioExplorer = RatioExplorerController(
             self.roiCollection,
@@ -257,6 +279,19 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     def _configurePixelPlot(self, plot: PixelSpectraPlotWidget) -> None:
         # After the plot's "View" and "Pixel Spectra" sections
         plot.insertSidebarSection(2, self.ratioExplorer.createSidebarSection())
+        plot.sigSavePointRequested.connect(functools.partial(self._savePoint, plot))
+
+    def _savePoint(self, plot: PixelSpectraPlotWidget, curve) -> None:
+        """Save a pixel curve's pixel to the Points Manager, in the curve's colour."""
+        origin = plot.pixelOrigins.get(curve)
+        if origin is not None:
+            self.pointCollection.addPixel(
+                origin.image,
+                origin.x,
+                origin.y,
+                name=curve.plotDataItem.name(),
+                color=Color.fromQColor(curve.config.color.value),
+            )
 
         # plotDock = Dock("Spectral Plot", widget=self.plotWidget, size=(400, 300))
         # docks.append(plotDock)

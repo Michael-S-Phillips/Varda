@@ -105,6 +105,8 @@ class PixelOrigin:
 class PixelSpectraPlotWidget(VardaPlotWidget):
     # The set of pixel curves (or where they come from) changed
     sigPixelCurvesChanged = pyqtSignal()
+    # The user wants this pixel curve's pixel saved as a point
+    sigSavePointRequested = pyqtSignal(object)  # Curve
 
     def __init__(
         self,
@@ -128,6 +130,18 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
         self.newPlotButton.setToolTip(
             "Open another plot, e.g. to collect spectra from a different region"
         )
+        # Saving pixels as points; the workspace's Points Manager answers.
+        self.savePointButton = ButtonBuilder("Save Point").onClick(
+            self._requestSavePoint
+        )
+        self.savePointButton.setToolTip(
+            "Save the selected (else the latest) pixel spectrum's pixel as a point"
+        )
+        self.saveAllPointsButton = ButtonBuilder("Save All Points").onClick(
+            self._requestSaveAllPoints
+        )
+        self.sigPixelCurvesChanged.connect(self._updateSaveButtons)
+        self._updateSaveButtons()
 
         # Directly after the base widget's "View" section
         self.insertSidebarSection(
@@ -143,9 +157,34 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
                         ButtonBuilder("Clear Spectra").onClick(self.clearPixelSpectra)
                     )
                     .withWidget(self.newPlotButton)
+                )
+                .withLayout(
+                    HBoxBuilder()
+                    .withWidget(self.savePointButton)
+                    .withWidget(self.saveAllPointsButton)
                 ),
             ),
         )
+
+    def _pixelCurvesWithOrigin(self) -> list[Curve]:
+        return [curve for curve in self.pixelCurves if curve in self.pixelOrigins]
+
+    def _updateSaveButtons(self) -> None:
+        enabled = bool(self._pixelCurvesWithOrigin())
+        self.savePointButton.setEnabled(enabled)
+        self.saveAllPointsButton.setEnabled(enabled)
+
+    def _requestSavePoint(self) -> None:
+        candidates = self._pixelCurvesWithOrigin()
+        if not candidates:
+            return
+        selected = self.selectedCurve
+        curve = selected if selected in candidates else candidates[-1]
+        self.sigSavePointRequested.emit(curve)
+
+    def _requestSaveAllPoints(self) -> None:
+        for curve in self._pixelCurvesWithOrigin():
+            self.sigSavePointRequested.emit(curve)
 
     def addPixelSpectrum(self, image: VardaRaster, x: int, y: int) -> Curve | None:
         """Plot the spectrum at pixel (x, y); returns None if out of bounds."""

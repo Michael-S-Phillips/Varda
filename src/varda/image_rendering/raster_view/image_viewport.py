@@ -325,9 +325,11 @@ class ImageViewport(QWidget):
         """Add a display-only ROI polygon overlay; returns a handle to drive it."""
         return PyqtgraphROIOverlay(self._vb, points, color)
 
-    def addPointOverlay(self, pos: QPointF, color: QColor) -> "PointOverlayHandle":
-        """Add an "x" marker of fixed screen size at a viewport-local position."""
-        return PyqtgraphPointOverlay(self._vb, pos, color)
+    def addPointOverlay(
+        self, pos: QPointF, color: QColor, symbol: str = "x"
+    ) -> "PointOverlayHandle":
+        """Add a marker ("x" or "o") of fixed screen size at a viewport-local position."""
+        return PyqtgraphPointOverlay(self._vb, pos, color, symbol)
 
     # --- Items / tools ---
 
