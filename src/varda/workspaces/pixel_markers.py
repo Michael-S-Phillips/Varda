@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from typing import Protocol
 
 import numpy as np
+from psygnal import SignalInstance
 from PyQt6.QtCore import QObject, QPointF
 from PyQt6.QtGui import QColor
 
@@ -22,6 +23,10 @@ from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
 
 
 class MarkerViewport(Protocol):
+    # Fires when the viewport's local coordinates move (it shows a region of
+    # the image and was panned), so markers must be re-mapped.
+    sigImageChanged: SignalInstance
+
     def pixelToLocalCoords(self, pixelCoords: np.ndarray) -> np.ndarray: ...
 
     def addPointOverlay(self, pos: QPointF, color: QColor) -> PointOverlayHandle: ...
@@ -41,6 +46,8 @@ class PixelMarkerController(QObject):
         for plot in docks.plots:
             self._watch(plot)
         docks.sigPlotAdded.connect(self._watch)
+        for viewport in self._viewports:
+            viewport.sigImageChanged.connect(self.refresh)
 
     def _watch(self, plot: PixelSpectraPlotWidget) -> None:
         plot.sigPixelCurvesChanged.connect(self.refresh)

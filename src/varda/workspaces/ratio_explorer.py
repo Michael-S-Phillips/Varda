@@ -13,6 +13,7 @@ from collections.abc import Callable, Sequence
 from typing import Protocol
 
 import numpy as np
+from psygnal import SignalInstance
 from PyQt6.QtCore import QObject, QPointF
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QLabel
@@ -58,6 +59,10 @@ class SpectrumSink(Protocol):
 class MirrorViewport(Protocol):
     """The part of a viewport needed to show a box on it."""
 
+    # Fires when the viewport's local coordinates move (it shows a region of
+    # the image and was panned).
+    sigImageChanged: SignalInstance
+
     def pixelToLocalCoords(self, pixelCoords: np.ndarray) -> np.ndarray: ...
 
     def addROIOverlay(
@@ -101,12 +106,24 @@ class RatioExplorerController(QObject):
         self._mirrorViewports: list[MirrorViewport] = []
         # per mirrored viewport: (numerator overlay, denominator overlay)
         self._mirrors: dict[int, list[ROIOverlayHandle | None]] = {}
+        # what the mirrors currently show, to re-map them when a view pans
+        self._lastMirror: tuple[object, RatioSelection] | None = None
 
     def setMirrorViewports(self, viewports: Sequence[MirrorViewport]) -> None:
         """Viewports that should also show the boxes (the images are assumed
         co-registered). The tool's own viewport draws its own and is skipped."""
         self._clearMirrors()
+        for viewport in self._mirrorViewports:
+            viewport.sigImageChanged.disconnect(self._redrawMirrors)
         self._mirrorViewports = list(viewports)
+        # A viewport showing a region of the image moves its local coordinates
+        # when panned: re-map the boxes then.
+        for viewport in self._mirrorViewports:
+            viewport.sigImageChanged.connect(self._redrawMirrors)
+
+    def _redrawMirrors(self) -> None:
+        if self._lastMirror is not None:
+            self._mirrorSelection(*self._lastMirror)
 
     def bindTool(self, tool: RatioExplorerTool) -> None:
         """Drive a freshly activated tool: box size, placement, plotting, saving."""
@@ -123,6 +140,7 @@ class RatioExplorerController(QObject):
         tool.sigSaveRequested.connect(self.saveCurrentBoxes)
 
     def _mirrorSelection(self, ownViewport: object, selection: RatioSelection) -> None:
+        self._lastMirror = (ownViewport, selection)
         for viewport in self._mirrorViewports:
             if viewport is ownViewport:
                 continue
@@ -140,6 +158,7 @@ class RatioExplorerController(QObject):
                 if handle is not None:
                     handle.remove()
         self._mirrors.clear()
+        self._lastMirror = None
 
     def createSidebarSection(self) -> SectionBox:
         hint = QLabel(

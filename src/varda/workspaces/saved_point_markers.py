@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from typing import Protocol
 
 import numpy as np
+from psygnal import SignalInstance
 from PyQt6.QtCore import QObject, QPointF
 from PyQt6.QtGui import QColor
 
@@ -15,6 +16,10 @@ from varda.points.point_collection import PointCollection
 
 
 class MarkerViewport(Protocol):
+    # Fires when the viewport's local coordinates move (it shows a region of
+    # the image and was panned), so markers must be re-mapped.
+    sigImageChanged: SignalInstance
+
     def pixelToLocalCoords(self, pixelCoords: np.ndarray) -> np.ndarray: ...
 
     def addPointOverlay(
@@ -35,6 +40,8 @@ class SavedPointMarkers(QObject):
         self._markers: dict[int, list[PointOverlayHandle]] = {}
         self._highlighted: int | None = None
         collection.sigCollectionChanged.connect(self.refresh)
+        for viewport in self._viewports:
+            viewport.sigImageChanged.connect(self.refresh)
         self.refresh()
 
     def refresh(self) -> None:

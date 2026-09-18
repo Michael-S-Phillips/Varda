@@ -1,6 +1,7 @@
 """Saved points stay marked on the image(s) as circles in their colour."""
 
 import numpy as np
+from psygnal import Signal
 from PyQt6.QtCore import QPointF
 
 from varda.common.entities import Color, VardaRaster
@@ -34,11 +35,14 @@ class FakeMarker:
 
 
 class FakeViewport:
+    sigImageChanged = Signal()  # fires when the shown region (local coords) moves
+
     def __init__(self) -> None:
         self.markers: list[FakeMarker] = []
+        self.offset = np.array([0.0, 0.0])
 
     def pixelToLocalCoords(self, pixelCoords: np.ndarray) -> np.ndarray:
-        return np.asarray(pixelCoords, dtype=float)
+        return np.asarray(pixelCoords, dtype=float) - self.offset
 
     def addPointOverlay(self, pos: QPointF, color, symbol: str = "x") -> FakeMarker:
         marker = FakeMarker(pos, color, symbol)
@@ -67,6 +71,20 @@ def test_saved_points_are_drawn_as_circles_and_follow_the_collection(qtbot):
 
     points.removePoint(fid)
     assert viewports[0].live() == []
+    del markers
+
+
+def test_saved_markers_follow_a_viewport_whose_shown_region_moves(qtbot):
+    points = PointCollection()
+    viewport = FakeViewport()
+    markers = SavedPointMarkers(points, [viewport])
+    points.addPixel(_image(), 3, 4, color=RED)
+
+    viewport.offset = np.array([2.0, 1.0])
+    viewport.sigImageChanged.emit()
+
+    (marker,) = viewport.live()
+    assert (marker.pos.x(), marker.pos.y()) == (1.5, 3.5)
     del markers
 
 

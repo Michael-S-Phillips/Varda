@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from psygnal import Signal
 from PyQt6.QtCore import QPointF, Qt
 from shapely.geometry import Polygon
 
@@ -55,11 +56,14 @@ class FakeOverlay:
 class FakeViewport:
     """Just enough of a viewport to receive mirrored box overlays."""
 
+    sigImageChanged = Signal()  # fires when the shown region (local coords) moves
+
     def __init__(self):
         self.overlays: list[FakeOverlay] = []
+        self.offset = (0.0, 0.0)
 
     def pixelToLocalCoords(self, pixels):
-        return pixels
+        return pixels - self.offset
 
     def addROIOverlay(self, points, color):
         overlay = FakeOverlay(points, color)
@@ -223,6 +227,22 @@ def test_several_source_images_are_plotted_as_one_selection(qtbot):
     ]
     tool.deactivate()
     del viewport
+
+
+def test_mirrored_boxes_follow_a_viewport_whose_shown_region_moves(setup):
+    _i, tool, _c, _d, _m, ctrl = setup
+    other = FakeViewport()
+    ctrl.setMirrorViewports([tool.viewport, other])
+    tool.onPointerEvent(_press(Qt.MouseButton.LeftButton, 11.0, 21.0))
+    tool.onPointerEvent(_press(Qt.MouseButton.RightButton, 31.0, 5.0))
+
+    other.offset = (2.0, 1.0)  # the region view panned by (2, 1)
+    other.sigImageChanged.emit()
+
+    numeratorOverlay, _ = other.overlays
+    assert [(p.x(), p.y()) for p in numeratorOverlay.points] == [
+        (pt[0] - 2.0, pt[1] - 1.0) for pt in boxPolygonPixels(11, 21, 5, 5)
+    ]
 
 
 def test_boxes_are_mirrored_onto_the_other_viewports(setup):

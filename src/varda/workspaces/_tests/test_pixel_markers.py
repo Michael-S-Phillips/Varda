@@ -4,6 +4,7 @@ curve's colour, for as long as the curve is on a plot."""
 import numpy as np
 import PyQt6Ads as ads
 import pytest
+from psygnal import Signal
 from PyQt6.QtCore import QPointF
 from PyQt6.QtWidgets import QLabel, QMainWindow
 
@@ -34,11 +35,15 @@ class FakeMarker:
 
 
 class FakeViewport:
+    sigImageChanged = Signal()  # fires when the shown region (local coords) moves
+
     def __init__(self) -> None:
         self.markers: list[FakeMarker] = []
+        # a viewport showing a region of the image has shifted local coordinates
+        self.offset = np.array([0.0, 0.0])
 
     def pixelToLocalCoords(self, pixelCoords: np.ndarray) -> np.ndarray:
-        return np.asarray(pixelCoords, dtype=float)
+        return np.asarray(pixelCoords, dtype=float) - self.offset
 
     def addPointOverlay(self, pos: QPointF, color) -> FakeMarker:
         marker = FakeMarker(pos, color)
@@ -102,6 +107,20 @@ def test_markers_go_when_their_curves_go(setup):
 
     plot.clearPixelSpectra()
     assert viewports[0].live() == []
+
+
+def test_markers_follow_a_viewport_whose_shown_region_moves(setup):
+    docks, viewports, _c, image = setup
+    docks.addPixelSpectra([image], 3, 5)
+    panned = viewports[1]
+
+    panned.offset = np.array([2.0, 1.0])  # the region view panned by (2, 1)
+    panned.sigImageChanged.emit()
+
+    (marker,) = panned.live()
+    assert (marker.pos.x(), marker.pos.y()) == (1.5, 4.5)
+    (other,) = viewports[0].live()
+    assert (other.pos.x(), other.pos.y()) == (3.5, 5.5)  # untouched view
 
 
 def test_spectra_on_a_plot_opened_later_are_marked_too(setup):
