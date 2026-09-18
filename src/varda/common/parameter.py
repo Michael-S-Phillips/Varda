@@ -656,6 +656,25 @@ class EnumParameter(Parameter[Enum]):
                 self.refreshComboBox()
 
 
+def parsePositions(text: str, count: int) -> list[int]:
+    """0-based positions named by a 1-based list like "2-4, 7"; anything
+    unparsable or outside 1..count is ignored."""
+    positions: set[int] = set()
+    for part in text.replace(";", ",").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        low, _, high = part.partition("-")
+        try:
+            start = int(low)
+            stop = int(high) if high else start
+        except ValueError:
+            continue
+        for position in range(max(start, 1), min(stop, count) + 1):
+            positions.add(position - 1)
+    return sorted(positions)
+
+
 class MultiChoiceParameter(Parameter[list[str]]):
     """Any subset of a list of named choices. The choices can be replaced at
     runtime (``setChoices``) once whatever they depend on is known, e.g. the
@@ -726,9 +745,19 @@ class MultiChoiceParameter(Parameter[list[str]]):
             self.noneButton = QPushButton("None", self)
             self._rebuild()
 
+            # Select by position: "2-15, 22" (1-based, matching the list order)
+            self.rangeEdit = QLineEdit(self)
+            self.rangeEdit.setPlaceholderText("e.g. 3-19, 22")
+            self.rangeEdit.setToolTip(
+                "Select entries by their position in the list, e.g. 3-19, 22"
+            )
+            self.rangeButton = QPushButton("Select", self)
+
             self.listWidget.itemChanged.connect(self._itemChanged)
             self.allButton.clicked.connect(self.param.selectAll)
             self.noneButton.clicked.connect(self.param.selectNone)
+            self.rangeButton.clicked.connect(self._selectRange)
+            self.rangeEdit.returnPressed.connect(self._selectRange)
             self.param.sigChoicesChanged.connect(lambda _: self._rebuild())
             self.param.sigParameterChanged.connect(self.onParamChanged)
 
@@ -739,9 +768,14 @@ class MultiChoiceParameter(Parameter[list[str]]):
                     HBoxBuilder(margins=0)
                     .withWidget(self.allButton)
                     .withWidget(self.noneButton)
-                    .withStretch()
+                    .withWidget(self.rangeEdit)
+                    .withWidget(self.rangeButton)
                 )
             )
+
+        def _selectRange(self) -> None:
+            positions = parsePositions(self.rangeEdit.text(), len(self.param.choices))
+            self.param.set([self.param.choices[i] for i in positions])
 
         def _rebuild(self) -> None:
             selected = set(self.param.get())

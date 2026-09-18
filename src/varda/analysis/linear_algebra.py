@@ -14,6 +14,8 @@ then rebuild the image from the first N.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import attrs
 import numpy as np
 
@@ -62,11 +64,38 @@ def unflatten(
 
 
 def inverseTransform(
-    scores: np.ndarray, inverse: np.ndarray, mean: np.ndarray, components: int
+    scores: np.ndarray,
+    inverse: np.ndarray,
+    mean: np.ndarray,
+    components: int | Sequence[int],
 ) -> np.ndarray:
-    """Rebuild (samples, bands) data from the first ``components`` scores."""
-    k = min(components, scores.shape[1], inverse.shape[0])
-    return scores[:, :k] @ inverse[:k] + mean
+    """Rebuild (samples, bands) data from the first ``components`` scores, or
+    from the given 0-based component indices."""
+    if isinstance(components, int):
+        k = min(components, scores.shape[1], inverse.shape[0])
+        return scores[:, :k] @ inverse[:k] + mean
+    indices = list(components)
+    return scores[:, indices] @ inverse[indices] + mean
+
+
+def describeComponentSelection(indices: Sequence[int]) -> str:
+    """'3 components' for the first three, else the 1-based numbers as ranges,
+    e.g. 'components 2-5' or 'components 1, 3-4, 6'."""
+    ordered = sorted(set(int(i) for i in indices))
+    if ordered == list(range(len(ordered))):
+        return f"{len(ordered)} components"
+    runs: list[list[int]] = []
+    for index in ordered:
+        if runs and index == runs[-1][-1] + 1:
+            runs[-1].append(index)
+        else:
+            runs.append([index])
+    parts = [
+        f"{run[0] + 1}" if len(run) == 1 else f"{run[0] + 1}-{run[-1] + 1}"
+        for run in runs
+    ]
+    noun = "component" if len(ordered) == 1 else "components"
+    return f"{noun} {', '.join(parts)}"
 
 
 def suggestedComponents(eigenvalues: np.ndarray, kind: str) -> int:

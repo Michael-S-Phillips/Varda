@@ -19,6 +19,7 @@ from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.eigenvalue_plot import EigenvaluePlot
 from varda.analysis.linear_algebra import (
     TransformResult,
+    describeComponentSelection,
     fastIca,
     flattenValid,
     inverseTransform,
@@ -30,7 +31,7 @@ from varda.analysis.linear_algebra import (
 )
 from varda.analysis.rasters import readCube
 from varda.common.entities import VardaRaster
-from varda.common.parameter import EnumParameter, IntParameter
+from varda.common.parameter import EnumParameter, IntParameter, MultiChoiceParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
 TRANSFORM_METADATA_KEY = "transform"
@@ -200,9 +201,24 @@ class InverseTransformAnalysis(Analysis):
         "Components to keep",
         10,
         range=(1, 1000),
-        description="The leading components to rebuild the image from.",
+        description="Keep the first N components (ticks them in the list below).",
+    )
+    keep = MultiChoiceParameter(
+        "Components",
+        description=(
+            "Exactly which components to use — untick e.g. component 1 to drop "
+            "albedo, or type a range such as 3-19."
+        ),
     )
     output = EnumParameter("Output", InverseOutput)
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.components.sigParameterChanged.connect(self._reselectFirst)
+
+    def _reselectFirst(self, count) -> None:
+        if self.keep.choices:
+            self.keep.set(self.keep.choices[: int(count)])
 
     @staticmethod
     def _info(image: VardaRaster) -> dict | None:
@@ -214,6 +230,8 @@ class InverseTransformAnalysis(Analysis):
                 "Inverse Transform works on the result of a PCA, MNF or ICA "
                 "transform; run one first (keeping all components)."
             )
+        if self.keep.choices and not self.keep.get():
+            return "Tick at least one component to keep."
         return ""
 
     def prepareFor(self, image: VardaRaster) -> None:
@@ -221,9 +239,11 @@ class InverseTransformAnalysis(Analysis):
         if info is None:
             return
         eigenvalues = np.asarray(info["eigenvalues"])
-        self.components.setRange(
-            (1, eigenvalues.size), value=suggestedComponents(eigenvalues, info["kind"])
-        )
+        suggested = suggestedComponents(eigenvalues, info["kind"])
+        # Offer every component; the count below ticks the first N of them
+        self.keep.setChoices(list(image.bandNames), selected=[])
+        self.components.setRange((1, eigenvalues.size), value=suggested)
+        self._reselectFirst(self.components.get())
 
     def createPreviewWidget(self, image: VardaRaster) -> QWidget | None:
         info = self._info(image)
@@ -233,39 +253,50 @@ class InverseTransformAnalysis(Analysis):
             info["eigenvalues"], self.components, logScale=info["kind"] != "MNF"
         )
 
+    def _selectedIndices(self, image: VardaRaster, total: int) -> list[int]:
+        """0-based components to use: the ticked ones once prepared for an
+        image, else the first N."""
+        if self.keep.choices:
+            chosen = set(self.keep.get())
+            return [i for i, name in enumerate(self.keep.choices) if name in chosen]
+        return list(range(min(int(self.components.value), total)))
+
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         info = self._info(image)
         if info is None:
             raise ValueError(self.unavailableReason(image))
         kind, sourceName = info["kind"], info["sourceName"]
-        count = min(int(self.components.value), len(info["eigenvalues"]))
+        indices = self._selectedIndices(image, len(info["eigenvalues"]))
+        if not indices:
+            raise ValueError("Tick at least one component to keep.")
+        which = describeComponentSelection(indices)
 
         reportProgress(0, "reading components")
         cube, _ = readCube(image)
         if self.output.value is InverseOutput.FIRST_COMPONENTS:
             kept = {
                 **info,
-                "inverse": info["inverse"][:count],
-                "eigenvalues": info["eigenvalues"][:count],
-                "explainedVariance": info["explainedVariance"][:count],
+                "inverse": [info["inverse"][i] for i in indices],
+                "eigenvalues": [info["eigenvalues"][i] for i in indices],
+                "explainedVariance": [info["explainedVariance"][i] for i in indices],
             }
             source = ArrayDataSource(
-                cube[:, :, :count].astype(np.float32),
-                wavelengths=np.array(image.wavelengths[:count]),
+                cube[:, :, indices].astype(np.float32),
+                wavelengths=np.array([image.wavelengths[i] for i in indices]),
                 wavelengthUnits=image.wavelengthUnits,
-                bandNames=list(image.bandNames[:count]),
+                bandNames=[image.bandNames[i] for i in indices],
                 transform=image.transform,
                 crs=image.crs,
                 nodata=image.nodata,
-                description=f"First {count} components of {image.name}",
+                description=f"{which.capitalize()} of {image.name}",
                 extraMetadata={**image.extraMetadata, TRANSFORM_METADATA_KEY: kept},
             )
-            return VardaRaster(source, name=f"{sourceName} {kind} ({count} components)")
+            return VardaRaster(source, name=f"{sourceName} {kind} ({which})")
 
         scores, valid = flattenValid(cube, None)
-        reportProgress(30, f"rebuilding from {count} components")
+        reportProgress(30, f"rebuilding from {which}")
         rebuilt = inverseTransform(
-            scores, np.asarray(info["inverse"]), np.asarray(info["mean"]), count
+            scores, np.asarray(info["inverse"]), np.asarray(info["mean"]), indices
         )
         reportProgress(85, "building image")
         source = ArrayDataSource(
@@ -275,10 +306,6 @@ class InverseTransformAnalysis(Analysis):
             bandNames=list(info["sourceBandNames"]),
             transform=image.transform,
             crs=image.crs,
-            description=(
-                f"{sourceName} rebuilt from its first {count} {kind} components"
-            ),
+            description=f"{sourceName} rebuilt from {kind} {which}",
         )
-        return VardaRaster(
-            source, name=f"{sourceName} {kind} inverse ({count} components)"
-        )
+        return VardaRaster(source, name=f"{sourceName} {kind} inverse ({which})")

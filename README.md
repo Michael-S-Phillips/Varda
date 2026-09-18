@@ -44,7 +44,9 @@ turn into noise, and use **Transforms → Eigenvalue Plot…** to plot and tabul
 the eigenvalues (with % and cumulative variance) and drag a cutoff to where they
 flatten out. Its button opens **Transforms → Inverse Transform (Keep N
 Components)** with that N preset, which rebuilds a denoised image in the
-original bands from the first N (or keeps just those N component bands).
+original bands from the chosen components (or keeps just those component
+bands). The first N are ticked by default; untick any (e.g. component 1 to
+drop albedo) or type a range such as `3-19, 22`.
 
 ## Saving results
 Every Processing result joins the project's image list. Tick **Save result to
