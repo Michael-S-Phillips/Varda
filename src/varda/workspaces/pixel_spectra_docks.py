@@ -82,11 +82,15 @@ class PixelSpectraDocks(QObject):
     def dockFor(self, plot: PixelSpectraPlotWidget) -> VardaDockWidget:
         return self._docks[plot]
 
-    def newPlot(self) -> PixelSpectraPlotWidget:
-        """Open another pixel-spectra plot and make it the active one."""
+    def newPlot(
+        self, *, title: str | None = None, activate: bool = True
+    ) -> PixelSpectraPlotWidget:
+        """Open another pixel-spectra plot, numbered unless ``title`` is given,
+        and (by default) make it the one that receives pixel selections."""
         plot = PixelSpectraPlotWidget()
-        number = len(self.plots) + 1
-        title = BASE_TITLE if number == 1 else f"{BASE_TITLE} {number}"
+        if title is None:
+            number = len(self.plots) + 1
+            title = BASE_TITLE if number == 1 else f"{BASE_TITLE} {number}"
         dock = VardaDockWidget(title)
         dock.setWidget(plot)
 
@@ -112,8 +116,21 @@ class PixelSpectraDocks(QObject):
                 ads.DockWidgetArea.BottomDockWidgetArea, dock
             )
 
-        self.setActive(plot)
+        if activate or self._active is None:
+            self.setActive(plot)
+        else:
+            self.setActive(self._active)  # refresh the new plot's checkbox/title
         return plot
+
+    def dedicated(self, title: str) -> DedicatedPlotSink:
+        """A sink whose spectra go to their own plot (created on first use,
+        re-shown if closed) instead of the active one — e.g. ratio spectra."""
+        return DedicatedPlotSink(self, title)
+
+    def showDock(self, plot: PixelSpectraPlotWidget) -> None:
+        dock = self.dockFor(plot)
+        if dock.isClosed():
+            dock.toggleView(True)
 
     def setActive(self, plot: PixelSpectraPlotWidget) -> None:
         self._active = plot
@@ -149,9 +166,7 @@ class PixelSpectraDocks(QObject):
 
     def _shownActivePlot(self) -> PixelSpectraPlotWidget:
         plot = self.active
-        dock = self.dockFor(plot)
-        if dock.isClosed():
-            dock.toggleView(True)
+        self.showDock(plot)
         return plot
 
     def _onActiveToggled(self, plot: PixelSpectraPlotWidget, checked: bool) -> None:
@@ -165,3 +180,26 @@ class PixelSpectraDocks(QObject):
 
 def _within(widget: QWidget, container: QWidget) -> bool:
     return widget is container or container.isAncestorOf(widget)
+
+
+class DedicatedPlotSink:
+    """Plots spectra into a plot of its own, so e.g. ratio spectra do not mix
+    with plain pixel spectra. The plot is created on first use and never
+    becomes the target of pixel clicks by itself."""
+
+    def __init__(self, docks: PixelSpectraDocks, title: str) -> None:
+        self._docks = docks
+        self._title = title
+        self._plot: PixelSpectraPlotWidget | None = None
+
+    def plot(self) -> PixelSpectraPlotWidget:
+        if self._plot is None or self._plot not in self._docks.plots:
+            self._plot = self._docks.newPlot(title=self._title, activate=False)
+        self._docks.showDock(self._plot)
+        return self._plot
+
+    def addSpectra(self, entries: Sequence[tuple]) -> list[Curve]:
+        return self.plot().addSpectra(entries)
+
+    def addSpectrum(self, wavelengths, values, label: str) -> Curve:
+        return self.plot().addSpectrum(wavelengths, values, label)

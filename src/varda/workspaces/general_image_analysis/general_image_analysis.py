@@ -236,7 +236,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.ratioExplorer = RatioExplorerController(
             self.roiCollection,
             self.roiManagerWidget,
-            self.pixelSpectraDocks,
+            self.pixelSpectraDocks.dedicated("Ratio Spectra"),
             self.ratioExplorerConfig,
             parent=self,
         )

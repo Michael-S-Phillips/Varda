@@ -23,12 +23,13 @@ def _press(button, x, y):
     return PointerEvent(PointerAction.PRESS, pos, pos, button, CTRL)
 
 
-def test_boxes_on_the_secondary_ratio_the_primary_when_source_is_primary(qapp):
+def test_boxes_on_the_secondary_ratio_the_primary_when_source_is_primary(qtbot):
     primary = generate_random_image((40, 40, 10))
     secondary = generate_random_image((40, 40, 10))
     config = DualImageWorkspaceConfig([primary, secondary])
     config.image2Param.set(secondary)
     workspace = DualImageWorkspace(config)
+    qtbot.addWidget(workspace)
     workspace.pixelSourceConfig.source.set(PixelSpectrumSource.PRIMARY)
 
     workspace.toolManager2.activateTool(RatioExplorerTool)
@@ -36,7 +37,13 @@ def test_boxes_on_the_secondary_ratio_the_primary_when_source_is_primary(qapp):
     tool.onPointerEvent(_press(Qt.MouseButton.LeftButton, 11.0, 21.0))
     tool.onPointerEvent(_press(Qt.MouseButton.RightButton, 31.0, 5.0))
 
-    (curve,) = workspace.pixelPlotWidget.pixelCurves
+    # Ratios land in their own plot, not the pixel-spectra plot
+    ratioPlot = workspace.pixelSpectraDocks.plots[-1]
+    assert workspace.pixelSpectraDocks.dockFor(ratioPlot).windowTitle() == (
+        "Ratio Spectra"
+    )
+    assert workspace.pixelPlotWidget.pixelCurves == []
+    (curve,) = ratioPlot.pixelCurves
     _x, values = curve.plotDataItem.getData()
     numerator = computeRegionStatistics(boxPolygonPixels(11, 21, 5, 5), primary)["mean"]
     denominator = computeRegionStatistics(boxPolygonPixels(31, 5, 5, 5), primary)

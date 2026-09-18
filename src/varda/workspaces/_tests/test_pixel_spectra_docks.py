@@ -1,5 +1,6 @@
 """One or more pixel-spectra plots per workspace, each in a reopenable dock."""
 
+import numpy as np
 import PyQt6Ads as ads
 import pytest
 from PyQt6.QtCore import Qt
@@ -104,6 +105,37 @@ def test_clicking_a_plots_dock_tab_makes_it_active(qtbot, docks):
     qtbot.mouseClick(docks.dockFor(first).tabWidget(), Qt.MouseButton.LeftButton)
 
     assert docks.active is first
+
+
+def test_a_plot_can_be_created_with_its_own_title_without_becoming_active(docks):
+    pixels = docks.newPlot()
+    ratios = docks.newPlot(title="Ratio Spectra", activate=False)
+
+    assert docks.dockFor(ratios).windowTitle() == "Ratio Spectra"
+    assert docks.active is pixels
+    assert not ratios.activeCheckBox.isChecked()
+
+
+def test_a_dedicated_sink_plots_into_its_own_plot_and_leaves_the_active_one_alone(
+    docks, image
+):
+    pixels = docks.newPlot()
+    sink = docks.dedicated("Ratio Spectra")
+    entry = (np.arange(10.0), np.linspace(1.0, 2.0, 10), "ratio")
+
+    sink.addSpectra([entry])
+    sink.addSpectra([entry])
+
+    assert len(docks.plots) == 2
+    ratios = docks.plots[1]
+    assert docks.dockFor(ratios).windowTitle() == "Ratio Spectra"
+    assert len(ratios.pixelCurves) in (1, 2)  # Replace or Collect mode
+    assert pixels.pixelCurves == []
+    assert docks.active is pixels
+
+    docks.dockFor(ratios).toggleView(False)
+    sink.addSpectra([entry])
+    assert not docks.dockFor(ratios).isClosed()
 
 
 def test_new_plot_button_opens_another_plot(docks):
