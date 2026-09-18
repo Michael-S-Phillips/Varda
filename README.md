@@ -40,10 +40,11 @@ Varda also autosaves the session every three minutes and on quit (to
 The forward transforms (**Processing → Transforms**) default to every
 component and attach the eigenvalues and inverse to the result. Open the
 result in a workspace and step through its bands to see where the components
-turn into noise, then run **Transforms → Inverse Transform (Keep N
-Components)** on it: the dialog plots the eigenvalues with a draggable cutoff,
-and rebuilds a denoised image in the original bands from the first N (or keeps
-just those N component bands).
+turn into noise, and use **Transforms → Eigenvalue Plot…** to plot and tabulate
+the eigenvalues (with % and cumulative variance) and drag a cutoff to where they
+flatten out. Its button opens **Transforms → Inverse Transform (Keep N
+Components)** with that N preset, which rebuilds a denoised image in the
+original bands from the first N (or keeps just those N component bands).
 
 ## Saving results
 Every Processing result joins the project's image list. Tick **Save result to
