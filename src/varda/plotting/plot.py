@@ -317,6 +317,7 @@ class VardaPlotWidget(QWidget):
     ):
         super().__init__(parent)
         self.selectedCurve: Curve | None = None
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)  # for Backspace/Delete
         self.libraryPath = libraryPath
 
         self.plots: list[Curve] = []
@@ -693,6 +694,15 @@ class VardaPlotWidget(QWidget):
         self.plotItem.addItem(curve.plotDataItem)
         self._updateViewLimits()
         return curve
+
+    def keyPressEvent(self, a0) -> None:
+        # Backspace / Delete remove the selected curve
+        if a0 is not None and a0.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+            if self.selectedCurve is not None:
+                self.removePlot(self.selectedCurve)
+                a0.accept()
+                return
+        super().keyPressEvent(a0)
 
     def selectPlot(self, curve: Curve) -> None:
         self.deselectPlot()
