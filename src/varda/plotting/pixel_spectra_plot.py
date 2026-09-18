@@ -14,7 +14,9 @@ from collections.abc import Sequence
 from enum import Enum
 from pathlib import Path
 
+import attrs
 import matplotlib
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QCheckBox, QPushButton, QWidget
 
 from varda.common.entities import Color, VardaRaster
@@ -91,7 +93,19 @@ class PixelSpectraConfig(ParameterGroup):
     )
 
 
+@attrs.frozen
+class PixelOrigin:
+    """The image pixel a plotted spectrum was read from."""
+
+    image: VardaRaster
+    x: int
+    y: int
+
+
 class PixelSpectraPlotWidget(VardaPlotWidget):
+    # The set of pixel curves (or where they come from) changed
+    sigPixelCurvesChanged = pyqtSignal()
+
     def __init__(
         self,
         parent: QWidget | None = None,
@@ -100,6 +114,9 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
         super().__init__(parent, libraryPath)
         self.pixelConfig = PixelSpectraConfig()
         self.pixelCurves: list[Curve] = []
+        # Where each pixel curve was read from (spectra added by other means,
+        # e.g. ratios, have no origin)
+        self.pixelOrigins: dict[Curve, PixelOrigin] = {}
         self._colorIndex = 0
 
         # Multi-plot controls; a workspace's PixelSpectraDocks wires these up.
@@ -170,7 +187,10 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
                 if labelWithImageName
                 else f"Pixel ({x}, {y})"
             )
-            curves.append(self._addTracked(wavelengths, spectrum.values, label))
+            curve = self._addTracked(wavelengths, spectrum.values, label)
+            self.pixelOrigins[curve] = PixelOrigin(image, x, y)
+            curves.append(curve)
+        self.sigPixelCurvesChanged.emit()
         return curves
 
     def addSpectrum(self, wavelengths, values, label: str) -> Curve:
@@ -181,7 +201,9 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
         """Plot several (wavelengths, values, label) spectra as one selection:
         Replace mode clears once, so all of them stay."""
         self._applyMode()
-        return [self._addTracked(w, v, label) for w, v, label in entries]
+        curves = [self._addTracked(w, v, label) for w, v, label in entries]
+        self.sigPixelCurvesChanged.emit()
+        return curves
 
     def _applyMode(self) -> None:
         if self.pixelConfig.mode.value is SpectrumMode.REPLACE:
@@ -201,6 +223,8 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
         super().removePlot(curve)
         if curve in self.pixelCurves:
             self.pixelCurves.remove(curve)
+            self.pixelOrigins.pop(curve, None)
+            self.sigPixelCurvesChanged.emit()
 
     def _referenceCurve(self) -> Curve | None:
         """Prefer the latest pixel spectrum over other curves when none is selected."""

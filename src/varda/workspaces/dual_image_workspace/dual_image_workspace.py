@@ -38,6 +38,7 @@ from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
 from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
+from varda.workspaces.pixel_markers import PixelMarkerController
 from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
 from varda.workspaces.ratio_explorer import (
     RatioExplorerConfig,
@@ -248,6 +249,10 @@ class DualImageWorkspace(QMainWindow):
             configurePlot=self._configurePixelPlot,
             parent=self,
         )
+        # Every plotted pixel spectrum is marked on both views in its colour
+        self.pixelMarkers = PixelMarkerController(
+            self.pixelSpectraDocks, self._allViewports(), parent=self
+        )
         self.ratioExplorer = RatioExplorerController(
             self.roiCollection,
             self.roiManagerWidget,
@@ -321,6 +326,10 @@ class DualImageWorkspace(QMainWindow):
             self.plotDock,
             configurePlot=self._configurePixelPlot,
             parent=self,
+        )
+        # Every plotted pixel spectrum is marked on both views in its colour
+        self.pixelMarkers = PixelMarkerController(
+            self.pixelSpectraDocks, self._allViewports(), parent=self
         )
         self.ratioExplorer = RatioExplorerController(
             self.roiCollection,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 
 import PyQt6Ads as ads
-from PyQt6.QtCore import QEvent, QObject, QSignalBlocker
+from PyQt6.QtCore import QEvent, QObject, QSignalBlocker, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from varda.common.entities import VardaRaster
@@ -24,6 +24,8 @@ class PixelSpectraDocks(QObject):
     is never a dead end. Additional plots let spectra from different regions be
     collected side by side.
     """
+
+    sigPlotAdded = pyqtSignal(object)  # a new PixelSpectraPlotWidget
 
     def __init__(
         self,
@@ -120,6 +122,7 @@ class PixelSpectraDocks(QObject):
             self.setActive(plot)
         else:
             self.setActive(self._active)  # refresh the new plot's checkbox/title
+        self.sigPlotAdded.emit(plot)
         return plot
 
     def dedicated(self, title: str) -> DedicatedPlotSink:

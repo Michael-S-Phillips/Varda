@@ -20,6 +20,7 @@ from varda.image_rendering.raster_view.image_region_item import (
 )
 from varda.image_rendering.raster_view.overlay_handles import (
     PyqtgraphCrosshair,
+    PyqtgraphPointOverlay,
     PyqtgraphPolygonOverlay,
     PyqtgraphROIOverlay,
     PyqtgraphTextOverlay,
@@ -39,6 +40,7 @@ if TYPE_CHECKING:
         RasterViewport,
         CrosshairHandle,
         PolygonOverlayHandle,
+        PointOverlayHandle,
         TextOverlayHandle,
         ROIOverlayHandle,
     )
@@ -322,6 +324,10 @@ class ImageViewport(QWidget):
     ) -> "ROIOverlayHandle":
         """Add a display-only ROI polygon overlay; returns a handle to drive it."""
         return PyqtgraphROIOverlay(self._vb, points, color)
+
+    def addPointOverlay(self, pos: QPointF, color: QColor) -> "PointOverlayHandle":
+        """Add an "x" marker of fixed screen size at a viewport-local position."""
+        return PyqtgraphPointOverlay(self._vb, pos, color)
 
     # --- Items / tools ---
 

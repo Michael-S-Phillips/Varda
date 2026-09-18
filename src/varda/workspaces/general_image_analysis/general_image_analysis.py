@@ -36,6 +36,7 @@ from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolMa
 from varda.common.parameter import ImageParameter, ParameterGroup
 from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
+from varda.workspaces.pixel_markers import PixelMarkerController
 from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
 from varda.workspaces.ratio_explorer import (
     RatioExplorerConfig,
@@ -233,6 +234,15 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             configurePlot=self._configurePixelPlot,
             parent=self,
         )
+        viewports = [
+            self.tripleRasterView.viewport1,
+            self.tripleRasterView.viewport2,
+            self.tripleRasterView.viewport3,
+        ]
+        # Every plotted pixel spectrum is marked on the image in its colour
+        self.pixelMarkers = PixelMarkerController(
+            self.pixelSpectraDocks, viewports, parent=self
+        )
         self.ratioExplorer = RatioExplorerController(
             self.roiCollection,
             self.roiManagerWidget,
@@ -241,13 +251,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             parent=self,
         )
         # All three views show the same image: show the boxes in each
-        self.ratioExplorer.setMirrorViewports(
-            [
-                self.tripleRasterView.viewport1,
-                self.tripleRasterView.viewport2,
-                self.tripleRasterView.viewport3,
-            ]
-        )
+        self.ratioExplorer.setMirrorViewports(viewports)
         self.pixelSpectraDocks.newPlot()
 
     def _configurePixelPlot(self, plot: PixelSpectraPlotWidget) -> None:
