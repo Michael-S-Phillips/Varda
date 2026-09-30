@@ -41,13 +41,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Processing > Spectral Parameters > Band Parameters needs HyPyRameter 0.3+,
-# pinned to its release tag on GitHub (switch to "hypyrameter>=0.3" once the
-# PyPI release is up). Install with
+# Processing > Spectral Parameters > Band Parameters needs HyPyRameter 0.3+
+# (on PyPI). Install with
 #   uv sync --extra hypyrameter      or      pip install "varda[hypyrameter]"
 # Varda runs without it and simply lists that analysis as unavailable.
 hypyrameter = [
-    "hypyrameter @ git+https://github.com/Michael-S-Phillips/HyPyRameter.git@v0.3.0",
+    "hypyrameter>=0.3",
 ]
 # Processing > Classification > CNN / ViT classifiers need PyTorch (large;
 # platform-specific wheels). Install with `uv sync --extra ml`; without it
