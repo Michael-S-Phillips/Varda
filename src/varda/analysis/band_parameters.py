@@ -8,6 +8,7 @@ from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.hypyrameter_adapter import (
     HYPYRAMETER_AVAILABLE,
     computeParameterCube,
+    parameterDescription,
     toNanometres,
     validParameterNames,
 )
@@ -47,7 +48,10 @@ class BandParametersAnalysis(Analysis):
         return HYPYRAMETER_AVAILABLE
 
     def prepareFor(self, image: VardaRaster) -> None:
-        self.parameters.setChoices(self._supportedNames(image))
+        names = self._supportedNames(image)
+        self.parameters.setChoices(
+            names, tooltips={name: parameterDescription(name) for name in names}
+        )
 
     @staticmethod
     def _supportedNames(image: VardaRaster) -> list[str]:

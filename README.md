@@ -73,10 +73,10 @@ an image → **Export Image…**.
 **Processing → Spectral Parameters → Band Parameters (HyPyRameter)** computes
 CRISM-style spectral parameters with
 [HyPyRameter](https://github.com/Michael-S-Phillips/HyPyRameter); the dialog
-lists every parameter the image's wavelength range supports and lets you pick
-which to compute. It is optional: without it Varda runs normally and lists that
-analysis as unavailable. HyPyRameter is not on PyPI; the `hypyrameter` extra pins it to a
-commit of its GitHub repository:
+lists every parameter the image's wavelength range supports (hover a name for
+its definition) and lets you pick which to compute. It is optional: without it
+Varda runs normally and lists that analysis as unavailable. The `hypyrameter`
+extra installs HyPyRameter 0.3 from its GitHub release:
 ```bash
 uv sync --extra hypyrameter
 # or, with pip:  pip install "varda[hypyrameter]"

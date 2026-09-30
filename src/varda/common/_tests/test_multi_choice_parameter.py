@@ -112,3 +112,14 @@ def test_clone_copies_choices_and_default():
     assert clone.choices == ["a", "b"]
     assert clone.get() == ["b"]
     assert clone.description == "d"
+
+
+def test_widget_shows_a_tooltip_per_choice(qtbot):
+    param = MultiChoiceParameter("Things", ["a", "b"])
+    widget = param.getWidget()
+    qtbot.addWidget(widget)
+
+    param.setChoices(["p", "q"], tooltips={"q": "the letter q"})
+
+    assert widget.listWidget.item(0).toolTip() == ""
+    assert widget.listWidget.item(1).toolTip() == "the letter q"

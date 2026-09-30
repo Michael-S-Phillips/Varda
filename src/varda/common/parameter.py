@@ -1,6 +1,6 @@
 from __future__ import annotations
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from enum import Enum
 from typing import Type, Callable
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, QSignalBlocker, Qt, QObject
@@ -693,6 +693,7 @@ class MultiChoiceParameter(Parameter[list[str]]):
     ):
         """``default`` None selects every choice."""
         self.choices: list[str] = list(choices)
+        self.tooltips: dict[str, str] = {}
         self._explicitDefault = None if default is None else list(default)
         super().__init__(
             name,
@@ -705,10 +706,15 @@ class MultiChoiceParameter(Parameter[list[str]]):
         super().set(self._inChoiceOrder(value))
 
     def setChoices(
-        self, choices: Sequence[str], selected: Sequence[str] | None = None
+        self,
+        choices: Sequence[str],
+        selected: Sequence[str] | None = None,
+        tooltips: Mapping[str, str] | None = None,
     ) -> None:
-        """Replace the choices; ``selected`` None selects all of them."""
+        """Replace the choices; ``selected`` None selects all of them.
+        ``tooltips`` (choice -> text) are shown on the list items."""
         self.choices = list(choices)
+        self.tooltips = dict(tooltips or {})
         self.sigChoicesChanged.emit(list(self.choices))
         self.set(self.choices if selected is None else selected)
 
@@ -783,6 +789,7 @@ class MultiChoiceParameter(Parameter[list[str]]):
                 self.listWidget.clear()
                 for choice in self.param.choices:
                     item = QListWidgetItem(choice)
+                    item.setToolTip(self.param.tooltips.get(choice, ""))
                     item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                     item.setCheckState(
                         Qt.CheckState.Checked

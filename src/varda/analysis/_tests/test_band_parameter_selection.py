@@ -66,3 +66,13 @@ def test_run_with_nothing_selected_is_an_error():
 
     with pytest.raises(ValueError, match="at least one parameter"):
         analysis.run(image, lambda p, m: None)
+
+
+def test_preparing_for_an_image_describes_each_parameter():
+    pytest.importorskip("hypyrameter")
+    from varda.analysis.hypyrameter_adapter import parameterDescription
+
+    analysis = BandParametersAnalysis()
+    analysis.prepareFor(_reflectanceImage())
+
+    assert analysis.parameters.tooltips["BD1900_2"] == parameterDescription("BD1900_2")

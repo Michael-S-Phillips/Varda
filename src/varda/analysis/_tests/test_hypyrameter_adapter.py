@@ -5,11 +5,10 @@ import pytest
 
 hypyrameter = pytest.importorskip("hypyrameter")
 
-from hypyrameter import utils as hpu  # noqa: E402
-
 from varda.analysis.hypyrameter_adapter import (  # noqa: E402
     HYPYRAMETER_AVAILABLE,
     computeParameterCube,
+    parameterDescription,
     parameterNames,
     toNanometres,
     validParameterNames,
@@ -32,12 +31,11 @@ def test_micrometre_wavelengths_are_converted_to_nanometres():
     np.testing.assert_allclose(toNanometres([1000.0, 2500.0]), [1000.0, 2500.0])
 
 
-def test_parameter_names_are_hypyrameters_parameter_methods_only():
+def test_parameter_names_come_from_the_registry_with_descriptions():
     names = parameterNames()
     assert "R550" in names and "BD1900_2" in names and "OLINDEX3" in names
     assert len(names) == len(set(names))
-    for utility in ("run", "calculateParams", "determineValidParams", "denoiser"):
-        assert utility not in names
+    assert "1930" in parameterDescription("BD1900_2")
 
 
 def test_valid_parameters_respect_the_wavelength_range():
@@ -51,17 +49,19 @@ def test_valid_parameters_respect_the_wavelength_range():
     assert "R1080" in narrow and "R550" not in narrow
 
 
-def test_computed_parameter_matches_hypyrameters_own_function():
+def test_computed_parameters_match_hypyrameter_and_keep_nan_pixels():
     cube, wavelengths = _cube()
+    cube[0, 0, :] = np.nan
     result = computeParameterCube(cube, wavelengths, ["R550", "BD1900_2"])
 
-    assert result.shape == (6, 5, 2)
+    assert result.shape == (6, 5, 2) and result.dtype == np.float32
     np.testing.assert_allclose(
-        result[:, :, 0], hpu.getBand(cube, list(wavelengths), 550)
+        result, hypyrameter.compute(cube, wavelengths, ["R550", "BD1900_2"])
     )
+    assert np.isnan(result[0, 0]).all() and np.isfinite(result[1:, 1:]).all()
 
 
-def test_progress_is_reported_per_parameter():
+def test_progress_is_reported_per_parameter_in_percent():
     cube, wavelengths = _cube()
     seen = []
     computeParameterCube(
@@ -70,5 +70,4 @@ def test_progress_is_reported_per_parameter():
         ["R550", "R637"],
         reportProgress=lambda p, m: seen.append((p, m)),
     )
-    assert [m for _p, m in seen] == ["R550", "R637"]
-    assert seen[-1][0] == 100
+    assert seen == [(0, "R550"), (50, "R637"), (100, "done")]
