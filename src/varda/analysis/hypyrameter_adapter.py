@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[int, str], None]
 
-_hypyrameter: types.ModuleType | None
 try:
-    import hypyrameter as _hypyrameter
+    import hypyrameter
 
+    _hypyrameter: types.ModuleType | None = hypyrameter
     HYPYRAMETER_AVAILABLE = True
 except ImportError as error:  # the optional "hypyrameter" extra is not installed
     logger.info("HyPyRameter unavailable (%s); Band Parameters disabled", error)

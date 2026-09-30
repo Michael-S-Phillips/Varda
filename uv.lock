@@ -331,7 +331,7 @@ wheels = [
 [[package]]
 name = "hypyrameter"
 version = "0.3.0"
-source = { git = "https://github.com/Michael-S-Phillips/HyPyRameter.git?rev=v0.3.0#94a680bf3ff352585e5f3436b7687d82d1bfac01" }
+source = { git = "https://github.com/Michael-S-Phillips/HyPyRameter.git?rev=v0.3.0#ee8544353fe8af50d8cb475f32830957a20c5749" }
 dependencies = [
     { name = "numpy" },
     { name = "pandas" },
