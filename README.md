@@ -8,19 +8,34 @@ This project is still very much a WIP! As such, things will be changing rapidly,
 
 # Getting Started
 
-## Prerequisites:
+## Download a release (no Python needed)
+Each release on the [Releases page](https://github.com/Michael-S-Phillips/Varda/releases)
+ships a zip per platform (`Varda-windows-x64.zip`, `Varda-macos-arm64.zip`,
+`Varda-linux-x64.zip`). Unzip it and run the `Varda` executable inside.
+- **macOS:** the build is not code-signed, so the first launch is blocked by
+  Gatekeeper. Right-click the app → *Open* (once), or run
+  `xattr -dr com.apple.quarantine <path to Varda>`.
+- The packaged app does not include the optional extras below (HyPyRameter
+  band parameters, PyTorch classifiers); run from source for those.
 
-- Python 3.13 installed
-- [uv package manager](https://docs.astral.sh/
+## Run from source
 
-## Setup Development environment:
-1. clone the repository and navigate to the project directory.
-2. run the following command to setup the environment and install dependencies:
+### Prerequisites
+- Python 3.13
+- the [uv package manager](https://docs.astral.sh/uv/)
+
+### Setup
+1. Clone the repository and navigate to the project directory.
+2. Install the dependencies (add the optional extras you want):
 ```bash
 uv sync
+# with the optional extras (see below):
+uv sync --extra hypyrameter --extra ml
 ```
+`uv sync` on its own removes extras that were installed before — repeat the
+`--extra` flags whenever you sync.
 
-## Run Varda:
+### Run Varda
 ```bash
 uv run varda
 ```
