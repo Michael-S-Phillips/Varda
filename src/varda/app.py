@@ -4,8 +4,13 @@ from typing import TYPE_CHECKING
 
 from app_model import Application
 
-from varda._actions import ALL_ACTIONS
-from varda._actions._context_keys import IMAGE_COUNT
+from varda._actions import ALL_ACTIONS, PROCESSING_SUBMENUS
+from varda.context_keys import IMAGE_COUNT
+from varda.all_images_view_list.image_list_actions import (
+    IMAGE_LIST_ACTIONS,
+    ImageListClickContext,
+    getCurrentClickContext as getImageListClickContext,
+)
 from varda.common.di_types import ProjectImages
 from varda.image_rendering.raster_view.viewport_actions import (
     VIEWPORT_ACTIONS,
@@ -16,6 +21,9 @@ from varda.plugins import VardaPluginManager
 
 # if TYPE_CHECKING:
 from varda.maingui import MainGUI
+
+if TYPE_CHECKING:
+    from varda.session_autosave import SessionAutosaver
 
 
 class VardaApplication(Application):
@@ -28,6 +36,7 @@ class VardaApplication(Application):
         super().__init__("varda")
         self.pluginManager = VardaPluginManager()
         self.maingui: MainGUI | None = None
+        self.autosaver: SessionAutosaver | None = None  # set up in main.initVarda
         self.images = ProjectImages()
 
         # the lambdas defer resolution till later, since self.maingui isn't assigned right away
@@ -38,11 +47,16 @@ class VardaApplication(Application):
         self.images.sigDataChanged.connect(self._onImagesChanged)
 
         self.register_actions(ALL_ACTIONS)
+        self.menus.append_menu_items(PROCESSING_SUBMENUS)  # Processing categories
         self.register_actions(VIEWPORT_ACTIONS)
         # Provider for the transient viewport right-click context. Called fresh
         # each time an action runs; the controller sets it just before exec.
         self.injection_store.register_provider(
             getCurrentClickContext, ViewportClickContext
+        )
+        self.register_actions(IMAGE_LIST_ACTIONS)
+        self.injection_store.register_provider(
+            getImageListClickContext, ImageListClickContext
         )
 
     def _onImagesChanged(self, items: list) -> None:

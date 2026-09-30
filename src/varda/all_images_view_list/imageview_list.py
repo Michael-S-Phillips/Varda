@@ -3,8 +3,13 @@
 # third party imports
 from PyQt6 import QtWidgets, QtCore, QtGui
 from PyQt6.QtGui import QPixmap, QIcon
-from PyQt6.QtWidgets import QListView, QListWidget, QListWidgetItem
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QListView,
+    QListWidget,
+    QListWidgetItem,
+)
+from PyQt6.QtCore import QPoint, Qt, pyqtSignal
 
 # local imports
 from varda.common import ObservableList
@@ -18,21 +23,46 @@ class ImageListWidget(QListWidget):
     """Widget for displaying all the images of a project.
 
     This class gives users a way to see previews of all the images in the project.
-    Users can also select images, which other classes can use to provide context
-    actions based on which image is selected.
+    Interactions are surfaced as signals carrying the affected images, so this
+    widget stays independent of what "opening" an image means:
+
+    - ``sigImagesActivated(list[VardaRaster])`` on double-click.
+    - ``sigContextMenuRequested(list[VardaRaster], QPoint)`` on right-click over an
+      item; the clicked image comes first, followed by any other selected images.
     """
+
+    sigImagesActivated = pyqtSignal(list)
+    sigContextMenuRequested = pyqtSignal(list, QPoint)
 
     def __init__(self, imageList: ObservableList, parent=None):
         super().__init__(parent)
         self.setViewMode(QListWidget.ViewMode.IconMode)
         self.setResizeMode(QListView.ResizeMode.Adjust)
         self.setIconSize(QtCore.QSize(64, 64))  # Set icon size
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.setMouseTracking(True)  # hover state for the item delegate
         self.imageList = imageList
 
         self.setItemDelegate(ImageItemDelegate(self))
 
         self._updateItems()
         self.imageList.sigDataChanged.connect(self._updateItems)
+        self.itemDoubleClicked.connect(self._onItemDoubleClicked)
+        self.customContextMenuRequested.connect(self._onContextMenuRequested)
+
+    def _onItemDoubleClicked(self, item: QListWidgetItem) -> None:
+        self.sigImagesActivated.emit([item.data(Qt.ItemDataRole.UserRole)])
+
+    def _onContextMenuRequested(self, pos: QPoint) -> None:
+        clicked = self.itemAt(pos)
+        if clicked is None:
+            return
+        others = [
+            item for item in self.selectedItems() if self.row(item) != self.row(clicked)
+        ]
+        images = [item.data(Qt.ItemDataRole.UserRole) for item in [clicked, *others]]
+        self.sigContextMenuRequested.emit(images, self.viewport().mapToGlobal(pos))
 
     def _updateItems(self):
         self.clear()
@@ -83,10 +113,23 @@ class ImageItemDelegate(QtWidgets.QStyledItemDelegate):
         # Set the painter to the scene
         scene.render(painter, QtCore.QRectF(option.rect))
 
-        # Apply darkening effect if the item is selected
+        # Selection: a translucent tint plus a solid frame in the palette's
+        # highlight colour over the whole item (thumbnail and label), so it
+        # reads at a glance. Hover: a thin frame as a clickability cue.
+        highlight = option.palette.highlight().color()
+        frame = option.rect.adjusted(1, 1, -2, -2)
+        painter.save()
         if option.state & QtWidgets.QStyle.StateFlag.State_Selected:
-            imageRect = QtCore.QRect(option.rect.topLeft(), self.iconSize.size())
-            painter.fillRect(imageRect, QtGui.QColor(0, 0, 0, 60))
+            tint = QtGui.QColor(highlight)
+            tint.setAlpha(60)
+            painter.setBrush(tint)
+            painter.setPen(QtGui.QPen(highlight, 3))
+            painter.drawRoundedRect(frame, 3, 3)
+        elif option.state & QtWidgets.QStyle.StateFlag.State_MouseOver:
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QtGui.QPen(highlight, 1))
+            painter.drawRoundedRect(frame, 3, 3)
+        painter.restore()
 
     def _get_current_stretch_index(self, image_index):
         """Get the current stretch index for an image from the main view"""

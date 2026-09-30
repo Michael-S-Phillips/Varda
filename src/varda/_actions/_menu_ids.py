@@ -4,18 +4,22 @@ from enum import StrEnum
 class MenuId(StrEnum):
     FILE = "varda/file"
     WORKSPACE = "varda/workspace"
+    PROCESSING = "varda/processing"
     DEBUG = "varda/debug"
 
 
 class MenuGroup(StrEnum):
     FILE_IO = "1_io"
+    FILE_SESSION = "2_session"
     FILE_EXIT = "9_exit"
     WORKSPACE_NEW = "1_new"
+    WORKSPACE_MANAGE = "2_manage"
     DEBUG_TESTING = "1_testing"
 
 
 MENUBAR: list[tuple[str, str]] = [
     (MenuId.FILE, "File"),
     (MenuId.WORKSPACE, "Workspace"),
+    (MenuId.PROCESSING, "Processing"),
     (MenuId.DEBUG, "Debug"),
 ]

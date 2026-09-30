@@ -1,6 +1,6 @@
 [project]
 name = "varda"
-version = "0.1.0"
+version = "0.2.0"
 description = "An extensible GUI application for analyzing hyperspectral images."
 readme = "README.md"
 requires-python = "~=3.13.0"
@@ -38,6 +38,21 @@ dependencies = [
     "qtpy>=2.4.3",
     "superqt>=0.8.0",
     "pyconify>=0.2.1",
+]
+
+[project.optional-dependencies]
+# Processing > Spectral Parameters > Band Parameters needs HyPyRameter 0.3+
+# (on PyPI). Install with
+#   uv sync --extra hypyrameter      or      pip install "varda[hypyrameter]"
+# Varda runs without it and simply lists that analysis as unavailable.
+hypyrameter = [
+    "hypyrameter>=0.3",
+]
+# Processing > Classification > CNN / ViT classifiers need PyTorch (large;
+# platform-specific wheels). Install with `uv sync --extra ml`; without it
+# those analyses are listed as unavailable.
+ml = [
+    "torch>=2.4",
 ]
 
 [dependency-groups]

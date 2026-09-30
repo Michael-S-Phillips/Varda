@@ -74,6 +74,16 @@ class TextOverlayHandle(OverlayHandle, Protocol):
     def setPos(self, pos: QPointF) -> None: ...
 
 
+class PointOverlayHandle(OverlayHandle, Protocol):
+    """A point marker of fixed screen size at a viewport-local position."""
+
+    def setPos(self, pos: QPointF) -> None: ...
+
+    def setColor(self, color: QColor) -> None: ...
+
+    def setHighlighted(self, highlighted: bool) -> None: ...
+
+
 class ROIOverlayHandle(OverlayHandle, Protocol):
     """A display-only ROI polygon (coloured outline + fill) with a highlight state.
 
@@ -207,6 +217,13 @@ class RasterViewport(Protocol):
         self, points: Sequence[QPointF], color: QColor
     ) -> ROIOverlayHandle:
         """Add a display-only ROI polygon overlay; returns a handle to drive it."""
+        ...
+
+    def addPointOverlay(
+        self, pos: QPointF, color: QColor, symbol: str = "x"
+    ) -> PointOverlayHandle:
+        """Add a point marker ("x" or "o") of fixed screen size at a
+        viewport-local position."""
         ...
 
     # --- raw items / tools (provisional; see module docstring) ---

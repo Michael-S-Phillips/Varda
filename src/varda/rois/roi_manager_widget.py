@@ -24,6 +24,7 @@ from varda.image_loading.crism_geometry import (
     computeColumnLockedTranslation,
     loadColumnGeometry,
     resolveGeometryFile,
+    wholePixels,
 )
 from varda.plotting.plot import VardaPlotWidget
 from varda.rois.roi_collection import ROICollection
@@ -83,10 +84,14 @@ class ROIManagerWidget(QWidget):
         # "Lock to sensor column" toggle for template placement, enabled only
         # when a CRISM DDR geometry companion resolves for this image.
         self._lockColumnCheck = QCheckBox("Lock to sensor column")
-        hasDdr = bool(image.filePath) and resolveGeometryFile(image.filePath) is not None
+        hasDdr = (
+            bool(image.filePath) and resolveGeometryFile(image.filePath) is not None
+        )
         self._lockColumnCheck.setEnabled(hasDdr)
         if not hasDdr:
-            self._lockColumnCheck.setToolTip("No CRISM DDR geometry found for this image")
+            self._lockColumnCheck.setToolTip(
+                "No CRISM DDR geometry found for this image"
+            )
 
         # Layout
         btnRow = QHBoxLayout()
@@ -185,10 +190,14 @@ class ROIManagerWidget(QWidget):
         pixelCoords = self._collection.getPixelCoordinates(
             self._templateFid
         )  # (N,2) col,row
-        srcCx = float(pixelCoords[:, 0].mean())
-        srcCy = float(pixelCoords[:, 1].mean())
-        dx = float(clickCol) - srcCx
-        dy = float(clickRow) - srcCy
+        # Polygon coordinates are pixel corners, so centre the copy on the
+        # clicked pixel's centre (c + 0.5), not its top-left corner. Use the
+        # true centroid (the stored ring repeats its first vertex, which would
+        # bias a vertex mean) and shift by whole pixels so the copy is an exact
+        # pixel-set translate of the template.
+        centroid = Polygon(pixelCoords).centroid
+        dx = wholePixels((float(clickCol) + 0.5) - centroid.x)
+        dy = wholePixels((float(clickRow) + 0.5) - centroid.y)
 
         if self.lockColumn:
             colGeom = (

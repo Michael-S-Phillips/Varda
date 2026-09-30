@@ -12,8 +12,13 @@ from PyQt6.QtCore import QSize
 
 import varda
 from varda._actions import MENUBAR
+from varda._actions._file_actions import importImagePaths
+from varda.all_images_view_list.image_list_menu_controller import (
+    ImageListMenuController,
+)
 from varda.app import VardaApplication
 from varda.maingui import MainGUI
+from varda.session_autosave import SessionAutosaver
 from varda.utilities.resources import resource_path
 
 
@@ -21,7 +26,7 @@ import ctypes
 
 if sys.platform == "win32":
     # this "registers" varda as its own unique application, which lets it use its own icon for the taskbar, instead of the generic python icon
-    appid = "varda.0.1.0"
+    appid = "varda.0.2.0"
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(appid)
 
 ICON_PATH = resource_path("resources/logo.svg")
@@ -49,9 +54,22 @@ def initVarda() -> None:
 
     app.maingui = MainGUI(app=app)
     app.maingui.setModelMenuBar(MENUBAR)
+    imageListController = ImageListMenuController(app, parent=app.maingui)
+    app.maingui.imageList.sigImagesActivated.connect(
+        imageListController.onImagesActivated
+    )
+    app.maingui.imageList.sigContextMenuRequested.connect(
+        imageListController.onContextMenuRequested
+    )
+    # Files dragged onto the window import like File > Import Image(s)
+    app.maingui.sigFilesDropped.connect(
+        lambda paths: importImagePaths(paths, app.images)
+    )
     app.context.changed.connect(
         lambda _keys: app.maingui.menuBar().update_from_context(app.context)
     )
+    # Autosave the session every few minutes and on quit (File > Restore Last Session)
+    app.autosaver = SessionAutosaver(app.images, app.maingui, parent=app.maingui)
     app.maingui.showMaximized()
 
     varda.log.info("Varda initialized successfully!")

@@ -1,8 +1,10 @@
 # standard library
+import functools
 import logging
 from enum import Enum
 
 # third party imports
+from PyQt6.QtCore import QPointF
 from PyQt6.QtWidgets import QMainWindow
 import PyQt6Ads as ads
 
@@ -12,7 +14,7 @@ from varda.common.parameter import (
     ParameterGroup,
     EnumParameter,
 )
-from varda.common.entities import VardaRaster
+from varda.common.entities import Color, VardaRaster
 from varda.image_rendering.raster_view import (
     ImageViewport,
     ROIDisplayController,
@@ -24,11 +26,27 @@ from varda.image_rendering.new_histogram_view import NewHistogramView
 from varda.image_rendering.raster_view.viewport_context_menu_controller import (
     ViewportContextMenuController,
 )
-from varda.common.ui import VardaDockWidget
+from varda.common.ui import SectionBox, VardaDockWidget
+from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
+    PixelSelectTool,
+)
+from varda.image_rendering.raster_view.viewport_tools.ratio_explorer_tool import (
+    RatioExplorerTool,
+)
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_manager_widget import ROIManagerWidget
+from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
+from varda.points.point_collection import PointCollection
+from varda.points.point_manager_widget import PointManagerWidget
+from varda.workspaces.pixel_markers import PixelMarkerController
+from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
+from varda.workspaces.saved_point_markers import SavedPointMarkers
+from varda.workspaces.ratio_explorer import (
+    RatioExplorerConfig,
+    RatioExplorerController,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +54,25 @@ logger = logging.getLogger(__name__)
 class DisplayMode(Enum):
     SIDE_BY_SIDE = 1
     OVERLAY = 2
+
+
+class PixelSpectrumSource(Enum):
+    """Which image(s) a pixel selection plots, regardless of the viewport clicked."""
+
+    CLICKED_VIEWPORT = 1
+    PRIMARY = 2
+    SECONDARY = 3
+    BOTH = 4
+
+
+class PixelSourceConfig(ParameterGroup):
+    source = EnumParameter(
+        "Spectrum Source",
+        PixelSpectrumSource,
+        PixelSpectrumSource.CLICKED_VIEWPORT,
+        "Which image's spectrum a Ctrl+click plots. The images are assumed to be "
+        "co-registered, so the clicked pixel is looked up in both.",
+    )
 
 
 class DualImageWorkspaceConfig(ParameterGroup):
@@ -76,6 +113,8 @@ class DualImageWorkspace(QMainWindow):
         self.image2 = config.image2Param.get()
         self.displayMode = config.displayModeParam.get()
         self.linkMode = config.linkModeParam.get()
+        # The tab is named after the images so several workspaces stay tellable apart
+        self.setWindowTitle(f"{self.image1.name} | {self.image2.name}")
 
         self.viewportLinkController = None
 
@@ -98,9 +137,14 @@ class DualImageWorkspace(QMainWindow):
             self.roiCollection, parent=self
         )
         self.plotWidget = VardaPlotWidget(parent=self)
+        self.pixelSourceConfig = PixelSourceConfig()
+        self.ratioExplorerConfig = RatioExplorerConfig()
         self.roiManagerWidget = ROIManagerWidget(
             self.roiCollection, self.image1, self.plotWidget, parent=self
         )
+        # Saved pixel points (from the pixel-spectra plots' Save Point)
+        self.pointCollection = PointCollection()
+        self.pointManagerWidget = PointManagerWidget(self.pointCollection, parent=self)
 
     def _initUI(self):
         if self.displayMode == DisplayMode.SIDE_BY_SIDE:
@@ -116,6 +160,8 @@ class DualImageWorkspace(QMainWindow):
 
         self.roiDock = VardaDockWidget("ROI Manager")
         self.roiDock.setWidget(self.roiManagerWidget)
+        self.pointsDock = VardaDockWidget("Points Manager")
+        self.pointsDock.setWidget(self.pointManagerWidget)
 
         self.plotDock = VardaDockWidget("ROI Plots")
         self.plotDock.setWidget(self.plotWidget)
@@ -154,10 +200,10 @@ class DualImageWorkspace(QMainWindow):
 
         self._setupDocks()
 
-        self.viewport1Dock = VardaDockWidget("Primary Viewport")
+        self.viewport1Dock = VardaDockWidget(f"Primary: {self.image1.name}")
         self.viewport1Dock.setWidget(self.viewport1)
 
-        self.viewport2Dock = VardaDockWidget("Secondary Viewport")
+        self.viewport2Dock = VardaDockWidget(f"Secondary: {self.image2.name}")
         self.viewport2Dock.setWidget(self.viewport2)
 
         # Top row: two viewports side by side
@@ -199,11 +245,48 @@ class DualImageWorkspace(QMainWindow):
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.BottomDockWidgetArea, self.roiDock
         )
+        # Points Manager tabbed with the ROI Manager
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.pointsDock,
+            self.roiDock.dockAreaWidget(),
+        )
+        self.roiDock.setAsCurrentTab()
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.RightDockWidgetArea,
             self.plotDock,
             self.roiDock.dockAreaWidget(),
         )
+        # Pixel-spectra plots are tabbed alongside the ROI plot
+        self.pixelSpectraDocks = PixelSpectraDocks(
+            self.dockManager,
+            self.plotDock,
+            configurePlot=self._configurePixelPlot,
+            parent=self,
+        )
+        # Every plotted pixel spectrum is marked on both views in its colour;
+        # saved points stay marked as circles
+        self.pixelMarkers = PixelMarkerController(
+            self.pixelSpectraDocks, self._allViewports(), parent=self
+        )
+        self.savedPointMarkers = SavedPointMarkers(
+            self.pointCollection, self._allViewports(), parent=self
+        )
+        self.pointManagerWidget.sigSelectionChanged.connect(
+            self.savedPointMarkers.highlight
+        )
+        self.ratioExplorer = RatioExplorerController(
+            self.roiCollection,
+            self.roiManagerWidget,
+            self.pixelSpectraDocks.dedicated("Ratio Spectra"),
+            self.ratioExplorerConfig,
+            parent=self,
+            imagesFor=self._imagesForSource,  # honours Spectrum Source
+            labelWithImageName=True,
+        )
+        # The images are co-registered: show the boxes on both views
+        self.ratioExplorer.setMirrorViewports(self._allViewports())
+        self.pixelSpectraDocks.newPlot()
         self.dockManager.setSplitterSizes(self.viewport1Dock.dockAreaWidget(), [4, 1])
         # Within each viewport column, give viewport more space than its settings
         viewport1Splitter = self.viewport1Dock.dockAreaWidget().parentSplitter()
@@ -226,7 +309,9 @@ class DualImageWorkspace(QMainWindow):
 
         self._setupDocks()
 
-        self.viewport1Dock = VardaDockWidget("Overlay Viewport")
+        self.viewport1Dock = VardaDockWidget(
+            f"Overlay: {self.image1.name} + {self.image2.name}"
+        )
         self.viewport1Dock.setWidget(self.viewport1)
 
         # Viewport as the main area
@@ -252,11 +337,48 @@ class DualImageWorkspace(QMainWindow):
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.BottomDockWidgetArea, self.roiDock
         )
+        # Points Manager tabbed with the ROI Manager
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.pointsDock,
+            self.roiDock.dockAreaWidget(),
+        )
+        self.roiDock.setAsCurrentTab()
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.RightDockWidgetArea,
             self.plotDock,
             self.roiDock.dockAreaWidget(),
         )
+        # Pixel-spectra plots are tabbed alongside the ROI plot
+        self.pixelSpectraDocks = PixelSpectraDocks(
+            self.dockManager,
+            self.plotDock,
+            configurePlot=self._configurePixelPlot,
+            parent=self,
+        )
+        # Every plotted pixel spectrum is marked on both views in its colour;
+        # saved points stay marked as circles
+        self.pixelMarkers = PixelMarkerController(
+            self.pixelSpectraDocks, self._allViewports(), parent=self
+        )
+        self.savedPointMarkers = SavedPointMarkers(
+            self.pointCollection, self._allViewports(), parent=self
+        )
+        self.pointManagerWidget.sigSelectionChanged.connect(
+            self.savedPointMarkers.highlight
+        )
+        self.ratioExplorer = RatioExplorerController(
+            self.roiCollection,
+            self.roiManagerWidget,
+            self.pixelSpectraDocks.dedicated("Ratio Spectra"),
+            self.ratioExplorerConfig,
+            parent=self,
+            imagesFor=self._imagesForSource,  # honours Spectrum Source
+            labelWithImageName=True,
+        )
+        # The images are co-registered: show the boxes on both views
+        self.ratioExplorer.setMirrorViewports(self._allViewports())
+        self.pixelSpectraDocks.newPlot()
 
         # Give viewport most vertical space, settings and ROI/plot less
         rootSplitter = self.dockManager.rootSplitter()
@@ -278,13 +400,17 @@ class DualImageWorkspace(QMainWindow):
         self.viewportContextMenuController = ViewportContextMenuController(
             self.roiManagerWidget, parent=self
         )
-        viewports = [self.viewport1]
-        if hasattr(self, "viewport2"):
-            viewports.append(self.viewport2)
-        for vp in viewports:
+        for vp in self._allViewports():
             vp.sigContextMenuRequested.connect(
                 self.viewportContextMenuController.onContextMenuRequested
             )
+
+    def _allViewports(self) -> list[ImageViewport]:
+        """Both viewports side by side, or the single overlay viewport."""
+        viewports = [self.viewport1]
+        if hasattr(self, "viewport2"):
+            viewports.append(self.viewport2)
+        return viewports
 
     def _onToolActivated(self, tool) -> None:
         from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
@@ -293,6 +419,61 @@ class DualImageWorkspace(QMainWindow):
 
         if isinstance(tool, ROIDrawingTool):
             tool.sigROIDrawingComplete.connect(self._onROIDrawn)
+        elif isinstance(tool, PixelSelectTool):
+            tool.sigPixelSelected.connect(
+                functools.partial(self._onPixelSelected, tool.viewport.imageEntity)
+            )
+        elif isinstance(tool, RatioExplorerTool):
+            self.ratioExplorer.bindTool(tool)
+
+    def _configurePixelPlot(self, plot: PixelSpectraPlotWidget) -> None:
+        # After the plot's "View" and "Pixel Spectra" sections
+        plot.insertSidebarSection(
+            2, SectionBox("Dual Image", self.pixelSourceConfig.createWidget())
+        )
+        plot.insertSidebarSection(3, self.ratioExplorer.createSidebarSection())
+        plot.sigSavePointRequested.connect(functools.partial(self._savePoint, plot))
+
+    def _savePoint(self, plot: PixelSpectraPlotWidget, curve) -> None:
+        """Save a pixel curve's pixel to the Points Manager, in the curve's colour."""
+        origin = plot.pixelOrigins.get(curve)
+        if origin is not None:
+            self.pointCollection.addPixel(
+                origin.image,
+                origin.x,
+                origin.y,
+                name=curve.plotDataItem.name(),
+                color=Color.fromQColor(curve.config.color.value),
+            )
+
+    def _imagesForSource(self, clickedImage: VardaRaster) -> list[VardaRaster]:
+        """The image(s) a selection on ``clickedImage`` reads, per Spectrum Source.
+        Shared by Pixel Select and the Ratio Explorer."""
+        source = self.pixelSourceConfig.source.value
+        assert isinstance(source, PixelSpectrumSource)
+        return {
+            PixelSpectrumSource.CLICKED_VIEWPORT: [clickedImage],
+            PixelSpectrumSource.PRIMARY: [self.image1],
+            PixelSpectrumSource.SECONDARY: [self.image2],
+            PixelSpectrumSource.BOTH: [self.image1, self.image2],
+        }[source]
+
+    def _onPixelSelected(self, clickedImage: VardaRaster, pos: QPointF) -> None:
+        self.pixelSpectraDocks.addPixelSpectra(
+            self._imagesForSource(clickedImage),
+            int(pos.x()),
+            int(pos.y()),
+            labelWithImageName=True,
+        )
+
+    @property
+    def pixelPlotWidget(self) -> PixelSpectraPlotWidget:
+        """The pixel-spectra plot currently receiving selections."""
+        return self.pixelSpectraDocks.active
+
+    @property
+    def pixelPlotDock(self) -> VardaDockWidget:
+        return self.pixelSpectraDocks.activeDock
 
     def _onROIDrawn(self, result: dict) -> None:
         self.roiCollection.addROIFromDrawing(

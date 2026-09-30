@@ -11,6 +11,7 @@ general multi-instrument abstraction until a second instrument needs one.
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 
@@ -53,13 +54,18 @@ def computeColumnLockedTranslation(
 ) -> tuple[float, float] | None:
     """Compute the (dx, dy) pixel shift for a column-locked template paste.
 
-    ``templatePolygonPixels`` is an (N, 2) array of (col, row) pixel coordinates.
+    ``templatePolygonPixels`` is an (N, 2) array of (col, row) pixel *corner*
+    coordinates (pixel ``c`` spans ``c..c+1``), as ROI geometries are stored.
     ``clickCol`` is intentionally ignored: the horizontal placement is determined
     by the detector-column match, not the clicked column.
-    Returns (dx, dy) so that the template, shifted by it, sits on the same
-    detector column within the same strip at the clicked row. Returns None if
-    the lock cannot be satisfied (destination row out of bounds, the template's
-    strip does not reach the destination row, or no geometry under the template).
+    Returns (dx, dy) so that the template, shifted by it, is centred on the
+    clicked row and sits on the same detector column within the same strip. The
+    destination column is interpolated to sub-pixel precision, so a template
+    whose mean IR sample falls between two columns (any even-width box) keeps
+    exactly its columns rather than snapping a whole pixel sideways. Returns
+    None if the lock cannot be satisfied (destination row out of bounds, the
+    template's strip does not reach the destination row, or no geometry under
+    the template).
     """
     import rasterio.features
     from shapely.geometry import Polygon
@@ -100,13 +106,46 @@ def computeColumnLockedTranslation(
     if validXs.size == 0:
         return None
 
-    bestX = int(validXs[int(np.argmin(np.abs(rowIr[validXs] - srcIrMean)))])
+    destCol = _interpolateColumn(validXs, rowIr[validXs], srcIrMean)
 
-    srcCx = float(templatePolygonPixels[:, 0].mean())
-    srcCy = float(templatePolygonPixels[:, 1].mean())
-    dx = bestX - srcCx
-    dy = float(clickRow) - srcCy
+    # Polygon coordinates are pixel corners, so pixel column c is centred on
+    # c + 0.5; the same holds for the clicked row. Use the true centroid: a
+    # vertex mean is biased when the ring repeats its first vertex to close.
+    # The shift is rounded to whole pixels so the copy is an exact pixel-set
+    # translate of the template (a fractional shift would leave an even-sized
+    # footprint's edges on pixel centres, where rasterisation is ambiguous).
+    centroid = poly.centroid
+    dx = wholePixels((destCol + 0.5) - centroid.x)
+    dy = wholePixels((float(clickRow) + 0.5) - centroid.y)
     return (dx, dy)
+
+
+def wholePixels(shift: float) -> float:
+    """Round a pixel shift half-up, so an even-sized footprint centred between two
+    pixels extends right/down — the same convention as ``boxPolygonPixels``."""
+    return float(math.floor(shift + 0.5))
+
+
+def _interpolateColumn(cols: np.ndarray, irSamples: np.ndarray, target: float) -> float:
+    """Sub-pixel column where the row's IR sample equals ``target``.
+
+    Starts from the column whose IR sample is nearest and interpolates linearly
+    towards the neighbour on the far side of ``target`` (IR sample varies
+    smoothly along a row). Falls back to the nearest column at the row's ends
+    or where the IR sample is flat.
+    """
+    i = int(np.argmin(np.abs(irSamples - target)))
+    col0, ir0 = float(cols[i]), float(irSamples[i])
+    if target > ir0 and i + 1 < len(cols):
+        j = i + 1
+    elif target < ir0 and i > 0:
+        j = i - 1
+    else:
+        return col0
+    col1, ir1 = float(cols[j]), float(irSamples[j])
+    if ir1 == ir0:
+        return col0
+    return col0 + (target - ir0) / (ir1 - ir0) * (col1 - col0)
 
 
 _BAND_ALIASES: dict[str, tuple[str, ...]] = {

@@ -11,6 +11,17 @@ Right now, there are some systems that are in an incomplete state and should gen
 ## Dev Tools
 uv used for package management. ruff for formatting. ty for static type checking. pytest for unit testing.
 When using Astral tools (uv, ty, ruff), invoke the relevant /astral:<skill> to ensure best practices are followed.
+
+## Commands
+- **Install/sync deps:** `uv sync`
+- **Run the app:** `uv run varda` (entry point `varda.main:main`)
+- **Run all tests:** `uv run pytest`
+- **Run one test file / test:** `uv run pytest src/varda/image_rendering/_tests/test_foo.py` or `... -k "test_name"`. Tests are colocated in `_tests/` folders as `test_*.py`.
+- **Format:** `uv run ruff format` — **Lint:** `uv run ruff check` (add `--fix` to autofix)
+- **Type check:** `uv run ty check`
+- **Build standalone bundle:** `uv run pyinstaller Varda.spec`
+
+Requires Python 3.13. GUI tests use `pytest-qt`.
 ## Architecture
 
 ### Entry Point and Application Bootstrap

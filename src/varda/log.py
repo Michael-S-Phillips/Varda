@@ -35,18 +35,19 @@ def _getCallerName(depth: int = 1) -> str | None:
 ### Initialize Logging -- Logs stored in user's local appdata folder ###
 
 
-def _initializeFullLogging():
-    """This can be called by the main application to initialize full logging."""
-    assert QApplication.instance() is not None, "QApplication must be initialized"
-
-    logFolder = (
-        Path(
-            QStandardPaths.writableLocation(
-                QStandardPaths.StandardLocation.AppLocalDataLocation
+def _initializeFullLogging(logFolder: Path | None = None):
+    """This can be called by the main application to initialize full logging.
+    ``logFolder`` defaults to the Logs folder in the user's app-data location."""
+    if logFolder is None:
+        assert QApplication.instance() is not None, "QApplication must be initialized"
+        logFolder = (
+            Path(
+                QStandardPaths.writableLocation(
+                    QStandardPaths.StandardLocation.AppLocalDataLocation
+                )
             )
+            / "Logs"
         )
-        / "Logs"
-    )
     logFolder.mkdir(parents=True, exist_ok=True)
     # Get existing log files and remove the oldest ones if there are too many
     maxLogs = 10
@@ -57,14 +58,15 @@ def _initializeFullLogging():
     # compute name for new log file
     logTime = datetime.now().strftime("%Y-%m-%d_%I-%M-%S-%p")
     logName = logFolder / f"Varda.{logTime}.log"
+    # The module-level basicConfig below already configured the root logger;
+    # without force=True this call would be a no-op and the file stay empty.
     logging.basicConfig(
         level=logging.DEBUG,
         handlers=[logging.FileHandler(logName), logging.StreamHandler(sys.stdout)],
+        force=True,
     )
 
     # disable logging for some packages
-    import numba
-
     logging.getLogger("numba").setLevel(logging.WARNING)
     debug("logging fully initialized, output file found in local appdata folder")
 

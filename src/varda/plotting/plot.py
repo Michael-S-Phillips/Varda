@@ -1,10 +1,27 @@
 import json
+from enum import Enum
 from pathlib import Path
 
 import numpy as np
-from PyQt6.QtCore import Qt, QObject, pyqtSignal, QPoint, QByteArray, QMimeData, QSize
+from PyQt6.QtCore import (
+    Qt,
+    QObject,
+    pyqtSignal,
+    QPoint,
+    QPointF,
+    QByteArray,
+    QMimeData,
+    QSize,
+)
 from PyQt6.QtGui import QDrag, QColor
-from PyQt6.QtWidgets import QWidget, QComboBox, QScrollArea
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QDoubleSpinBox,
+    QGraphicsItem,
+    QLabel,
+    QListWidget,
+    QWidget,
+)
 import pyqtgraph as pg
 
 from varda.common.entities import VardaRaster, Color
@@ -23,12 +40,18 @@ from varda.plotting.library_spectra import (
     listSpectra,
     loadSpectrum,
 )
+from varda.plotting.spectrum_matching import (
+    harmonizeWavelengthUnits,
+    matchToReference,
+)
+from varda.plotting.view_box import ModifierDragViewBox
 from varda.common.parameter import (
     ParameterGroup,
     FloatParameter,
     Vec2Parameter,
     ColorParameter,
     BoolParameter,
+    EnumParameter,
 )
 
 CURVE_MIME_TYPE = "application/x-varda-curve"
@@ -41,23 +64,32 @@ class CurveConfig(ParameterGroup):
         range=(0.1, 10.0),
         units="px",
         description="Width of the curve in pixels",
+        step=0.5,
     )
     color = ColorParameter(
         "Curve Color",
         default="#ff0000",
         description="Color of the curve",
     )
+    # Steps are sized for reflectance (0-1) data: a whole-unit step would move
+    # or flatten a spectrum right out of view.
     offset = FloatParameter(
         "Y Offset",
         default=0.0,
         units="y",
         description="Vertical offset of the curve",
+        step=0.01,
+        decimals=4,
     )
     scale = FloatParameter(
         "Y Scale",
         default=1.0,
+        range=(0.001, 1000.0),
         units="y",
         description="Vertical scale of the curve",
+        step=0.1,
+        decimals=3,
+        showSlider=False,
     )
 
 
@@ -74,6 +106,9 @@ class Curve(QObject):
         self.plotDataItem = plotDataItem
         self.plotDataItem.sigClicked.connect(lambda: self.sigClicked.emit(self))
         self.config = config
+        # Extra graphics that belong to this curve (e.g. a +/- std-dev band):
+        # they follow its Y offset/scale and are removed with it.
+        self.bandItems: list[QGraphicsItem] = []
 
         self.config.sigParameterChanged.connect(self.onConfigChanged)
 
@@ -82,11 +117,28 @@ class Curve(QObject):
     def onConfigChanged(self):
         pen = pg.mkPen(color=self.config.color.value, width=self.config.width.value)
         self.plotDataItem.setPen(pen)
-        self.plotDataItem.setTransform(
+        # translate-then-scale composes to y -> y * scale + offset, matching
+        # displayedData() and the view limits. (scale-then-translate would
+        # give scale * (y + offset).)
+        transform = (
             pg.QtGui.QTransform()
-            .scale(1.0, self.config.scale.value)
             .translate(0.0, self.config.offset.value)
+            .scale(1.0, self.config.scale.value)
         )
+        self.plotDataItem.setTransform(transform)
+        for item in self.bandItems:
+            item.setTransform(transform)
+
+    def displayedData(self) -> tuple[np.ndarray, np.ndarray]:
+        """The curve's data as shown, i.e. with its Y scale and offset applied."""
+        x, y = self.plotDataItem.getData()
+        if x is None or y is None:
+            return np.array([]), np.array([])
+        shownY = (
+            np.asarray(y, dtype=float) * self.config.scale.value
+            + self.config.offset.value
+        )
+        return np.asarray(x, dtype=float), shownY
 
     def setClickable(self, clickable: bool):
         self.plotDataItem.setCurveClickable(clickable, width=20)
@@ -132,21 +184,73 @@ class Curve(QObject):
         return curve
 
 
-class WindowConfig(ParameterGroup):
-    backgroundColor = ColorParameter("Background Color", "#000000")
-    autoViewRange = BoolParameter(
-        "Auto Range",
-        True,
-        "Should view range be manually set or automatically adjust?",
+class RangeMode(Enum):
+    AUTO = 1
+    FIT_Y_TO_X_RANGE = 2
+    MANUAL = 3
+
+
+class ViewConfig(ParameterGroup):
+    rangeMode = EnumParameter(
+        "Range",
+        RangeMode,
+        RangeMode.AUTO,
+        "Auto fits both axes to all data. Fit Y To X Range keeps your X window "
+        "and refits Y to the data inside it whenever spectra change. Manual "
+        "uses the ranges below.",
     )
+    showLegend = BoolParameter("Show Legend", True, "Show the curve legend.")
+
+
+class AppearanceConfig(ParameterGroup):
+    backgroundColor = ColorParameter("Background Color", "#000000")
+
+
+class MarkerConfig(ParameterGroup):
+    showLabels = BoolParameter(
+        "Show Labels", True, "Show each marker's wavelength beside its line"
+    )
+    verticalLabels = BoolParameter(
+        "Vertical Labels",
+        False,
+        "Run the labels along the marker lines so close markers stay legible",
+    )
+
+
+# Where marker labels sit along the line (fraction of the view height), and how
+# far each one steps down when it would overlap a neighbour.
+MARKER_LABEL_TOP = 0.95
+MARKER_LABEL_STEP = 0.07
+
+
+class _MarkerLabel(pg.InfLineLabel):
+    """A marker's wavelength label. Draggable along its line; once the user has
+    placed it, the automatic collision avoidance leaves it alone."""
+
+    def __init__(self, line: pg.InfiniteLine, **kwds) -> None:
+        super().__init__(line, movable=True, **kwds)
+        self.userPlaced = False
+
+    def mouseDragEvent(self, ev) -> None:
+        super().mouseDragEvent(ev)
+        if ev.isAccepted():
+            self.userPlaced = True
 
 
 class RangeConfig(ParameterGroup):
     viewRangeX = Vec2Parameter(
-        "X View Range", default=Vec2(0.0, 1.0), valueNames=("Min", "Max")
+        "X View Range",
+        default=Vec2(0.0, 1.0),
+        valueNames=("Min", "Max"),
+        step=1.0,
+        decimals=2,
     )
     viewRangeY = Vec2Parameter(
-        "Y View Range", default=Vec2(0.0, 1.0), valueNames=("Min", "Max")
+        "Y View Range",
+        default=Vec2(0.0, 1.0),
+        valueNames=("Min", "Max"),
+        step=0.01,
+        decimals=4,
     )
 
 
@@ -213,22 +317,23 @@ class VardaPlotWidget(QWidget):
     ):
         super().__init__(parent)
         self.selectedCurve: Curve | None = None
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)  # for Backspace/Delete
         self.libraryPath = libraryPath
 
         self.plots: list[Curve] = []
-        self._fillItems: list[pg.GraphicsObject] = []
         self.gv = _PlotGraphicsView(self)
         # if the user clicks on the plot area and none of the plots catch the click (therefore selecting it), deselect any selected plot
         self.gv.scene().sigMouseClicked.connect(self.onSceneClicked)
-        self.plotItem = pg.PlotItem()
-        self.plotItem.addLegend()
-        viewBox = self.plotItem.getViewBox()
-        assert viewBox is not None
-        self.viewBox: pg.ViewBox = viewBox
-        # Left-drag draws a rubber-band rectangle and zooms in on release;
-        # right-drag pans, wheel zooms.
-        self.viewBox.setMouseMode(pg.ViewBox.RectMode)
+        self.viewBox = ModifierDragViewBox()
+        self.plotItem = pg.PlotItem(viewBox=self.viewBox)
+        self.legend = self.plotItem.addLegend()
+        # Left-drag pans, Shift/Cmd+left-drag zooms to the dragged box,
+        # right-drag stretches the axes, wheel zooms about the cursor.
+        self.viewBox.setMouseMode(pg.ViewBox.PanMode)
         self.viewBox.setMouseEnabled(x=True, y=True)
+        # pyqtgraph's default (-1/8) zooms ~26% per wheel notch, which feels
+        # jumpy on a trackpad; this is roughly a third of that.
+        self.viewBox.state["wheelScaleFactor"] = -1.0 / 24.0
         self.gv.setCentralItem(self.plotItem)
 
         # Whether manual range params have been seeded with a starting value.
@@ -237,24 +342,93 @@ class VardaPlotWidget(QWidget):
         # toggles preserve whatever the user last set.
         self._manualRangeInitialized = False
 
-        self.windowConfig = WindowConfig()
-        self.windowConfig.sigParameterChanged.connect(self.onWindowParamsChanged)
+        self.viewConfig = ViewConfig()
+        self.viewConfig.sigParameterChanged.connect(self.onViewParamsChanged)
 
         self.rangeConfig = RangeConfig()
         self.rangeConfig.sigParameterChanged.connect(self.onRangeParamsChanged)
+
+        self.markerConfig = MarkerConfig()
+        self.markerConfig.sigParameterChanged.connect(
+            lambda _: self._applyMarkerLabelStyle()
+        )
+
+        self.appearanceConfig = AppearanceConfig()
+        self.appearanceConfig.sigParameterChanged.connect(
+            self.onAppearanceParamsChanged
+        )
 
         # sigRangeChangedManually fires only on user interaction (rubber-band
         # zoom, pan, wheel), not on programmatic setRange calls.
         self.viewBox.sigRangeChangedManually.connect(self._onUserViewChange)
 
-        self.curveSettingsBox = SectionBox("Curve Settings")
+        self.curveSettingsBox = SectionBox("Selected Curve", self._curvePlaceholder())
 
-        self.windowConfigWidget = self.windowConfig.createWidget()
-        self.rangeConfigWidget = self.rangeConfig.createWidget()
-
-        sidebar = VBoxBuilder(Qt.AlignmentFlag.AlignTop).withWidget(
-            self.curveSettingsBox
+        hint = QLabel(
+            "Drag to pan · Shift-drag to zoom to a box · "
+            "Scroll to zoom · Right-drag to stretch axes"
         )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: palette(mid);")
+
+        # Most-used controls first: getting the view right, then what's
+        # plotted, then per-curve tweaks, then cosmetics.
+        sidebar = VBoxBuilder(Qt.AlignmentFlag.AlignTop).withWidget(
+            SectionBox(
+                "View",
+                VBoxBuilder()
+                .withWidget(ButtonBuilder("Fit to Data").onClick(self.fitToData))
+                .withWidget(self.viewConfig.createWidget())
+                .withWidget(self.rangeConfig.createWidget())
+                .withWidget(hint),
+            )
+        )
+
+        # Markers: draggable vertical wavelength lines spanning every spectrum,
+        # for reading off where features sit and comparing them across curves.
+        self.markers: list[pg.InfiniteLine] = []
+        self.markerWavelength = QDoubleSpinBox()
+        self.markerWavelength.setRange(0.0, 1_000_000.0)
+        self.markerWavelength.setDecimals(1)
+        self.markerWavelength.setSpecialValueText("view centre")
+        self.markerWavelength.setToolTip(
+            "Wavelength for a new marker; leave at 0 to add it at the centre of "
+            "the visible range and drag it into place."
+        )
+        self.markerList = QListWidget()
+        self.markerList.setMaximumHeight(90)
+        sidebar.withWidget(
+            SectionBox(
+                "Markers",
+                VBoxBuilder()
+                .withLayout(
+                    HBoxBuilder()
+                    .withWidget(self.markerWavelength)
+                    .withWidget(
+                        ButtonBuilder("Add").onClick(
+                            lambda: self.addMarker(
+                                self.markerWavelength.value() or None
+                            )
+                        )
+                    )
+                )
+                .withWidget(self.markerList)
+                .withLayout(
+                    HBoxBuilder()
+                    .withWidget(
+                        ButtonBuilder("Remove Selected").onClick(
+                            self._removeSelectedMarker
+                        )
+                    )
+                    .withWidget(ButtonBuilder("Clear").onClick(self.clearMarkers))
+                )
+                .withWidget(self.markerConfig.createWidget()),
+            )
+        )
+        # Labels dodge each other in pixel space, so re-lay them out whenever
+        # the mapping from wavelengths to pixels changes.
+        self.viewBox.sigRangeChanged.connect(lambda *_: self._layoutMarkerLabels())
+        self.viewBox.sigResized.connect(lambda *_: self._layoutMarkerLabels())
 
         spectraNames = listSpectra(libraryPath) if libraryPath else []
         if spectraNames:
@@ -263,6 +437,12 @@ class VardaPlotWidget(QWidget):
                 QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
             )
             self.libraryCombo.addItems(spectraNames)
+            libraryHint = QLabel(
+                "Added spectra are scaled to overlay the selected curve "
+                "within the visible wavelength range."
+            )
+            libraryHint.setWordWrap(True)
+            libraryHint.setStyleSheet("color: palette(mid);")
             sidebar.withWidget(
                 SectionBox(
                     "Library Spectra",
@@ -270,24 +450,26 @@ class VardaPlotWidget(QWidget):
                     .withWidget(self.libraryCombo)
                     .withWidget(
                         ButtonBuilder("Add to Plot").onClick(self._addLibrarySpectrum)
-                    ),
+                    )
+                    .withWidget(libraryHint),
                 )
             )
 
+        sidebar.withWidget(self.curveSettingsBox)
         sidebar.withWidget(
-            SectionBox(
-                "Window Settings",
-                VBoxBuilder()
-                .withWidget(self.windowConfigWidget)
-                .withWidget(self.rangeConfigWidget),
-            )
+            SectionBox("Appearance", self.appearanceConfig.createWidget())
         )
+        self._sidebar = sidebar
 
         self.setLayout(
             HBoxBuilder()
             .withWidget(self.gv, stretch=2)
             .withWidget(VerticalScrollArea(sidebar))
         )
+
+    def insertSidebarSection(self, index: int, section: QWidget) -> None:
+        """Insert a section into the settings sidebar (0 = top)."""
+        self._sidebar.insertWidget(index, section)
 
     def sizeHint(self) -> QSize:
         # Sensible window size so plot isn't squashed by default.
@@ -296,23 +478,42 @@ class VardaPlotWidget(QWidget):
         # natural sizes (sidebar wide, plot tiny) and stretch never kicks in.
         return QSize(1200, 600)
 
-    def onWindowParamsChanged(self):
-        self.gv.setBackground(self.windowConfig.backgroundColor.value)
+    def onAppearanceParamsChanged(self):
+        self.gv.setBackground(self.appearanceConfig.backgroundColor.value)
 
-        if self.windowConfig.autoViewRange.value:
+    def onViewParamsChanged(self):
+        self.legend.setVisible(self.viewConfig.showLegend.value)
+        mode = self.viewConfig.rangeMode.value
+        if mode is RangeMode.AUTO:
+            self.viewBox.setAutoVisible(y=False)
             self.plotItem.enableAutoRange()
-        else:
+            return
+        if not self._manualRangeInitialized:
+            self._seedManualRangeFromView()
+        if mode is RangeMode.MANUAL:
+            self.viewBox.setAutoVisible(y=False)
             self.plotItem.disableAutoRange()
-            if not self._manualRangeInitialized:
-                self._seedManualRangeFromView()
-            self.onRangeParamsChanged()
+        else:
+            # Fit Y to X range: X comes from the range boxes; Y keeps fitting
+            # itself to the data inside that window as curves come and go.
+            self.viewBox.disableAutoRange(pg.ViewBox.XAxis)
+            self.viewBox.setAutoVisible(y=True)
+            self.viewBox.enableAutoRange(pg.ViewBox.YAxis)
+        self.onRangeParamsChanged()
 
     def onRangeParamsChanged(self):
-        if not self.windowConfig.autoViewRange.value:
-            xRange = self.rangeConfig.viewRangeX.value
+        mode = self.viewConfig.rangeMode.value
+        if mode is RangeMode.AUTO:
+            return
+        xRange = self.rangeConfig.viewRangeX.value
+        self.plotItem.setXRange(xRange.x, xRange.y, padding=0)
+        if mode is RangeMode.MANUAL:
             yRange = self.rangeConfig.viewRangeY.value
-            self.plotItem.setXRange(xRange.x, xRange.y, padding=0)
             self.plotItem.setYRange(yRange.x, yRange.y, padding=0)
+        else:
+            # pyqtgraph only re-fits a visible-only axis on an X change when X
+            # is auto-ranged too, so ask for the Y re-fit explicitly.
+            self.viewBox.enableAutoRange(pg.ViewBox.YAxis)
 
     def _seedManualRangeFromView(self) -> None:
         xRange, yRange = self.viewBox.viewRange()
@@ -321,12 +522,113 @@ class VardaPlotWidget(QWidget):
         self._manualRangeInitialized = True
 
     def _onUserViewChange(self) -> None:
-        # User did a rubber-band zoom, pan, or wheel zoom. Sync our manual
-        # range params to the new view and switch out of auto mode so the UI
-        # reflects what the user just did.
+        # User did a rubber-band zoom, pan, or wheel zoom: sync the range
+        # params to the new view. In Auto mode the user has taken over, so
+        # switch to Manual. In Fit-Y mode keep the mode: the X window is
+        # theirs, and Y goes back to fitting the data inside it (the mouse
+        # interaction turned Y auto-range off).
         self._seedManualRangeFromView()
-        if self.windowConfig.autoViewRange.value:
-            self.windowConfig.autoViewRange.set(False)
+        mode = self.viewConfig.rangeMode.value
+        if mode is RangeMode.AUTO:
+            self.viewConfig.rangeMode.set(RangeMode.MANUAL)
+        elif mode is RangeMode.FIT_Y_TO_X_RANGE:
+            self.viewBox.enableAutoRange(pg.ViewBox.YAxis)
+
+    def fitToData(self) -> None:
+        """Frame all curves once, leaving the range under manual control."""
+        self.viewBox.autoRange()
+        self._onUserViewChange()
+
+    @staticmethod
+    def _curvePlaceholder() -> QLabel:
+        label = QLabel("Click a curve to edit it.")
+        label.setStyleSheet("color: palette(mid);")
+        return label
+
+    # --- Wavelength markers ---
+
+    def addMarker(self, wavelength: float | None = None) -> pg.InfiniteLine:
+        """Add a draggable vertical marker at ``wavelength`` (default: the centre
+        of the visible wavelength range) with a label showing its position."""
+        if wavelength is None:
+            xMin, xMax = self.viewBox.viewRange()[0]
+            wavelength = (xMin + xMax) / 2.0
+        marker = pg.InfiniteLine(
+            pos=wavelength,
+            angle=90,
+            movable=True,
+            pen=pg.mkPen("#ffffffaa", width=1, style=Qt.PenStyle.DashLine),
+            hoverPen=pg.mkPen("#ffff00", width=2),
+        )
+        marker.label = _MarkerLabel(
+            marker,
+            text="{value:.1f}",
+            position=MARKER_LABEL_TOP,
+            color="#ffffff",
+            fill="#00000080",
+            angle=90 if self.markerConfig.verticalLabels.value else 0,
+        )
+        marker.label.setVisible(self.markerConfig.showLabels.value)
+        # ignoreBounds: markers must not affect auto-range or the view limits
+        self.plotItem.addItem(marker, ignoreBounds=True)
+        marker.sigPositionChanged.connect(self._onMarkerMoved)
+        self.markers.append(marker)
+        self._refreshMarkerList()
+        self._layoutMarkerLabels()
+        return marker
+
+    def removeMarker(self, marker: pg.InfiniteLine) -> None:
+        if marker not in self.markers:
+            return
+        self.plotItem.removeItem(marker)
+        self.markers.remove(marker)
+        self._refreshMarkerList()
+        self._layoutMarkerLabels()
+
+    def _onMarkerMoved(self) -> None:
+        self._refreshMarkerList()
+        self._layoutMarkerLabels()
+
+    def _applyMarkerLabelStyle(self) -> None:
+        for marker in self.markers:
+            marker.label.setVisible(self.markerConfig.showLabels.value)
+            marker.label.setAngle(90 if self.markerConfig.verticalLabels.value else 0)
+        self._layoutMarkerLabels()
+
+    def _layoutMarkerLabels(self) -> None:
+        """Step a label down its line while it would overlap (in pixels) an
+        already placed label at the same height. Labels the user dragged keep
+        their place."""
+        placed: list[tuple[float, float, float]] = []  # (left px, right px, position)
+        for marker in sorted(self.markers, key=lambda m: m.value()):
+            label = marker.label
+            if not isinstance(label, _MarkerLabel) or label.userPlaced:
+                continue
+            centre = self.viewBox.mapViewToScene(QPointF(marker.value(), 0.0)).x()
+            half = label.boundingRect().width() / 2.0
+            left, right = centre - half, centre + half
+            position = MARKER_LABEL_TOP
+            while position > MARKER_LABEL_STEP and any(
+                pos == position and lo < right and hi > left for lo, hi, pos in placed
+            ):
+                position -= MARKER_LABEL_STEP
+            placed.append((left, right, position))
+            if label.orthoPos != position:
+                label.setPosition(position)
+
+    def clearMarkers(self) -> None:
+        for marker in list(self.markers):
+            self.removeMarker(marker)
+
+    def _removeSelectedMarker(self) -> None:
+        row = self.markerList.currentRow()
+        if 0 <= row < len(self.markers):
+            self.removeMarker(self.markers[row])
+
+    def _refreshMarkerList(self) -> None:
+        self.markerList.clear()
+        for marker in self.markers:
+            self.markerList.addItem(f"{marker.value():.1f}")
 
     def _updateViewLimits(self) -> None:
         # Constrain panning and zooming so the view never extends past the
@@ -393,6 +695,15 @@ class VardaPlotWidget(QWidget):
         self._updateViewLimits()
         return curve
 
+    def keyPressEvent(self, a0) -> None:
+        # Backspace / Delete remove the selected curve
+        if a0 is not None and a0.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+            if self.selectedCurve is not None:
+                self.removePlot(self.selectedCurve)
+                a0.accept()
+                return
+        super().keyPressEvent(a0)
+
     def selectPlot(self, curve: Curve) -> None:
         self.deselectPlot()
         self.selectedCurve = curve
@@ -417,19 +728,51 @@ class VardaPlotWidget(QWidget):
     def deselectPlot(self):
         if self.selectedCurve is not None:
             self.selectedCurve.setHighlighted(False)
-            self.curveSettingsBox.setContent(None)
+            self.curveSettingsBox.setContent(self._curvePlaceholder())
         self.selectedCurve = None
 
     def _addLibrarySpectrum(self) -> None:
         folderName = self.libraryCombo.currentText()
         name, wavelengths, reflectance = loadSpectrum(self.libraryPath, folderName)
-        self.plot(wavelengths, reflectance, name=name)
+        self.addReferenceSpectrum(name, wavelengths, reflectance)
+
+    def addReferenceSpectrum(self, name: str, x, y) -> Curve:
+        """Plot a reference (e.g. library) spectrum so it is immediately comparable.
+
+        When a curve to compare against exists (see ``_referenceCurve``), the
+        new spectrum's wavelengths are converted to the same unit and its Y
+        scale/offset are set so it overlays that curve within the visible
+        wavelength range. The view itself is left where it is.
+        """
+        x = np.asarray(x, dtype=float)
+        y = np.asarray(y, dtype=float)
+        target = self._referenceCurve()
+        if target is None:
+            return self.plot(x, y, name=name)
+
+        targetX, targetY = target.displayedData()
+        x = harmonizeWavelengthUnits(x, targetX)
+        curve = self.plot(x, y, name=name)
+        visibleX = self.viewBox.viewRange()[0]
+        scale, offset = matchToReference(
+            x, y, targetX, targetY, (float(visibleX[0]), float(visibleX[1]))
+        )
+        curve.config.scale.set(scale)
+        curve.config.offset.set(offset)
+        return curve
+
+    def _referenceCurve(self) -> Curve | None:
+        """The curve a new reference spectrum is matched to: the selected one,
+        else the most recently added."""
+        if self.selectedCurve is not None:
+            return self.selectedCurve
+        return self.plots[-1] if self.plots else None
 
     def removePlot(self, curve: Curve) -> None:
         if curve not in self.plots:
             return
         self.plots.remove(curve)
-        self.plotItem.removeItem(curve.plotDataItem)
+        self._removeCurveItems(curve)
         if self.selectedCurve is curve:
             self.deselectPlot()
         self._updateViewLimits()
@@ -448,21 +791,22 @@ class VardaPlotWidget(QWidget):
         self._updateViewLimits()
         event.accept()
 
-    def plotWithFill(self, x, y, yLower, yUpper, fillBrush, **kwargs):
+    def plotWithFill(self, x, y, yLower, yUpper, fillBrush, **kwargs) -> Curve:
         """Plot a curve with a filled region between yLower and yUpper.
 
-        Useful for displaying mean +/- standard deviation.
+        Useful for displaying mean +/- standard deviation. The band belongs to
+        the returned curve: it follows its Y offset/scale and is removed with it.
         """
-        self.plot(x, y, **kwargs)
+        curve = self.plot(x, y, **kwargs)
 
         upperCurve = pg.PlotDataItem(x, yUpper, pen=pg.mkPen(None))
         lowerCurve = pg.PlotDataItem(x, yLower, pen=pg.mkPen(None))
         fill = pg.FillBetweenItem(lowerCurve, upperCurve, brush=fillBrush)
-
-        self.plotItem.addItem(upperCurve)
-        self.plotItem.addItem(lowerCurve)
-        self.plotItem.addItem(fill)
-        self._fillItems.extend([upperCurve, lowerCurve, fill])
+        for item in (upperCurve, lowerCurve, fill):
+            self.plotItem.addItem(item)
+        curve.bandItems = [upperCurve, lowerCurve, fill]
+        curve.onConfigChanged()  # apply the curve's transform to the band
+        return curve
 
     @staticmethod
     def getPlottableWavelengths(image: VardaRaster, bandCount: int) -> np.ndarray:
@@ -476,13 +820,15 @@ class VardaPlotWidget(QWidget):
         return np.arange(bandCount, dtype=float)
 
     def clearPlots(self):
-        for plot in self.plots:
-            self.plotItem.removeItem(plot.plotDataItem)
+        for curve in self.plots:
+            self._removeCurveItems(curve)
         self.plots.clear()
-        for item in self._fillItems:
-            self.plotItem.removeItem(item)
-        self._fillItems.clear()
         self._updateViewLimits()
+
+    def _removeCurveItems(self, curve: Curve) -> None:
+        self.plotItem.removeItem(curve.plotDataItem)
+        for item in curve.bandItems:
+            self.plotItem.removeItem(item)
 
 
 if __name__ == "__main__":
