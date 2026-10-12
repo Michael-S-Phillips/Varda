@@ -112,6 +112,12 @@ def test_suggest_identify_and_map_end_to_end(workspace):
     page.buttons[MapMethod.MTMF].setChecked(True)
     page.runButton.click()
     assert workspace.projectImages[-1].name == "scene MTMF"
+    assert page.review.isVisibleTo(page)
+    page.review.endmemberBox.setCurrentIndex(1)
+    page.review.setThresholds(minScore=0.8, maxInfeasibility=50.0)
+    assert workspace.scene.currentOverlay() == Overlay.DETECTIONS
+    page.review.sigAddToProject.emit(page.review.detectionsRaster())
+    assert workspace.projectImages[-1].name.startswith("scene MTMF detections")
 
 
 def test_hovering_a_point_marks_the_pixel_and_plots_it(workspace):

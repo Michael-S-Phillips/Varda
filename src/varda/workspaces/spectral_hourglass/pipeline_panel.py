@@ -35,6 +35,7 @@ from varda.workspaces.spectral_hourglass.hourglass_model import (
     StepState,
 )
 from varda.workspaces.spectral_hourglass.identify_panel import IdentifyPanel
+from varda.workspaces.spectral_hourglass.mtmf_review import MtmfReview
 from varda.workspaces.spectral_hourglass.task_runner import TaskRunner
 
 # Images with at least this many bands get the spike filter by default
@@ -336,7 +337,21 @@ class MapPage(QWidget):
         self.runButton = _primary("Map Endmembers")
         self.runButton.clicked.connect(lambda: run(self.method()))
         layout.addWidget(self.runButton)
+        self.review = MtmfReview()
+        self.review.setVisible(False)
+        self.reviewHint = _hint(
+            "Review: drag the lines to keep pixels with a high score and low "
+            "infeasibility; they light up in the scene."
+        )
+        self.reviewHint.setVisible(False)
+        layout.addWidget(self.reviewHint)
+        layout.addWidget(self.review, stretch=1)
         layout.addStretch()
+
+    def showReview(self, result) -> None:
+        self.review.setResult(result)
+        self.review.setVisible(True)
+        self.reviewHint.setVisible(True)
 
     def method(self) -> MapMethod:
         return next(m for m, b in self.buttons.items() if b.isChecked())

@@ -37,6 +37,7 @@ class Overlay:
     MNF = "MNF component"
     PPI = "Pixel purity (PPI)"
     MAP = "Map"
+    DETECTIONS = "MTMF detections"
 
 
 def _rasterLike(image: VardaRaster, values: np.ndarray, name: str) -> VardaRaster:
@@ -169,6 +170,14 @@ class SceneView(QWidget):
         self._ensureOverlayOption(Overlay.MAP)
         self.showOverlay(Overlay.MAP)
 
+    def setDetections(self, mask: np.ndarray, color: str) -> None:
+        """Pixels picked in the MTMF review, in ``color`` (others black)."""
+        self._sources[Overlay.DETECTIONS] = classColorImage(
+            np.where(mask, 0.0, np.nan), [color]
+        )
+        self._ensureOverlayOption(Overlay.DETECTIONS)
+        self.showOverlay(Overlay.DETECTIONS)
+
     def showOverlay(self, name: str) -> None:
         if self.overlayBox.findText(name) >= 0:
             if self.overlayBox.currentText() == name:
@@ -198,6 +207,13 @@ class SceneView(QWidget):
             positive = ppi[np.isfinite(ppi) & (ppi > 0)]
             top = float(np.percentile(positive, 99)) if positive.size else 1.0
             return _rasterLike(self.image, ppi, "PPI"), False, (0.0, max(top, 1.0))
+        if (
+            overlay == Overlay.DETECTIONS
+            and self._sources.get(Overlay.DETECTIONS) is not None
+        ):
+            rgb = self._sources[Overlay.DETECTIONS]
+            assert rgb is not None
+            return _rasterLike(self.image, rgb, "Detections"), True, (0.0, 1.0)
         if overlay == Overlay.MAP and self._mapRaster is not None:
             raster = self._mapRaster
             band = max(0, self.mapBandBox.currentIndex())

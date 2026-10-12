@@ -141,6 +141,9 @@ class SpectralHourglassWorkspace(QMainWindow):
         )
         self.pipeline.reducePage.addButton.clicked.connect(self._addMnfToProject)
         self.pipeline.purityPage.addButton.clicked.connect(self._addPpiToProject)
+        review = self.pipeline.mapPage.review
+        review.sigDetectionsChanged.connect(self.scene.setDetections)
+        review.sigAddToProject.connect(self.projectImages.append)
 
     # --- running steps -------------------------------------------------------------------
 
@@ -188,6 +191,8 @@ class SpectralHourglassWorkspace(QMainWindow):
         raster = self.model.applyMap(result)
         self.projectImages.append(raster)
         self.scene.setMapResult(raster)
+        if raster.bandNames[0].startswith("MF("):
+            self.pipeline.mapPage.showReview(raster)
 
     def _onBusy(self, busy: bool) -> None:
         self.progressBar.setVisible(busy)
