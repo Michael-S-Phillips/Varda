@@ -31,14 +31,9 @@ from varda.analysis.linear_algebra import (
     suggestedComponents,
 )
 from varda.analysis.rasters import readCube
-from varda.analysis.unmixing import (
-    Constraint,
-    linearUnmix,
-    mixtureTunedMatchedFilter,
-    spectralAngles,
-)
+from varda.analysis.mapping import DEFAULT_SAM_MAX_ANGLE, MapMethod, mapBands, mapRaster
+from varda.analysis.unmixing import Constraint
 from varda.common.entities import VardaRaster
-from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
 ProgressCallback = Callable[[int, str], None]
 
@@ -67,7 +62,7 @@ PALETTE = [
 DEFAULT_PPI_ITERATIONS = 10_000
 DEFAULT_PPI_THRESHOLD = 2.5  # MNF units = noise sigmas
 DEFAULT_MAX_CANDIDATES = 2_000
-DEFAULT_SAM_MAX_ANGLE = 0.10  # radians, ENVI's default
+__all__ = ["DEFAULT_SAM_MAX_ANGLE", "HourglassModel", "MapMethod", "Step", "StepState"]
 
 
 class Step(Enum):
@@ -83,12 +78,6 @@ class StepState(Enum):
     NOT_RUN = "not run"
     DONE = "done"
     STALE = "needs re-running"
-
-
-class MapMethod(Enum):
-    SAM = "Spectral Angle Mapper (SAM)"
-    UNMIX = "Linear Spectral Unmixing"
-    MTMF = "Mixture Tuned Matched Filtering (MTMF)"
 
 
 # Which computed steps each step's result depends on
@@ -521,56 +510,37 @@ class HourglassModel:
                 [np.nanmean(self.mnfCoordinates(e.pixels), axis=0) for e in endmembers]
             )
         image = self.image
-        shape = self.shape
-
-        def toImage(values: np.ndarray) -> np.ndarray:
-            out = np.full(
-                (shape[0] * shape[1], values.shape[1]), np.nan, dtype=np.float32
-            )
-            out[validFlat] = values
-            return out.reshape(shape + (values.shape[1],))
 
         def task(progress: ProgressCallback) -> VardaRaster:
             progress(0, "mapping")
-            X = prepared.cube.reshape(-1, prepared.cube.shape[2])[validFlat]
-            if method is MapMethod.SAM:
-                angles = spectralAngles(X, spectra)
-                classes = np.argmin(np.nan_to_num(angles, nan=np.inf), axis=1).astype(
-                    float
+            if method is MapMethod.MTMF:
+                bands, bandNames = mapBands(
+                    method, names, mnfData=mnfData, targets=targets
                 )
-                classes[np.nanmin(angles, axis=1) > maxAngle] = np.nan
-                bands = np.column_stack([classes, angles])
-                bandNames = ["Class", *[f"Angle({n})" for n in names]]
-                suffix = "SAM"
-                detail = f"max angle {maxAngle:g} rad"
-            elif method is MapMethod.UNMIX:
-                abundances, rmse = linearUnmix(X, spectra, constraint)
-                bands = np.column_stack([abundances, rmse])
-                bandNames = [*names, "RMS Error"]
-                suffix = "unmixing"
-                detail = constraint.value
-            else:
-                mf, infeasibility = mixtureTunedMatchedFilter(mnfData, targets)
-                bands = np.column_stack([mf, infeasibility])
-                bandNames = [
-                    *[f"MF({n})" for n in names],
-                    *[f"Infeasibility({n})" for n in names],
-                ]
-                suffix = "MTMF"
                 detail = f"{k} MNF components"
+            else:
+                X = prepared.cube.reshape(-1, prepared.cube.shape[2])[validFlat]
+                bands, bandNames = mapBands(
+                    method, names, X, spectra, maxAngle=maxAngle, constraint=constraint
+                )
+                detail = (
+                    f"max angle {maxAngle:g} rad"
+                    if method is MapMethod.SAM
+                    else constraint.value
+                )
             progress(90, "building image")
-            source = ArrayDataSource(
-                toImage(bands),
-                wavelengths=np.array(bandNames),
-                wavelengthUnits="endmembers",
-                bandNames=bandNames,
-                transform=image.transform,
-                crs=image.crs,
-                description=f"{method.value} of {image.name} ({detail})",
-                extraMetadata={"classes": names, "classColors": colors},
+            result = mapRaster(
+                image,
+                validFlat,
+                bands,
+                bandNames,
+                method=method,
+                names=names,
+                colors=colors,
+                detail=detail,
             )
             progress(100, "done")
-            return VardaRaster(source, name=f"{image.name} {suffix}")
+            return result
 
         return task
 

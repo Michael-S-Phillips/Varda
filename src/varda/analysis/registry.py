@@ -13,6 +13,12 @@ from varda.analysis.derivatives import (
     SpectralSlopeAnalysis,
 )
 from varda.analysis.filtering import IovfAnalysis
+from varda.analysis.mapping import (
+    MtmfAnalysis,
+    PixelPurityAnalysis,
+    SamMappingAnalysis,
+    UnmixingAnalysis,
+)
 from varda.analysis.statistics import SpatialEntropyAnalysis, SpectralEntropyAnalysis
 from varda.analysis.transforms import (
     IcaAnalysis,
@@ -37,6 +43,10 @@ ANALYSES: list[type[Analysis]] = [
     MlpClassificationAnalysis,
     CnnClassificationAnalysis,
     VitClassificationAnalysis,
+    PixelPurityAnalysis,
+    SamMappingAnalysis,
+    UnmixingAnalysis,
+    MtmfAnalysis,
 ]
 
 

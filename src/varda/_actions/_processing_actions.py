@@ -24,6 +24,9 @@ from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
 from varda.context_keys import EXPR_HAS_IMAGES, EXPR_NEVER
 from varda.maingui import MainGUI
+from varda.workspaces.spectral_hourglass.new_hourglass_dialog import (
+    NewSpectralHourglassDialog,
+)
 
 
 def openRunAnalysisDialog(
@@ -144,7 +147,12 @@ def openInverseTransformDialog(
     dialog.connectOnRun(runner.run).open()
 
 
+def openSpectralHourglass(images: ProjectImages, mainGui: MainGUI) -> None:
+    NewSpectralHourglassDialog(images).connectOnAccept(mainGui.addTab).open()
+
+
 EIGENVALUE_PLOT_ACTION_ID = "varda.processing.eigenvalue_plot"
+SPECTRAL_HOURGLASS_ACTION_ID = "varda.processing.spectral_hourglass"
 
 PROCESSING_SUBMENUS = processingSubmenus(MenuId.PROCESSING, ANALYSES)
 PROCESSING_ACTIONS = processingActions(
@@ -160,5 +168,16 @@ PROCESSING_ACTIONS = processingActions(
         callback=openEigenvaluePlot,
         enablement=EXPR_HAS_IMAGES,
         menus=[MenuRule(id=categoryMenuId(MenuId.PROCESSING, "Transforms"), order=99)],
-    )
+    ),
+    Action(
+        id=SPECTRAL_HOURGLASS_ACTION_ID,
+        title="Spectral Hourglass Workspace…",
+        tooltip=(
+            "The interactive endmember workflow: MNF, pixel purity, n-D "
+            "visualizer, library identification and mapping"
+        ),
+        callback=openSpectralHourglass,
+        enablement=EXPR_HAS_IMAGES,
+        menus=[MenuRule(id=categoryMenuId(MenuId.PROCESSING, "Endmembers"), order=0)],
+    ),
 ]

@@ -1,0 +1,389 @@
+"""The spectral hourglass workspace.
+
+Pipeline steps on the left, the scene in the middle, the n-D visualizer and
+the endmember table on the right, spectra underneath. Everything is linked:
+lassoing points in the n-D view colours those pixels in the scene and plots
+the class mean spectrum; hovering a point marks its pixel; clicking a pixel
+rings its point; picking a library match overlays it on the endmember.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import PyQt6Ads as ads
+from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QMainWindow, QMessageBox, QProgressBar, QStatusBar
+
+from varda.analysis.linear_algebra import unflatten
+from varda.analysis.spectral_library import LibrarySpectrum, resampleTo
+from varda.common.entities import Color, VardaRaster
+from varda.common.ui import VardaDockWidget
+from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+from varda.plotting.plot import VardaPlotWidget
+from varda.plotting.spectrum_matching import matchToReference
+from varda.workspaces.spectral_hourglass.endmember_table import EndmemberTable
+from varda.workspaces.spectral_hourglass.hourglass_model import (
+    HourglassModel,
+    MapMethod,
+    Step,
+    StepState,
+)
+from varda.workspaces.spectral_hourglass.identify_panel import IdentifyPanel
+from varda.workspaces.spectral_hourglass.nd_visualizer import NdVisualizer
+from varda.workspaces.spectral_hourglass.pipeline_panel import PipelinePanel
+from varda.workspaces.spectral_hourglass.scene_view import Overlay, SceneView
+from varda.workspaces.spectral_hourglass.task_runner import TaskRunner
+
+_HOVER_COLOR = Color(1.0, 1.0, 1.0, 0.8)
+_LIBRARY_COLOR = Color(1.0, 1.0, 0.0, 0.9)
+
+
+class SpectralHourglassWorkspace(QMainWindow):
+    def __init__(
+        self,
+        image: VardaRaster,
+        projectImages: list | None = None,
+        *,
+        library: list[LibrarySpectrum] | None = None,
+        parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"{image.name} — Spectral Hourglass")
+        self.model = HourglassModel(image)
+        self.projectImages = projectImages if projectImages is not None else []
+        self.runner = TaskRunner(self)
+        self._hoveredPixel: int | None = None
+        self._libraryPreview: LibrarySpectrum | None = None
+
+        self.scene = SceneView(image, self)
+        self.nd = NdVisualizer(self)
+        self.endmemberTable = EndmemberTable(self.model, self)
+        self.identifyPanel = IdentifyPanel(self.model, library=library)
+        self.spectraPlot = VardaPlotWidget(parent=self)
+        self.pipeline = PipelinePanel(
+            self.model,
+            self.runner,
+            prepare=self._runPrepare,
+            reduce=self._runMnf,
+            purity=self._runPpi,
+            mapEndmembers=self._runMap,
+            identifyPanel=self.identifyPanel,
+        )
+        self._buildDocks()
+        self._buildStatusBar()
+        self._connect()
+        self._updateHint()
+
+    # --- layout --------------------------------------------------------------------
+
+    def _buildDocks(self) -> None:
+        self.dockManager = ads.CDockManager(self)
+        self.sceneDock = VardaDockWidget("Scene").withWidget(self.scene)
+        self.pipelineDock = VardaDockWidget("Pipeline").withWidget(self.pipeline)
+        self.ndDock = VardaDockWidget("n-D Visualizer").withWidget(self.nd)
+        self.endmemberDock = VardaDockWidget("Endmembers").withWidget(
+            self.endmemberTable
+        )
+        self.spectraDock = VardaDockWidget("Spectra").withWidget(self.spectraPlot)
+        manager = self.dockManager
+        manager.addDockWidget(ads.DockWidgetArea.CenterDockWidgetArea, self.sceneDock)
+        manager.addDockWidget(
+            ads.DockWidgetArea.LeftDockWidgetArea,
+            self.pipelineDock,
+            self.sceneDock.dockAreaWidget(),
+        )
+        manager.addDockWidget(
+            ads.DockWidgetArea.RightDockWidgetArea,
+            self.ndDock,
+            self.sceneDock.dockAreaWidget(),
+        )
+        manager.addDockWidget(
+            ads.DockWidgetArea.BottomDockWidgetArea,
+            self.endmemberDock,
+            self.ndDock.dockAreaWidget(),
+        )
+        manager.addDockWidget(
+            ads.DockWidgetArea.BottomDockWidgetArea,
+            self.spectraDock,
+            self.sceneDock.dockAreaWidget(),
+        )
+
+    def _buildStatusBar(self) -> None:
+        status = QStatusBar(self)
+        self.status = status
+        self.progressBar = QProgressBar()
+        self.progressBar.setMaximumWidth(220)
+        self.progressBar.setVisible(False)
+        status.addPermanentWidget(self.progressBar)
+        self.setStatusBar(status)
+
+    def _connect(self) -> None:
+        model = self.model
+        model.sigStepChanged.connect(self._onStepChanged)
+        model.sigCandidatesChanged.connect(self._refreshNdData)
+        model.sigEndmembersChanged.connect(self._onEndmembersChanged)
+        self.runner.sigBusyChanged.connect(self._onBusy)
+        self.runner.sigProgress.connect(self._onProgress)
+        self.runner.sigFailed.connect(self._onFailed)
+        self.nd.sigLassoSelected.connect(self._onLasso)
+        self.nd.sigPointHovered.connect(self._onPixelHovered)
+        self.nd.collapseBox.toggled.connect(lambda _: self._applyCollapse())
+        self.scene.sigPixelClicked.connect(self._onPixelClicked)
+        self.endmemberTable.sigActiveChanged.connect(self._onActiveEndmember)
+        self.identifyPanel.sigPreviewMatch.connect(self._previewLibrary)
+        self.pipeline.reducePage.sigShowComponent.connect(
+            lambda: self.scene.showOverlay(Overlay.MNF)
+        )
+        self.pipeline.reducePage.addButton.clicked.connect(self._addMnfToProject)
+        self.pipeline.purityPage.addButton.clicked.connect(self._addPpiToProject)
+
+    # --- running steps -------------------------------------------------------------------
+
+    def _runPrepare(self, _settings=None) -> None:
+        self.runner.run("Prepare", self.model.prepareTask(), self._onPrepared)
+
+    def _onPrepared(self, result) -> None:
+        self.model.applyPrepared(result)
+        self.pipeline.showStep(Step.REDUCE)
+
+    def _runMnf(self) -> None:
+        self.runner.run("MNF", self.model.mnfTask(), self._onMnf)
+
+    def _onMnf(self, result) -> None:
+        self.model.applyMnf(result)
+        self.scene.enableComponents(result.scores.shape[1], self.model.componentImage)
+
+    def _runPpi(self, iterations: int, threshold: float, resume: bool) -> None:
+        task = self.model.ppiTask(iterations, threshold, resume=resume)
+        self.runner.run("Pixel purity", task, self._onPpi)
+
+    def _onPpi(self, result) -> None:
+        page = self.pipeline.purityPage
+        self.model.minCount = page.minCount.value()
+        self.model.maxCandidates = page.maxCandidates.value()
+        self.model.applyPpi(result)
+        self.scene.setPpi(self.model.ppiImage())
+        self.scene.showOverlay(Overlay.PPI)
+        self.pipeline.showStep(Step.ENDMEMBERS)
+
+    def _runMap(self, method: MapMethod) -> None:
+        page = self.pipeline.mapPage
+        try:
+            task = self.model.mapTask(
+                method,
+                maxAngle=page.maxAngle.value(),
+                constraint=page.constraint.currentData(),
+            )
+        except ValueError as error:
+            QMessageBox.information(self, "Map Endmembers", str(error))
+            return
+        self.runner.run("Map", task, self._onMapped)
+
+    def _onMapped(self, result) -> None:
+        raster = self.model.applyMap(result)
+        self.projectImages.append(raster)
+        self.scene.setMapResult(raster)
+
+    def _onBusy(self, busy: bool) -> None:
+        self.progressBar.setVisible(busy)
+        if not busy:
+            self.status.clearMessage()
+
+    def _onProgress(self, percent: int, message: str) -> None:
+        self.progressBar.setValue(percent)
+        self.status.showMessage(message)
+
+    def _onFailed(self, label: str, error: object) -> None:
+        QMessageBox.critical(self, f"{label} failed", f"{label} failed:\n{error}")
+
+    # --- results to the project -------------------------------------------------------------
+
+    def _footprintRaster(
+        self, values: np.ndarray, bandNames: list[str], name: str, units: str
+    ) -> VardaRaster:
+        image = self.model.image
+        source = ArrayDataSource(
+            values.astype(np.float32),
+            wavelengths=np.array(bandNames),
+            wavelengthUnits=units,
+            bandNames=bandNames,
+            transform=image.transform,
+            crs=image.crs,
+            description=f"{name} (spectral hourglass)",
+        )
+        return VardaRaster(source, name=name)
+
+    def _addMnfToProject(self) -> None:
+        result = self.model.mnf
+        if result is None:
+            return
+        k = self.model.components
+        values = unflatten(result.scores[:, :k], self.model.valid)
+        names = [f"MNF {i + 1}" for i in range(k)]
+        self.projectImages.append(
+            self._footprintRaster(
+                values, names, f"{self.model.image.name} MNF", "components"
+            )
+        )
+
+    def _addPpiToProject(self) -> None:
+        if self.model.ppi is None:
+            return
+        values = self.model.ppiImage()[:, :, np.newaxis]
+        self.projectImages.append(
+            self._footprintRaster(
+                values, ["PPI"], f"{self.model.image.name} PPI", "count"
+            )
+        )
+
+    # --- linking --------------------------------------------------------------------------
+
+    def _onStepChanged(self, step: Step) -> None:
+        if (
+            step in (Step.REDUCE, Step.PURITY)
+            and self.model.state(Step.PURITY) is StepState.DONE
+        ):
+            self._refreshNdData()
+
+    def _refreshNdData(self) -> None:
+        if (
+            self.model.ppi is None
+            or self.model.state(Step.PURITY) is not StepState.DONE
+        ):
+            return
+        pixels = self.model.candidatePixels()
+        self.nd.setData(
+            self.model.ndPoints(), pixels, background=self.model.backgroundSample()
+        )
+        self.scene.setCandidatePixels(pixels)
+        self._onEndmembersChanged()
+
+    def _onEndmembersChanged(self) -> None:
+        colors = {}
+        groups = []
+        for endmember in self.model.endmembers:
+            groups.append((endmember.pixels, endmember.color))
+            for pixel in endmember.pixels:
+                colors[int(pixel)] = endmember.color
+        self.nd.setPointColors(colors)
+        self.scene.setEndmemberPixels(groups)
+        self._applyCollapse()
+        self._refreshSpectra()
+        self._updateHint()
+
+    def _applyCollapse(self) -> None:
+        if not self.nd.collapseBox.isChecked() or self.model.mnf is None:
+            self.nd.setCollapseMeans(None)
+            return
+        candidates = self.model.ndPoints()
+        centre = candidates.mean(axis=0) if candidates.size else 0.0
+        means = [
+            np.nanmean(self.model.mnfCoordinates(e.pixels), axis=0) - centre
+            for e in self.model.usableEndmembers()
+        ]
+        self.nd.setCollapseMeans(means if len(means) >= 2 else None)
+
+    def _onActiveEndmember(self, endmemberId) -> None:
+        self.identifyPanel.setEndmember(endmemberId)
+        self._libraryPreview = None
+        self._refreshSpectra()
+        self._updateHint()
+
+    def _activeOrNewEndmember(self) -> int:
+        active = self.endmemberTable.activeEndmemberId()
+        if active is None:
+            endmember = self.model.addEndmember()
+            self.endmemberTable.setActiveEndmember(endmember.id)
+            return endmember.id
+        return active
+
+    def _onLasso(self, pixels, add: bool) -> None:
+        if not len(pixels):
+            return
+        if add:
+            self.model.assignPixels(self._activeOrNewEndmember(), pixels)
+        elif (active := self.endmemberTable.activeEndmemberId()) is not None:
+            self.model.assignPixels(active, pixels, add=False)
+
+    def _onPixelHovered(self, pixel) -> None:
+        self._hoveredPixel = pixel
+        self.scene.highlightPixel(pixel)
+        self._refreshSpectra()
+
+    def _onPixelClicked(self, pixel: int) -> None:
+        self._hoveredPixel = pixel
+        self.scene.highlightPixel(pixel)
+        self.nd.highlightPixel(pixel)
+        self._refreshSpectra()
+
+    def _previewLibrary(self, spectrum: LibrarySpectrum) -> None:
+        self._libraryPreview = spectrum
+        self._refreshSpectra()
+
+    def _updateHint(self) -> None:
+        active = self.endmemberTable.activeEndmemberId()
+        target = (
+            self.model.endmember(active).name
+            if active is not None
+            else "a new endmember"
+        )
+        count = len(self.model.candidatePixels()) if self.model.ppi is not None else 0
+        if not count:
+            self.nd.setHint(
+                "Run Pixel Purity to fill this view with candidate pure pixels."
+            )
+            return
+        self.nd.setHint(
+            f"{count:,} candidate pixels. Drag to lasso into <b>{target}</b>; "
+            "Shift-drag removes. Right-drag pans, wheel zooms."
+        )
+
+    # --- spectra ------------------------------------------------------------------------
+
+    def _x(self) -> np.ndarray:
+        wavelengths = self.model.wavelengths
+        return (
+            wavelengths
+            if wavelengths is not None
+            else np.arange(self.model.cube.shape[2]) + 1.0
+        )
+
+    def _refreshSpectra(self) -> None:
+        plot = self.spectraPlot
+        plot.clearPlots()
+        if self.model.prepared is None:
+            return
+        x = self._x()
+        active = self.endmemberTable.activeEndmemberId()
+        activeSpectrum = None
+        for endmember in self.model.usableEndmembers():
+            spectrum = self.model.endmemberSpectrum(endmember.id)
+            curve = plot.plot(
+                x,
+                spectrum,
+                color=Color.fromQColor(QColor(endmember.color)),
+                name=endmember.name,
+            )
+            if endmember.id == active:
+                curve.config.width.set(3.5)
+                activeSpectrum = spectrum
+        if self._hoveredPixel is not None:
+            flat = self.model.cube.reshape(-1, self.model.cube.shape[2])
+            if 0 <= self._hoveredPixel < flat.shape[0]:
+                plot.plot(x, flat[self._hoveredPixel], color=_HOVER_COLOR, name="Pixel")
+        if self._libraryPreview is not None and self.model.wavelengths is not None:
+            y = resampleTo(self._libraryPreview, self.model.wavelengths)
+            if activeSpectrum is not None:
+                scale, offset = matchToReference(
+                    x, y, x, activeSpectrum, (float(x.min()), float(x.max()))
+                )
+                y = y * scale + offset
+            plot.plot(
+                x, y, color=_LIBRARY_COLOR, name=f"{self._libraryPreview.name} (scaled)"
+            )
+
+    # --- lifecycle -------------------------------------------------------------------------
+
+    def closeEvent(self, a0) -> None:
+        self.nd.playButton.setChecked(False)
+        super().closeEvent(a0)

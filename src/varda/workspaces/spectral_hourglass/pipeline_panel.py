@@ -1,0 +1,403 @@
+"""The pipeline panel: one page per hourglass step, each with its settings and
+a primary action. Step titles carry their status (done, needs re-running)."""
+
+from __future__ import annotations
+
+import numpy as np
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QRadioButton,
+    QSpinBox,
+    QToolBox,
+    QVBoxLayout,
+    QWidget,
+)
+
+from varda.analysis.eigenvalue_plot import EigenvaluePlot
+from varda.analysis.unmixing import Constraint
+from varda.common.parameter import IntParameter
+from varda.workspaces.spectral_hourglass.hourglass_model import (
+    DEFAULT_MAX_CANDIDATES,
+    DEFAULT_PPI_ITERATIONS,
+    DEFAULT_PPI_THRESHOLD,
+    DEFAULT_SAM_MAX_ANGLE,
+    HourglassModel,
+    MapMethod,
+    Step,
+    StepState,
+)
+from varda.workspaces.spectral_hourglass.identify_panel import IdentifyPanel
+from varda.workspaces.spectral_hourglass.task_runner import TaskRunner
+
+_MARKS = {StepState.NOT_RUN: "○", StepState.DONE: "✓", StepState.STALE: "⚠"}
+
+
+def _hint(text: str) -> QLabel:
+    label = QLabel(text)
+    label.setWordWrap(True)
+    label.setStyleSheet("color: palette(mid);")
+    return label
+
+
+def _primary(text: str) -> QPushButton:
+    button = QPushButton(text)
+    button.setDefault(True)
+    return button
+
+
+class PreparePage(QWidget):
+    def __init__(self, model: HourglassModel, run) -> None:
+        super().__init__()
+        self.model = model
+        image = model.image
+        numeric = (
+            None
+            if image.wavelengthsType is str
+            else np.asarray(image.wavelengths, float)
+        )
+        self.limitBox = QCheckBox("Only use wavelengths")
+        self.low = QDoubleSpinBox()
+        self.high = QDoubleSpinBox()
+        for spin in (self.low, self.high):
+            spin.setRange(0.0, 1e6)
+            spin.setDecimals(1)
+            spin.setSuffix(f" {image.wavelengthUnits or ''}".rstrip())
+        if numeric is not None:
+            self.low.setValue(float(np.nanmin(numeric)))
+            self.high.setValue(float(np.nanmax(numeric)))
+        else:
+            self.limitBox.setEnabled(False)
+        self.iovfBox = QCheckBox("Remove spikes with IOVF (slow on big scenes)")
+        self.runButton = _primary("Prepare")
+        self.runButton.clicked.connect(lambda: run(self._settings()))
+        self.summary = QLabel()
+        self.summary.setWordWrap(True)
+
+        row = QHBoxLayout()
+        row.addWidget(self.low)
+        row.addWidget(QLabel("–"))
+        row.addWidget(self.high)
+        layout = QVBoxLayout(self)
+        layout.addWidget(
+            _hint(
+                f"{image.name}: {image.width} × {image.height} pixels, "
+                f"{image.bandCount} bands. Drop noisy band ranges (e.g. CRISM "
+                "beyond 2.6 µm); missing bands are filled along each spectrum."
+            )
+        )
+        layout.addWidget(self.limitBox)
+        layout.addLayout(row)
+        layout.addWidget(self.iovfBox)
+        layout.addWidget(self.runButton)
+        layout.addWidget(self.summary)
+        layout.addStretch()
+
+    def _settings(self) -> None:
+        self.model.settings.wavelengthRange = (
+            (self.low.value(), self.high.value()) if self.limitBox.isChecked() else None
+        )
+        self.model.settings.useIovf = self.iovfBox.isChecked()
+
+    def refresh(self) -> None:
+        if self.model.prepared is not None:
+            prepared = self.model.prepared
+            self.summary.setText(
+                f"{prepared.cube.shape[2]} bands, {int(prepared.valid.sum()):,} usable pixels."
+            )
+
+
+class ReducePage(QWidget):
+    sigShowComponent = pyqtSignal()
+
+    def __init__(self, model: HourglassModel, run) -> None:
+        super().__init__()
+        self.model = model
+        self.components = IntParameter("Components", 1, range=(1, 1))
+        self.components.sigParameterChanged.connect(
+            lambda v: model.setComponents(int(v))
+        )
+        self.runButton = _primary("Compute MNF")
+        self.runButton.clicked.connect(run)
+        self.plotHolder = QVBoxLayout()
+        self.plot: EigenvaluePlot | None = None
+        self.countSpin = QSpinBox()
+        self.countSpin.setRange(1, 1)
+        self.countSpin.valueChanged.connect(self.components.set)
+        self.components.sigParameterChanged.connect(lambda v: self._syncSpin(int(v)))
+        viewButton = QPushButton("View Components")
+        viewButton.setToolTip(
+            "Overlay MNF components on the scene to see where they turn to noise"
+        )
+        viewButton.clicked.connect(self.sigShowComponent.emit)
+        self.addButton = QPushButton("Add MNF Image to Project")
+
+        keep = QHBoxLayout()
+        keep.addWidget(QLabel("Keep"))
+        keep.addWidget(self.countSpin)
+        keep.addWidget(QLabel("components"))
+        keep.addStretch()
+        keep.addWidget(viewButton)
+        layout = QVBoxLayout(self)
+        layout.addWidget(
+            _hint(
+                "MNF orders components by signal-to-noise. Keep those with "
+                "eigenvalues clearly above 1 (noise) and spatially coherent "
+                "images; drag the cutoff line or set the count."
+            )
+        )
+        layout.addWidget(self.runButton)
+        layout.addLayout(self.plotHolder)
+        layout.addLayout(keep)
+        layout.addWidget(self.addButton)
+        layout.addStretch()
+
+    def _syncSpin(self, value: int) -> None:
+        self.countSpin.blockSignals(True)
+        self.countSpin.setValue(value)
+        self.countSpin.blockSignals(False)
+
+    def refresh(self) -> None:
+        result = self.model.mnf
+        if result is None:
+            return
+        count = result.eigenvalues.size
+        self.components.setRange((1, count), value=self.model.components)
+        self.countSpin.setRange(1, count)
+        self._syncSpin(self.model.components)
+        if self.plot is None or self.plot.property("eigenvalues") is not result:
+            if self.plot is not None:
+                self.plotHolder.removeWidget(self.plot)
+                self.plot.deleteLater()
+            self.plot = EigenvaluePlot(
+                result.eigenvalues, self.components, logScale=False
+            )
+            self.plot.setProperty("eigenvalues", result)
+            self.plotHolder.addWidget(self.plot)
+
+
+class PurityPage(QWidget):
+    def __init__(self, model: HourglassModel, run) -> None:
+        super().__init__()
+        self.model = model
+        self.iterations = QSpinBox()
+        self.iterations.setRange(100, 1_000_000)
+        self.iterations.setSingleStep(1000)
+        self.iterations.setValue(DEFAULT_PPI_ITERATIONS)
+        self.threshold = QDoubleSpinBox()
+        self.threshold.setRange(0.1, 50.0)
+        self.threshold.setSingleStep(0.5)
+        self.threshold.setValue(DEFAULT_PPI_THRESHOLD)
+        self.threshold.setToolTip("In MNF units (noise sigmas); 2-3 is typical")
+        self.runButton = _primary("Run PPI")
+        self.runButton.clicked.connect(
+            lambda: run(self.iterations.value(), self.threshold.value(), False)
+        )
+        self.moreButton = QPushButton("Run More")
+        self.moreButton.setToolTip("Add more iterations to the current counts")
+        self.moreButton.clicked.connect(
+            lambda: run(self.iterations.value(), self.threshold.value(), True)
+        )
+        self.minCount = QSpinBox()
+        self.minCount.setRange(1, 1_000_000)
+        self.minCount.setValue(model.minCount)
+        self.maxCandidates = QSpinBox()
+        self.maxCandidates.setRange(10, 100_000)
+        self.maxCandidates.setSingleStep(500)
+        self.maxCandidates.setValue(DEFAULT_MAX_CANDIDATES)
+        for spin in (self.minCount, self.maxCandidates):
+            spin.valueChanged.connect(self._applyRule)
+        self.summary = QLabel()
+        self.summary.setWordWrap(True)
+        self.addButton = QPushButton("Add PPI Image to Project")
+
+        form = QFormLayout()
+        form.addRow("Iterations", self.iterations)
+        form.addRow("Threshold", self.threshold)
+        buttons = QHBoxLayout()
+        buttons.addWidget(self.runButton)
+        buttons.addWidget(self.moreButton)
+        candidates = QFormLayout()
+        candidates.addRow("Min. PPI count", self.minCount)
+        candidates.addRow("Max. pixels in n-D view", self.maxCandidates)
+        layout = QVBoxLayout(self)
+        layout.addWidget(
+            _hint(
+                "Random projections of the kept MNF components count how often "
+                "each pixel lands at an extreme. The highest-scoring pixels are "
+                "the candidate pure pixels shown in the n-D view."
+            )
+        )
+        layout.addLayout(form)
+        layout.addLayout(buttons)
+        layout.addLayout(candidates)
+        layout.addWidget(self.summary)
+        layout.addWidget(self.addButton)
+        layout.addStretch()
+
+    def _applyRule(self) -> None:
+        if self.model.ppi is not None:
+            self.model.setCandidateRule(
+                self.minCount.value(), self.maxCandidates.value()
+            )
+        self.refresh()
+
+    def refresh(self) -> None:
+        self.moreButton.setEnabled(self.model.ppi is not None)
+        if self.model.ppi is None:
+            return
+        counts = self.model.ppi.counts
+        candidates = self.model.candidatePixels().size
+        self.summary.setText(
+            f"{self.model.ppiIterations:,} iterations: {int((counts > 0).sum()):,} pixels "
+            f"were ever extreme; {candidates:,} go to the n-D view."
+        )
+
+
+class EndmembersPage(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.addWidget(
+            _hint(
+                "In the n-D view, press Play to tour the candidate pixels "
+                "through the kept MNF dimensions. Pure endmembers sit at the "
+                "corners of the cloud.<br><br>"
+                "• Drag a lasso around a corner to add it to the active "
+                "endmember (Shift-drag removes).<br>"
+                "• Suggest groups the candidates by k-means as a starting point.<br>"
+                "• Collapse classes hides the corners you have, revealing the next.<br>"
+                "• A real endmember stays together as the view rotates; mean "
+                "spectra appear in the Spectra panel."
+            )
+        )
+        layout.addStretch()
+
+
+class MapPage(QWidget):
+    def __init__(self, run) -> None:
+        super().__init__()
+        self.group = QButtonGroup(self)
+        self.buttons: dict[MapMethod, QRadioButton] = {}
+        layout = QVBoxLayout(self)
+        layout.addWidget(
+            _hint(
+                "Map the endmembers across the whole scene. Results join the "
+                "project's images and appear in the scene overlay."
+            )
+        )
+        for method in MapMethod:
+            button = QRadioButton(method.value)
+            self.group.addButton(button)
+            self.buttons[method] = button
+            layout.addWidget(button)
+        self.buttons[MapMethod.SAM].setChecked(True)
+        self.maxAngle = QDoubleSpinBox()
+        self.maxAngle.setRange(0.001, 1.5)
+        self.maxAngle.setDecimals(3)
+        self.maxAngle.setSingleStep(0.01)
+        self.maxAngle.setValue(DEFAULT_SAM_MAX_ANGLE)
+        self.maxAngle.setSuffix(" rad")
+        self.constraint = QComboBox()
+        for constraint in Constraint:
+            self.constraint.addItem(constraint.value, constraint)
+        self.constraint.setCurrentIndex(
+            list(Constraint).index(Constraint.FULLY_CONSTRAINED)
+        )
+        form = QFormLayout()
+        form.addRow("SAM max. angle", self.maxAngle)
+        form.addRow("Unmixing", self.constraint)
+        layout.addLayout(form)
+        layout.addWidget(
+            _hint(
+                "SAM: class + angle per endmember (smaller is closer). Unmixing: "
+                "abundance per endmember + RMS error (structure in it means a "
+                "missing endmember). MTMF: matched-filter score ≈ abundance, and "
+                "infeasibility; trust high scores only where infeasibility is low."
+            )
+        )
+        self.runButton = _primary("Map Endmembers")
+        self.runButton.clicked.connect(lambda: run(self.method()))
+        layout.addWidget(self.runButton)
+        layout.addStretch()
+
+    def method(self) -> MapMethod:
+        return next(m for m, b in self.buttons.items() if b.isChecked())
+
+
+class PipelinePanel(QToolBox):
+    """Accordion of the six steps. The workspace supplies the actions."""
+
+    def __init__(
+        self,
+        model: HourglassModel,
+        runner: TaskRunner,
+        *,
+        prepare,
+        reduce,
+        purity,
+        mapEndmembers,
+        identifyPanel: IdentifyPanel,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.model = model
+        self.preparePage = PreparePage(model, prepare)
+        self.reducePage = ReducePage(model, reduce)
+        self.purityPage = PurityPage(model, purity)
+        self.endmembersPage = EndmembersPage()
+        self.identifyPanel = identifyPanel
+        self.mapPage = MapPage(mapEndmembers)
+        self._pages = {
+            Step.PREPARE: self.preparePage,
+            Step.REDUCE: self.reducePage,
+            Step.PURITY: self.purityPage,
+            Step.ENDMEMBERS: self.endmembersPage,
+            Step.IDENTIFY: identifyPanel,
+            Step.MAP: self.mapPage,
+        }
+        for step, page in self._pages.items():
+            self.addItem(page, "")
+        self._runButtons = [
+            self.preparePage.runButton,
+            self.reducePage.runButton,
+            self.purityPage.runButton,
+            self.purityPage.moreButton,
+            self.mapPage.runButton,
+        ]
+        model.sigStepChanged.connect(lambda _: self.refresh())
+        model.sigEndmembersChanged.connect(self.refresh)
+        model.sigCandidatesChanged.connect(self.refresh)
+        runner.sigBusyChanged.connect(self._onBusy)
+        self.refresh()
+
+    def showStep(self, step: Step) -> None:
+        self.setCurrentIndex(list(self._pages).index(step))
+
+    def _onBusy(self, busy: bool) -> None:
+        for button in self._runButtons:
+            button.setEnabled(not busy)
+        if not busy:
+            self.refresh()
+
+    def refresh(self) -> None:
+        for index, step in enumerate(self._pages):
+            state = self.model.state(step)
+            suffix = "  — needs re-running" if state is StepState.STALE else ""
+            self.setItemText(
+                index, f"{_MARKS[state]}  {index + 1}. {step.value}{suffix}"
+            )
+        model = self.model
+        self.reducePage.runButton.setEnabled(model.prepared is not None)
+        self.purityPage.runButton.setEnabled(model.mnf is not None)
+        self.mapPage.runButton.setEnabled(len(model.usableEndmembers()) >= 2)
+        self.preparePage.refresh()
+        self.reducePage.refresh()
+        self.purityPage.refresh()
