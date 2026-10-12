@@ -83,3 +83,28 @@ def test_library_help_explains_the_formats(panel):
     for word in ("CSV", "ENVI", "USGS", "wavelength", "spectra names"):
         assert word in LIBRARY_FORMAT_HELP
     assert panel.helpButton.toolTip()
+
+
+def test_excluded_minerals_drop_out_of_matching(panel):
+    clay = panel.model.endmembers[1]
+    panel.setEndmember(clay.id)
+    assert panel.table.item(0, 1).text() == "Kaolinite KGa-1"
+
+    panel.excludeMatch("Kaolinite KGa-1")
+
+    names = [panel.table.item(r, 1).text() for r in range(panel.table.rowCount())]
+    assert "Kaolinite KGa-1" not in names and len(names) == 2
+    assert panel.excludedButton.text() == "Excluded (1)"
+    panel.identifyAll()
+    assert not clay.identification.startswith("Kaolinite")
+
+
+def test_excluded_minerals_can_be_restored(panel):
+    panel.setEndmember(panel.model.endmembers[1].id)
+    panel.excludeMatch("Kaolinite KGa-1")
+    panel.excludeMatch("Pyroxene")
+    panel.restoreMatch("Pyroxene")
+    assert panel.excludedNames() == ["Kaolinite KGa-1"]
+    panel.restoreAll()
+    assert panel.excludedNames() == [] and panel.excludedButton.text() == "Excluded (0)"
+    assert panel.table.item(0, 1).text() == "Kaolinite KGa-1"

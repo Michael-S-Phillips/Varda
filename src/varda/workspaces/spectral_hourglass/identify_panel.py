@@ -6,6 +6,7 @@ from PyQt6.QtCore import QSignalBlocker, Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QMenu,
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
@@ -53,6 +54,7 @@ class IdentifyPanel(QWidget):
         self._libraries: dict[str, list[LibrarySpectrum]] = {}
         self._endmemberId: int | None = None
         self._matches: list[LibraryMatch] = []
+        self._excluded: set[str] = set()  # library spectra left out of matching
 
         self.libraryBox = QComboBox()
         self.libraryBox.currentIndexChanged.connect(lambda _: self.refresh())
@@ -66,6 +68,11 @@ class IdentifyPanel(QWidget):
             "An ENVI spectral library (.sli), a CSV, or a folder of USGS spectra"
         )
         loadButton.clicked.connect(self._loadLibrary)
+        self.excludedButton = QPushButton("Excluded (0)")
+        self.excludedButton.setToolTip(
+            "Library spectra left out of matching; right-click a match to exclude it"
+        )
+        self.excludedButton.clicked.connect(self._showExcludedMenu)
         self.helpButton = QPushButton("?")
         self.helpButton.setFixedWidth(28)
         self.helpButton.setToolTip("How to prepare a spectral library to load")
@@ -96,6 +103,8 @@ class IdentifyPanel(QWidget):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.table.cellDoubleClicked.connect(self._onDoubleClicked)
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._showMatchMenu)
         self.table.currentCellChanged.connect(lambda row, *_: self._preview(row))
 
         self.useNameButton = QPushButton("Use as Name")
@@ -109,6 +118,7 @@ class IdentifyPanel(QWidget):
         libraryRow = QHBoxLayout()
         libraryRow.addWidget(self.libraryBox, stretch=1)
         libraryRow.addWidget(loadButton)
+        libraryRow.addWidget(self.excludedButton)
         libraryRow.addWidget(self.helpButton)
         window = QHBoxLayout()
         window.addWidget(self.windowBox)
@@ -177,7 +187,60 @@ class IdentifyPanel(QWidget):
         self.refresh()
 
     def library(self) -> list[LibrarySpectrum]:
-        return self._libraries.get(self.libraryBox.currentData(), [])
+        """The current library minus the excluded spectra."""
+        spectra = self._libraries.get(self.libraryBox.currentData(), [])
+        return [s for s in spectra if s.name not in self._excluded]
+
+    # --- exclusions -------------------------------------------------------------------
+
+    def excludedNames(self) -> list[str]:
+        return sorted(self._excluded)
+
+    def setExcluded(self, names) -> None:
+        self._excluded = set(names)
+        self._exclusionsChanged()
+
+    def excludeMatch(self, name: str) -> None:
+        self._excluded.add(name)
+        self._exclusionsChanged()
+
+    def restoreMatch(self, name: str) -> None:
+        self._excluded.discard(name)
+        self._exclusionsChanged()
+
+    def restoreAll(self) -> None:
+        self._excluded.clear()
+        self._exclusionsChanged()
+
+    def _exclusionsChanged(self) -> None:
+        self.excludedButton.setText(f"Excluded ({len(self._excluded)})")
+        self.refresh()
+
+    def _showMatchMenu(self, pos) -> None:
+        row = self.table.rowAt(pos.y())
+        if not 0 <= row < len(self._matches):
+            return
+        name = self._matches[row].name
+        menu = QMenu(self)
+        menu.addAction(
+            f"Exclude “{name}” from matching", lambda: self.excludeMatch(name)
+        )
+        viewport = self.table.viewport()
+        if viewport is not None:
+            menu.exec(viewport.mapToGlobal(pos))
+
+    def _showExcludedMenu(self) -> None:
+        menu = QMenu(self)
+        if not self._excluded:
+            hint = menu.addAction("Nothing excluded: right-click a match to exclude it")
+            if hint is not None:
+                hint.setEnabled(False)
+        for name in self.excludedNames():
+            menu.addAction(f"Restore “{name}”", lambda n=name: self.restoreMatch(n))
+        if self._excluded:
+            menu.addSeparator()
+            menu.addAction("Restore all", self.restoreAll)
+        menu.popup(self.excludedButton.mapToGlobal(self.excludedButton.rect().bottomLeft()))
 
     # --- matching -----------------------------------------------------------------------
 

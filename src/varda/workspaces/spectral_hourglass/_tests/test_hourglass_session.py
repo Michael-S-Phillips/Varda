@@ -24,6 +24,7 @@ def _workspace(qtbot):
     ws.pipeline.reducePage.runButton.click()
     ws.pipeline.reducePage.components.set(3)
     ws.pipeline.purityPage.maxCandidates.setValue(500)
+    ws.identifyPanel.excludeMatch("Chloride")
     for name, (r0, c0) in PATCHES.items():
         endmember = ws.model.addEndmember(name)
         ws.model.assignPixels(
@@ -70,6 +71,7 @@ def test_restore_reopens_the_hourglass_with_its_settings_and_endmembers(qtbot):
     prepare = restored.pipeline.preparePage
     assert prepare.limitBox.isChecked() and prepare.low.value() == 1100.0
     assert restored.pipeline.purityPage.maxCandidates.value() == 500
+    assert restored.identifyPanel.excludedNames() == ["Chloride"]
 
     restored.runner.synchronous = True
     prepare.runButton.click()

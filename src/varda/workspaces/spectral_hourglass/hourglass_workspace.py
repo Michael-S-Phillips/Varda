@@ -443,6 +443,7 @@ class SpectralHourglassWorkspace(QMainWindow):
                 "maxCandidates": purity.maxCandidates.value(),
             },
             "endmembers": self.model.endmembersToJson(),
+            "excludedLibrarySpectra": self.identifyPanel.excludedNames(),
         }
 
     def restoreSessionState(self, state: dict) -> None:
@@ -469,6 +470,7 @@ class SpectralHourglassWorkspace(QMainWindow):
         )
         if state.get("endmembers"):
             self.model.endmembersFromJson(state["endmembers"])
+        self.identifyPanel.setExcluded(state.get("excludedLibrarySpectra", []))
         self.status.showMessage(
             "Session restored: run Prepare, MNF and Pixel Purity again to continue "
             "with the saved endmembers."
