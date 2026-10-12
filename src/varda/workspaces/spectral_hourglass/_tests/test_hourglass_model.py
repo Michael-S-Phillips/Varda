@@ -252,3 +252,52 @@ def test_undo_restores_a_merge_and_notifies():
     model.undo()
     assert [list(e.pixels) for e in model.endmembers] == [[1], [2]]
     assert len(seen) == 2
+
+
+def test_starting_over_from_a_step_clears_it_and_everything_after():
+    model = _withTrueEndmembers()
+    model.applyMap(model.mapTask(MapMethod.SAM)(_noProgress))
+    model.resetFrom(Step.PURITY)
+    assert model.ppi is None and model.state(Step.PURITY) is StepState.NOT_RUN
+    assert model.state(Step.MAP) is StepState.NOT_RUN
+    assert model.mnf is not None and model.state(Step.REDUCE) is StepState.DONE
+    assert len(model.endmembers) == 3  # pixel classes survive an earlier restart
+
+    model.resetFrom(Step.PREPARE)
+    assert model.prepared is None and model.mnf is None
+    assert all(
+        model.state(s) is StepState.NOT_RUN
+        for s in (Step.PREPARE, Step.REDUCE, Step.PURITY)
+    )
+
+
+def test_starting_over_from_endmembers_clears_them_undoably():
+    model = _withTrueEndmembers()
+    model.setIdentification(model.endmembers[0].id, "Flat (0.9)")
+    model.resetFrom(Step.ENDMEMBERS)
+    assert model.endmembers == [] and model.state(Step.ENDMEMBERS) is StepState.NOT_RUN
+    model.undo()
+    assert len(model.endmembers) == 3
+
+
+def test_starting_over_from_identify_clears_identifications_only():
+    model = _withTrueEndmembers()
+    model.setIdentification(model.endmembers[0].id, "Flat (0.9)")
+    model.markIdentified()
+    model.resetFrom(Step.IDENTIFY)
+    assert model.endmembers[0].identification == "" and len(model.endmembers) == 3
+    assert model.state(Step.IDENTIFY) is StepState.NOT_RUN
+
+
+def test_ppi_counts_round_trip_compactly():
+    model = _throughPpi()
+    saved = model.ppiToJson()
+    assert saved is not None and model.ppi is not None
+    assert len(saved["rows"]) == int((model.ppi.counts > 0).sum())
+    fresh = _prepared()
+    fresh.applyMnf(fresh.mnfTask()(_noProgress))
+    fresh.ppiFromJson(saved)
+    assert fresh.ppi is not None
+    np.testing.assert_array_equal(fresh.ppi.counts, model.ppi.counts)
+    assert fresh.ppiIterations == model.ppiIterations
+    assert fresh.state(Step.PURITY) is StepState.DONE

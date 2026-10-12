@@ -237,3 +237,51 @@ def test_the_active_endmember_stands_out_in_the_spectra_plot(workspace):
     assert active.config.width.value > other.config.width.value
     assert other.config.color.value.alpha() < 128 <= active.config.color.value.alpha()
     assert active.plotDataItem.opts["shadowPen"] is not None
+
+
+def test_starting_over_from_purity_clears_the_candidates_and_overlay(workspace):
+    _runThroughPpi(workspace)
+    assert workspace.nd.projected().shape[0] > 0
+    workspace.pipeline.startOverButtons[Step.PURITY].click()
+    assert workspace.model.ppi is None
+    assert workspace.nd.projected().shape[0] == 0
+    overlays = [
+        workspace.scene.overlayBox.itemText(i)
+        for i in range(workspace.scene.overlayBox.count())
+    ]
+    assert Overlay.PPI not in overlays and Overlay.MNF in overlays
+    assert workspace.pipeline.currentIndex() == list(Step).index(Step.PURITY)
+
+
+def test_save_and_open_a_workflow_resumes_where_it_left_off(workspace, qtbot, tmp_path):
+    _withPatchEndmembers(workspace)
+    workspace.identifyPanel.excludeMatch("Pyroxene")
+    path = workspace.saveWorkflow(tmp_path / "run.hourglass.json")
+    assert workspace.model.ppi is not None
+    counts = workspace.model.ppi.counts.copy()
+
+    image = workspace.model.image
+    fresh = SpectralHourglassWorkspace(
+        image, [image], library=workspace.identifyPanel.library()
+    )
+    fresh.runner.synchronous = True
+    qtbot.addWidget(fresh)
+    fresh.openWorkflow(path)
+
+    model = fresh.model
+    assert [e.name for e in model.endmembers] == ["flat", "clay", "mafic"]
+    assert model.state(Step.PURITY) is StepState.DONE and model.ppi is not None
+    np.testing.assert_array_equal(model.ppi.counts, counts)
+    assert model.components == 3
+    assert fresh.nd.projected().shape[0] == model.candidatePixels().size > 0
+    assert fresh.identifyPanel.excludedNames() == ["Pyroxene"]
+
+
+def test_a_workflow_for_another_image_is_refused(workspace, qtbot, tmp_path):
+    _runThroughPpi(workspace)
+    path = workspace.saveWorkflow(tmp_path / "run.hourglass.json")
+    other, _ = syntheticScene(rows=30, cols=30)
+    fresh = SpectralHourglassWorkspace(other, [other])
+    qtbot.addWidget(fresh)
+    with pytest.raises(ValueError, match="different image"):
+        fresh.openWorkflow(path)

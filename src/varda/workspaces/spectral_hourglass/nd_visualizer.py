@@ -273,6 +273,19 @@ class NdVisualizer(QWidget):
         dims = [d for d in range(k) if d in previous] if previous else list(range(k))
         self.setActiveDims(dims if len(dims) >= 2 else list(range(k)))
 
+    def clear(self) -> None:
+        """Show nothing (e.g. after starting over from Pixel Purity)."""
+        self._data = np.zeros((0, 2))
+        self._background = np.zeros((0, 2))
+        self._ids = np.zeros(0, dtype=np.int64)
+        self._colors, self._brushes = [], []
+        self._projected = np.zeros((0, 2))
+        self.scatter.setData([], [])
+        self.backgroundItem.setData([], [])
+        for item in self._axisItems:
+            self.viewBox.removeItem(item)
+        self._axisItems = []
+
     def _rebuildDimButtons(self, k: int) -> None:
         if len(self._dimButtons) == k:
             return

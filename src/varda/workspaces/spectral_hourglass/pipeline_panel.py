@@ -396,7 +396,11 @@ class MapPage(QWidget):
 
 
 class PipelinePanel(QToolBox):
-    """Accordion of the six steps. The workspace supplies the actions."""
+    """Accordion of the six steps. The workspace supplies the actions. Click
+    any step to go back to it; re-running it marks later steps as needing a
+    re-run, and "Start over" clears them."""
+
+    sigStartOver = pyqtSignal(object)  # Step
 
     def __init__(
         self,
@@ -427,8 +431,23 @@ class PipelinePanel(QToolBox):
             Step.IDENTIFY: identifyPanel,
             Step.MAP: self.mapPage,
         }
+        self.startOverButtons: dict[Step, QPushButton] = {}
         for step, page in self._pages.items():
-            self.addItem(page, "")
+            button = QPushButton("↺ Start over from this step")
+            button.setFlat(True)
+            button.setToolTip(
+                "Clear this step's result and every later one, then begin again "
+                "here. Endmember classes are kept unless you start over from "
+                "Endmembers (which can be undone)."
+            )
+            button.clicked.connect(lambda _=False, st=step: self.sigStartOver.emit(st))
+            self.startOverButtons[step] = button
+            container = QWidget()
+            column = QVBoxLayout(container)
+            column.setContentsMargins(0, 0, 0, 0)
+            column.addWidget(page, stretch=1)
+            column.addWidget(button)
+            self.addItem(container, "")
         self._runButtons = [
             self.preparePage.runButton,
             self.reducePage.runButton,

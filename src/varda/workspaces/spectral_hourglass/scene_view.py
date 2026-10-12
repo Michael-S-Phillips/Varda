@@ -147,6 +147,24 @@ class SceneView(QWidget):
         if self.overlayBox.findText(name) < 0:
             self.overlayBox.addItem(name)
 
+    def removeOverlay(self, name: str) -> None:
+        """Drop an overlay option (and its data), falling back to None if shown."""
+        index = self.overlayBox.findText(name)
+        if index < 0:
+            return
+        if self.overlayBox.currentText() == name:
+            self.overlayBox.setCurrentText(Overlay.NONE)
+        self.overlayBox.removeItem(index)
+        self._sources.pop(name, None)
+        self._maps.pop(name, None)
+        if name == Overlay.MNF:
+            self.componentImage = None
+
+    def clearMaps(self) -> None:
+        for label in list(self._maps):
+            self.removeOverlay(label)
+        self.removeOverlay(Overlay.DETECTIONS)
+
     def enableComponents(self, count: int, componentImage) -> None:
         """Offer MNF components 1..count; ``componentImage(i)`` gives one."""
         self.componentImage = componentImage
