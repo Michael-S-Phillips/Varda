@@ -112,3 +112,20 @@ def singleBandRaster(
         description=description or f"{bandName} of {image.name}",
     )
     return VardaRaster(source, name=name)
+
+
+def sameBandsRaster(
+    image: VardaRaster, values: np.ndarray, *, name: str, description: str
+) -> VardaRaster:
+    """A cube with ``image``'s bands, wavelengths, display bands and footprint."""
+    source = ArrayDataSource(
+        np.asarray(values, dtype=np.float32),
+        wavelengths=np.asarray(image.wavelengths),
+        wavelengthUnits=image.wavelengthUnits,
+        bandNames=list(image.bandNames),
+        transform=image.transform,
+        crs=image.crs,
+        defaultBands=np.asarray(image.defaultBands),
+        description=description,
+    )
+    return VardaRaster(source, name=name)

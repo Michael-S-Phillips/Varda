@@ -13,6 +13,9 @@ from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
 from varda.image_loading import ImageLoadingService
 from varda.session import SessionState, WorkspaceState, roisFromJson
+from varda.workspaces.spectral_hourglass.hourglass_workspace import (
+    SpectralHourglassWorkspace,
+)
 from varda.workspaces.dual_image_workspace.dual_image_workspace import (
     DualImageWorkspace,
     DualImageWorkspaceConfig,
@@ -93,7 +96,9 @@ class SessionRestorer(QObject):
             widget = self._build(workspace, [image for image in images if image])
             if widget is None:
                 continue
-            roisFromJson(workspace.rois, widget.roiCollection)
+            rois = getattr(widget, "roiCollection", None)
+            if rois is not None and workspace.rois:
+                roisFromJson(workspace.rois, rois)
             self._mainGui.addTab(widget)
             count += 1
         self.sigFinished.emit(
@@ -110,5 +115,9 @@ class SessionRestorer(QObject):
             config.image1Param.set(images[0])
             config.image2Param.set(images[1])
             return DualImageWorkspace(config)
+        if workspace.kind == "hourglass":
+            widget = SpectralHourglassWorkspace(images[0], self._images)
+            widget.restoreSessionState(workspace.extra)
+            return widget
         logger.warning("Unknown workspace kind %r in session; skipped", workspace.kind)
         return None

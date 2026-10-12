@@ -20,6 +20,8 @@ from PyQt6.QtWidgets import (
     QGraphicsItem,
     QLabel,
     QListWidget,
+    QSizePolicy,
+    QToolButton,
     QWidget,
 )
 import pyqtgraph as pg
@@ -486,12 +488,39 @@ class VardaPlotWidget(QWidget):
             SectionBox("Appearance", self.appearanceConfig.createWidget())
         )
         self._sidebar = sidebar
+        self.sidebarArea = VerticalScrollArea(sidebar)
+        # A slim arrow beside the plot folds the settings away in narrow docks
+        self.sidebarToggle = QToolButton()
+        self.sidebarToggle.setCheckable(True)
+        self.sidebarToggle.setChecked(True)
+        self.sidebarToggle.setAutoRaise(True)
+        self.sidebarToggle.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
+        )
+        self.sidebarToggle.toggled.connect(self._onSidebarToggled)
+        self._onSidebarToggled(True)
 
         self.setLayout(
             HBoxBuilder()
             .withWidget(self.gv, stretch=2)
-            .withWidget(VerticalScrollArea(sidebar))
+            .withWidget(self.sidebarToggle)
+            .withWidget(self.sidebarArea)
         )
+
+    def _onSidebarToggled(self, visible: bool) -> None:
+        self.sidebarArea.setVisible(visible)
+        self.sidebarToggle.setArrowType(
+            Qt.ArrowType.RightArrow if visible else Qt.ArrowType.LeftArrow
+        )
+        self.sidebarToggle.setToolTip(
+            "Hide the plot settings" if visible else "Show the plot settings"
+        )
+
+    def setSidebarVisible(self, visible: bool) -> None:
+        self.sidebarToggle.setChecked(visible)
+
+    def isSidebarVisible(self) -> bool:
+        return self.sidebarToggle.isChecked()
 
     def insertSidebarSection(self, index: int, section: QWidget) -> None:
         """Insert a section into the settings sidebar (0 = top)."""

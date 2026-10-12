@@ -13,6 +13,7 @@ import numpy as np
 import rasterio
 
 from varda.common.entities import VardaRaster
+from varda.utilities.proj_lock import PROJ_LOCK
 
 ENVI_SUFFIXES = frozenset({".img", ".hdr"})
 GEOTIFF_SUFFIXES = frozenset({".tif", ".tiff"})
@@ -49,13 +50,15 @@ def writeRaster(image: VardaRaster, path: str | Path) -> Path:
     wavelengths = [str(w) for w in image.wavelengths]
     displayBands = [str(int(b) + 1) for b in image.defaultBands]  # ENVI is 1-based
 
+    with PROJ_LOCK:  # PROJ is not thread-safe; writing usually runs in a worker
+        crs = rasterio.CRS.from_wkt(image.crs.to_wkt()) if image.crs else None
     profile = {
         "driver": driver,
         "height": data.shape[0],
         "width": data.shape[1],
         "count": data.shape[2],
         "dtype": data.dtype.name,
-        "crs": rasterio.CRS.from_wkt(image.crs.to_wkt()) if image.crs else None,
+        "crs": crs,
         "transform": image.transform,
         "nodata": image.nodata,
     }
