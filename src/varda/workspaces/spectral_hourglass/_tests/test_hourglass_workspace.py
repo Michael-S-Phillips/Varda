@@ -225,3 +225,15 @@ def test_moving_the_mtmf_thresholds_shows_the_detections(workspace):
     assert workspace.scene.currentOverlay() == "Map: MTMF"
     page.review.scoreLine.setValue(0.7)
     assert workspace.scene.currentOverlay() == Overlay.DETECTIONS
+
+
+def test_the_active_endmember_stands_out_in_the_spectra_plot(workspace):
+    _withPatchEndmembers(workspace)
+    clay = workspace.model.endmembers[1]
+    workspace.endmemberTable.setActiveEndmember(clay.id)
+    curves = {c.plotDataItem.name(): c for c in workspace.spectraPlot.plots}
+    active, other = curves["clay"], curves["flat"]
+    assert workspace.spectraPlot.plots[-1] is active  # drawn on top
+    assert active.config.width.value > other.config.width.value
+    assert other.config.color.value.alpha() < 128 <= active.config.color.value.alpha()
+    assert active.plotDataItem.opts["shadowPen"] is not None

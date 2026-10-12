@@ -10,6 +10,7 @@ rings its point; picking a library match overlays it on the endmember.
 from __future__ import annotations
 
 import numpy as np
+import pyqtgraph as pg
 import PyQt6Ads as ads
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QKeySequence, QShortcut
@@ -39,6 +40,9 @@ from varda.workspaces.spectral_hourglass.task_runner import TaskRunner
 
 _HOVER_COLOR = Color(1.0, 1.0, 1.0, 0.8)
 _LIBRARY_COLOR = Color(1.0, 1.0, 0.0, 0.9)
+_ACTIVE_WIDTH = 4.0
+_OTHER_WIDTH = 1.5
+_FADED_ALPHA = 0.35
 
 
 class SpectralHourglassWorkspace(QMainWindow):
@@ -386,16 +390,22 @@ class SpectralHourglassWorkspace(QMainWindow):
         x = self._x()
         active = self.endmemberTable.activeEndmemberId()
         activeSpectrum = None
-        for endmember in self.model.usableEndmembers():
+        # the active endmember last (on top), thick with a halo; the rest faded
+        ordered = sorted(self.model.usableEndmembers(), key=lambda e: e.id == active)
+        for endmember in ordered:
             spectrum = self.model.endmemberSpectrum(endmember.id)
+            isActive = endmember.id == active
+            color = QColor(endmember.color)
+            if not isActive and active is not None:
+                color.setAlphaF(_FADED_ALPHA)
             curve = plot.plot(
-                x,
-                spectrum,
-                color=Color.fromQColor(QColor(endmember.color)),
-                name=endmember.name,
+                x, spectrum, color=Color.fromQColor(color), name=endmember.name
             )
-            if endmember.id == active:
-                curve.config.width.set(3.5)
+            curve.config.width.set(_ACTIVE_WIDTH if isActive else _OTHER_WIDTH)
+            if isActive:
+                curve.plotDataItem.setShadowPen(
+                    pg.mkPen(255, 255, 255, 90, width=_ACTIVE_WIDTH + 6)
+                )
                 activeSpectrum = spectrum
         if self._hoveredPixel is not None:
             flat = self.model.cube.reshape(-1, self.model.cube.shape[2])

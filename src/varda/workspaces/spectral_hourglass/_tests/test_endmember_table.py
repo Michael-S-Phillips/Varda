@@ -1,7 +1,9 @@
 """The endmember table: add, rename, recolour, merge, delete, active row."""
 
 import pytest
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QHeaderView
 
 from synthetic_scene import modelThroughPpi, modelWithEndmembers
 from varda.workspaces.spectral_hourglass.endmember_table import EndmemberTable
@@ -71,3 +73,21 @@ def test_undo_button_reverts_the_last_edit(table):
     assert table.table.rowCount() == 4 and table.undoButton.isEnabled()
     table.undoButton.click()
     assert table.table.rowCount() == 3
+
+
+def test_columns_sort_and_keep_rows_tied_to_their_endmembers(table):
+    table.table.sortItems(2, Qt.SortOrder.DescendingOrder)  # by pixel count
+    table.model.assignPixels(table.model.endmembers[2].id, range(500, 540))  # mafic: 56
+    names = [table.table.item(r, 1).text() for r in range(3)]
+    assert names[0] == "mafic"
+    table.table.selectRow(0)
+    table.table.setCurrentCell(0, 1)
+    assert table.activeEndmemberId() == table.model.endmembers[2].id
+    table.table.item(0, 1).setText("Pyroxene")
+    assert table.model.endmembers[2].name == "Pyroxene"
+
+
+def test_columns_can_be_resized(table):
+    header = table.table.horizontalHeader()
+    for column in (1, 2, 3):
+        assert header.sectionResizeMode(column) == QHeaderView.ResizeMode.Interactive
