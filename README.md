@@ -63,6 +63,42 @@ original bands from the chosen components (or keeps just those component
 bands). The first N are ticked by default; untick any (e.g. component 1 to
 drop albedo) or type a range such as `3-19, 22`.
 
+## Spectral Hourglass: finding, identifying and mapping endmembers
+**Workspace → New Spectral Hourglass Workspace…** (also under **Processing →
+Endmembers**) runs ENVI's spectral hourglass workflow in one linked view. The
+Pipeline panel walks through the steps; each is marked done, or "needs
+re-running" when you change an earlier choice:
+
+1. **Prepare** — pick a wavelength window (e.g. drop CRISM beyond 2.6 µm) and,
+   for hyperspectral data, remove spikes with the IOVF filter (on by default
+   for 100+ bands, as spikes otherwise pose as pure pixels).
+2. **Reduce (MNF)** — drag the cutoff on the eigenvalue plot, or step through
+   the components in the scene overlay to see where they turn to noise.
+3. **Pixel Purity** — PPI counts how often each pixel is extreme in random
+   projections; the top pixels (2,000 by default) go to the n-D view. **Run
+   More** adds iterations to the current counts.
+4. **Endmembers** — in the **n-D Visualizer**, press Play to tour the
+   candidates through the kept MNF dimensions. Drag a lasso around a corner
+   of the cloud to add it to the active endmember (Shift-drag removes);
+   **Suggest** proposes one group per corner; **Collapse classes** hides the
+   corners you already have so the next stands out. Lassoed pixels are filled
+   in the scene and their mean spectrum is plotted. Ctrl+Z undoes any edit.
+5. **Identify** — rank the bundled USGS minerals (or a loaded ENVI `.sli` /
+   CSV library) against the active endmember by spectral angle, absorption
+   shape and binary encoding; double-click a match to overlay it, then **Use
+   as Name**.
+6. **Map** — SAM (class + angle images), fully constrained linear unmixing
+   (abundances + RMS error) or MTMF (matched-filter score + infeasibility,
+   with a review plot whose threshold lines highlight detections live).
+
+Maps join the project's images (as can the MNF and PPI images); endmember
+classes can be saved as JSON or exported as a CSV spectral library, and the
+workspace is part of saved sessions.
+
+**Processing** also offers the pieces on their own: **Filtering → Iterative
+Outlier Voting Filter (IOVF)**, **Endmembers → Pixel Purity Index**, and SAM,
+unmixing and MTMF that use the workspace's ROIs as endmembers.
+
 ## Saving results
 Every Processing result joins the project's image list. Tick **Save result to
 file** in the analysis dialog to also write it to disk (ENVI `.img`/`.hdr` or
