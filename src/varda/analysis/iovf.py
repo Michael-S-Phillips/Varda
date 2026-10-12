@@ -16,6 +16,9 @@ spectra around them:
 
 Ported from the vectorised ``iovf_fast.py`` (PTYS 551 lab code), without its
 mode that reproduces the original ``iovf_generic`` round-off for round-off.
+One change: NaN voxels (no-data) are left out of the windows instead of
+counting as zero noise, so a scene's no-data border is not mistaken for
+outliers. Cubes without NaN filter exactly as with ``iovf_fast``.
 Windows are strided views of one padded cube tested in small batches; a cheap
 screen built from separable box statistics skips windows that cannot contain
 an outlier; row blocks run on a thread pool (numpy releases the GIL).
@@ -211,12 +214,14 @@ def _grubbsBatch(
     while idx.size:
         nr = idx.size
         c = count[idx]
-        mean = Xr.sum(axis=1) / c
+        with np.errstate(divide="ignore", invalid="ignore"):
+            mean = Xr.sum(axis=1) / c
         d = ws["D"][:nr]
         np.subtract(Xr, mean[:, None], out=d)
         if Er is not None:
             np.copyto(d, 0.0, where=Er)
-        std = np.sqrt(np.einsum("ij,ij->i", d, d) / c)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            std = np.sqrt(np.einsum("ij,ij->i", d, d) / c)
         np.abs(d, out=d)
         k = d.argmax(axis=1)
         val = d[np.arange(nr), k]
@@ -242,8 +247,9 @@ def _grubbsBatch(
 
 
 def _pad(noise: np.ndarray, half: tuple[int, ...]) -> np.ndarray:
-    """``noise`` padded with NaN by ``half`` on every side (NaN marks "outside
-    the image"); NaN inside the image becomes 0."""
+    """``noise`` padded with NaN by ``half`` on every side. NaN marks voxels
+    left out of the windows: outside the image, or no-data inside it (as zero
+    noise, a no-data border would make every voxel along it an outlier)."""
     shape = tuple(noise.shape[d] + 2 * half[d] for d in range(3))
     padded = np.full(shape, np.nan)
     inner = padded[
@@ -252,7 +258,6 @@ def _pad(noise: np.ndarray, half: tuple[int, ...]) -> np.ndarray:
         half[2] : half[2] + noise.shape[2],
     ]
     np.copyto(inner, noise)
-    inner[np.isnan(inner)] = 0.0
     return padded
 
 
@@ -345,6 +350,9 @@ class _Election:
                     candidate = self._screen(P, i0, i1, ncent) & chunk
             a, b, c = np.nonzero(candidate)
             a = a + i0
+            # windows centred on no-data voxels have nothing to vote on
+            centred = ~np.isnan(P[a + half[0], b + half[1], c + half[2]])
+            a, b, c = a[centred], b[centred], c[centred]
             ws = getattr(local, "ws", None)
             if ws is None:
                 ws = local.ws = _workspace(nwin, m)

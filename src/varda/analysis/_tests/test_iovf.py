@@ -52,3 +52,22 @@ def test_threaded_and_serial_runs_agree():
 def test_a_cube_smaller_than_the_window_is_rejected():
     with pytest.raises(ValueError, match="smaller than the window"):
         iovfFilter(np.zeros((3, 3, 30)))
+
+
+def test_nodata_border_filters_like_the_cropped_valid_region():
+    """A no-data border (NaN) must be left out of the windows: as zero noise it
+    makes every valid voxel along it look like an outlier, round after round.
+    Left out, the valid region filters as if it had been cropped (replacements
+    beside the border differ slightly: there the kernel keeps its full shape
+    with the missing members at zero, instead of being truncated)."""
+    clean = _smoothCube(rows=30, cols=30, bands=60)
+    clean[15, 20, 30] += 0.5  # one real spike
+    bordered = clean.copy()
+    bordered[:, :8, :] = np.nan
+
+    withBorder = iovfFilter(bordered, nJobs=1)
+    cropped = iovfFilter(clean[:, 8:, :].copy(), nJobs=1)
+
+    assert withBorder.replaced == cropped.replaced
+    np.testing.assert_allclose(withBorder.filtered[:, 8:], cropped.filtered, atol=0.003)
+    assert np.isnan(withBorder.filtered[:, :8]).all()
