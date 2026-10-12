@@ -1,4 +1,10 @@
-# Varda
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/varda-hero-on-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/varda-hero-on-light.svg">
+    <img alt="Varda: visualization and analysis of raster data" src="docs/assets/varda-hero-on-light.svg" width="640">
+  </picture>
+</p>
 
 Varda is a GUI based app to visualize and analyze image data, with an emphasis on supporting hyperspectral and multispectral data workflows.
 It currently offers basic image visualization, and spectra exploration (viewing individual pixel spectra, and mean spectra of ROIs). There are many features we still plan to add, including richer ROI features and image processing/analysis pipelines. As well as continuing to improve the modularity and exposing plugin APIs for users to inject their own features.
