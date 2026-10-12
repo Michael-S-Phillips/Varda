@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 
 from varda.analysis.linear_algebra import unflatten
 from varda.analysis.spectral_library import LibrarySpectrum, resampleTo
+from varda.branding.loader import RedrawSpinner
 from varda.common.di_types import ProjectImages
 from varda.common.entities import Color, VardaRaster
 from varda.common.ui import VardaDockWidget
@@ -189,6 +190,9 @@ class SpectralHourglassWorkspace(QMainWindow):
         self.progressBar = QProgressBar()
         self.progressBar.setMaximumWidth(220)
         self.progressBar.setVisible(False)
+        self.spinner = RedrawSpinner(20)
+        self.spinner.setVisible(False)
+        status.addPermanentWidget(self.spinner)
         status.addPermanentWidget(self.progressBar)
         self.setStatusBar(status)
 
@@ -274,6 +278,7 @@ class SpectralHourglassWorkspace(QMainWindow):
 
     def _onBusy(self, busy: bool) -> None:
         self.progressBar.setVisible(busy)
+        self.spinner.setVisible(busy)
         if not busy:
             self.status.clearMessage()
 

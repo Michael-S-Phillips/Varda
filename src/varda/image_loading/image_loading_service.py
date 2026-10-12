@@ -7,12 +7,12 @@ from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable, QTimer
 from PyQt6.QtWidgets import (
     QFileDialog,
     QMessageBox,
-    QProgressDialog,
     QApplication,
 )
 
 from .data_sources import DataSource, RasterioDataSource, InMemoryDataSource
 from .data_sources.registry import datasource_registry, get_image_type_filter
+from varda.branding.loader import BusyDialog
 from varda.common.entities import VardaRaster
 
 logger = logging.getLogger(__name__)
@@ -196,27 +196,16 @@ class ImageLoadingService:
         file_name = Path(filePath).name
         file_size_mb = cls._get_file_size(filePath)
 
-        dialog = QProgressDialog(
-            f"Loading large file ({file_size_mb:.1f} MB)...\n{file_name}",
-            "Cancel",
-            0,
-            100,
-            QApplication.activeWindow(),
-        )
-        dialog.setWindowTitle("Loading Large File")
-        dialog.setWindowModality(Qt.WindowModality.WindowModal)
-        dialog.setMinimumDuration(1000)
-        dialog.setAutoClose(True)
-        dialog.setAutoReset(True)
-        dialog.setMinimum(0)
-        dialog.setMaximum(0)
-
         estimated_seconds = timeout_ms / 1000
-        dialog.setLabelText(
-            f"Loading large file ({file_size_mb:.1f} MB)...\n"
+        dialog = BusyDialog(
+            f"Loading large file ({file_size_mb:.1f} MB)…\n"
             f"{file_name}\n\n"
-            f"This may take up to {estimated_seconds:.0f} seconds for large files."
+            f"This may take up to {estimated_seconds:.0f} seconds for large files.",
+            title="Loading Large File",
+            parent=QApplication.activeWindow(),
         )
+        dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        dialog.showAfter(1000)
         return dialog
 
     @classmethod
