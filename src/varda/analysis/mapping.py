@@ -109,7 +109,11 @@ def mapRaster(
         transform=image.transform,
         crs=image.crs,
         description=f"{method.value} of {image.name} ({detail})",
-        extraMetadata={"classes": names, "classColors": colors},
+        extraMetadata={
+            "classes": names,
+            "classColors": colors,
+            "mapMethod": method.name,
+        },
     )
     return VardaRaster(source, name=f"{image.name} {_SUFFIX[method]}")
 

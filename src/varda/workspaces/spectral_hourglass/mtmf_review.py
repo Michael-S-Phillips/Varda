@@ -89,7 +89,13 @@ class MtmfReview(QWidget):
         self.endmemberBox.clear()
         self.endmemberBox.addItems(names)
         self.endmemberBox.blockSignals(False)
-        self._showEndmember()
+        # loading a result does not announce detections: only the user's
+        # thresholds (or endmember choice) do, so the map overlay stays up
+        self.blockSignals(True)
+        try:
+            self._showEndmember()
+        finally:
+            self.blockSignals(False)
 
     def _bands(self) -> tuple[np.ndarray, np.ndarray]:
         assert self._result is not None
