@@ -27,7 +27,7 @@ import ctypes
 
 if sys.platform == "win32":
     # this "registers" varda as its own unique application, which lets it use its own icon for the taskbar, instead of the generic python icon
-    appid = "varda.0.3.0"
+    appid = "varda.0.3.1"
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(appid)
 
 ICON_PATH = resource_path("resources/logo.svg")
