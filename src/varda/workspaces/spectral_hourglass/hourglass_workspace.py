@@ -21,6 +21,7 @@ from varda.common.di_types import ProjectImages
 from varda.common.entities import Color, VardaRaster
 from varda.common.ui import VardaDockWidget
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+from varda.image_rendering.new_histogram_view import NewHistogramView
 from varda.plotting.plot import VardaPlotWidget
 from varda.plotting.spectrum_matching import matchToReference
 from varda.workspaces.spectral_hourglass.endmember_table import EndmemberTable
@@ -62,6 +63,9 @@ class SpectralHourglassWorkspace(QMainWindow):
         self.nd = NdVisualizer(self)
         self.endmemberTable = EndmemberTable(self.model, self)
         self.identifyPanel = IdentifyPanel(self.model, library=library)
+        # The scene image's own display controls, as in the other workspaces
+        self.displayPanel = self.scene.renderer.getSettingsPanel()
+        self.histogram = NewHistogramView(self.scene.renderer, self)
         self.spectraPlot = VardaPlotWidget(parent=self)
         self.spectraPlot.setSidebarVisible(False)  # the arrow beside the plot shows it
         self.pipeline = PipelinePanel(
@@ -92,6 +96,8 @@ class SpectralHourglassWorkspace(QMainWindow):
             self.endmemberTable
         )
         self.spectraDock = VardaDockWidget("Spectra").withWidget(self.spectraPlot)
+        self.displayDock = VardaDockWidget("Display").withWidget(self.displayPanel)
+        self.histogramDock = VardaDockWidget("Histogram").withWidget(self.histogram)
         manager = self.dockManager
         manager.addDockWidget(ads.DockWidgetArea.CenterDockWidgetArea, self.sceneDock)
         manager.addDockWidget(
@@ -114,6 +120,14 @@ class SpectralHourglassWorkspace(QMainWindow):
             self.spectraDock,
             self.sceneDock.dockAreaWidget(),
         )
+        # Display and histogram tabbed beside the pipeline (the pipeline in front)
+        for dock in (self.displayDock, self.histogramDock):
+            manager.addDockWidget(
+                ads.DockWidgetArea.CenterDockWidgetArea,
+                dock,
+                self.pipelineDock.dockAreaWidget(),
+            )
+        self.pipelineDock.setAsCurrentTab()
 
     def _buildStatusBar(self) -> None:
         status = QStatusBar(self)

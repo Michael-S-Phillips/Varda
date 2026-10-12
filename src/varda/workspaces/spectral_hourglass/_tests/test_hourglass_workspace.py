@@ -4,6 +4,7 @@ import pytest
 
 from synthetic_scene import PATCHES, WAVELENGTHS, endmemberSpectra, syntheticScene
 from varda.analysis.spectral_library import LibrarySpectrum
+from varda.image_rendering.image_renderer import RenderMode
 from varda.workspaces.spectral_hourglass.hourglass_model import (
     MapMethod,
     Step,
@@ -159,3 +160,12 @@ def test_ctrl_z_undoes_a_lasso(workspace, qtbot):
     assert workspace.model.endmembers[0].pixels.size > 0
     workspace.undoShortcut.activated.emit()
     assert all(e.pixels.size == 0 for e in workspace.model.endmembers)
+
+
+def test_display_controls_drive_the_scene_image(workspace):
+    settings = workspace.scene.renderer.settings
+    assert workspace.displayPanel.settings is settings
+    settings.mode.set(RenderMode.MONO)
+    settings.mono.band.set(5)
+    assert workspace.scene.renderer.settings.mono.band.get() == 5
+    assert workspace.histogram is not None
