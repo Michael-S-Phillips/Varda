@@ -1,0 +1,54 @@
+"""IOVF: the iterative outlier voting filter removes isolated spikes and keeps
+the smooth spectra around them."""
+
+import numpy as np
+import pytest
+
+from varda.analysis.iovf import iovfFilter
+
+
+def _smoothCube(rows=24, cols=20, bands=60, seed=0) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    wl = np.linspace(0.0, 1.0, bands)
+    albedo = 0.3 + 0.1 * rng.random((rows, cols, 1))
+    shape = 1.0 - 0.2 * np.exp(-0.5 * ((wl - 0.6) / 0.08) ** 2)
+    return albedo * shape + 0.002 * rng.normal(size=(rows, cols, bands))
+
+
+def test_spikes_are_replaced_and_clean_voxels_barely_change():
+    clean = _smoothCube()
+    spiked = clean.copy()
+    rng = np.random.default_rng(1)
+    r = rng.integers(3, 21, 40)
+    c = rng.integers(3, 17, 40)
+    b = rng.integers(10, 50, 40)
+    spiked[r, c, b] += 0.5
+
+    result = iovfFilter(spiked, nJobs=1)
+
+    assert result.filtered.shape == clean.shape
+    assert np.abs(result.filtered[r, c, b] - clean[r, c, b]).max() < 0.05
+    untouched = np.ones(clean.shape, dtype=bool)
+    untouched[r, c, b] = False
+    assert np.median(np.abs(result.filtered - clean)[untouched]) < 0.003
+    assert result.rounds >= 1 and result.replaced[0] >= 40
+
+
+def test_progress_is_reported_per_round():
+    seen = []
+    iovfFilter(_smoothCube(), nJobs=1, progress=lambda p, m: seen.append((p, m)))
+    assert seen[0][0] == 0 and seen[-1] == (100, "done")
+    assert any("round 1" in message for _, message in seen)
+
+
+def test_threaded_and_serial_runs_agree():
+    cube = _smoothCube()
+    cube[10, 10, 30] += 0.5
+    np.testing.assert_allclose(
+        iovfFilter(cube, nJobs=1).filtered, iovfFilter(cube, nJobs=4).filtered
+    )
+
+
+def test_a_cube_smaller_than_the_window_is_rejected():
+    with pytest.raises(ValueError, match="smaller than the window"):
+        iovfFilter(np.zeros((3, 3, 30)))

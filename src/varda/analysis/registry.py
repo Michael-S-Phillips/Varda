@@ -12,6 +12,7 @@ from varda.analysis.derivatives import (
     SpectralDerivativeAnalysis,
     SpectralSlopeAnalysis,
 )
+from varda.analysis.filtering import IovfAnalysis
 from varda.analysis.statistics import SpatialEntropyAnalysis, SpectralEntropyAnalysis
 from varda.analysis.transforms import (
     IcaAnalysis,
@@ -23,6 +24,7 @@ from varda.analysis.transforms import (
 # Menu order: categories appear in first-appearance order, entries in list order.
 ANALYSES: list[type[Analysis]] = [
     BandParametersAnalysis,
+    IovfAnalysis,
     PcaAnalysis,
     MnfAnalysis,
     IcaAnalysis,
