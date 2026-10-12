@@ -1,0 +1,238 @@
+"""Spectral libraries and matching unknown spectra against them.
+
+Matching follows ENVI's Spectral Analyst: each library spectrum is resampled
+to the unknown's wavelengths and compared three ways, each mapped to a 0-1
+score by a linear ramp and combined by weights:
+
+- Spectral angle (radians; 0 is identical shape, brightness ignored)
+- Spectral feature fit: continuum-removed absorption depths of the unknown
+  fitted by a scaled reference; scored by the RMS misfit
+- Binary encoding: the fraction of bands where both spectra are on the same
+  side of their own mean
+
+Pure numpy; wavelengths are in nm (values below 10 are taken as µm).
+"""
+
+from __future__ import annotations
+
+import csv
+from collections.abc import Sequence
+from pathlib import Path
+
+import attrs
+import numpy as np
+import spectral.io.envi as envi
+
+from varda.plotting.library_spectra import (
+    DEFAULT_LIBRARY_PATH,
+    listSpectra,
+    loadSpectrum,
+)
+
+# Score ramps: a value at "best" scores 1, at "worst" 0, linear between
+SAM_RAMP = (0.0, 0.25)  # radians
+SFF_RAMP = (0.0, 0.05)  # RMS of continuum-removed depth
+BINARY_RAMP = (1.0, 0.5)  # fraction of bands matching (0.5 = chance)
+DEFAULT_WEIGHTS = {"angle": 1.0, "featureFit": 1.0, "binary": 1.0}
+# Within this fraction of the best score a match is flagged "close"
+CLOSE_FRACTION = 0.10
+
+
+@attrs.frozen
+class LibrarySpectrum:
+    name: str
+    wavelengths: np.ndarray  # nm or µm as stored; see resampleTo
+    reflectance: np.ndarray
+    source: str = ""
+
+
+@attrs.frozen
+class LibraryMatch:
+    name: str
+    score: float  # weighted 0-1, higher is better
+    angle: float  # radians
+    featureRms: float
+    featureScale: float
+    binary: float  # fraction of bands matching
+    flag: str  # "best", "close" (within 10% of the best score) or "far"
+    spectrum: LibrarySpectrum
+
+
+def toNanometres(wavelengths) -> np.ndarray:
+    values = np.asarray(wavelengths, dtype=np.float64)
+    if values.size and np.nanmax(values) < 10.0:
+        return values * 1000.0
+    return values
+
+
+# --- loading ---------------------------------------------------------------------
+
+
+def loadUsgsLibrary(path: Path = DEFAULT_LIBRARY_PATH) -> list[LibrarySpectrum]:
+    """The USGS splib07a spectra bundled with Varda (one folder per spectrum)."""
+    library = []
+    for folder in listSpectra(path):
+        try:
+            name, wavelengths, reflectance = loadSpectrum(path, folder)
+        except (FileNotFoundError, ValueError):
+            continue
+        library.append(LibrarySpectrum(name, wavelengths, reflectance, "USGS splib07a"))
+    return library
+
+
+def loadEnviLibrary(header: str | Path) -> list[LibrarySpectrum]:
+    """An ENVI spectral library (.sli + .hdr)."""
+    header = Path(header)
+    if header.suffix.lower() != ".hdr":
+        header = header.with_suffix(".hdr")
+    library = envi.open(str(header))
+    names = list(library.names)
+    wavelengths = toNanometres(library.bands.centers)
+    spectra = np.asarray(library.spectra, dtype=np.float64)
+    return [
+        LibrarySpectrum(name, wavelengths, spectra[i], header.stem)
+        for i, name in enumerate(names)
+    ]
+
+
+def loadCsvLibrary(path: str | Path) -> list[LibrarySpectrum]:
+    """A CSV whose first column is wavelength and each other column a spectrum
+    (named by its header)."""
+    path = Path(path)
+    with open(path, newline="") as f:
+        rows = list(csv.reader(f))
+    header, body = rows[0], [r for r in rows[1:] if r]
+    values = np.array([[float(v) if v.strip() else np.nan for v in r] for r in body])
+    wavelengths = toNanometres(values[:, 0])
+    return [
+        LibrarySpectrum(name.strip(), wavelengths, values[:, i + 1], path.stem)
+        for i, name in enumerate(header[1:])
+    ]
+
+
+def loadLibrary(path: str | Path) -> list[LibrarySpectrum]:
+    """Load a library file by extension (.sli/.hdr ENVI, .csv), or a folder of
+    USGS spectra."""
+    path = Path(path)
+    if path.is_dir():
+        return loadUsgsLibrary(path)
+    if path.suffix.lower() in {".sli", ".hdr"}:
+        return loadEnviLibrary(path)
+    if path.suffix.lower() in {".csv", ".txt"}:
+        return loadCsvLibrary(path)
+    raise ValueError(f"Unsupported spectral library: {path.name}")
+
+
+# --- comparison ------------------------------------------------------------------
+
+
+def resampleTo(spectrum: LibrarySpectrum, wavelengthsNm: np.ndarray) -> np.ndarray:
+    """The library spectrum linearly interpolated at ``wavelengthsNm``; NaN
+    outside its range."""
+    x = toNanometres(spectrum.wavelengths)
+    y = np.asarray(spectrum.reflectance, dtype=np.float64)
+    keep = np.isfinite(x) & np.isfinite(y)
+    x, y = x[keep], y[keep]
+    order = np.argsort(x)
+    return np.interp(wavelengthsNm, x[order], y[order], left=np.nan, right=np.nan)
+
+
+def continuumRemoved(wavelengths: np.ndarray, spectrum: np.ndarray) -> np.ndarray:
+    """``spectrum`` divided by its upper convex hull (1 on the hull, < 1 in
+    absorptions)."""
+    x = np.asarray(wavelengths, dtype=np.float64)
+    y = np.asarray(spectrum, dtype=np.float64)
+    hull: list[int] = []
+    for i in range(x.size):  # upper hull, monotone chain
+        while len(hull) >= 2:
+            a, b = hull[-2], hull[-1]
+            cross = (x[b] - x[a]) * (y[i] - y[a]) - (y[b] - y[a]) * (x[i] - x[a])
+            if cross >= 0:
+                hull.pop()
+            else:
+                break
+        hull.append(i)
+    continuum = np.interp(x, x[hull], y[hull])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return y / continuum
+
+
+def featureFit(
+    wavelengths: np.ndarray, unknown: np.ndarray, reference: np.ndarray
+) -> tuple[float, float]:
+    """Spectral feature fitting: least-squares scale of the reference's
+    continuum-removed depths onto the unknown's, and the RMS misfit."""
+    du = 1.0 - continuumRemoved(wavelengths, unknown)
+    dr = 1.0 - continuumRemoved(wavelengths, reference)
+    denominator = float(dr @ dr)
+    if denominator <= 0:
+        return 0.0, float(np.sqrt(np.mean(du**2)))
+    scale = float(dr @ du) / denominator
+    return scale, float(np.sqrt(np.mean((du - scale * dr) ** 2)))
+
+
+def binaryEncodingMatch(a: np.ndarray, b: np.ndarray) -> float:
+    """Fraction of bands where ``a`` and ``b`` are on the same side of their
+    own means."""
+    return float(np.mean((a > np.mean(a)) == (b > np.mean(b))))
+
+
+def _ramp(value: float, best: float, worst: float) -> float:
+    return float(np.clip((value - worst) / (best - worst), 0.0, 1.0))
+
+
+def rankLibrary(
+    wavelengths: np.ndarray,
+    spectrum: np.ndarray,
+    library: Sequence[LibrarySpectrum],
+    *,
+    weights: dict[str, float] | None = None,
+    wavelengthRange: tuple[float, float] | None = None,
+) -> list[LibraryMatch]:
+    """Library spectra ranked by weighted similarity to ``spectrum`` (best
+    first). Comparison uses the bands both cover, within ``wavelengthRange``
+    (nm) if given; spectra overlapping fewer than five bands are skipped."""
+    weights = DEFAULT_WEIGHTS if weights is None else weights
+    total = sum(weights.values()) or 1.0
+    x = toNanometres(wavelengths)
+    unknown = np.asarray(spectrum, dtype=np.float64)
+    inRange = np.isfinite(x) & np.isfinite(unknown)
+    if wavelengthRange is not None:
+        inRange &= (x >= wavelengthRange[0]) & (x <= wavelengthRange[1])
+    matches = []
+    for entry in library:
+        reference = resampleTo(entry, x)
+        use = inRange & np.isfinite(reference)
+        if np.count_nonzero(use) < 5:
+            continue
+        u, r, xu = unknown[use], reference[use], x[use]
+        cosine = float(u @ r / (np.linalg.norm(u) * np.linalg.norm(r)))
+        angle = float(np.arccos(np.clip(cosine, -1.0, 1.0)))
+        scale, rms = featureFit(xu, u, r)
+        binary = binaryEncodingMatch(u, r)
+        featureScore = _ramp(rms, *SFF_RAMP) if scale > 0 else 0.0
+        score = (
+            weights.get("angle", 0.0) * _ramp(angle, *SAM_RAMP)
+            + weights.get("featureFit", 0.0) * featureScore
+            + weights.get("binary", 0.0) * _ramp(binary, *BINARY_RAMP)
+        ) / total
+        matches.append((entry, score, angle, rms, scale, binary))
+    matches.sort(key=lambda m: -m[1])
+    best = matches[0][1] if matches else 0.0
+    return [
+        LibraryMatch(
+            name=entry.name,
+            score=score,
+            angle=angle,
+            featureRms=rms,
+            featureScale=scale,
+            binary=binary,
+            flag="best"
+            if i == 0
+            else "close"
+            if score >= best * (1 - CLOSE_FRACTION)
+            else "far",
+            spectrum=entry,
+        )
+        for i, (entry, score, angle, rms, scale, binary) in enumerate(matches)
+    ]
