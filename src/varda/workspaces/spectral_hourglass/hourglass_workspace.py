@@ -349,8 +349,9 @@ class SpectralHourglassWorkspace(QMainWindow):
             )
             return
         self.nd.setHint(
-            f"{count:,} candidate pixels. Drag to lasso into <b>{target}</b>; "
-            "Shift-drag removes. Right-drag pans, wheel zooms."
+            f"{count:,} candidate pixels. <b>Rotate</b> (R): drag to turn the cloud. "
+            f"<b>Lasso</b> (L): drag around points to add them to <b>{target}</b>, "
+            "Shift-drag removes. Right-drag pans, the wheel zooms."
         )
 
     # --- spectra ------------------------------------------------------------------------

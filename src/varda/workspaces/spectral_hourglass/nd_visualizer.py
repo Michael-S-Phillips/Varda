@@ -1,10 +1,12 @@
 """The n-D visualizer: candidate pure pixels in MNF space, projected to 2-D.
 
 A grand tour rotates the projection smoothly through the chosen MNF
-dimensions so corners of the data cloud (the endmembers) come into view.
-Drag a lasso around a corner to put those pixels in the active endmember;
-Shift-drag takes them out. "Collapse classes" projects out the directions of
-the classes already found, so the next corner stands out.
+dimensions so corners of the data cloud (the endmembers) come into view; in
+Rotate mode dragging turns the cloud by hand. In Lasso mode, drag around a
+corner to put those pixels in the active endmember (Shift-drag takes them
+out). Axis arrows show how each MNF dimension lies in the current view.
+"Collapse classes" projects out the directions of the classes already found,
+so the next corner stands out.
 """
 
 from __future__ import annotations
@@ -15,7 +17,9 @@ import numpy as np
 import pyqtgraph as pg
 from matplotlib.path import Path
 from PyQt6.QtCore import QPointF, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QHBoxLayout,
     QLabel,
@@ -31,25 +35,36 @@ from varda.analysis.endmembers import interpolatePlane, randomPlane
 _FRAME_MS = 33
 _HOVER_PIXELS = 7.0
 _FIT_PLANES = 12  # random projections sampled to size the view
+_STEP_REPEAT_MS = 33  # holding Step advances the tour at the Play frame rate
+_ROTATE_RADIANS_PER_PIXEL = 0.01
 
 
-class _LassoViewBox(pg.ViewBox):
-    """Left-drag draws a lasso; right/middle drag and the wheel pan and zoom."""
+class _CloudViewBox(pg.ViewBox):
+    """Left-drag lassoes or rotates (by mode); right- or middle-drag pans; the
+    wheel zooms."""
 
     sigLassoFinished = pyqtSignal(object, bool)  # [(x, y), ...] view coords, add
+    sigRotateDrag = pyqtSignal(float, float)  # screen-pixel deltas (dx, dy)
 
     def __init__(self) -> None:
         super().__init__(lockAspect=True)
+        self.lassoMode = False
         self._path: list[QPointF] = []
         self._curve = pg.PlotCurveItem(pen=pg.mkPen("#ffff00", width=1.5))
         self.addItem(self._curve, ignoreBounds=True)
         self.setMouseMode(pg.ViewBox.PanMode)
 
     def mouseDragEvent(self, ev, axis=None):
-        if ev.button() != Qt.MouseButton.LeftButton:
-            super().mouseDragEvent(ev, axis)
-            return
         ev.accept()
+        if ev.button() != Qt.MouseButton.LeftButton:
+            # pan (pyqtgraph's own right-drag would zoom)
+            delta = self.mapToView(ev.pos()) - self.mapToView(ev.lastPos())
+            self.translateBy(x=-delta.x(), y=-delta.y())
+            return
+        if not self.lassoMode:
+            d = ev.pos() - ev.lastPos()
+            self.sigRotateDrag.emit(float(d.x()), float(d.y()))
+            return
         point = self.mapSceneToView(ev.scenePos())
         if ev.isStart():
             self._path = [point]
@@ -70,6 +85,9 @@ class _LassoViewBox(pg.ViewBox):
 class NdVisualizer(QWidget):
     UNASSIGNED_COLOR = "#d0d0d0"
     BACKGROUND_COLOR = (90, 90, 90, 90)
+    AXIS_COLOR = "#7fb3d5"
+    ROTATE = "rotate"
+    LASSO = "lasso"
 
     sigLassoSelected = pyqtSignal(object, bool)  # pixel ids (ndarray), add
     sigPointHovered = pyqtSignal(object)  # pixel id or None
@@ -90,8 +108,11 @@ class NdVisualizer(QWidget):
         self._projected = np.zeros((0, 2))
         self._hovered: int | None = None
 
-        self.viewBox = _LassoViewBox()
+        self.viewBox = _CloudViewBox()
         self.viewBox.sigLassoFinished.connect(self.selectPolygon)
+        self.viewBox.sigRotateDrag.connect(self.rotateBy)
+        self._axisItems: list[pg.GraphicsObject] = []
+        self._radius = 1.0
         self.plotWidget = pg.PlotWidget(viewBox=self.viewBox)
         self.plotWidget.hideAxis("left")
         self.plotWidget.hideAxis("bottom")
@@ -116,8 +137,38 @@ class NdVisualizer(QWidget):
         self.playButton = QPushButton("▶ Play")
         self.playButton.setCheckable(True)
         self.playButton.toggled.connect(self._onPlayToggled)
-        stepButton = QPushButton("Step")
-        stepButton.clicked.connect(self.step)
+        self.stepButton = QPushButton("Step")
+        self.stepButton.setToolTip("Click to advance one frame; hold to keep turning")
+        self.stepButton.setAutoRepeat(True)
+        self.stepButton.setAutoRepeatDelay(250)
+        self.stepButton.setAutoRepeatInterval(_STEP_REPEAT_MS)
+        self.stepButton.clicked.connect(self.step)
+        self.rotateButton = QToolButton()
+        self.rotateButton.setText("Rotate")
+        self.rotateButton.setToolTip("Drag to turn the cloud (R)")
+        self.lassoButton = QToolButton()
+        self.lassoButton.setText("Lasso")
+        self.lassoButton.setToolTip(
+            "Drag around points to add them to the active endmember; Shift-drag "
+            "removes (L)"
+        )
+        self._modeGroup = QButtonGroup(self)
+        for button in (self.rotateButton, self.lassoButton):
+            button.setCheckable(True)
+            self._modeGroup.addButton(button)
+        self.rotateButton.clicked.connect(lambda: self.setMode(self.ROTATE))
+        self.lassoButton.clicked.connect(lambda: self.setMode(self.LASSO))
+        for key, mode in (("R", self.ROTATE), ("L", self.LASSO)):
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(lambda m=mode: self.setMode(m))
+        self.axesBox = QCheckBox("Axes")
+        self.axesBox.setChecked(True)
+        self.axesBox.setToolTip(
+            "Arrows show how each MNF dimension in the tour lies in the current view: "
+            "a long arrow means that dimension spreads the cloud along it"
+        )
+        self.axesBox.toggled.connect(lambda _: self._drawAxes())
         newButton = QPushButton("New View")
         newButton.setToolTip("Jump to a new random projection")
         newButton.clicked.connect(self.newProjection)
@@ -154,28 +205,37 @@ class NdVisualizer(QWidget):
 
         controls = QHBoxLayout()
         for widget in (
+            self.rotateButton,
+            self.lassoButton,
             self.playButton,
-            stepButton,
+            self.stepButton,
             newButton,
             QLabel("Speed"),
             self.speedSlider,
         ):
             controls.addWidget(widget)
         controls.addStretch()
-        controls.addWidget(self.collapseBox)
-        controls.addWidget(self.backgroundBox)
-        controls.addWidget(QLabel("Size"))
-        controls.addWidget(self.sizeSlider)
         dims = QHBoxLayout()
-        dims.addWidget(QLabel("MNF dimensions:"))
+        dimsLabel = QLabel("Tour through MNF:")
+        dimsLabel.setToolTip(
+            "The cloud is rotated through these MNF components. Untick one to hold "
+            "it out of every view, e.g. a noisy component or one you have explored."
+        )
+        dims.addWidget(dimsLabel)
         dims.addLayout(self.dimsLayout)
         dims.addStretch()
+        dims.addWidget(self.collapseBox)
+        dims.addWidget(self.axesBox)
+        dims.addWidget(self.backgroundBox)
+        dims.addWidget(QLabel("Size"))
+        dims.addWidget(self.sizeSlider)
 
         layout = QVBoxLayout(self)
         layout.addLayout(controls)
         layout.addLayout(dims)
         layout.addWidget(self.plotWidget, stretch=1)
         layout.addWidget(self.hintLabel)
+        self.setMode(self.ROTATE)
 
     # --- data -----------------------------------------------------------------------
 
@@ -213,7 +273,9 @@ class NdVisualizer(QWidget):
             button = QToolButton()
             button.setText(str(d + 1))
             button.setCheckable(True)
-            button.setToolTip(f"Include MNF {d + 1} in the tour")
+            button.setToolTip(
+                f"Include MNF {d + 1} in the tour (its arrow shows how it lies in the view)"
+            )
             button.toggled.connect(self._onDimToggled)
             self.dimsLayout.addWidget(button)
             self._dimButtons.append(button)
@@ -269,6 +331,16 @@ class NdVisualizer(QWidget):
     def setHint(self, text: str) -> None:
         self.hintLabel.setText(text)
 
+    # --- modes -----------------------------------------------------------------------
+
+    def mode(self) -> str:
+        return self.LASSO if self.viewBox.lassoMode else self.ROTATE
+
+    def setMode(self, mode: str) -> None:
+        self.viewBox.lassoMode = mode == self.LASSO
+        self.lassoButton.setChecked(mode == self.LASSO)
+        self.rotateButton.setChecked(mode != self.LASSO)
+
     # --- projection -------------------------------------------------------------------
 
     def _randomPlane(self) -> np.ndarray:
@@ -297,9 +369,76 @@ class NdVisualizer(QWidget):
             return
         self._t += 0.004 * self.speedSlider.value()
         if self._t >= 1.0:
-            self._start, self._target, self._t = self._target, self._randomPlane(), 0.0
+            # carry on from where the view actually is (the same plane as the
+            # target, but its basis may be turned within it): no snap
+            self._start = interpolatePlane(self._start, self._target, 1.0)
+            self._target, self._t = self._randomPlane(), self._t - 1.0
         self._plane = interpolatePlane(self._start, self._target, self._t)
         self._redraw()
+
+    def rotateBy(self, dx: float, dy: float) -> None:
+        """Turn the view by a mouse drag: horizontal motion swings the view's x
+        axis, vertical its y axis, towards the hidden direction (within the
+        tour's dimensions) along which the cloud spreads most."""
+        if len(self._dims) < 2 or not self._data.size:
+            return
+        hidden = self._hiddenDirection()
+        if hidden is None:
+            return
+        plane = self._plane.copy()
+        for axis, delta in ((0, dx), (1, -dy)):
+            angle = delta * _ROTATE_RADIANS_PER_PIXEL
+            u = plane[:, axis].copy()
+            plane[:, axis] = np.cos(angle) * u + np.sin(angle) * hidden
+            hidden = -np.sin(angle) * u + np.cos(angle) * hidden
+        q, r = np.linalg.qr(plane)
+        self._plane = q * np.sign(np.diag(r))
+        # the tour continues from here
+        self._start, self._target, self._t = self._plane, self._randomPlane(), 0.0
+        self._redraw()
+
+    def _hiddenDirection(self) -> np.ndarray | None:
+        """Unit vector, within the tour's dimensions and orthogonal to the view,
+        along which the (collapsed) cloud spreads most."""
+        data = self._data if self._collapse is None else self._data @ self._collapse
+        sub = data[:, self._dims]
+        planeSub = self._plane[self._dims]
+        residual = sub - (sub @ planeSub) @ planeSub.T
+        if len(self._dims) <= 2 or not np.any(residual):
+            return None
+        _, _, vt = np.linalg.svd(residual, full_matrices=False)
+        direction = np.zeros(self._data.shape[1])
+        direction[self._dims] = vt[0]
+        return direction
+
+    def axisVectors(self) -> dict[int, np.ndarray]:
+        """Where each tour dimension's unit vector lands in the view (2-D)."""
+        k = self._data.shape[1]
+        out = {}
+        for d in self._dims:
+            unit = np.zeros(k)
+            unit[d] = 1.0
+            out[d] = self.projectPoints(unit[None, :])[0]
+        return out
+
+    def _drawAxes(self) -> None:
+        for item in self._axisItems:
+            self.viewBox.removeItem(item)
+        self._axisItems = []
+        if not self.axesBox.isChecked():
+            return
+        length = 0.85 * self._radius
+        for d, vector in self.axisVectors().items():
+            tip = vector * length
+            line = pg.PlotCurveItem(
+                [0.0, tip[0]], [0.0, tip[1]], pen=pg.mkPen(self.AXIS_COLOR, width=1.2)
+            )
+            label = pg.TextItem(str(d + 1), color=self.AXIS_COLOR, anchor=(0.5, 0.5))
+            label.setPos(tip[0] * 1.08, tip[1] * 1.08)
+            for item in (line, label):
+                item.setZValue(-1)
+                self.viewBox.addItem(item, ignoreBounds=True)
+                self._axisItems.append(item)
 
     def newProjection(self) -> None:
         self._plane = self._randomPlane()
@@ -320,6 +459,7 @@ class NdVisualizer(QWidget):
         ]
         radius = float(np.max(spans)) * 1.2
         radius = radius or 1.0
+        self._radius = radius
         self.viewBox.setRange(
             xRange=(-radius, radius), yRange=(-radius, radius), padding=0
         )
@@ -339,6 +479,7 @@ class NdVisualizer(QWidget):
         if self._background.size:
             bg = self.projectPoints(self._background)
             self.backgroundItem.setData(pos=bg)
+        self._drawAxes()
         self._updateHoverMarker()
 
     def _onPlayToggled(self, playing: bool) -> None:

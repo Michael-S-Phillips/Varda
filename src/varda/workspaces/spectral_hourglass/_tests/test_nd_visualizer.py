@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtWidgets import QToolButton
 
 from varda.workspaces.spectral_hourglass.nd_visualizer import NdVisualizer
@@ -90,7 +91,7 @@ def test_new_data_leaves_no_stray_dimension_buttons(viz):
     buttons = [
         b
         for b in viz.findChildren(QToolButton)
-        if b.parent() is viz and b.isVisibleTo(viz)
+        if b.parent() is viz and b.isVisibleTo(viz) and b.text().isdigit()
     ]
     assert [b.text() for b in buttons] == ["1", "2", "3"]
 
@@ -103,3 +104,92 @@ def test_view_frames_the_projected_cloud_in_many_dimensions(qtbot):
     (x0, x1), _ = widget.viewBox.viewRange()
     typical = np.percentile(np.abs(widget.projected()), 99)
     assert (x1 - x0) / 2 < 3 * typical  # not sized by the 18-D radius (~4.2x)
+
+
+def test_the_tour_never_jumps_between_segments(viz):
+    """Crossing from one random target to the next must not snap the view."""
+    viz.speedSlider.setValue(20)
+    steps = []
+    previous = viz.projected().copy()
+    for _ in range(60):  # several segment boundaries at 0.08 per step
+        viz.step()
+        steps.append(np.abs(viz.projected() - previous).max())
+        previous = viz.projected().copy()
+    assert max(steps) < 4 * np.median(steps)
+
+
+def test_holding_step_repeats_it(viz):
+    assert viz.stepButton.autoRepeat()
+    assert viz.stepButton.autoRepeatInterval() <= 50
+
+
+def test_dragging_in_rotate_mode_turns_the_cloud(viz):
+    viz.setMode(viz.ROTATE)
+    before = viz.plane().copy()
+    viz.rotateBy(30.0, 0.0)
+    after = viz.plane()
+    assert not np.allclose(before, after)
+    np.testing.assert_allclose(after.T @ after, np.eye(2), atol=1e-9)
+    viz.setActiveDims([0, 2])
+    viz.rotateBy(10.0, -15.0)
+    np.testing.assert_allclose(viz.plane()[[1, 3]], 0.0, atol=1e-12)
+
+
+def test_lasso_and_rotate_modes_are_exclusive(viz):
+    viz.setMode(viz.LASSO)
+    assert viz.lassoButton.isChecked() and not viz.rotateButton.isChecked()
+    viz.rotateButton.click()
+    assert viz.mode() == viz.ROTATE and not viz.lassoButton.isChecked()
+
+
+def test_axis_arrows_show_each_active_dimension_in_the_view(viz):
+    viz.setActiveDims([0, 1, 3])
+    arrows = viz.axisVectors()
+    assert sorted(arrows) == [0, 1, 3]
+    plane = viz.plane()
+    np.testing.assert_allclose(arrows[3], plane[3])  # unit vector of MNF 4, projected
+
+
+class _FakeDrag:
+    def __init__(self, button, start, end, finish=False):
+        self._button, self._start, self._end, self._finish = button, start, end, finish
+
+    def button(self):
+        return self._button
+
+    def isStart(self):
+        return False
+
+    def isFinish(self):
+        return self._finish
+
+    def pos(self):
+        return self._end
+
+    def lastPos(self):
+        return self._start
+
+    def scenePos(self):
+        return self._end
+
+    def lastScenePos(self):
+        return self._start
+
+    def modifiers(self):
+        return Qt.KeyboardModifier.NoModifier
+
+    def accept(self):
+        pass
+
+
+def test_right_drag_pans_rather_than_zooms(viz, qtbot):
+    viz.resize(500, 500)
+    viz.show()
+    qtbot.waitExposed(viz)
+    (x0, x1), (y0, y1) = viz.viewBox.viewRange()
+    viz.viewBox.mouseDragEvent(
+        _FakeDrag(Qt.MouseButton.RightButton, QPointF(100, 100), QPointF(140, 100))
+    )
+    (a0, a1), (b0, b1) = viz.viewBox.viewRange()
+    assert a1 - a0 == pytest.approx(x1 - x0, rel=1e-6)  # same zoom
+    assert a0 != pytest.approx(x0)  # moved sideways

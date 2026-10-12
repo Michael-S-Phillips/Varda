@@ -98,3 +98,15 @@ def test_suggest_groups_keeps_only_pixels_near_the_corners():
 def test_suggest_groups_needs_enough_points():
     with pytest.raises(ValueError):
         suggestGroups(np.zeros((2, 3)), 3)
+
+
+def test_interpolating_between_spans_of_the_same_plane_stays_finite():
+    """With only two dimensions every plane is the same one; rounding can leave
+    a tiny angle whose orthogonal direction has zero length."""
+    rng = np.random.default_rng(0)
+    for _ in range(200):
+        a, b = randomPlane(2, rng), randomPlane(2, rng)
+        for t in (0.3, 1.0):
+            out = interpolatePlane(a, b, t)
+            assert np.isfinite(out).all()
+            np.testing.assert_allclose(out.T @ out, np.eye(2), atol=1e-9)

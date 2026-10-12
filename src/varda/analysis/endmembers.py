@@ -86,12 +86,13 @@ def interpolatePlane(a: np.ndarray, b: np.ndarray, t: float) -> np.ndarray:
     out = np.empty_like(a)
     for i in range(2):
         theta = float(np.arccos(np.clip(cosines[i], -1.0, 1.0)))
-        if theta < 1e-9:
-            out[:, i] = aRot[:, i]
-            continue
         # unit vector in the plane of (a_i, b_i), orthogonal to a_i
         orth = bRot[:, i] - cosines[i] * aRot[:, i]
-        orth /= np.linalg.norm(orth)
+        length = float(np.linalg.norm(orth))
+        if theta < 1e-9 or length < 1e-12:  # already aligned (to rounding)
+            out[:, i] = aRot[:, i]
+            continue
+        orth /= length
         out[:, i] = np.cos(t * theta) * aRot[:, i] + np.sin(t * theta) * orth
     # express in a's original orientation so t = 0 returns a exactly
     return out @ u.T
