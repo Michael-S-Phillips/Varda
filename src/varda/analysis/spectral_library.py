@@ -6,7 +6,8 @@ score by a linear ramp and combined by weights:
 
 - Spectral angle (radians; 0 is identical shape, brightness ignored)
 - Spectral feature fit: continuum-removed absorption depths of the unknown
-  fitted by a scaled reference; scored by the RMS misfit
+  fitted by a scaled reference; scored by how well the absorption shapes
+  correlate (depth-independent), with the RMS misfit reported
 - Binary encoding: the fraction of bands where both spectra are on the same
   side of their own mean
 
@@ -31,7 +32,8 @@ from varda.plotting.library_spectra import (
 
 # Score ramps: a value at "best" scores 1, at "worst" 0, linear between
 SAM_RAMP = (0.0, 0.25)  # radians
-SFF_RAMP = (0.0, 0.05)  # RMS of continuum-removed depth
+# Absorptions shallower than this (continuum-removed depth) count as featureless
+FEATURELESS_DEPTH = 0.01
 BINARY_RAMP = (1.0, 0.5)  # fraction of bands matching (0.5 = chance)
 DEFAULT_WEIGHTS = {"angle": 1.0, "featureFit": 1.0, "binary": 1.0}
 # Within this fraction of the best score a match is flagged "close"
@@ -171,6 +173,22 @@ def featureFit(
     return scale, float(np.sqrt(np.mean((du - scale * dr) ** 2)))
 
 
+def featureScore(
+    wavelengths: np.ndarray, unknown: np.ndarray, reference: np.ndarray
+) -> float:
+    """0-1 similarity of the absorption features: the correlation of the
+    continuum-removed depth profiles (negative counts as 0). Two featureless
+    spectra match; a featureless and a featured one do not."""
+    du = 1.0 - continuumRemoved(wavelengths, unknown)
+    dr = 1.0 - continuumRemoved(wavelengths, reference)
+    flatU = np.nanmax(du) < FEATURELESS_DEPTH
+    flatR = np.nanmax(dr) < FEATURELESS_DEPTH
+    if flatU or flatR:
+        return 1.0 if flatU and flatR else 0.0
+    correlation = np.corrcoef(du, dr)[0, 1]
+    return float(max(0.0, correlation)) if np.isfinite(correlation) else 0.0
+
+
 def binaryEncodingMatch(a: np.ndarray, b: np.ndarray) -> float:
     """Fraction of bands where ``a`` and ``b`` are on the same side of their
     own means."""
@@ -210,10 +228,9 @@ def rankLibrary(
         angle = float(np.arccos(np.clip(cosine, -1.0, 1.0)))
         scale, rms = featureFit(xu, u, r)
         binary = binaryEncodingMatch(u, r)
-        featureScore = _ramp(rms, *SFF_RAMP) if scale > 0 else 0.0
         score = (
             weights.get("angle", 0.0) * _ramp(angle, *SAM_RAMP)
-            + weights.get("featureFit", 0.0) * featureScore
+            + weights.get("featureFit", 0.0) * featureScore(xu, u, r)
             + weights.get("binary", 0.0) * _ramp(binary, *BINARY_RAMP)
         ) / total
         matches.append((entry, score, angle, rms, scale, binary))

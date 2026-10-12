@@ -209,6 +209,7 @@ def test_mapping_needs_two_endmembers_with_pixels():
 def test_endmembers_round_trip_through_json():
     model = _withTrueEndmembers()
     model.renameEndmember(model.endmembers[1].id, "Kaolinite")
+    model.setIdentification(model.endmembers[1].id, "Kaolinite KGa-1 (0.92)")
     data = model.endmembersToJson()
 
     fresh = _throughPpi()
@@ -218,3 +219,4 @@ def test_endmembers_round_trip_through_json():
         list(e.pixels) for e in model.endmembers
     ]
     assert [e.color for e in fresh.endmembers] == [e.color for e in model.endmembers]
+    assert fresh.endmembers[1].identification == "Kaolinite KGa-1 (0.92)"

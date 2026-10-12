@@ -115,3 +115,12 @@ def test_load_csv_library(tmp_path):
     loaded = loadCsvLibrary(path)
     assert [s.name for s in loaded] == ["A", "B"]
     assert loaded[1].reflectance.shape == WL.shape
+
+
+def test_featureless_spectra_match_each_other_not_featured_ones():
+    flat = np.full(WL.size, 0.4) + 0.001 * np.sin(WL)
+    library = [
+        LibrarySpectrum("Kaolinite", WL, 0.7 * _gauss(2200, 0.3)),
+        LibrarySpectrum("Flat", WL, np.full(WL.size, 0.5)),
+    ]
+    assert rankLibrary(WL, flat, library)[0].name == "Flat"

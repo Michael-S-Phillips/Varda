@@ -110,6 +110,7 @@ class Endmember:
     name: str
     color: str  # "#rrggbb"
     pixels: np.ndarray = attrs.field(factory=lambda: np.empty(0, dtype=np.int64))
+    identification: str = ""  # best library match, e.g. "Kaolinite (0.91)"
 
 
 @attrs.frozen
@@ -396,6 +397,10 @@ class HourglassModel:
         )
         self._endmembersChanged()
 
+    def setIdentification(self, endmemberId: int, text: str) -> None:
+        self.endmember(endmemberId).identification = text
+        self._endmembersChanged()
+
     def recolorEndmember(self, endmemberId: int, color: str) -> None:
         self.endmember(endmemberId).color = color
         self._endmembersChanged()
@@ -462,7 +467,12 @@ class HourglassModel:
             "image": self.image.name,
             "shape": list(self.shape),
             "endmembers": [
-                {"name": e.name, "color": e.color, "pixels": e.pixels.tolist()}
+                {
+                    "name": e.name,
+                    "color": e.color,
+                    "identification": e.identification,
+                    "pixels": e.pixels.tolist(),
+                }
                 for e in self.endmembers
             ],
         }
@@ -478,6 +488,7 @@ class HourglassModel:
             for entry in data["endmembers"]:
                 endmember = self.addEndmember(entry["name"], entry["color"])
                 endmember.pixels = np.asarray(entry["pixels"], dtype=np.int64)
+                endmember.identification = entry.get("identification", "")
         self._endmembersChanged()
 
     # --- 5. identify -------------------------------------------------------------------

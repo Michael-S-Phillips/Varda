@@ -5,6 +5,7 @@ from scipy.ndimage import gaussian_filter
 
 from varda.common.entities import VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+from varda.workspaces.spectral_hourglass.hourglass_model import HourglassModel
 
 WAVELENGTHS = np.linspace(1000.0, 2600.0, 80)
 
@@ -44,3 +45,35 @@ def syntheticScene(rows=40, cols=36, seed=0) -> tuple[VardaRaster, np.ndarray]:
         defaultBands=np.array([60, 40, 10]),
     )
     return VardaRaster(source, name="scene"), abundances
+
+
+def _quiet(percent, message):
+    pass
+
+
+def modelThroughPpi():
+    """A HourglassModel on the synthetic scene with prepare, MNF (3 components)
+    and PPI done."""
+    image, _ = syntheticScene()
+    model = HourglassModel(image)
+    model.applyPrepared(model.prepareTask()(_quiet))
+    model.applyMnf(model.mnfTask()(_quiet))
+    model.setComponents(3)
+    model.applyPpi(model.ppiTask(iterations=3000, threshold=0.5, seed=0)(_quiet))
+    model.setCandidateRule(minCount=1, maxCandidates=300)
+    return model
+
+
+PATCHES = {"flat": (2, 2), "clay": (2, 30), "mafic": (34, 2)}
+
+
+def modelWithEndmembers():
+    """``modelThroughPpi`` plus one endmember per pure patch."""
+    model = modelThroughPpi()
+    for name, (r0, c0) in PATCHES.items():
+        endmember = model.addEndmember(name)
+        model.assignPixels(
+            endmember.id,
+            [r * 36 + c for r in range(r0, r0 + 4) for c in range(c0, c0 + 4)],
+        )
+    return model
