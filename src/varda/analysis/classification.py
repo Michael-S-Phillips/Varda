@@ -15,25 +15,32 @@ import numpy as np
 
 from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.mlp import MlpClassifier
-from varda.analysis.patches import extractPatches, iterPatchChunks
 from varda.analysis.rasters import readCube
 from varda.common.entities import VardaRaster
 from varda.common.parameter import FloatParameter, IntParameter, MultiChoiceParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+from varda.optional_features.torch_runtime import TorchRuntime, defaultRuntime
 from varda.rois.roi_collection import ROICollection
 
-torch_models: ModuleType | None
+# PyTorch runs in-process when Varda's own environment has it (the "ml"
+# extra); otherwise in the environment that Processing > Optional Features
+# installs.
+torch_job: ModuleType | None
 try:
-    from varda.analysis import torch_models as _torchModels
+    from varda_torch_worker import job as _torchJob
 
-    torch_models = _torchModels
+    torch_job = _torchJob
     TORCH_AVAILABLE = True
-except ImportError:  # the optional "ml" extra (PyTorch) is not installed
-    torch_models = None
+except ImportError:
+    torch_job = None
     TORCH_AVAILABLE = False
 
+
+def torchRuntime() -> TorchRuntime:
+    return defaultRuntime()
+
+
 _PREDICT_CHUNK = 65_536
-_PATCH_CHUNK = 4_096
 
 
 def roiLabels(rois: ROICollection) -> list[tuple[int, str]]:
@@ -240,7 +247,9 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
     as training data, chunked whole-image prediction."""
 
     requirement = "PyTorch"
+    installable = True
     suffix: ClassVar[str] = ""
+    modelKey: ClassVar[str] = ""  # the worker's model: "cnn" or "vit"
     # Declared here, supplied by each subclass (ParameterGroup only picks up
     # Parameters defined directly on the class).
     patchSize: IntParameter
@@ -250,66 +259,58 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
 
     @classmethod
     def isAvailable(cls) -> bool:
-        return TORCH_AVAILABLE
+        return TORCH_AVAILABLE or torchRuntime().isInstalled()
 
-    def _buildModel(self, bands: int, classes: int, patchSize: int):
+    def _modelParams(self) -> dict[str, int]:
         raise NotImplementedError
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
-        if torch_models is None:
-            raise ImportError("PyTorch is not installed; install Varda's 'ml' extra.")
         rois = _requireRois(self)
-        size = int(self.patchSize.value) | 1  # odd
-        epochs = int(self.epochs.value)
-        batchSize = int(self.batchSize.value)
+        runtime = None if TORCH_AVAILABLE else torchRuntime()
+        if runtime is not None and not runtime.isInstalled():
+            raise ImportError(
+                "PyTorch is not installed; install it from Processing > Optional Features."
+            )
+        spec = {
+            "model": self.modelKey,
+            "patchSize": int(self.patchSize.value) | 1,  # odd
+            "epochs": int(self.epochs.value),
+            "learningRate": float(self.learningRate.value),
+            "batchSize": int(self.batchSize.value),
+            "modelParams": self._modelParams(),
+        }
 
         reportProgress(0, "reading image")
         cube, valid = readCube(image)
         cube = cube.astype(np.float32)
         # Patches may straddle invalid pixels: neutralise those with band means.
-        bandMeans = cube[valid].mean(axis=0)
-        cube[~valid] = bandMeans
+        cube[~valid] = cube[valid].mean(axis=0)
 
         reportProgress(5, "collecting training patches")
         names, rows, cols, y = _trainingSet(rois, image, valid, self._chosenFids(rois))
-        training = extractPatches(cube, rows, cols, size)
-        mean = training.reshape(-1, cube.shape[2]).mean(axis=0)
-        std = training.reshape(-1, cube.shape[2]).std(axis=0)
-        std = np.where(std > 0, std, 1.0)
 
-        model = self._buildModel(cube.shape[2], len(names), size)
-        losses = torch_models.trainClassifier(
-            model,
-            (training - mean) / std,
-            y,
-            epochs=epochs,
-            learningRate=float(self.learningRate.value),
-            batchSize=batchSize,
-            onEpoch=lambda epoch, loss: reportProgress(
-                5 + int(75 * epoch / epochs), f"epoch {epoch}/{epochs}, loss {loss:.4f}"
-            ),
-        )
+        def onProgress(fraction: float, message: str) -> None:
+            reportProgress(5 + round(95 * fraction), message)
 
-        reportProgress(80, "classifying image")
-        total = int(valid.sum())
-        done = 0
-        probabilities = []
-        for _r, _c, patches in iterPatchChunks(cube, valid, size, _PATCH_CHUNK):
-            probabilities.append(
-                torch_models.predictProbabilities(model, (patches - mean) / std)
+        if runtime is None:
+            assert torch_job is not None
+            probabilities, finalLoss = torch_job.trainAndClassify(
+                cube, valid, rows, cols, y, len(names), spec, onProgress
             )
-            done += patches.shape[0]
-            reportProgress(
-                80 + int(20 * done / total), f"classified {done}/{total} pixels"
-            )
+        else:
+            probabilities, info = runtime.runJob(
+                cube, valid, rows, cols, y,
+                classes=len(names), spec=spec, progress=onProgress,
+            )  # fmt: skip
+            finalLoss = info["finalLoss"]
 
         return _classificationRaster(
             image,
             valid,
-            np.vstack(probabilities),
+            probabilities,
             names,
             suffix=self.suffix,
-            metadata={"patchSize": size, "finalLoss": losses[-1]},
+            metadata={"patchSize": spec["patchSize"], "finalLoss": finalLoss},
         )
 
 
@@ -331,11 +332,13 @@ class CnnClassificationAnalysis(_PatchClassificationAnalysis):
     learningRate = _learningRateParameter()
     batchSize = _batchSizeParameter()
 
-    def _buildModel(self, bands, classes, patchSize):
-        assert torch_models is not None
-        return torch_models.PatchCnn(
-            bands, classes, int(self.channels.value), int(self.convLayers.value)
-        )
+    modelKey = "cnn"
+
+    def _modelParams(self) -> dict[str, int]:
+        return {
+            "channels": int(self.channels.value),
+            "convLayers": int(self.convLayers.value),
+        }
 
 
 class VitClassificationAnalysis(_PatchClassificationAnalysis):
@@ -357,13 +360,11 @@ class VitClassificationAnalysis(_PatchClassificationAnalysis):
     learningRate = _learningRateParameter()
     batchSize = _batchSizeParameter()
 
-    def _buildModel(self, bands, classes, patchSize):
-        assert torch_models is not None
-        return torch_models.PatchViT(
-            bands,
-            classes,
-            patchSize,
-            int(self.embedDim.value),
-            int(self.heads.value),
-            int(self.layers.value),
-        )
+    modelKey = "vit"
+
+    def _modelParams(self) -> dict[str, int]:
+        return {
+            "embedDim": int(self.embedDim.value),
+            "heads": int(self.heads.value),
+            "layers": int(self.layers.value),
+        }

@@ -1,7 +1,7 @@
-"""PyTorch patch classifiers (the optional "ml" extra): a small CNN and a ViT.
+"""PyTorch patch classifiers: a small CNN and a ViT.
 
 Both take patches shaped (n, bands, size, size). Importing this module
-requires torch; ``classification`` guards the import.
+requires torch.
 """
 
 from __future__ import annotations

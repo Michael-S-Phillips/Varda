@@ -41,6 +41,8 @@ class Analysis(ParameterGroup):
     category: ClassVar[str] = "General"
     # What the analysis needs when isAvailable() is False, e.g. "HyPyRameter".
     requirement: ClassVar[str] = ""
+    # True when Varda can install the requirement itself (Optional Features).
+    installable: ClassVar[bool] = False
     # Whether the analysis trains on / uses the workspace's ROIs.
     needsRois: ClassVar[bool] = False
 

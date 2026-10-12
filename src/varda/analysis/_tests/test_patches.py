@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from varda.analysis.patches import extractPatches, iterPatchChunks
+from varda_torch_worker.patches import extractPatches, iterPatchChunks
 
 
 def _cube():

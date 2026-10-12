@@ -2,7 +2,8 @@
 
 Entries are generated from the analysis registry, so adding an analysis is
 just registering it with a ``category``. Analyses whose optional dependency
-is missing stay visible but disabled, saying what they need.
+is missing stay visible but disabled, saying what they need, unless Varda
+can install it (PyTorch): those stay enabled and offer the install.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ import re
 from collections.abc import Callable, Sequence
 
 from app_model.types import Action, MenuRule, SubmenuItem
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMessageBox
 
 from varda._actions._menu_ids import MenuId
@@ -24,6 +26,7 @@ from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
 from varda.context_keys import EXPR_HAS_IMAGES, EXPR_NEVER
 from varda.maingui import MainGUI
+from varda.optional_features.optional_features_dialog import openOptionalFeatures
 from varda.workspaces.spectral_hourglass.new_hourglass_dialog import (
     NewSpectralHourglassDialog,
 )
@@ -33,6 +36,9 @@ def openRunAnalysisDialog(
     images: ProjectImages, mainGui: MainGUI, *, analysis: type[Analysis]
 ) -> None:
     """Show the dialog for one analysis; the run lands in the project images."""
+    if not analysis.isAvailable() and analysis.installable:
+        offerInstall(images, mainGui, analysis)
+        return
     if not analysis.isAvailable():
         QMessageBox.information(
             mainGui,
@@ -47,6 +53,31 @@ def openRunAnalysisDialog(
     RunAnalysisDialog(
         list(images), [analysis], analysis=analysis, rois=rois, parent=mainGui
     ).connectOnRun(runner.run).open()
+
+
+def offerInstall(
+    images: ProjectImages, mainGui: MainGUI, analysis: type[Analysis]
+) -> None:
+    """Open Optional Features for the analysis's requirement; once it is
+    installed and the dialog closes, carry on to the analysis."""
+    dialog = openOptionalFeatures(
+        mainGui,
+        reason=f"{analysis.name} needs {analysis.requirement}, which isn't installed yet.",
+    )
+    dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+
+    def carryOn() -> None:
+        if analysis.isAvailable():
+            openRunAnalysisDialog(images, mainGui, analysis=analysis)
+
+    dialog.finished.connect(carryOn)
+    dialog.open()
+
+
+def openOptionalFeaturesDialog(mainGui: MainGUI) -> None:
+    dialog = openOptionalFeatures(mainGui)
+    dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+    dialog.open()
 
 
 def _slug(text: str) -> str:
@@ -84,15 +115,20 @@ def processingActions(
     for analysis in analyses:
         available = analysis.isAvailable()
         title = f"{analysis.name}…"
-        if not available:
+        tooltip = analysis.description
+        if analysis.installable:
+            tooltip += f" Varda downloads {analysis.requirement} the first time."
+        elif not available:
             title += f" (needs {analysis.requirement})"
         actions.append(
             Action(
                 id=f"{idPrefix}.{analysis.analysisId}",
                 title=title,
-                tooltip=analysis.description,
+                tooltip=tooltip,
                 callback=makeCallback(analysis),
-                enablement=EXPR_HAS_IMAGES if available else EXPR_NEVER,
+                enablement=(
+                    EXPR_HAS_IMAGES if available or analysis.installable else EXPR_NEVER
+                ),
                 menus=[MenuRule(id=categoryMenuId(root, analysis.category))],
             )
         )
@@ -155,6 +191,7 @@ def openSpectralHourglass(images: ProjectImages, mainGui: MainGUI) -> None:
 
 EIGENVALUE_PLOT_ACTION_ID = "varda.processing.eigenvalue_plot"
 SPECTRAL_HOURGLASS_ACTION_ID = "varda.processing.spectral_hourglass"
+OPTIONAL_FEATURES_ACTION_ID = "varda.processing.optional_features"
 
 PROCESSING_SUBMENUS = processingSubmenus(MenuId.PROCESSING, ANALYSES)
 PROCESSING_ACTIONS = processingActions(
@@ -181,5 +218,12 @@ PROCESSING_ACTIONS = processingActions(
         callback=openSpectralHourglass,
         enablement=EXPR_HAS_IMAGES,
         menus=[MenuRule(id=categoryMenuId(MenuId.PROCESSING, "Endmembers"), order=0)],
+    ),
+    Action(
+        id=OPTIONAL_FEATURES_ACTION_ID,
+        title="Optional Features…",
+        tooltip="Install, update or remove PyTorch for the CNN and ViT classifiers",
+        callback=openOptionalFeaturesDialog,
+        menus=[MenuRule(id=MenuId.PROCESSING, group="9_setup")],
     ),
 ]
