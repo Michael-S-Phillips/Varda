@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import QMainWindow, QMessageBox, QProgressBar, QStatusBar
 
 from varda.analysis.linear_algebra import unflatten
 from varda.analysis.spectral_library import LibrarySpectrum, resampleTo
+from varda.common.di_types import ProjectImages
 from varda.common.entities import Color, VardaRaster
 from varda.common.ui import VardaDockWidget
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
@@ -43,7 +44,7 @@ class SpectralHourglassWorkspace(QMainWindow):
     def __init__(
         self,
         image: VardaRaster,
-        projectImages: list | None = None,
+        projectImages: ProjectImages | list[VardaRaster] | None = None,
         *,
         library: list[LibrarySpectrum] | None = None,
         parent=None,
@@ -55,6 +56,7 @@ class SpectralHourglassWorkspace(QMainWindow):
         self.runner = TaskRunner(self)
         self._hoveredPixel: int | None = None
         self._libraryPreview: LibrarySpectrum | None = None
+        self._pendingComponents: int | None = None  # restored from a session
 
         self.scene = SceneView(image, self)
         self.nd = NdVisualizer(self)
@@ -159,6 +161,9 @@ class SpectralHourglassWorkspace(QMainWindow):
 
     def _onMnf(self, result) -> None:
         self.model.applyMnf(result)
+        if self._pendingComponents is not None:
+            self.model.setComponents(self._pendingComponents)
+            self._pendingComponents = None
         self.scene.enableComponents(result.scores.shape[1], self.model.componentImage)
 
     def _runPpi(self, iterations: int, threshold: float, resume: bool) -> None:
@@ -391,6 +396,58 @@ class SpectralHourglassWorkspace(QMainWindow):
             plot.plot(
                 x, y, color=_LIBRARY_COLOR, name=f"{self._libraryPreview.name} (scaled)"
             )
+
+    # --- sessions --------------------------------------------------------------------------
+
+    def sessionState(self) -> dict:
+        """Settings and endmember classes (results are recomputed on restore)."""
+        settings = self.model.settings
+        purity = self.pipeline.purityPage
+        return {
+            "settings": {
+                "wavelengthRange": None
+                if settings.wavelengthRange is None
+                else list(settings.wavelengthRange),
+                "useIovf": settings.useIovf,
+            },
+            "components": self.model.components or None,
+            "ppi": {
+                "iterations": purity.iterations.value(),
+                "threshold": purity.threshold.value(),
+                "minCount": purity.minCount.value(),
+                "maxCandidates": purity.maxCandidates.value(),
+            },
+            "endmembers": self.model.endmembersToJson(),
+        }
+
+    def restoreSessionState(self, state: dict) -> None:
+        settings = state.get("settings", {})
+        prepare = self.pipeline.preparePage
+        window = settings.get("wavelengthRange")
+        if window is not None:
+            prepare.limitBox.setChecked(True)
+            prepare.low.setValue(float(window[0]))
+            prepare.high.setValue(float(window[1]))
+        prepare.iovfBox.setChecked(
+            bool(settings.get("useIovf", prepare.iovfBox.isChecked()))
+        )
+        self._pendingComponents = state.get("components")
+        purity = self.pipeline.purityPage
+        ppi = state.get("ppi", {})
+        purity.iterations.setValue(
+            int(ppi.get("iterations", purity.iterations.value()))
+        )
+        purity.threshold.setValue(float(ppi.get("threshold", purity.threshold.value())))
+        purity.minCount.setValue(int(ppi.get("minCount", purity.minCount.value())))
+        purity.maxCandidates.setValue(
+            int(ppi.get("maxCandidates", purity.maxCandidates.value()))
+        )
+        if state.get("endmembers"):
+            self.model.endmembersFromJson(state["endmembers"])
+        self.status.showMessage(
+            "Session restored: run Prepare, MNF and Pixel Purity again to continue "
+            "with the saved endmembers."
+        )
 
     # --- lifecycle -------------------------------------------------------------------------
 

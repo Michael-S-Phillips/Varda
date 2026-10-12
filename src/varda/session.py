@@ -21,6 +21,9 @@ from varda.workspaces.dual_image_workspace.dual_image_workspace import (
     DualImageWorkspace,
 )
 from varda.workspaces.general_image_analysis import GeneralImageAnalysisWorkflow
+from varda.workspaces.spectral_hourglass.hourglass_workspace import (
+    SpectralHourglassWorkspace,
+)
 
 SESSION_SUFFIX = ".varda"
 SESSION_FILE_FILTER = "Varda session (*.varda)"
@@ -30,11 +33,12 @@ _VERSION = 1
 
 @attrs.frozen
 class WorkspaceState:
-    kind: str  # "general" or "dual"
+    kind: str  # "general", "dual" or "hourglass"
     images: tuple[str, ...] = attrs.field(
         converter=tuple
     )  # (image,) or (primary, secondary)
     rois: dict = attrs.field(factory=dict)  # GeoJSON FeatureCollection, see roisToJson
+    extra: dict = attrs.field(factory=dict)  # workspace-specific state (JSON-able)
 
 
 @attrs.frozen
@@ -112,11 +116,14 @@ def captureSession(
         kind, shown = described
         if any(id(image) not in pathOf for image in shown):
             continue
+        rois = getattr(workspace, "roiCollection", None)
+        sessionState = getattr(workspace, "sessionState", None)
         states.append(
             WorkspaceState(
                 kind,
                 tuple(pathOf[id(image)] for image in shown),
-                roisToJson(getattr(workspace, "roiCollection")),
+                roisToJson(rois) if rois is not None else {},
+                sessionState() if callable(sessionState) else {},
             )
         )
     return SessionCapture(
@@ -129,6 +136,8 @@ def _describe(workspace: object) -> tuple[str, list[VardaRaster]] | None:
         return "general", [workspace.config.image.get()]
     if isinstance(workspace, DualImageWorkspace):
         return "dual", [workspace.image1, workspace.image2]
+    if isinstance(workspace, SpectralHourglassWorkspace):
+        return "hourglass", [workspace.model.image]
     return None
 
 
@@ -154,7 +163,12 @@ def readSession(path: str | Path) -> SessionState:
     return SessionState(
         tuple(document["images"]),
         tuple(
-            WorkspaceState(entry["kind"], tuple(entry["images"]), entry["rois"])
+            WorkspaceState(
+                entry["kind"],
+                tuple(entry["images"]),
+                entry.get("rois", {}),
+                entry.get("extra", {}),
+            )
             for entry in document["workspaces"]
         ),
     )

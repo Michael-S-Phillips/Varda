@@ -178,7 +178,12 @@ class IdentifyPanel(QWidget):
             endmember = self.model.endmember(self._endmemberId)
             self._matches = self._rank(endmember.id)
             self.titleLabel.setText(f"Best matches for <b>{endmember.name}</b>")
-            if self.model.wavelengths is None:
+            prepared = self.model.prepared
+            if prepared is None:
+                self.titleLabel.setText(
+                    "Run Prepare to compare endmembers with the library."
+                )
+            elif prepared.wavelengths is None:
                 self.titleLabel.setText("Identification needs numeric wavelengths.")
         with QSignalBlocker(self.table):
             self.table.setRowCount(len(self._matches))

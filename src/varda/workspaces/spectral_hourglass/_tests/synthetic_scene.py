@@ -23,7 +23,9 @@ def endmemberSpectra() -> np.ndarray:
     return np.stack([flat, clay, mafic])
 
 
-def syntheticScene(rows=40, cols=36, seed=0) -> tuple[VardaRaster, np.ndarray]:
+def syntheticScene(
+    rows=40, cols=36, seed=0, filePath=None
+) -> tuple[VardaRaster, np.ndarray]:
     """A scene mixed from ``endmemberSpectra`` with pure patches in three
     corners, and the (rows, cols, 3) true abundances. Pixel (0, 0) is nodata."""
     rng = np.random.default_rng(seed)
@@ -43,6 +45,7 @@ def syntheticScene(rows=40, cols=36, seed=0) -> tuple[VardaRaster, np.ndarray]:
         wavelengthUnits="nm",
         nodata=-1.0,
         defaultBands=np.array([60, 40, 10]),
+        filePath=filePath,
     )
     return VardaRaster(source, name="scene"), abundances
 
