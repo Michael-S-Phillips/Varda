@@ -1,5 +1,7 @@
 """Spectral hourglass workspaces are saved in sessions and restored."""
 
+import pytest
+
 from synthetic_scene import PATCHES, syntheticScene
 from varda.common.di_types import ProjectImages
 from varda.session import captureSession, readSession, writeSession
@@ -17,9 +19,7 @@ def _workspace(qtbot):
     ws.runner.synchronous = True
     qtbot.addWidget(ws)
     prepare = ws.pipeline.preparePage
-    prepare.limitBox.setChecked(True)
-    prepare.low.setValue(1100.0)
-    prepare.high.setValue(2500.0)
+    prepare.setWavelengthRange(1100.0, 2500.0)
     prepare.runButton.click()
     ws.pipeline.reducePage.runButton.click()
     ws.pipeline.reducePage.components.set(3)
@@ -69,7 +69,7 @@ def test_restore_reopens_the_hourglass_with_its_settings_and_endmembers(qtbot):
     assert isinstance(restored, SpectralHourglassWorkspace)
     assert [e.name for e in restored.model.endmembers] == list(PATCHES)
     prepare = restored.pipeline.preparePage
-    assert prepare.limitBox.isChecked() and prepare.low.value() == 1100.0
+    assert prepare.wavelengthRange() == pytest.approx((1100.0, 2500.0), abs=1.0)
     assert restored.pipeline.purityPage.maxCandidates.value() == 500
     assert restored.identifyPanel.excludedNames() == ["Chloride"]
 

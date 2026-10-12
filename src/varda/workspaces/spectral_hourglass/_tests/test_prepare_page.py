@@ -1,0 +1,43 @@
+"""Prepare: pick the wavelength window with a range slider."""
+
+import pytest
+
+from synthetic_scene import WAVELENGTHS, syntheticScene
+from varda.workspaces.spectral_hourglass.hourglass_model import HourglassModel
+from varda.workspaces.spectral_hourglass.pipeline_panel import PreparePage, shortUnits
+
+
+@pytest.fixture
+def page(qtbot):
+    image, _ = syntheticScene()
+    widget = PreparePage(HourglassModel(image), run=lambda settings=None: None)
+    qtbot.addWidget(widget)
+    return widget
+
+
+def test_short_units():
+    assert shortUnits("Nanometers") == "nm"
+    assert shortUnits("Micrometers") == "µm"
+    assert shortUnits("nm") == "nm"
+    assert shortUnits("") == ""
+
+
+def test_the_slider_spans_the_image_and_starts_at_full_range(page):
+    lo, hi = page.rangeSlider.value()
+    assert lo == pytest.approx(WAVELENGTHS.min()) and hi == pytest.approx(
+        WAVELENGTHS.max()
+    )
+    assert "80 of 80 bands" in page.bandCountLabel.text()
+    page.runButton.click()
+    assert page.model.settings.wavelengthRange is None  # full range: no limit
+
+
+def test_narrowing_the_slider_limits_the_bands(page):
+    page.setWavelengthRange(1200.0, 2400.0)
+    kept = int(((WAVELENGTHS >= 1200.0) & (WAVELENGTHS <= 2400.0)).sum())
+    assert f"{kept} of 80 bands" in page.bandCountLabel.text()
+    assert "nm" in page.bandCountLabel.text()
+    page.runButton.click()
+    assert page.model.settings.wavelengthRange == pytest.approx(
+        (1200.0, 2400.0), abs=1.0
+    )

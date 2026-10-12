@@ -240,7 +240,9 @@ class IdentifyPanel(QWidget):
         if self._excluded:
             menu.addSeparator()
             menu.addAction("Restore all", self.restoreAll)
-        menu.popup(self.excludedButton.mapToGlobal(self.excludedButton.rect().bottomLeft()))
+        menu.popup(
+            self.excludedButton.mapToGlobal(self.excludedButton.rect().bottomLeft())
+        )
 
     # --- matching -----------------------------------------------------------------------
 

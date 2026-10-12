@@ -451,9 +451,7 @@ class SpectralHourglassWorkspace(QMainWindow):
         prepare = self.pipeline.preparePage
         window = settings.get("wavelengthRange")
         if window is not None:
-            prepare.limitBox.setChecked(True)
-            prepare.low.setValue(float(window[0]))
-            prepare.high.setValue(float(window[1]))
+            prepare.setWavelengthRange(float(window[0]), float(window[1]))
         prepare.iovfBox.setChecked(
             bool(settings.get("useIovf", prepare.iovfBox.isChecked()))
         )
