@@ -60,6 +60,9 @@ class EndmemberTable(QWidget):
         self.mergeButton.clicked.connect(self._mergeSelected)
         self.deleteButton = QPushButton("Delete")
         self.deleteButton.clicked.connect(self._deleteSelected)
+        self.undoButton = QPushButton("Undo")
+        self.undoButton.setToolTip("Undo the last endmember edit (Ctrl+Z)")
+        self.undoButton.clicked.connect(self.model.undo)
         self.suggestCount = QSpinBox()
         self.suggestCount.setRange(2, 30)
         self.suggestCount.setValue(5)
@@ -82,7 +85,12 @@ class EndmemberTable(QWidget):
         exportButton.clicked.connect(self._exportSpectra)
 
         edit = QHBoxLayout()
-        for button in (self.addButton, self.mergeButton, self.deleteButton):
+        for button in (
+            self.addButton,
+            self.mergeButton,
+            self.deleteButton,
+            self.undoButton,
+        ):
             edit.addWidget(button)
         edit.addStretch()
         edit.addWidget(QLabel("Suggest"))
@@ -104,6 +112,7 @@ class EndmemberTable(QWidget):
     # --- rows ---------------------------------------------------------------------
 
     def refresh(self) -> None:
+        self.undoButton.setEnabled(self.model.canUndo())
         endmembers = self.model.endmembers
         with QSignalBlocker(self.table):
             self.table.setRowCount(len(endmembers))

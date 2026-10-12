@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import numpy as np
 import PyQt6Ads as ads
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QKeySequence, QShortcut
 from PyQt6.QtWidgets import QMainWindow, QMessageBox, QProgressBar, QStatusBar
 
 from varda.analysis.linear_algebra import unflatten
@@ -72,6 +73,9 @@ class SpectralHourglassWorkspace(QMainWindow):
         )
         self._buildDocks()
         self._buildStatusBar()
+        self.undoShortcut = QShortcut(QKeySequence.StandardKey.Undo, self)
+        self.undoShortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.undoShortcut.activated.connect(self.model.undo)
         self._connect()
         self._updateHint()
 

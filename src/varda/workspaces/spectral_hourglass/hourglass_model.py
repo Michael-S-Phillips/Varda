@@ -14,6 +14,7 @@ indices (row * width + col), so classes survive re-runs of earlier steps.
 
 from __future__ import annotations
 
+import functools
 from collections.abc import Callable, Iterable, Sequence
 from enum import Enum
 
@@ -82,6 +83,27 @@ class StepState(Enum):
     STALE = "needs re-running"
 
 
+# Endmember edits remembered for undo
+UNDO_LIMIT = 100
+
+
+def _undoable(method):
+    """Remember the endmembers before a top-level edit so ``undo`` can restore
+    them (edits made inside another edit are part of it)."""
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        if self._editDepth == 0:
+            self._pushUndo()
+        self._editDepth += 1
+        try:
+            return method(self, *args, **kwargs)
+        finally:
+            self._editDepth -= 1
+
+    return wrapper
+
+
 # Which computed steps each step's result depends on
 _DEPENDS_ON: dict[Step, tuple[Step, ...]] = {
     Step.REDUCE: (Step.PREPARE,),
@@ -137,6 +159,8 @@ class HourglassModel:
         self.endmembers: list[Endmember] = []
         self._nextId = 1
         self._validFlat: np.ndarray | None = None  # flat indices of valid pixels
+        self._undo: list[tuple[int, list[Endmember]]] = []
+        self._editDepth = 0
 
     # --- state ---------------------------------------------------------------
 
@@ -362,6 +386,7 @@ class HourglassModel:
                 return endmember
         raise KeyError(endmemberId)
 
+    @_undoable
     def addEndmember(
         self, name: str | None = None, color: str | None = None
     ) -> Endmember:
@@ -378,24 +403,29 @@ class HourglassModel:
         self._endmembersChanged()
         return endmember
 
+    @_undoable
     def removeEndmember(self, endmemberId: int) -> None:
         self.endmembers = [e for e in self.endmembers if e.id != endmemberId]
         self._endmembersChanged()
 
+    @_undoable
     def renameEndmember(self, endmemberId: int, name: str) -> None:
         self.endmember(endmemberId).name = (
             name.strip() or self.endmember(endmemberId).name
         )
         self._endmembersChanged()
 
+    @_undoable
     def setIdentification(self, endmemberId: int, text: str) -> None:
         self.endmember(endmemberId).identification = text
         self._endmembersChanged()
 
+    @_undoable
     def recolorEndmember(self, endmemberId: int, color: str) -> None:
         self.endmember(endmemberId).color = color
         self._endmembersChanged()
 
+    @_undoable
     def assignPixels(
         self, endmemberId: int, pixels: Iterable[int], *, add: bool = True
     ) -> None:
@@ -412,6 +442,7 @@ class HourglassModel:
             target.pixels = np.setdiff1d(target.pixels, chosen)
         self._endmembersChanged()
 
+    @_undoable
     def mergeEndmembers(self, endmemberIds: Sequence[int]) -> Endmember:
         """Merge into the first of ``endmemberIds`` (keeping its name and colour)."""
         keep = self.endmember(endmemberIds[0])
@@ -421,6 +452,7 @@ class HourglassModel:
         self._endmembersChanged()
         return keep
 
+    @_undoable
     def suggestEndmembers(self, count: int) -> list[Endmember]:
         """Up to ``count`` new endmembers, one per corner of the candidate cloud
         in MNF space, each holding the candidates close to its corner (mixtures
@@ -449,6 +481,22 @@ class HourglassModel:
             return np.full(cube.shape[2], np.nan)
         return flat.mean(axis=0)
 
+    def _pushUndo(self) -> None:
+        snapshot = [attrs.evolve(e, pixels=e.pixels.copy()) for e in self.endmembers]
+        self._undo.append((self._nextId, snapshot))
+        del self._undo[:-UNDO_LIMIT]
+
+    def canUndo(self) -> bool:
+        return bool(self._undo)
+
+    def undo(self) -> bool:
+        """Restore the endmembers as they were before the last edit."""
+        if not self._undo:
+            return False
+        self._nextId, self.endmembers = self._undo.pop()
+        self._endmembersChanged()
+        return True
+
     def usableEndmembers(self) -> list[Endmember]:
         return [e for e in self.endmembers if e.pixels.size]
 
@@ -472,6 +520,7 @@ class HourglassModel:
             ],
         }
 
+    @_undoable
     def endmembersFromJson(self, data: dict) -> None:
         """Replace the endmembers with those saved by ``endmembersToJson``."""
         if list(data.get("shape", self.shape)) != list(self.shape):

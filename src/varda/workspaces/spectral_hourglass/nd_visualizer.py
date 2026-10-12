@@ -308,7 +308,9 @@ class NdVisualizer(QWidget):
     def _fitView(self) -> None:
         if not self._data.size or not self._dims:
             return
-        radius = float(np.max(np.linalg.norm(self._data[:, self._dims], axis=1))) * 1.05
+        # frame the bulk of the cloud, not the farthest outlier
+        norms = np.linalg.norm(self._data[:, self._dims], axis=1)
+        radius = float(np.percentile(norms, 99.5)) * 1.15
         radius = radius or 1.0
         self.viewBox.setRange(
             xRange=(-radius, radius), yRange=(-radius, radius), padding=0

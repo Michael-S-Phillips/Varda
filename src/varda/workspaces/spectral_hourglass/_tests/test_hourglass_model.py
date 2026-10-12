@@ -222,3 +222,33 @@ def test_endmembers_round_trip_through_json():
     ]
     assert [e.color for e in fresh.endmembers] == [e.color for e in model.endmembers]
     assert fresh.endmembers[1].identification == "Kaolinite KGa-1 (0.92)"
+
+
+def test_endmember_edits_can_be_undone():
+    model = _throughPpi()
+    assert not model.canUndo()
+    a = model.addEndmember()
+    model.assignPixels(a.id, [1, 2, 3])
+    model.assignPixels(a.id, [4, 5])
+    model.renameEndmember(a.id, "Kaolinite")
+
+    assert model.undo()
+    assert model.endmember(a.id).name == "Endmember 1"
+    assert model.undo()
+    assert list(model.endmember(a.id).pixels) == [1, 2, 3]
+    assert model.undo() and model.endmember(a.id).pixels.size == 0
+    assert model.undo() and model.endmembers == []
+    assert not model.canUndo() and not model.undo()
+
+
+def test_undo_restores_a_merge_and_notifies():
+    model = _throughPpi()
+    a, b = model.addEndmember(), model.addEndmember()
+    model.assignPixels(a.id, [1])
+    model.assignPixels(b.id, [2])
+    seen = []
+    model.sigEndmembersChanged.connect(lambda: seen.append(True))
+    model.mergeEndmembers([a.id, b.id])
+    model.undo()
+    assert [list(e.pixels) for e in model.endmembers] == [[1], [2]]
+    assert len(seen) == 2

@@ -142,3 +142,14 @@ def test_library_preview_is_plotted_scaled(workspace):
     workspace.identifyPanel.table.cellDoubleClicked.emit(0, 1)
     names = [c.plotDataItem.name() for c in workspace.spectraPlot.plots]
     assert any(name.endswith("(scaled)") for name in names)
+
+
+def test_ctrl_z_undoes_a_lasso(workspace, qtbot):
+    _runThroughPpi(workspace)
+    big = 1e6
+    workspace.nd.selectPolygon(
+        [(-big, -big), (big, -big), (big, big), (-big, big)], True
+    )
+    assert workspace.model.endmembers[0].pixels.size > 0
+    workspace.undoShortcut.activated.emit()
+    assert all(e.pixels.size == 0 for e in workspace.model.endmembers)

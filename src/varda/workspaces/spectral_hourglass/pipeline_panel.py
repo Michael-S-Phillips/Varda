@@ -37,6 +37,9 @@ from varda.workspaces.spectral_hourglass.hourglass_model import (
 from varda.workspaces.spectral_hourglass.identify_panel import IdentifyPanel
 from varda.workspaces.spectral_hourglass.task_runner import TaskRunner
 
+# Images with at least this many bands get the spike filter by default
+HYPERSPECTRAL_BANDS = 100
+
 _MARKS = {StepState.NOT_RUN: "○", StepState.DONE: "✓", StepState.STALE: "⚠"}
 
 
@@ -75,7 +78,14 @@ class PreparePage(QWidget):
             self.high.setValue(float(np.nanmax(numeric)))
         else:
             self.limitBox.setEnabled(False)
-        self.iovfBox = QCheckBox("Remove spikes with IOVF (slow on big scenes)")
+        self.iovfBox = QCheckBox("Remove spikes with IOVF")
+        self.iovfBox.setToolTip(
+            "Iterative outlier voting filter. Spikes otherwise pose as pure "
+            "pixels and add noise to endmember spectra. Takes about a minute "
+            "for a full CRISM scene."
+        )
+        # On by default for hyperspectral data, where spikes are the norm
+        self.iovfBox.setChecked(image.bandCount >= HYPERSPECTRAL_BANDS)
         self.runButton = _primary("Prepare")
         self.runButton.clicked.connect(lambda: run(self._settings()))
         self.summary = QLabel()

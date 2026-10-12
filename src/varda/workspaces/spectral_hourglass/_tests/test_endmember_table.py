@@ -63,3 +63,11 @@ def test_suggest_creates_groups_from_the_candidates(qtbot):
 def test_identification_column(table):
     table.model.setIdentification(table.model.endmembers[1].id, "Kaolinite (0.91)")
     assert table.table.item(1, 3).text() == "Kaolinite (0.91)"
+
+
+def test_undo_button_reverts_the_last_edit(table):
+    assert table.undoButton.isEnabled() == table.model.canUndo()
+    table.addButton.click()
+    assert table.table.rowCount() == 4 and table.undoButton.isEnabled()
+    table.undoButton.click()
+    assert table.table.rowCount() == 3
