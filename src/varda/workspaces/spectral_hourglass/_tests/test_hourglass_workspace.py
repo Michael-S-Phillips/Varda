@@ -1,0 +1,161 @@
+"""The spectral hourglass workspace, driven end to end."""
+
+import pytest
+
+from synthetic_scene import PATCHES, WAVELENGTHS, endmemberSpectra, syntheticScene
+from varda.analysis.spectral_library import LibrarySpectrum
+from varda.workspaces.spectral_hourglass.hourglass_model import (
+    MapMethod,
+    Step,
+    StepState,
+)
+from varda.workspaces.spectral_hourglass.hourglass_workspace import (
+    SpectralHourglassWorkspace,
+)
+from varda.workspaces.spectral_hourglass.scene_view import Overlay
+
+
+@pytest.fixture
+def workspace(qtbot):
+    image, _ = syntheticScene()
+    library = [
+        LibrarySpectrum(name, WAVELENGTHS, spectrum * 1.1)
+        for name, spectrum in zip(["Flat", "Kaolinite", "Pyroxene"], endmemberSpectra())
+    ]
+    images = [image]
+    ws = SpectralHourglassWorkspace(image, images, library=library)
+    ws.runner.synchronous = True
+    qtbot.addWidget(ws)
+    return ws
+
+
+def _runThroughPpi(ws):
+    ws.pipeline.preparePage.runButton.click()
+    ws.pipeline.reducePage.runButton.click()
+    ws.pipeline.reducePage.components.set(3)
+    page = ws.pipeline.purityPage
+    page.iterations.setValue(3000)
+    page.threshold.setValue(0.5)
+    page.maxCandidates.setValue(300)
+    page.runButton.click()
+
+
+def test_steps_unlock_in_order(workspace):
+    pipeline = workspace.pipeline
+    assert not pipeline.reducePage.runButton.isEnabled()
+    pipeline.preparePage.runButton.click()
+    assert workspace.model.state(Step.PREPARE) is StepState.DONE
+    assert pipeline.reducePage.runButton.isEnabled()
+    assert pipeline.itemText(0).startswith("✓")
+
+
+def test_mnf_offers_component_overlays(workspace):
+    workspace.pipeline.preparePage.runButton.click()
+    workspace.pipeline.reducePage.runButton.click()
+    assert workspace.pipeline.reducePage.plot is not None
+    workspace.scene.showOverlay(Overlay.MNF)
+    assert workspace.scene.currentOverlay() == Overlay.MNF
+
+
+def test_ppi_fills_the_nd_view_and_shows_the_ppi_overlay(workspace):
+    _runThroughPpi(workspace)
+    assert (
+        workspace.nd.projected().shape[0] == workspace.model.candidatePixels().size > 0
+    )
+    assert workspace.scene.currentOverlay() == Overlay.PPI
+    assert workspace.nd.activeDims() == [0, 1, 2]
+
+
+def test_lasso_puts_pixels_in_a_new_endmember_and_plots_its_spectrum(workspace):
+    _runThroughPpi(workspace)
+    big = 1e6
+    workspace.nd.selectPolygon(
+        [(-big, -big), (big, -big), (big, big), (-big, big)], True
+    )
+    model = workspace.model
+    assert len(model.endmembers) == 1
+    assert model.endmembers[0].pixels.size == model.candidatePixels().size
+    assert workspace.model.state(Step.ENDMEMBERS) is StepState.DONE
+    assert len(workspace.spectraPlot.plots) == 1
+
+
+def test_changing_components_marks_purity_stale_in_the_titles(workspace):
+    _runThroughPpi(workspace)
+    workspace.pipeline.reducePage.components.set(2)
+    assert "needs re-running" in workspace.pipeline.itemText(2)
+
+
+def test_suggest_identify_and_map_end_to_end(workspace):
+    _runThroughPpi(workspace)
+    model = workspace.model
+    for name, (r0, c0) in PATCHES.items():
+        endmember = model.addEndmember(name)
+        model.assignPixels(
+            endmember.id,
+            [r * 36 + c for r in range(r0, r0 + 4) for c in range(c0, c0 + 4)],
+        )
+    workspace.identifyPanel.identifyAll()
+    assert [e.identification.split(" (")[0] for e in model.endmembers] == [
+        "Flat",
+        "Kaolinite",
+        "Pyroxene",
+    ]
+
+    page = workspace.pipeline.mapPage
+    page.buttons[MapMethod.SAM].setChecked(True)
+    page.runButton.click()
+    result = workspace.projectImages[-1]
+    assert result.name == "scene SAM"
+    assert workspace.scene.currentOverlay() == Overlay.MAP
+    assert model.state(Step.MAP) is StepState.DONE
+
+    page.buttons[MapMethod.MTMF].setChecked(True)
+    page.runButton.click()
+    assert workspace.projectImages[-1].name == "scene MTMF"
+    assert page.review.isVisibleTo(page)
+    page.review.endmemberBox.setCurrentIndex(1)
+    page.review.setThresholds(minScore=0.8, maxInfeasibility=50.0)
+    assert workspace.scene.currentOverlay() == Overlay.DETECTIONS
+    page.review.sigAddToProject.emit(page.review.detectionsRaster())
+    assert workspace.projectImages[-1].name.startswith("scene MTMF detections")
+
+
+def test_hovering_a_point_marks_the_pixel_and_plots_it(workspace):
+    _runThroughPpi(workspace)
+    pixel = int(workspace.model.candidatePixels()[0])
+    workspace.nd.sigPointHovered.emit(pixel)
+    assert workspace.scene.hoverItem.data.size == 1
+    assert any(c.plotDataItem.name() == "Pixel" for c in workspace.spectraPlot.plots)
+
+
+def test_mnf_and_ppi_can_join_the_project(workspace):
+    _runThroughPpi(workspace)
+    workspace.pipeline.reducePage.addButton.click()
+    workspace.pipeline.purityPage.addButton.click()
+    names = [image.name for image in workspace.projectImages]
+    assert names[-2:] == ["scene MNF", "scene PPI"]
+    assert workspace.projectImages[-2].bandCount == 3
+
+
+def test_library_preview_is_plotted_scaled(workspace):
+    _runThroughPpi(workspace)
+    model = workspace.model
+    endmember = model.addEndmember("clay")
+    model.assignPixels(
+        endmember.id, [r * 36 + c for r in range(2, 6) for c in range(30, 34)]
+    )
+    workspace.endmemberTable.setActiveEndmember(endmember.id)
+    workspace.identifyPanel.table.cellDoubleClicked.emit(0, 1)
+    names = [c.plotDataItem.name() for c in workspace.spectraPlot.plots]
+    assert any(name.endswith("(scaled)") for name in names)
+
+
+def test_ctrl_z_undoes_a_lasso(workspace, qtbot):
+    _runThroughPpi(workspace)
+    big = 1e6
+    workspace.nd.selectPolygon(
+        [(-big, -big), (big, -big), (big, big), (-big, big)], True
+    )
+    assert workspace.model.endmembers[0].pixels.size > 0
+    workspace.undoShortcut.activated.emit()
+    assert all(e.pixels.size == 0 for e in workspace.model.endmembers)

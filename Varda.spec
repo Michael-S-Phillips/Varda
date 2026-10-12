@@ -6,7 +6,7 @@ a = Analysis(
     ['src/varda/main.py'],
     pathex=[],
     binaries=[],
-    datas=collect_data_files('rasterio') + collect_data_files('pyproj') + [('resources', 'resources')], # bundles GDAL data shipped in rasterio (and data from pyproj)
+    datas=collect_data_files('rasterio') + collect_data_files('pyproj') + [('resources', 'resources'), ('librarySpectra', 'librarySpectra')], # bundles GDAL data shipped in rasterio (and data from pyproj)
     hiddenimports=collect_submodules('rasterio'),
     hookspath=[],
     hooksconfig={},

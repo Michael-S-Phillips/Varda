@@ -19,6 +19,8 @@ from affine import Affine
 import affine as affine_module
 from pyproj import CRS
 
+from varda.utilities.proj_lock import PROJ_LOCK
+
 from .data_source import DataSource
 from .registry import register_data_source
 
@@ -209,6 +211,14 @@ class RasterioDataSource(DataSource):
 
     @property
     def crs(self) -> CRS | None:
+        # Built once: every access used to create a new pyproj CRS, i.e. PROJ
+        # calls from whichever thread asked (see utilities/proj_lock.py)
+        with PROJ_LOCK:
+            if not hasattr(self, "_crs"):
+                self._crs = self._readCrs()
+            return self._crs
+
+    def _readCrs(self) -> CRS | None:
         src_crs = self._src.crs
         if src_crs is None:
             return None

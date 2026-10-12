@@ -20,6 +20,8 @@ from PyQt6.QtWidgets import (
     QGraphicsItem,
     QLabel,
     QListWidget,
+    QSizePolicy,
+    QToolButton,
     QWidget,
 )
 import pyqtgraph as pg
@@ -52,6 +54,7 @@ from varda.common.parameter import (
     ColorParameter,
     BoolParameter,
     EnumParameter,
+    IntParameter,
 )
 
 CURVE_MIME_TYPE = "application/x-varda-curve"
@@ -109,6 +112,7 @@ class Curve(QObject):
         # Extra graphics that belong to this curve (e.g. a +/- std-dev band):
         # they follow its Y offset/scale and are removed with it.
         self.bandItems: list[QGraphicsItem] = []
+        self._pointSize: int | None = None  # None: samples not marked
 
         self.config.sigParameterChanged.connect(self.onConfigChanged)
 
@@ -117,6 +121,7 @@ class Curve(QObject):
     def onConfigChanged(self):
         pen = pg.mkPen(color=self.config.color.value, width=self.config.width.value)
         self.plotDataItem.setPen(pen)
+        self._applyPointStyle()
         # translate-then-scale composes to y -> y * scale + offset, matching
         # displayedData() and the view limits. (scale-then-translate would
         # give scale * (y + offset).)
@@ -128,6 +133,20 @@ class Curve(QObject):
         self.plotDataItem.setTransform(transform)
         for item in self.bandItems:
             item.setTransform(transform)
+
+    def setDataPoints(self, size: int | None) -> None:
+        """Mark each sample with a dot of ``size`` px, or none (``None``)."""
+        self._pointSize = size
+        self._applyPointStyle()
+
+    def _applyPointStyle(self) -> None:
+        if self._pointSize is None:
+            self.plotDataItem.setSymbol(None)
+            return
+        self.plotDataItem.setSymbol("o")
+        self.plotDataItem.setSymbolSize(self._pointSize)
+        self.plotDataItem.setSymbolBrush(pg.mkBrush(self.config.color.value))
+        self.plotDataItem.setSymbolPen(None)
 
     def displayedData(self) -> tuple[np.ndarray, np.ndarray]:
         """The curve's data as shown, i.e. with its Y scale and offset applied."""
@@ -200,6 +219,15 @@ class ViewConfig(ParameterGroup):
         "uses the ranges below.",
     )
     showLegend = BoolParameter("Show Legend", True, "Show the curve legend.")
+    showDataPoints = BoolParameter(
+        "Show Data Points",
+        False,
+        "Mark each wavelength that has measured channel data; the line between "
+        "marks is only interpolation.",
+    )
+    dataPointSize = IntParameter(
+        "Data Point Size", 6, range=(2, 20), description="Marker size in pixels"
+    )
 
 
 class AppearanceConfig(ParameterGroup):
@@ -460,12 +488,39 @@ class VardaPlotWidget(QWidget):
             SectionBox("Appearance", self.appearanceConfig.createWidget())
         )
         self._sidebar = sidebar
+        self.sidebarArea = VerticalScrollArea(sidebar)
+        # A slim arrow beside the plot folds the settings away in narrow docks
+        self.sidebarToggle = QToolButton()
+        self.sidebarToggle.setCheckable(True)
+        self.sidebarToggle.setChecked(True)
+        self.sidebarToggle.setAutoRaise(True)
+        self.sidebarToggle.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
+        )
+        self.sidebarToggle.toggled.connect(self._onSidebarToggled)
+        self._onSidebarToggled(True)
 
         self.setLayout(
             HBoxBuilder()
             .withWidget(self.gv, stretch=2)
-            .withWidget(VerticalScrollArea(sidebar))
+            .withWidget(self.sidebarToggle)
+            .withWidget(self.sidebarArea)
         )
+
+    def _onSidebarToggled(self, visible: bool) -> None:
+        self.sidebarArea.setVisible(visible)
+        self.sidebarToggle.setArrowType(
+            Qt.ArrowType.RightArrow if visible else Qt.ArrowType.LeftArrow
+        )
+        self.sidebarToggle.setToolTip(
+            "Hide the plot settings" if visible else "Show the plot settings"
+        )
+
+    def setSidebarVisible(self, visible: bool) -> None:
+        self.sidebarToggle.setChecked(visible)
+
+    def isSidebarVisible(self) -> bool:
+        return self.sidebarToggle.isChecked()
 
     def insertSidebarSection(self, index: int, section: QWidget) -> None:
         """Insert a section into the settings sidebar (0 = top)."""
@@ -483,6 +538,8 @@ class VardaPlotWidget(QWidget):
 
     def onViewParamsChanged(self):
         self.legend.setVisible(self.viewConfig.showLegend.value)
+        for curve in self.plots:
+            curve.setDataPoints(self._dataPointSize())
         mode = self.viewConfig.rangeMode.value
         if mode is RangeMode.AUTO:
             self.viewBox.setAutoVisible(y=False)
@@ -686,14 +743,23 @@ class VardaPlotWidget(QWidget):
         :param kwargs: Description
         """
         curve = Curve.fromData(x, y, color.toQColor(), **kwargs)
+        self._adoptCurve(curve)
+        return curve
+
+    def _adoptCurve(self, curve: Curve) -> None:
         curve.setClickable(True)
         curve.sigClicked.connect(self.selectPlot)
         # offset/scale changes shift visible y-bounds, so refresh limits.
         curve.config.sigParameterChanged.connect(self._updateViewLimits)
+        curve.setDataPoints(self._dataPointSize())
         self.plots.append(curve)
         self.plotItem.addItem(curve.plotDataItem)
         self._updateViewLimits()
-        return curve
+
+    def _dataPointSize(self) -> int | None:
+        if not self.viewConfig.showDataPoints.value:
+            return None
+        return int(self.viewConfig.dataPointSize.value)
 
     def keyPressEvent(self, a0) -> None:
         # Backspace / Delete remove the selected curve
@@ -782,13 +848,7 @@ class VardaPlotWidget(QWidget):
         if data.get("source_id") == id(self):
             event.ignore()
             return
-        curve = Curve.deserialize(data)
-        curve.setClickable(True)
-        curve.sigClicked.connect(self.selectPlot)
-        curve.config.sigParameterChanged.connect(self._updateViewLimits)
-        self.plots.append(curve)
-        self.plotItem.addItem(curve.plotDataItem)
-        self._updateViewLimits()
+        self._adoptCurve(Curve.deserialize(data))
         event.accept()
 
     def plotWithFill(self, x, y, yLower, yUpper, fillBrush, **kwargs) -> Curve:

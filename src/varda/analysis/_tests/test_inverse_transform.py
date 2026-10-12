@@ -2,6 +2,7 @@
 transforms keep everything and carry what an inverse needs; the Inverse
 Transform step shows the eigenvalues and rebuilds the image from the first N."""
 
+from pathlib import Path
 import numpy as np
 import pytest
 
@@ -97,6 +98,16 @@ def test_ica_inverse_reconstructs_the_data():
 def test_suggested_components():
     # MNF eigenvalues are SNR + 1: components near 1 are noise
     assert suggestedComponents(np.array([50.0, 20.0, 5.0, 1.5, 1.1, 1.0]), "MNF") == 3
+
+
+def test_mnf_suggestion_stops_at_the_elbow_when_the_noise_is_not_white():
+    """Real CRISM MNF eigenvalues (no spike filter): the floor sits near 6, so
+    "above 2" keeps nearly every component; the elbow of the curve does not."""
+    eigenvalues = np.loadtxt(
+        Path(__file__).parent / "data" / "crism_mnf_eigenvalues.txt"
+    )
+    assert int(np.sum(eigenvalues > 2.0)) > 200
+    assert 8 <= suggestedComponents(eigenvalues, "MNF") <= 20
     # PCA/ICA: enough components for 99% of the variance
     assert suggestedComponents(np.array([0.7, 0.2, 0.08, 0.015, 0.005]), "PCA") == 4
     assert suggestedComponents(np.array([1.0]), "PCA") == 1

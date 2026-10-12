@@ -8,6 +8,9 @@ from varda.workspaces.dual_image_workspace import NewDualImageWorkspaceDialog
 from varda.workspaces.general_image_analysis import (
     NewGeneralImageAnalysisWorkspaceDialog,
 )
+from varda.workspaces.spectral_hourglass.new_hourglass_dialog import (
+    NewSpectralHourglassDialog,
+)
 
 
 def newDualImageWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
@@ -16,6 +19,12 @@ def newDualImageWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
 
 def newGeneralAnalysisWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
     NewGeneralImageAnalysisWorkspaceDialog(images).connectOnAccept(
+        mainGui.addTab
+    ).open()
+
+
+def newSpectralHourglassWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
+    NewSpectralHourglassDialog(images, parent=mainGui).connectOnAccept(
         mainGui.addTab
     ).open()
 
@@ -38,6 +47,17 @@ WORKSPACE_ACTIONS: list[Action] = [
         callback=newGeneralAnalysisWorkspace,
         enablement=EXPR_HAS_IMAGES,
         menus=[MenuRule(id=MenuId.WORKSPACE, group=MenuGroup.WORKSPACE_NEW, order=2)],
+    ),
+    Action(
+        id="varda.workspace.new_spectral_hourglass",
+        title="New Spectral Hourglass Workspace…",
+        tooltip=(
+            "Find endmembers (MNF, pixel purity, n-D visualizer), identify them "
+            "against a spectral library, and map them across the scene"
+        ),
+        callback=newSpectralHourglassWorkspace,
+        enablement=EXPR_HAS_IMAGES,
+        menus=[MenuRule(id=MenuId.WORKSPACE, group=MenuGroup.WORKSPACE_NEW, order=3)],
     ),
     Action(
         id="varda.workspace.close",

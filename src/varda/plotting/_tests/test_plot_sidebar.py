@@ -69,3 +69,13 @@ def test_fit_to_data_frames_the_curves_and_leaves_auto_range_off(qtbot):
     assert widget.viewConfig.rangeMode.value is RangeMode.MANUAL
     # manual range boxes reflect the fitted view
     assert widget.rangeConfig.viewRangeX.value.x <= 0.0
+
+
+def test_sidebar_can_be_collapsed_with_its_toggle(qtbot):
+    widget = VardaPlotWidget()
+    qtbot.addWidget(widget)
+    assert widget.isSidebarVisible()
+    widget.sidebarToggle.click()
+    assert not widget.isSidebarVisible()
+    widget.setSidebarVisible(True)
+    assert widget.isSidebarVisible() and widget.sidebarToggle.isChecked()
