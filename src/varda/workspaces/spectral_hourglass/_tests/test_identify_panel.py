@@ -3,7 +3,12 @@
 import pytest
 
 from synthetic_scene import WAVELENGTHS, endmemberSpectra, modelWithEndmembers
-from varda.analysis.spectral_library import LibrarySpectrum
+from varda.analysis.spectral_library import (
+    LIBRARY_FORMAT_HELP,
+    MICA_LIBRARY_NAME,
+    USGS_LIBRARY_NAME,
+    LibrarySpectrum,
+)
 from varda.workspaces.spectral_hourglass.identify_panel import IdentifyPanel
 
 
@@ -56,3 +61,25 @@ def test_double_clicking_a_match_previews_it(panel, qtbot):
 def test_no_endmember_clears_the_table(panel):
     panel.setEndmember(None)
     assert panel.table.rowCount() == 0
+
+
+def test_bundled_libraries_are_offered_and_crism_images_start_with_mica(qtbot):
+    model = modelWithEndmembers()
+    model.image._name = "frt00011a2e_07_if164j_trr3"
+    widget = IdentifyPanel(model)
+    qtbot.addWidget(widget)
+    names = [widget.libraryBox.itemData(i) for i in range(widget.libraryBox.count())]
+    assert names == [MICA_LIBRARY_NAME, USGS_LIBRARY_NAME]
+    assert widget.libraryBox.currentData() == MICA_LIBRARY_NAME
+
+
+def test_other_images_start_with_the_usgs_library(qtbot):
+    widget = IdentifyPanel(modelWithEndmembers())
+    qtbot.addWidget(widget)
+    assert widget.libraryBox.currentData() == USGS_LIBRARY_NAME
+
+
+def test_library_help_explains_the_formats(panel):
+    for word in ("CSV", "ENVI", "USGS", "wavelength", "spectra names"):
+        assert word in LIBRARY_FORMAT_HELP
+    assert panel.helpButton.toolTip()

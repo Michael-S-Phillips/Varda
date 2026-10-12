@@ -2,8 +2,11 @@ from pathlib import Path
 
 import numpy as np
 
+from varda.utilities.resources import resource_path
+
 _MISSING_VALUE_THRESHOLD = -1e30
-DEFAULT_LIBRARY_PATH = Path(__file__).parent.parent.parent.parent / "librarySpectra"
+# Bundled with packaged builds too (see Varda.spec)
+DEFAULT_LIBRARY_PATH = Path(resource_path("librarySpectra"))
 
 
 def _readDataFile(path: Path) -> np.ndarray:

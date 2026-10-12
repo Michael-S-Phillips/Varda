@@ -22,17 +22,21 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.analysis.spectral_library import (
+    LIBRARY_FORMAT_HELP,
+    MICA_LIBRARY_NAME,
+    USGS_LIBRARY_NAME,
     LibraryMatch,
     LibrarySpectrum,
+    loadBundledLibraries,
     loadLibrary,
-    loadUsgsLibrary,
     rankLibrary,
 )
 from varda.workspaces.spectral_hourglass.hourglass_model import HourglassModel
 
 _COLUMNS = ["#", "Library spectrum", "Score", "Angle", "Fit RMS"]
 _FLAG_COLORS = {"best": "#2e7d32", "close": "#9e9d24", "far": "#00000000"}
-_BUNDLED = "Bundled USGS minerals"
+# CRISM product IDs start with the observation type (FRT, HRL, HRS, FRS, ATO, ...)
+_CRISM_PREFIXES = ("frt", "hrl", "hrs", "frs", "ato", "ats", "msp", "hsp", "fft")
 
 
 class IdentifyPanel(QWidget):
@@ -55,12 +59,17 @@ class IdentifyPanel(QWidget):
         if library is not None:
             self._addLibrary("Library", library)
         else:
-            self._addLibrary(_BUNDLED, loadUsgsLibrary())
+            for name, spectra in loadBundledLibraries().items():
+                self._addLibrary(name, spectra)
         loadButton = QPushButton("Load Library…")
         loadButton.setToolTip(
             "An ENVI spectral library (.sli), a CSV, or a folder of USGS spectra"
         )
         loadButton.clicked.connect(self._loadLibrary)
+        self.helpButton = QPushButton("?")
+        self.helpButton.setFixedWidth(28)
+        self.helpButton.setToolTip("How to prepare a spectral library to load")
+        self.helpButton.clicked.connect(self._showLibraryHelp)
 
         self.windowBox = QCheckBox("Only")
         self.windowBox.setToolTip("Compare only within this wavelength window")
@@ -100,6 +109,7 @@ class IdentifyPanel(QWidget):
         libraryRow = QHBoxLayout()
         libraryRow.addWidget(self.libraryBox, stretch=1)
         libraryRow.addWidget(loadButton)
+        libraryRow.addWidget(self.helpButton)
         window = QHBoxLayout()
         window.addWidget(self.windowBox)
         window.addWidget(self.windowLow)
@@ -120,14 +130,32 @@ class IdentifyPanel(QWidget):
         layout.addLayout(buttons)
 
         model.sigEndmembersChanged.connect(self.refresh)
+        if library is None:
+            self._selectDefaultLibrary()
 
     # --- libraries --------------------------------------------------------------------
 
     def _addLibrary(self, name: str, spectra: list[LibrarySpectrum]) -> None:
+        """Add a library and make it current (without refreshing)."""
         self._libraries[name] = spectra
         with QSignalBlocker(self.libraryBox):
             self.libraryBox.addItem(f"{name} ({len(spectra)})", name)
-        self.libraryBox.setCurrentIndex(self.libraryBox.count() - 1)
+            self.libraryBox.setCurrentIndex(self.libraryBox.count() - 1)
+
+    def _selectDefaultLibrary(self) -> None:
+        """MICA for CRISM products (by their product-ID prefix), USGS otherwise."""
+        isCrism = self.model.image.name.lower().startswith(_CRISM_PREFIXES)
+        wanted = MICA_LIBRARY_NAME if isCrism else USGS_LIBRARY_NAME
+        index = self.libraryBox.findData(wanted)
+        if index >= 0:
+            self.libraryBox.setCurrentIndex(index)
+
+    def _showLibraryHelp(self) -> None:
+        box = QMessageBox(self)
+        box.setWindowTitle("Preparing a spectral library")
+        box.setTextFormat(Qt.TextFormat.RichText)
+        box.setText(LIBRARY_FORMAT_HELP)
+        box.open()
 
     def _loadLibrary(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -146,6 +174,7 @@ class IdentifyPanel(QWidget):
             )
             return
         self._addLibrary(path.rsplit("/", 1)[-1], spectra)
+        self.refresh()
 
     def library(self) -> list[LibrarySpectrum]:
         return self._libraries.get(self.libraryBox.currentData(), [])

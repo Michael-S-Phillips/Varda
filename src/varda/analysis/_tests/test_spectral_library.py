@@ -5,11 +5,14 @@ import pytest
 import spectral.io.envi as envi
 
 from varda.analysis.spectral_library import (
+    MICA_LIBRARY_NAME,
+    USGS_LIBRARY_NAME,
     LibrarySpectrum,
     binaryEncodingMatch,
     continuumRemoved,
     featureFit,
     loadCsvLibrary,
+    loadBundledLibraries,
     loadEnviLibrary,
     loadUsgsLibrary,
     rankLibrary,
@@ -124,3 +127,35 @@ def test_featureless_spectra_match_each_other_not_featured_ones():
         LibrarySpectrum("Flat", WL, np.full(WL.size, 0.5)),
     ]
     assert rankLibrary(WL, flat, library)[0].name == "Flat"
+
+
+def test_csv_libraries_may_start_with_comment_lines(tmp_path):
+    path = tmp_path / "lib.csv"
+    rows = ["# source: somewhere", "# units: um", "wavelength,A"] + [
+        f"{w / 1000},{v}" for w, v in zip(WL, _gauss(2200, 0.3))
+    ]
+    path.write_text("\n".join(rows))
+    (spectrum,) = loadCsvLibrary(path)
+    assert spectrum.name == "A"
+    np.testing.assert_allclose(spectrum.wavelengths, WL)
+
+
+def test_bundled_libraries_include_crism_mica_numerators():
+    libraries = loadBundledLibraries()
+    assert list(libraries) == [MICA_LIBRARY_NAME, USGS_LIBRARY_NAME]
+    mica = libraries[MICA_LIBRARY_NAME]
+    assert len(mica) == 31
+    kaolinite = next(s for s in mica if s.name == "Kaolinite")
+    assert kaolinite.wavelengths.min() == pytest.approx(436.13)
+    assert kaolinite.wavelengths.max() == pytest.approx(3897.0, abs=1.0)
+    assert np.nanmax(kaolinite.reflectance) < 1.0
+
+
+def test_mica_kaolinite_identifies_itself_from_a_noisy_crism_spectrum():
+    mica = loadBundledLibraries()[MICA_LIBRARY_NAME]
+    kaolinite = next(s for s in mica if s.name == "Kaolinite")
+    wl = np.arange(1000.0, 2600.0, 6.55)
+    observed = resampleTo(kaolinite, wl) * 0.9 + 0.002 * np.random.default_rng(
+        0
+    ).normal(size=wl.size)
+    assert rankLibrary(wl, observed, mica)[0].name == "Kaolinite"

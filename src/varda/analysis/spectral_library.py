@@ -29,6 +29,41 @@ from varda.plotting.library_spectra import (
     listSpectra,
     loadSpectrum,
 )
+from varda.utilities.resources import resource_path
+
+MICA_LIBRARY_NAME = "CRISM MICA numerators"
+USGS_LIBRARY_NAME = "USGS minerals"
+MICA_LIBRARY_PATH = Path(
+    resource_path("resources/spectral_libraries/crism_mica_numerators.csv")
+)
+
+LIBRARY_FORMAT_HELP = """\
+<p>Load Library accepts three formats. Wavelengths may be in nm or µm (values
+below 10 are read as µm); the library is resampled to your image's bands, and
+it must overlap at least five of them. Matching ignores overall brightness,
+so reflectance, I/F or scaled values all work.</p>
+
+<p><b>CSV</b> (.csv or .txt): the first column is wavelength, every other column
+is one spectrum, and the first non-comment row holds the names, e.g.</p>
+<pre>
+# optional comment lines start with #
+wavelength_um,Kaolinite,Nontronite
+1.0010,0.512,0.430
+1.0075,0.515,0.431
+</pre>
+<p>Leave a cell empty where a value is missing.</p>
+
+<p><b>ENVI spectral library</b> (.sli with its .hdr): the header needs
+<code>spectra names</code>, <code>wavelength</code> and <code>wavelength units</code>,
+as written by ENVI or by <code>spectral.envi.SpectralLibrary.save</code>.</p>
+
+<p><b>USGS splib07 folder</b>: pick a folder with one sub-folder per spectrum, each
+holding the spectrum's .txt file and its <i>*Wavelengths*.txt</i> file, as
+downloaded from the USGS Spectral Library.</p>
+
+<p>For CRISM, compare unratioed I/F endmembers with the <b>MICA numerators</b>
+(bundled); ratioed type spectra only match ratioed data.</p>
+"""
 
 # Score ramps: a value at "best" scores 1, at "worst" 0, linear between
 SAM_RAMP = (0.0, 0.25)  # radians
@@ -102,7 +137,8 @@ def loadCsvLibrary(path: str | Path) -> list[LibrarySpectrum]:
     (named by its header)."""
     path = Path(path)
     with open(path, newline="") as f:
-        rows = list(csv.reader(f))
+        lines = [line for line in f if not line.lstrip().startswith("#")]
+    rows = list(csv.reader(lines))
     header, body = rows[0], [r for r in rows[1:] if r]
     values = np.array([[float(v) if v.strip() else np.nan for v in r] for r in body])
     wavelengths = toNanometres(values[:, 0])
@@ -110,6 +146,15 @@ def loadCsvLibrary(path: str | Path) -> list[LibrarySpectrum]:
         LibrarySpectrum(name.strip(), wavelengths, values[:, i + 1], path.stem)
         for i, name in enumerate(header[1:])
     ]
+
+
+def loadBundledLibraries() -> dict[str, list[LibrarySpectrum]]:
+    """The spectral libraries shipped with Varda, by display name."""
+    libraries = {}
+    if MICA_LIBRARY_PATH.is_file():
+        libraries[MICA_LIBRARY_NAME] = loadCsvLibrary(MICA_LIBRARY_PATH)
+    libraries[USGS_LIBRARY_NAME] = loadUsgsLibrary()
+    return libraries
 
 
 def loadLibrary(path: str | Path) -> list[LibrarySpectrum]:
