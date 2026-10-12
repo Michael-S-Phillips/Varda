@@ -71,3 +71,16 @@ def test_nodata_border_filters_like_the_cropped_valid_region():
     assert withBorder.replaced == cropped.replaced
     np.testing.assert_allclose(withBorder.filtered[:, 8:], cropped.filtered, atol=0.003)
     assert np.isnan(withBorder.filtered[:, :8]).all()
+
+
+def test_stops_once_a_round_replaces_little_compared_with_the_first():
+    cube = _smoothCube(rows=30, cols=30, bands=60)
+    cube[np.random.default_rng(3).random(cube.shape) < 0.01] += 0.3
+
+    full = iovfFilter(cube, nJobs=1, stopFraction=0.0)
+    early = iovfFilter(cube, nJobs=1, stopFraction=0.2)
+
+    assert early.rounds < full.rounds
+    assert early.replaced[-1] < 0.2 * early.replaced[0]
+    assert all(count >= 0.2 * early.replaced[0] for count in early.replaced[1:-1])
+    assert early.replaced == full.replaced[: early.rounds]

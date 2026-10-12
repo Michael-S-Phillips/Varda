@@ -8,7 +8,7 @@ from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.iovf import iovfFilter
 from varda.analysis.rasters import readCube, sameBandsRaster
 from varda.common.entities import VardaRaster
-from varda.common.parameter import IntParameter
+from varda.common.parameter import FloatParameter, IntParameter
 
 
 class IovfAnalysis(Analysis):
@@ -30,6 +30,18 @@ class IovfAnalysis(Analysis):
     )
     windowBands = IntParameter(
         "Window Bands", 5, range=(3, 15), description="Odd number of pixels or bands"
+    )
+    stopPercent = FloatParameter(
+        "Stop Below",
+        1.0,
+        range=(0.0, 50.0),
+        units="% of round 1",
+        description=(
+            "Stop once a round replaces fewer voxels than this share of the "
+            "first round's; 0 runs until nothing is flagged (slower, with very "
+            "little further change)."
+        ),
+        step=0.5,
     )
 
     def unavailableReason(self, image: VardaRaster) -> str:
@@ -57,6 +69,7 @@ class IovfAnalysis(Analysis):
         result = iovfFilter(
             cube,
             self._window(),
+            stopFraction=float(self.stopPercent.value) / 100.0,
             progress=lambda percent, message: reportProgress(
                 5 + int(0.9 * percent), message
             ),

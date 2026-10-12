@@ -41,6 +41,7 @@ from scipy import ndimage, signal, stats
 ProgressCallback = Callable[[int, str], None]
 
 DEFAULT_WINDOW = (7, 5, 5)
+DEFAULT_STOP_FRACTION = 0.01
 _SMALL_WINDOW_VOLUME = 45  # edge windows below this use the stricter alpha
 _ALPHA_SMALL = 0.05
 _ALPHA_LARGE = 0.125
@@ -65,10 +66,15 @@ def iovfFilter(
     nJobs: int | None = None,
     batchMb: float = 4.0,
     maxRounds: int = 200,
+    stopFraction: float = DEFAULT_STOP_FRACTION,
     progress: ProgressCallback | None = None,
 ) -> IovfResult:
-    """Filter ``cube`` (rows, cols, bands). NaN voxels are treated as zero
-    noise; fill missing bands first for best results."""
+    """Filter ``cube`` (rows, cols, bands). NaN voxels (no-data) are left out.
+
+    Rounds continue until none is flagged, the counts cycle, ``maxRounds``,
+    or a round replaces fewer than ``stopFraction`` of the first round's
+    voxels (0 runs to convergence, as the original does; the long tail of
+    small rounds changes very little)."""
     report = progress or (lambda percent, message: None)
     if len(window) != 3 or any(int(w) % 2 == 0 or int(w) < 1 for w in window):
         raise ValueError("window sizes must be three odd numbers")
@@ -107,6 +113,8 @@ def iovfFilter(
             f"round {round_}: {flagged.shape[0]} voxels replaced",
         )
         if flagged.shape[0] == 0 or _isCycling(replaced):
+            break
+        if round_ > 1 and flagged.shape[0] < stopFraction * replaced[0]:
             break
     report(100, "done")
     return IovfResult(
