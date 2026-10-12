@@ -30,7 +30,7 @@ from varda.analysis.spectral_library import (
 )
 from varda.workspaces.spectral_hourglass.hourglass_model import HourglassModel
 
-_COLUMNS = ["#", "Library spectrum", "Score", "Angle (rad)", "Feature fit RMS"]
+_COLUMNS = ["#", "Library spectrum", "Score", "Angle", "Fit RMS"]
 _FLAG_COLORS = {"best": "#2e7d32", "close": "#9e9d24", "far": "#00000000"}
 _BUNDLED = "Bundled USGS minerals"
 
@@ -82,7 +82,10 @@ class IdentifyPanel(QWidget):
         vertical, header = self.table.verticalHeader(), self.table.horizontalHeader()
         assert vertical is not None and header is not None
         vertical.setVisible(False)
+        for column in range(len(_COLUMNS)):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.table.cellDoubleClicked.connect(self._onDoubleClicked)
         self.table.currentCellChanged.connect(lambda row, *_: self._preview(row))
 
@@ -189,6 +192,8 @@ class IdentifyPanel(QWidget):
                 ]
                 for column, value in enumerate(values):
                     item = QTableWidgetItem(value)
+                    if column == 1:
+                        item.setToolTip(match.name)
                     if column == 2:
                         item.setBackground(QBrush(QColor(_FLAG_COLORS[match.flag])))
                     if column != 1:

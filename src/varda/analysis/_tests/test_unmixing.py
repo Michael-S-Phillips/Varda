@@ -99,3 +99,25 @@ def test_mtmf_scores_targets_and_flags_infeasible_false_positives():
     assert mf[0, 0] == pytest.approx(0.6, abs=0.15)
     assert abs(np.median(mf[2:, 0])) < 0.05
     assert infeasibility[1, 0] > 3 * infeasibility[0, 0]
+
+
+def test_fully_constrained_is_exact_for_similar_endmembers():
+    """Endmembers that differ only by weak absorptions make the problem
+    ill-conditioned; the abundances must still match NNLS closely."""
+    rng = np.random.default_rng(5)
+    x = np.linspace(0, 1, 120)
+    base = 0.3 + 0.1 * x
+    E = np.stack(
+        [
+            base * (1 - d * np.exp(-0.5 * ((x - c) / 0.03) ** 2))
+            for d, c in [(0, 0.5), (0.05, 0.3), (0.04, 0.6), (0.08, 0.45), (0.03, 0.8)]
+        ]
+    )
+    A = rng.dirichlet(np.ones(5) * 0.5, size=300)
+    X = A @ E + 0.002 * rng.normal(size=(300, x.size))
+    abundances, _ = linearUnmix(X, E, Constraint.FULLY_CONSTRAINED)
+    delta = 1e4
+    Eaug = np.vstack([E.T, delta * np.ones(5)])
+    for i in range(0, 300, 13):
+        expected, _ = nnls(Eaug, np.append(X[i], delta))
+        np.testing.assert_allclose(abundances[i], expected, atol=1e-3)

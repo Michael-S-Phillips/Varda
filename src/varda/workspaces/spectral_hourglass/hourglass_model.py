@@ -62,6 +62,8 @@ PALETTE = [
 DEFAULT_PPI_ITERATIONS = 10_000
 DEFAULT_PPI_THRESHOLD = 2.5  # MNF units = noise sigmas
 DEFAULT_MAX_CANDIDATES = 2_000
+# Suggested endmembers smaller than this are left out (single outliers)
+MIN_SUGGESTED_PIXELS = 3
 __all__ = ["DEFAULT_SAM_MAX_ANGLE", "HourglassModel", "MapMethod", "Step", "StepState"]
 
 
@@ -419,17 +421,21 @@ class HourglassModel:
         self._endmembersChanged()
         return keep
 
-    def suggestEndmembers(self, count: int, seed: int = 0) -> list[Endmember]:
-        """Group the candidate pixels into ``count`` new endmembers by k-means
-        in MNF space (ENVI's auto-cluster)."""
+    def suggestEndmembers(self, count: int) -> list[Endmember]:
+        """Up to ``count`` new endmembers, one per corner of the candidate cloud
+        in MNF space, each holding the candidates close to its corner (mixtures
+        stay unassigned; corners with fewer than three pixels, usually lone
+        outliers, are skipped). A starting point to refine in the n-D view."""
         pixels = self.candidatePixels()
-        labels = suggestGroups(self.ndPoints(), count, seed=seed)
+        labels = suggestGroups(self.ndPoints(), count)
         created = []
         with self.sigEndmembersChanged.blocked():
             for label in range(count):
-                endmember = self.addEndmember()
-                self.assignPixels(endmember.id, pixels[labels == label])
-                created.append(endmember)
+                members = pixels[labels == label]
+                if members.size >= MIN_SUGGESTED_PIXELS:
+                    endmember = self.addEndmember()
+                    self.assignPixels(endmember.id, members)
+                    created.append(endmember)
         self._endmembersChanged()
         return created
 
@@ -521,7 +527,13 @@ class HourglassModel:
             else:
                 X = prepared.cube.reshape(-1, prepared.cube.shape[2])[validFlat]
                 bands, bandNames = mapBands(
-                    method, names, X, spectra, maxAngle=maxAngle, constraint=constraint
+                    method,
+                    names,
+                    X,
+                    spectra,
+                    maxAngle=maxAngle,
+                    constraint=constraint,
+                    progress=lambda p, m: progress(int(0.9 * p), m),
                 )
                 detail = (
                     f"max angle {maxAngle:g} rad"

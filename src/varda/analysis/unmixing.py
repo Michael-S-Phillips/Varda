@@ -7,12 +7,16 @@ with a non-finite value give NaN results.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import Enum
 
 import numpy as np
 
-_CHUNK = 65_536
+_CHUNK = 16_384
 _ADMM_ITERATIONS = 2000
+# Up to this many endmembers the fully constrained solution is found exactly
+# by trying every support set (2^m - 1 small solves, vectorised over pixels)
+_EXACT_MAX_ENDMEMBERS = 10
 
 
 class Constraint(Enum):
@@ -44,7 +48,10 @@ def spectralAngles(X: np.ndarray, endmembers: np.ndarray) -> np.ndarray:
 
 
 def linearUnmix(
-    X: np.ndarray, endmembers: np.ndarray, constraint: Constraint
+    X: np.ndarray,
+    endmembers: np.ndarray,
+    constraint: Constraint,
+    progress: Callable[[int, str], None] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Abundances (pixels, endmembers) such that ``X ≈ abundances @ endmembers``,
     and each pixel's RMS residual.
@@ -71,6 +78,9 @@ def linearUnmix(
         abundances[rows] = a
         residual = block - a @ E
         rmse[rows] = np.sqrt(np.mean(residual**2, axis=1))
+        if progress is not None:
+            done = min(start + _CHUNK, good.size)
+            progress(int(100 * done / good.size), f"{done:,} of {good.size:,} pixels")
     return abundances, rmse
 
 
@@ -88,12 +98,50 @@ def _sumToOne(X: np.ndarray, E: np.ndarray) -> np.ndarray:
 
 
 def _fullyConstrained(X: np.ndarray, E: np.ndarray) -> np.ndarray:
+    if E.shape[0] <= _EXACT_MAX_ENDMEMBERS:
+        return _fullyConstrainedExact(X, E)
+    return _fullyConstrainedAdmm(X, E)
+
+
+def _fullyConstrainedExact(X: np.ndarray, E: np.ndarray) -> np.ndarray:
+    """Exact least squares over the probability simplex. The optimum lies on
+    some face, where it equals the sum-to-one least-squares solution on that
+    face's endmembers; so solve that on every support set and keep, per
+    pixel, the feasible (non-negative) solution with the smallest residual."""
+    n, m = X.shape[0], E.shape[0]
+    gram = E @ E.T
+    B = X @ E.T  # (pixels, m)
+    best = np.full(n, np.inf)
+    out = np.zeros((n, m))
+    for mask in range(1, 2**m):
+        support = np.array([j for j in range(m) if mask >> j & 1], dtype=np.intp)
+        gramInv = np.linalg.pinv(gram[np.ix_(support, support)])
+        w = gramInv.sum(axis=1)  # G⁻¹ 1
+        u = B[:, support] @ gramInv.T  # G⁻¹ b per pixel
+        a = u + ((1.0 - u.sum(axis=1)) / w.sum())[:, None] * w[None, :]
+        feasible = np.all(a >= -1e-10, axis=1)
+        # ‖x - Eᵀa‖² up to the constant ‖x‖²: aᵀGa - 2aᵀb
+        cost = np.einsum(
+            "ij,jk,ik->i", a, gram[np.ix_(support, support)], a
+        ) - 2.0 * np.einsum("ij,ij->i", a, B[:, support])
+        better = feasible & (cost < best)
+        best[better] = cost[better]
+        rows = np.flatnonzero(better)
+        out[rows] = 0.0
+        out[np.ix_(rows, support)] = np.clip(a[better], 0.0, None)
+    return out
+
+
+def _fullyConstrainedAdmm(X: np.ndarray, E: np.ndarray) -> np.ndarray:
     """Least squares over the probability simplex (non-negative, summing to
     one), by ADMM vectorised across pixels: minimise ½‖Eᵀa - x‖² subject to
     a = z with z on the simplex (exact Euclidean projection)."""
     m = E.shape[0]
     gram = E @ E.T
-    rho = max(float(np.trace(gram)) / m, 1e-12)
+    eigenvalues = np.linalg.eigvalsh(gram)
+    # penalty at the geometric mean of the extreme curvatures: converges fast
+    # even when endmembers are similar (an ill-conditioned Gram matrix)
+    rho = max(float(np.sqrt(max(eigenvalues[0], 1e-12) * eigenvalues[-1])), 1e-12)
     factor = np.linalg.inv(gram + rho * np.eye(m))
     EtX = X @ E.T  # (pixels, m)
     z = _projectToSimplex(_sumToOne(X, E))
@@ -102,7 +150,7 @@ def _fullyConstrained(X: np.ndarray, E: np.ndarray) -> np.ndarray:
         a = (EtX + rho * (z - u)) @ factor.T
         zNew = _projectToSimplex(a + u)
         u += a - zNew
-        converged = max(np.max(np.abs(zNew - z)), np.max(np.abs(a - zNew))) < 1e-8
+        converged = max(np.max(np.abs(zNew - z)), np.max(np.abs(a - zNew))) < 1e-6
         z = zNew
         if converged:
             break

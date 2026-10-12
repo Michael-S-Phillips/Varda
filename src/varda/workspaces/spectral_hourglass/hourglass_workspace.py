@@ -60,6 +60,7 @@ class SpectralHourglassWorkspace(QMainWindow):
         self.endmemberTable = EndmemberTable(self.model, self)
         self.identifyPanel = IdentifyPanel(self.model, library=library)
         self.spectraPlot = VardaPlotWidget(parent=self)
+        self.spectraPlot.setSidebarVisible(False)  # the arrow beside the plot shows it
         self.pipeline = PipelinePanel(
             self.model,
             self.runner,

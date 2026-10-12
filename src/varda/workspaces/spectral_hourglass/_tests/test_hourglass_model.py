@@ -150,13 +150,15 @@ def test_rename_merge_and_remove_endmembers():
     assert model.state(Step.ENDMEMBERS) is StepState.NOT_RUN
 
 
-def test_suggest_endmembers_groups_the_candidates():
+def test_suggested_endmembers_are_the_pure_patches():
     model = _throughPpi()
     model.setCandidateRule(minCount=1, maxCandidates=300)
     created = model.suggestEndmembers(3)
     assert len(created) == 3 and len(model.endmembers) == 3
-    assigned = np.concatenate([e.pixels for e in model.endmembers])
-    assert set(assigned) == set(model.candidatePixels())
+    truth = endmemberSpectra()
+    for endmember in created:
+        spectrum = model.endmemberSpectrum(endmember.id)
+        assert np.min(np.abs(truth - spectrum).max(axis=1)) < 0.03
 
 
 def _withTrueEndmembers() -> HourglassModel:

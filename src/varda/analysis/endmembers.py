@@ -9,7 +9,6 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import numpy as np
-from scipy.cluster.vq import kmeans2
 
 # (percent 0-100, message)
 ProgressCallback = Callable[[int, str], None]
@@ -98,11 +97,44 @@ def interpolatePlane(a: np.ndarray, b: np.ndarray, t: float) -> np.ndarray:
     return out @ u.T
 
 
-def suggestGroups(X: np.ndarray, groups: int, *, seed: int = 0) -> np.ndarray:
-    """k-means labels (0..groups-1) for the rows of ``X``: a starting point
-    for endmember classes in the n-D view."""
+def findVertices(X: np.ndarray, count: int) -> np.ndarray:
+    """Row indices of ``count`` corners of the data cloud by successive
+    projection (ATGP): start from the point farthest from the centroid, then
+    repeatedly take the point with the largest residual after projecting out
+    the corners found so far. Points get a constant extra coordinate so that
+    k corners of a simplex spanning k - 1 dimensions are linearly independent."""
+    data = np.asarray(X, dtype=np.float64)
+    centred = data - data.mean(axis=0)
+    scale = float(np.sqrt(np.mean(np.einsum("ij,ij->i", centred, centred)))) or 1.0
+    centred = np.column_stack([centred, np.full(len(centred), scale)])
+    chosen: list[int] = [int(np.argmax(np.einsum("ij,ij->i", centred, centred)))]
+    while len(chosen) < count:
+        basis = centred[chosen].T  # (dims, chosen)
+        q, _ = np.linalg.qr(basis)
+        residual = centred - (centred @ q) @ q.T
+        norms = np.einsum("ij,ij->i", residual, residual)
+        norms[chosen] = -1.0
+        if norms.max() <= 1e-12:  # fewer independent corners than asked for
+            break
+        chosen.append(int(np.argmax(norms)))
+    return np.array(chosen, dtype=np.intp)
+
+
+def suggestGroups(X: np.ndarray, groups: int, *, radius: float = 0.2) -> np.ndarray:
+    """Starting endmember classes for the n-D view: find ``groups`` corners of
+    the cloud (``findVertices``) and give each the points that lie within
+    ``radius`` × the shortest corner-to-corner distance of it. Returns one
+    label per row, -1 for points left unassigned (mixtures inside the cloud)."""
     data = np.asarray(X, dtype=np.float64)
     if data.shape[0] < groups or groups < 1:
         raise ValueError(f"Need at least {groups} points to suggest {groups} groups")
-    _, labels = kmeans2(data, groups, minit="++", seed=seed)
-    return labels.astype(np.intp)
+    vertices = data[findVertices(data, groups)]
+    distances = np.linalg.norm(data[:, None, :] - vertices[None, :, :], axis=2)
+    if len(vertices) > 1:
+        between = np.linalg.norm(vertices[:, None] - vertices[None, :], axis=2)
+        reach = radius * between[np.triu_indices(len(vertices), 1)].min()
+    else:
+        reach = radius * float(np.max(distances))
+    labels = np.argmin(distances, axis=1).astype(np.intp)
+    labels[distances.min(axis=1) > reach] = -1
+    return labels

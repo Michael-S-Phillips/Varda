@@ -348,6 +348,7 @@ class PipelinePanel(QToolBox):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self.setMinimumWidth(360)
         self.model = model
         self.preparePage = PreparePage(model, prepare)
         self.reducePage = ReducePage(model, reduce)

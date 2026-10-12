@@ -100,16 +100,33 @@ def describeComponentSelection(indices: Sequence[int]) -> str:
 
 def suggestedComponents(eigenvalues: np.ndarray, kind: str) -> int:
     """A starting point for how many components to keep: for MNF, those with
-    an eigenvalue clearly above the noise floor; otherwise enough to capture
-    99% of the variance. At least one."""
+    an eigenvalue clearly above the noise floor, but no more than the elbow of
+    the eigenvalue curve (with unfiltered stripes or spikes the noise is not
+    white and the floor sits well above 1); otherwise enough to capture 99% of
+    the variance. At least one."""
     values = np.asarray(eigenvalues, dtype=np.float64)
     if kind == "MNF":
-        return max(1, int(np.sum(values > _MNF_NOISE_EIGENVALUE)))
+        aboveNoise = int(np.sum(values > _MNF_NOISE_EIGENVALUE))
+        return max(1, min(aboveNoise, elbowIndex(values)))
     total = values.sum()
     if total <= 0:
         return 1
     cumulative = np.cumsum(values) / total
     return int(np.searchsorted(cumulative, _SUGGESTED_VARIANCE) + 1)
+
+
+def elbowIndex(eigenvalues: np.ndarray) -> int:
+    """How many leading values come before the elbow of a decreasing curve:
+    the point of the log curve farthest from the line joining its ends."""
+    values = np.asarray(eigenvalues, dtype=np.float64)
+    positive = values[values > 0]
+    if positive.size < 3:
+        return int(positive.size) or 1
+    y = np.log(positive)
+    x = np.arange(y.size, dtype=np.float64)
+    dx, dy = x[-1] - x[0], y[-1] - y[0]
+    distance = np.abs(dy * x - dx * y + x[-1] * y[0] - y[-1] * x[0]) / np.hypot(dx, dy)
+    return int(np.argmax(distance)) + 1
 
 
 def pca(X: np.ndarray, components: int) -> TransformResult:

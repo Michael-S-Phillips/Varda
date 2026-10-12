@@ -55,6 +55,7 @@ def mapBands(
     constraint: Constraint = Constraint.FULLY_CONSTRAINED,
     mnfData: np.ndarray | None = None,
     targets: np.ndarray | None = None,
+    progress: ProgressCallback | None = None,
 ) -> tuple[np.ndarray, list[str]]:
     """(pixels, bands) map values and band names.
 
@@ -73,7 +74,7 @@ def mapBands(
         ]
     if method is MapMethod.UNMIX:
         assert X is not None and spectra is not None
-        abundances, rmse = linearUnmix(X, spectra, constraint)
+        abundances, rmse = linearUnmix(X, spectra, constraint, progress)
         return np.column_stack([abundances, rmse]), [*names, "RMS Error"]
     assert mnfData is not None and targets is not None
     mf, infeasibility = mixtureTunedMatchedFilter(mnfData, targets)
@@ -277,7 +278,12 @@ class UnmixingAnalysis(_RoiEndmemberMapping):
     def _map(self, cube, valid, X, spectra, masks, names, reportProgress):
         constraint = Constraint(self.constraint.value)
         bands, bandNames = mapBands(
-            MapMethod.UNMIX, names, X, spectra, constraint=constraint
+            MapMethod.UNMIX,
+            names,
+            X,
+            spectra,
+            constraint=constraint,
+            progress=lambda p, m: reportProgress(20 + int(0.7 * p), m),
         )
         return bands, bandNames, constraint.value
 

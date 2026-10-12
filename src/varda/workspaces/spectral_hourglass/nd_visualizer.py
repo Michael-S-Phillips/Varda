@@ -123,6 +123,7 @@ class NdVisualizer(QWidget):
         self.speedSlider = QSlider(Qt.Orientation.Horizontal)
         self.speedSlider.setRange(1, 20)
         self.speedSlider.setValue(5)
+        self.speedSlider.setMinimumWidth(70)
         self.speedSlider.setMaximumWidth(120)
         self.speedSlider.setToolTip("Tour speed")
         self.collapseBox = QCheckBox("Collapse classes")
@@ -139,6 +140,7 @@ class NdVisualizer(QWidget):
         self.sizeSlider = QSlider(Qt.Orientation.Horizontal)
         self.sizeSlider.setRange(2, 14)
         self.sizeSlider.setValue(5)
+        self.sizeSlider.setMinimumWidth(50)
         self.sizeSlider.setMaximumWidth(80)
         self.sizeSlider.setToolTip("Point size")
         self.sizeSlider.valueChanged.connect(self.scatter.setSize)
@@ -199,8 +201,11 @@ class NdVisualizer(QWidget):
         self.setActiveDims(dims if len(dims) >= 2 else list(range(k)))
 
     def _rebuildDimButtons(self, k: int) -> None:
+        if len(self._dimButtons) == k:
+            return
         for button in self._dimButtons:
             self.dimsLayout.removeWidget(button)
+            button.setParent(None)
             button.deleteLater()
         self._dimButtons = []
         for d in range(k):

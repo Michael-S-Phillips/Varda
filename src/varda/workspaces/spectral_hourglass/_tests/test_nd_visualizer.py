@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from PyQt6.QtWidgets import QToolButton
 
 from varda.workspaces.spectral_hourglass.nd_visualizer import NdVisualizer
 
@@ -80,3 +81,15 @@ def test_hovering_reports_the_nearest_point(viz, qtbot):
     target = viz.projected()[5]
     assert viz.pointNear(target[0], target[1]) == 1005
     assert viz.pointNear(1e6, 1e6) is None
+
+
+def test_new_data_leaves_no_stray_dimension_buttons(viz):
+    rng = np.random.default_rng(2)
+    viz.setData(rng.normal(size=(50, 3)), np.arange(50))
+    viz.setData(rng.normal(size=(50, 3)), np.arange(50))
+    buttons = [
+        b
+        for b in viz.findChildren(QToolButton)
+        if b.parent() is viz and b.isVisibleTo(viz)
+    ]
+    assert [b.text() for b in buttons] == ["1", "2", "3"]

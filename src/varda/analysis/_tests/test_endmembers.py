@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from varda.analysis.endmembers import (
+    findVertices,
     interpolatePlane,
     pixelPurityIndex,
     randomPlane,
@@ -72,15 +73,26 @@ def test_interpolated_planes_move_smoothly_between_ends():
     assert step < 0.05
 
 
-def test_suggest_groups_finds_the_clusters():
+def test_find_vertices_picks_the_simplex_corners():
+    X = _simplexMixtures()
+    assert set(findVertices(X, 4)) == {0, 1, 2, 3}
+
+
+def test_suggest_groups_keeps_only_pixels_near_the_corners():
     rng = np.random.default_rng(0)
-    centres = np.array([[0, 0], [10, 0], [0, 10]], dtype=float)
-    X = np.vstack([c + 0.3 * rng.normal(size=(50, 2)) for c in centres])
-    labels = suggestGroups(X, 3, seed=0)
-    assert labels.shape == (150,)
+    corners = np.array([[0, 0], [10, 0], [0, 10]], dtype=float)
+    tight = np.vstack([c + 0.2 * rng.normal(size=(20, 2)) for c in corners])
+    mixed = rng.dirichlet(np.ones(3), size=200) @ corners  # interior mixtures
+    X = np.vstack([tight, mixed])
+    labels = suggestGroups(X, 3)
+
+    assert labels.shape == (X.shape[0],)
     for block in range(3):
-        assert len(set(labels[block * 50 : (block + 1) * 50])) == 1
-    assert len(set(labels)) == 3
+        group = labels[block * 20 : (block + 1) * 20]
+        assert len(set(group)) == 1 and group[0] >= 0
+    assert len({labels[0], labels[20], labels[40]}) == 3
+    interior = labels[60:]
+    assert np.mean(interior == -1) > 0.8  # mixtures stay unassigned
 
 
 def test_suggest_groups_needs_enough_points():
