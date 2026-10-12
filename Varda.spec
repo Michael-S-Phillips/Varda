@@ -6,8 +6,14 @@ a = Analysis(
     ['src/varda/main.py'],
     pathex=[],
     binaries=[],
-    datas=collect_data_files('rasterio') + collect_data_files('pyproj') + [('resources', 'resources'), ('librarySpectra', 'librarySpectra')], # bundles GDAL data shipped in rasterio (and data from pyproj)
-    hiddenimports=collect_submodules('rasterio'),
+    # GDAL data shipped in rasterio, PROJ data from pyproj, HyPyRameter's parameter
+    # tables, Varda's resources and the bundled spectral library
+    datas=collect_data_files('rasterio') + collect_data_files('pyproj')
+    + collect_data_files('hypyrameter')
+    + [('resources', 'resources'), ('librarySpectra', 'librarySpectra')],
+    # HyPyRameter's optional denoiser (iovf_generic) needs packages Varda does not ship
+    hiddenimports=collect_submodules('rasterio')
+    + collect_submodules('hypyrameter', filter=lambda name: 'iovf' not in name),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

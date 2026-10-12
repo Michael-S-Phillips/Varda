@@ -21,8 +21,8 @@ ships a zip per platform (`Varda-windows-x64.zip`, `Varda-macos-arm64.zip`,
 - **macOS:** the build is not code-signed, so the first launch is blocked by
   Gatekeeper. Right-click the app → *Open* (once), or run
   `xattr -dr com.apple.quarantine <path to Varda>`.
-- The packaged app does not include the optional extras below (HyPyRameter
-  band parameters, PyTorch classifiers); run from source for those.
+- The packaged app includes HyPyRameter band parameters. The PyTorch CNN/ViT
+  classifiers are not included (PyTorch is large); run from source for those.
 
 ## Run from source
 
@@ -142,8 +142,8 @@ CRISM-style spectral parameters with
 [HyPyRameter](https://github.com/Michael-S-Phillips/HyPyRameter); the dialog
 lists every parameter the image's wavelength range supports (hover a name for
 its definition) and lets you pick which to compute. It is optional: without it
-Varda runs normally and lists that analysis as unavailable. The `hypyrameter`
-extra installs HyPyRameter from PyPI:
+Varda runs normally and lists that analysis as unavailable. The downloadable
+app includes it; from source, the `hypyrameter` extra installs it from PyPI:
 ```bash
 uv sync --extra hypyrameter
 # or, with pip:  pip install "varda[hypyrameter]"
