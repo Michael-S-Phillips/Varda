@@ -22,7 +22,8 @@ ships a zip per platform (`Varda-windows-x64.zip`, `Varda-macos-arm64.zip`,
   Gatekeeper. Right-click the app → *Open* (once), or run
   `xattr -dr com.apple.quarantine <path to Varda>`.
 - The packaged app includes HyPyRameter band parameters. The PyTorch CNN/ViT
-  classifiers are not included (PyTorch is large); run from source for those.
+  classifiers download PyTorch the first time you use them (see
+  [below](#optional-cnn--vit-classifiers-pytorch)).
 
 ## Run from source
 
@@ -152,10 +153,28 @@ uv sync --extra hypyrameter
 ## Optional: CNN / ViT classifiers (PyTorch)
 **Processing → Classification → Train CNN on ROIs / Train ViT on ROIs** train
 small neural networks on spatial-spectral patches around your ROI pixels. They
-need PyTorch, which is large, so it lives in the `ml` extra (the MLP classifier
-is pure numpy and always available):
+need PyTorch, which is too large to ship in every download. (The MLP
+classifier is pure numpy and always available.)
+
+**In the app.** The first time you pick one of these classifiers, Varda offers
+to install PyTorch. You can also open **Processing → Optional Features…** at
+any time. Varda picks the build for your hardware: Apple GPU on Apple silicon,
+CUDA 13 for a recent NVIDIA GPU and driver, otherwise CPU. You can override
+that choice. The CPU and Apple builds are a few hundred MB; the CUDA build is
+about 3 GB.
+
+PyTorch goes into its own Python environment in Varda's data folder (shown in
+the dialog), so nothing else on your computer changes. Varda installs exactly
+the versions pinned for its release, checked against their hashes. The
+classifiers then run in a separate process using that environment.
+**Uninstall** deletes the folder. Intel Macs and ARM Linux are not supported.
+
+**From source.** Install the `ml` extra to run PyTorch inside Varda's own
+environment instead:
 ```bash
 uv sync --extra ml
 # or, with pip:  pip install "varda[ml]"
 ```
 Training runs on CUDA or Apple MPS when available, otherwise on the CPU.
+Maintainers: `scripts/compile_torch_locks.py` regenerates the pinned locks in
+`resources/optional_features/torch/`.

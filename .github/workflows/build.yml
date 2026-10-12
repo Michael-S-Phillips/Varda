@@ -36,6 +36,8 @@ jobs:
         run: uv sync --extra hypyrameter
 
       - name: Build with PyInstaller
+        # Varda.spec bundles the uv set up above, which Processing > Optional
+        # Features uses to install PyTorch on the user's computer
         run: uv run pyinstaller Varda.spec
 
       - name: Package build (Windows)

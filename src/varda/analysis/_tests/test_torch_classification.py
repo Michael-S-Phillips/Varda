@@ -4,6 +4,11 @@ import numpy as np
 import pytest
 from shapely.geometry import box
 
+import sys
+from pathlib import Path
+
+import varda_torch_worker
+from varda.analysis import classification
 from varda.analysis.analysis import AnalysisContext
 from varda.analysis.classification import (
     CnnClassificationAnalysis,
@@ -11,6 +16,7 @@ from varda.analysis.classification import (
 )
 from varda.common.entities import Color, ROIMode, VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+from varda.optional_features.torch_runtime import TorchRuntime
 from varda.rois.roi_collection import ROICollection
 
 RED = Color(1.0, 0.0, 0.0, 0.5)
@@ -40,12 +46,61 @@ def test_torch_classifiers_are_filed_under_classification_and_need_rois():
         assert analysis.requirement == "PyTorch"
 
 
-def test_unavailable_without_torch(monkeypatch):
-    from varda.analysis import classification
+class _Runtime:
+    """Stands in for the app-managed environment: runs jobs in a real worker
+    process with this interpreter."""
 
+    def __init__(self, installed: bool):
+        self.installed = installed
+        self.jobs = 0
+
+    def isInstalled(self) -> bool:
+        return self.installed
+
+    def runJob(self, *args, **kwargs):
+        self.jobs += 1
+        runtime = TorchRuntime(
+            root=Path("/unused"),
+            uv=[],
+            workerDir=Path(varda_torch_worker.__file__).parents[1],
+            lockDir=Path("/unused"),
+        )
+        runtime.pythonPath = lambda: Path(sys.executable)  # ty: ignore[invalid-assignment]
+        return runtime.runJob(*args, **kwargs)
+
+
+def test_unavailable_without_torch_or_the_installed_environment(monkeypatch):
     monkeypatch.setattr(classification, "TORCH_AVAILABLE", False)
+    monkeypatch.setattr(classification, "torchRuntime", lambda: _Runtime(False))
     assert not CnnClassificationAnalysis.isAvailable()
     assert not VitClassificationAnalysis.isAvailable()
+    assert (
+        CnnClassificationAnalysis.installable and VitClassificationAnalysis.installable
+    )
+
+
+def test_available_once_the_environment_is_installed(monkeypatch):
+    monkeypatch.setattr(classification, "TORCH_AVAILABLE", False)
+    monkeypatch.setattr(classification, "torchRuntime", lambda: _Runtime(True))
+    assert CnnClassificationAnalysis.isAvailable()
+
+
+def test_without_torch_in_process_the_job_runs_in_the_environment(monkeypatch):
+    pytest.importorskip("torch")  # the stand-in worker uses this interpreter
+    runtime = _Runtime(True)
+    monkeypatch.setattr(classification, "TORCH_AVAILABLE", False)
+    monkeypatch.setattr(classification, "torchRuntime", lambda: runtime)
+    analysis = VitClassificationAnalysis()
+    analysis.epochs.set(30)
+    analysis.patchSize.set(3)
+    analysis.setContext(AnalysisContext(rois=_rois()))
+    progress = []
+    result = analysis.run(_twoRegionImage(), lambda p, m: progress.append(p))
+    assert runtime.jobs == 1
+    classes = result.getData()[:, :, 0]
+    assert np.mean(classes[3:17, 2:18] == 0) > 0.95
+    assert np.mean(classes[3:17, 22:38] == 1) > 0.95
+    assert progress == sorted(progress) and progress[-1] == 100
 
 
 @pytest.mark.parametrize(

@@ -5,6 +5,7 @@ from app_model.types import SubmenuItem
 from varda._actions import ALL_ACTIONS
 from varda._actions._menu_ids import MENUBAR, MenuId
 from varda._actions._processing_actions import (
+    OPTIONAL_FEATURES_ACTION_ID,
     PROCESSING_SUBMENUS,
     categoryMenuId,
     processingActions,
@@ -45,6 +46,13 @@ class NeedsThing(Analysis):
         return image
 
 
+class NeedsInstallable(NeedsThing):
+    analysisId = "needs_installable"
+    name = "Needs Installable"
+    requirement = "PyTorch"
+    installable = True
+
+
 def _noCallback(analysisClass):
     return lambda: None
 
@@ -76,6 +84,20 @@ def test_unavailable_analysis_is_shown_disabled_and_says_what_it_needs():
     (action,) = processingActions("root", "prefix", [NeedsThing], _noCallback)
     assert action.title == "Needs Thing… (needs Thing)"
     assert not action.enablement.eval({"image_count": 5})
+
+
+def test_an_installable_requirement_keeps_the_entry_enabled_to_offer_the_install():
+    (action,) = processingActions("root", "prefix", [NeedsInstallable], _noCallback)
+    assert action.title == "Needs Installable…"
+    assert action.enablement.eval({"image_count": 1})
+    assert "PyTorch" in action.tooltip
+
+
+def test_optional_features_is_at_the_end_of_the_processing_menu():
+    (action,) = [a for a in ALL_ACTIONS if a.id == OPTIONAL_FEATURES_ACTION_ID]
+    assert action.title == "Optional Features…"
+    assert action.menus[0].id == MenuId.PROCESSING
+    assert action.enablement is None  # usable before any image is open
 
 
 def test_band_parameters_is_offered_under_spectral_parameters():
