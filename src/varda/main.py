@@ -6,8 +6,8 @@ This module initializes all the core components of Varda right away, and then st
 import sys
 
 import pyqtgraph as pg
-from PyQt6.QtGui import QPixmap, QIcon
-from PyQt6.QtWidgets import QApplication, QSplashScreen
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QSize
 
 import varda
@@ -17,6 +17,7 @@ from varda.all_images_view_list.image_list_menu_controller import (
     ImageListMenuController,
 )
 from varda.app import VardaApplication
+from varda.branding.splash import createSplash
 from varda.maingui import MainGUI
 from varda.session_autosave import SessionAutosaver
 from varda.utilities.resources import resource_path
@@ -40,19 +41,24 @@ def initVarda() -> None:
     app_icon = QIcon()
     app_icon.addFile(ICON_PATH, QSize(16, 16))
     q_app.setWindowIcon(app_icon)
-    splash = QSplashScreen(QPixmap(ICON_PATH))
+    # The splash animates while initialisation runs on this thread, so let
+    # it repaint between stages
+    splash = createSplash()
     splash.show()
     q_app.processEvents()
 
     varda.log._initializeFullLogging()
+    q_app.processEvents()
 
     pg.setConfigOptions(imageAxisOrder="row-major")
     varda.log.debug("Configurations set")
 
     app = VardaApplication()
     app.pluginManager.hook.onLoad(app=app)
+    q_app.processEvents()
 
     app.maingui = MainGUI(app=app)
+    q_app.processEvents()
     app.maingui.setModelMenuBar(MENUBAR)
     imageListController = ImageListMenuController(app, parent=app.maingui)
     app.maingui.imageList.sigImagesActivated.connect(
@@ -71,10 +77,11 @@ def initVarda() -> None:
     # Autosave the session every few minutes and on quit (File > Restore Last Session)
     app.autosaver = SessionAutosaver(app.images, app.maingui, parent=app.maingui)
     app.maingui.showMaximized()
+    q_app.processEvents()
 
     varda.log.info("Varda initialized successfully!")
 
-    splash.finish(app.maingui)
+    splash.finishWhenDone(app.maingui)
     varda.log.info("starting the GUI event loop...")
     exitCode = q_app.exec()
     varda.log.info("Application exiting, performing cleanup...")
