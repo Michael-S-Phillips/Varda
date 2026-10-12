@@ -25,6 +25,8 @@ from PyQt6.QtGui import QColor
 import rasterio as rio
 from pyproj import CRS, Transformer
 from pyproj.exceptions import CRSError
+
+from varda.utilities.proj_lock import PROJ_LOCK
 from shapely.geometry.base import BaseGeometry
 
 logger = logging.getLogger(__name__)
@@ -109,12 +111,13 @@ class VardaRaster:
         works for planetary data too (e.g. Mars CRISM images) — converting to an
         Earth CRS across celestial bodies raises a pyproj ``ProjError``.
         """
-        if self.crs is None:
-            return None
-        geodetic = self.crs.geodetic_crs
-        if geodetic is None:
-            return None
-        return Transformer.from_crs(self.crs, geodetic, always_xy=True)
+        with PROJ_LOCK:
+            if self.crs is None:
+                return None
+            geodetic = self.crs.geodetic_crs
+            if geodetic is None:
+                return None
+            return Transformer.from_crs(self.crs, geodetic, always_xy=True)
 
     def pixelToLatLon(self, col: int, row: int) -> tuple[float, float] | None:
         """Pixel center as (lat, lon) in degrees, in the CRS's own geographic datum.
@@ -122,10 +125,12 @@ class VardaRaster:
         Returns ``None`` if the raster has no CRS. The datum matches the image's
         celestial body (Earth, Mars, etc.), not a hardcoded WGS84.
         """
-        if self._geodeticTransformer is None:
-            return None
-        x, y = self.pixelToGeo(col, row)
-        lon, lat = self._geodeticTransformer.transform(x, y)
+        with PROJ_LOCK:
+            transformer = self._geodeticTransformer
+            if transformer is None:
+                return None
+            x, y = self.pixelToGeo(col, row)
+            lon, lat = transformer.transform(x, y)
         return lat, lon
 
     # --- Delegated properties from DataSource ---
