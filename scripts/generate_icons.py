@@ -1,7 +1,9 @@
-"""Generate platform icon files (.ico, .icns) from resources/logo.svg.
+"""Generate platform icon files (.ico, .icns) from the brand icon SVGs.
 
-Rasterizes the SVG with Qt, then assembles the multi-resolution icon containers
-with Pillow. Run after changing the logo:
+The Windows .ico (and the window icon, resources/logo.svg) use the full-bleed
+tile; the macOS .icns uses the version on Apple's 1024 icon grid, so it does
+not look oversized in the Dock. Rasterizes with Qt, then assembles the
+multi-resolution containers with Pillow. Run after changing the icon:
 
     uv run python scripts/generate_icons.py
 """
@@ -17,7 +19,8 @@ from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QApplication
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SVG_PATH = PROJECT_ROOT / "resources" / "logo.svg"
+ICO_SOURCE = PROJECT_ROOT / "resources" / "logo.svg"
+ICNS_SOURCE = PROJECT_ROOT / "resources" / "brand" / "icon" / "varda-icon-macos.svg"
 ICO_PATH = PROJECT_ROOT / "resources" / "logo.ico"
 ICNS_PATH = PROJECT_ROOT / "resources" / "logo.icns"
 
@@ -26,9 +29,9 @@ ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
 ICNS_SIZES = [16, 32, 64, 128, 256, 512, 1024]
 
 
-def render_svg(size: int) -> Image.Image:
-    """Render the SVG to a transparent RGBA Pillow image of the given square size."""
-    renderer = QSvgRenderer(str(SVG_PATH))
+def render_svg(svgPath: Path, size: int) -> Image.Image:
+    """Render an SVG to a transparent RGBA Pillow image of the given square size."""
+    renderer = QSvgRenderer(str(svgPath))
     image = QImage(size, size, QImage.Format.Format_ARGB32)
     image.fill(QColor(0, 0, 0, 0))
     painter = QPainter(image)
@@ -42,18 +45,18 @@ def render_svg(size: int) -> Image.Image:
 
 
 def main() -> None:
-    if not SVG_PATH.exists():
-        sys.exit(f"Source SVG not found: {SVG_PATH}")
+    for source in (ICO_SOURCE, ICNS_SOURCE):
+        if not source.exists():
+            sys.exit(f"Source SVG not found: {source}")
 
     app = QApplication(sys.argv)  # noqa: F841 - required for Qt rendering
 
-    largest = max(max(ICO_SIZES), max(ICNS_SIZES))
-    base = render_svg(largest)
-
-    base.save(ICO_PATH, format="ICO", sizes=[(s, s) for s in ICO_SIZES])
+    render_svg(ICO_SOURCE, max(ICO_SIZES)).save(
+        ICO_PATH, format="ICO", sizes=[(s, s) for s in ICO_SIZES]
+    )
     print(f"Wrote {ICO_PATH.relative_to(PROJECT_ROOT)}")
 
-    base.save(ICNS_PATH, format="ICNS")
+    render_svg(ICNS_SOURCE, max(ICNS_SIZES)).save(ICNS_PATH, format="ICNS")
     print(f"Wrote {ICNS_PATH.relative_to(PROJECT_ROOT)}")
 
 
