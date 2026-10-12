@@ -24,7 +24,9 @@ def newGeneralAnalysisWorkspace(images: ProjectImages, mainGui: MainGUI) -> None
 
 
 def newSpectralHourglassWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
-    NewSpectralHourglassDialog(images).connectOnAccept(mainGui.addTab).open()
+    NewSpectralHourglassDialog(images, parent=mainGui).connectOnAccept(
+        mainGui.addTab
+    ).open()
 
 
 def closeCurrentWorkspace(mainGui: MainGUI) -> None:

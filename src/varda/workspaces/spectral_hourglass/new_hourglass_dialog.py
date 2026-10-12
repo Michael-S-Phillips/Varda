@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QDialog, QLabel
 
 from varda.common.entities import VardaRaster
@@ -28,6 +28,7 @@ class NewSpectralHourglassDialog(QDialog):
     def __init__(self, images, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("New Spectral Hourglass Workspace")
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.images = images
         self.config = _Config(list(images))
         self.accepted.connect(self._create)

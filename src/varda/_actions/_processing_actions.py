@@ -148,7 +148,9 @@ def openInverseTransformDialog(
 
 
 def openSpectralHourglass(images: ProjectImages, mainGui: MainGUI) -> None:
-    NewSpectralHourglassDialog(images).connectOnAccept(mainGui.addTab).open()
+    NewSpectralHourglassDialog(images, parent=mainGui).connectOnAccept(
+        mainGui.addTab
+    ).open()
 
 
 EIGENVALUE_PLOT_ACTION_ID = "varda.processing.eigenvalue_plot"
