@@ -193,3 +193,54 @@ def test_right_drag_pans_rather_than_zooms(viz, qtbot):
     (a0, a1), (b0, b1) = viz.viewBox.viewRange()
     assert a1 - a0 == pytest.approx(x1 - x0, rel=1e-6)  # same zoom
     assert a0 != pytest.approx(x0)  # moved sideways
+
+
+def test_trackball_drag_is_relative_to_the_press_and_reversible(viz):
+    viz.setMode(viz.ROTATE)
+    start = viz.plane().copy()
+    viz.beginRotate()
+    viz.dragRotate(40.0, 0.0)
+    moved = viz.plane().copy()
+    viz.dragRotate(80.0, 0.0)
+    viz.dragRotate(0.0, 0.0)  # back to where the drag started
+    np.testing.assert_allclose(viz.plane(), start, atol=1e-9)
+    viz.dragRotate(40.0, 0.0)
+    np.testing.assert_allclose(
+        viz.plane(), moved, atol=1e-9
+    )  # no drift from the path taken
+    viz.endRotate()
+
+
+def test_dragging_right_moves_the_hidden_depth_towards_the_cursor(viz):
+    viz.beginRotate()
+    depth = viz._rotateFrame[:, 2]  # the hidden direction frozen at the press
+    viz.dragRotate(30.0, 0.0)
+    assert (viz.projectPoints(depth[None, :])[0, 0]) > 0  # grab-the-ball convention
+    viz.dragRotate(0.0, 30.0)  # drag down: depth goes down on screen (y up)
+    assert (viz.projectPoints(depth[None, :])[0, 1]) < 0
+    viz.endRotate()
+
+
+def test_rotation_stays_within_the_tour_dimensions(viz):
+    viz.setActiveDims([0, 2, 3])
+    viz.beginRotate()
+    viz.dragRotate(25.0, -60.0)
+    viz.endRotate()
+    np.testing.assert_allclose(viz.plane()[1], 0.0, atol=1e-12)
+    np.testing.assert_allclose(viz.plane().T @ viz.plane(), np.eye(2), atol=1e-9)
+
+
+def test_cursor_follows_the_mode(viz):
+    viz.setMode(viz.ROTATE)
+    assert viz.plotWidget.viewport().cursor().shape() == Qt.CursorShape.OpenHandCursor
+    viz.setMode(viz.LASSO)
+    assert viz.plotWidget.viewport().cursor().shape() == Qt.CursorShape.CrossCursor
+
+
+def test_the_tour_pauses_while_dragging_and_resumes(viz):
+    viz.playButton.setChecked(True)
+    viz.beginRotate()
+    assert not viz._timer.isActive()
+    viz.endRotate()
+    assert viz._timer.isActive()
+    viz.playButton.setChecked(False)

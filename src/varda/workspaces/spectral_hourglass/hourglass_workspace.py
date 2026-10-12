@@ -9,11 +9,25 @@ rings its point; picking a library match overlays it on the endmember.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
+import pyqtgraph as pg
 import PyQt6Ads as ads
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QKeySequence, QShortcut
-from PyQt6.QtWidgets import QMainWindow, QMessageBox, QProgressBar, QStatusBar
+from PyQt6.QtWidgets import (
+    QFileDialog,
+    QHBoxLayout,
+    QMainWindow,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QStatusBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 from varda.analysis.linear_algebra import unflatten
 from varda.analysis.spectral_library import LibrarySpectrum, resampleTo
@@ -21,6 +35,7 @@ from varda.common.di_types import ProjectImages
 from varda.common.entities import Color, VardaRaster
 from varda.common.ui import VardaDockWidget
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+from varda.image_rendering.new_histogram_view import NewHistogramView
 from varda.plotting.plot import VardaPlotWidget
 from varda.plotting.spectrum_matching import matchToReference
 from varda.workspaces.spectral_hourglass.endmember_table import EndmemberTable
@@ -36,8 +51,12 @@ from varda.workspaces.spectral_hourglass.pipeline_panel import PipelinePanel
 from varda.workspaces.spectral_hourglass.scene_view import Overlay, SceneView
 from varda.workspaces.spectral_hourglass.task_runner import TaskRunner
 
+_WORKFLOW_FORMAT = "varda-hourglass"
 _HOVER_COLOR = Color(1.0, 1.0, 1.0, 0.8)
 _LIBRARY_COLOR = Color(1.0, 1.0, 0.0, 0.9)
+_ACTIVE_WIDTH = 4.0
+_OTHER_WIDTH = 1.5
+_FADED_ALPHA = 0.35
 
 
 class SpectralHourglassWorkspace(QMainWindow):
@@ -57,11 +76,16 @@ class SpectralHourglassWorkspace(QMainWindow):
         self._hoveredPixel: int | None = None
         self._libraryPreview: LibrarySpectrum | None = None
         self._pendingComponents: int | None = None  # restored from a session
+        self._pendingPpi: dict | None = None  # saved purity counts to restore
+        self._resuming = False
 
         self.scene = SceneView(image, self)
         self.nd = NdVisualizer(self)
         self.endmemberTable = EndmemberTable(self.model, self)
         self.identifyPanel = IdentifyPanel(self.model, library=library)
+        # The scene image's own display controls, as in the other workspaces
+        self.displayPanel = self.scene.renderer.getSettingsPanel()
+        self.histogram = NewHistogramView(self.scene.renderer, self)
         self.spectraPlot = VardaPlotWidget(parent=self)
         self.spectraPlot.setSidebarVisible(False)  # the arrow beside the plot shows it
         self.pipeline = PipelinePanel(
@@ -86,12 +110,16 @@ class SpectralHourglassWorkspace(QMainWindow):
     def _buildDocks(self) -> None:
         self.dockManager = ads.CDockManager(self)
         self.sceneDock = VardaDockWidget("Scene").withWidget(self.scene)
-        self.pipelineDock = VardaDockWidget("Pipeline").withWidget(self.pipeline)
+        self.pipelineDock = VardaDockWidget("Pipeline").withWidget(
+            self._pipelineContainer()
+        )
         self.ndDock = VardaDockWidget("n-D Visualizer").withWidget(self.nd)
         self.endmemberDock = VardaDockWidget("Endmembers").withWidget(
             self.endmemberTable
         )
         self.spectraDock = VardaDockWidget("Spectra").withWidget(self.spectraPlot)
+        self.displayDock = VardaDockWidget("Display").withWidget(self.displayPanel)
+        self.histogramDock = VardaDockWidget("Histogram").withWidget(self.histogram)
         manager = self.dockManager
         manager.addDockWidget(ads.DockWidgetArea.CenterDockWidgetArea, self.sceneDock)
         manager.addDockWidget(
@@ -114,6 +142,46 @@ class SpectralHourglassWorkspace(QMainWindow):
             self.spectraDock,
             self.sceneDock.dockAreaWidget(),
         )
+        # Display and histogram tabbed beside the pipeline (the pipeline in front)
+        for dock in (self.displayDock, self.histogramDock):
+            manager.addDockWidget(
+                ads.DockWidgetArea.CenterDockWidgetArea,
+                dock,
+                self.pipelineDock.dockAreaWidget(),
+            )
+        self.pipelineDock.setAsCurrentTab()
+
+    def _pipelineContainer(self) -> QWidget:
+        saveButton = QPushButton("Save Workflow…")
+        saveButton.setToolTip(
+            "Save settings, endmembers, library exclusions and pixel purity, "
+            "to pick up later with Open Workflow"
+        )
+        saveButton.clicked.connect(lambda: self._guarded(self.saveWorkflow))
+        openButton = QPushButton("Open Workflow…")
+        openButton.clicked.connect(lambda: self._guarded(self.openWorkflow))
+        self.resumeButton = QPushButton("▶ Resume: re-run Prepare and MNF")
+        self.resumeButton.setToolTip(
+            "Recompute the prepared cube and MNF, then restore the saved pixel purity"
+        )
+        self.resumeButton.setVisible(False)
+        self.resumeButton.clicked.connect(self.resume)
+        row = QHBoxLayout()
+        row.addWidget(saveButton)
+        row.addWidget(openButton)
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(4, 4, 4, 0)
+        layout.addLayout(row)
+        layout.addWidget(self.resumeButton)
+        layout.addWidget(self.pipeline, stretch=1)
+        return container
+
+    def _guarded(self, action) -> None:
+        try:
+            action()
+        except (OSError, ValueError, KeyError) as error:
+            QMessageBox.warning(self, "Spectral Hourglass", str(error))
 
     def _buildStatusBar(self) -> None:
         status = QStatusBar(self)
@@ -142,6 +210,7 @@ class SpectralHourglassWorkspace(QMainWindow):
             lambda: self.scene.showOverlay(Overlay.MNF)
         )
         self.pipeline.reducePage.addButton.clicked.connect(self._addMnfToProject)
+        self.pipeline.sigStartOver.connect(self._startOver)
         self.pipeline.purityPage.addButton.clicked.connect(self._addPpiToProject)
         review = self.pipeline.mapPage.review
         review.sigDetectionsChanged.connect(self.scene.setDetections)
@@ -155,6 +224,8 @@ class SpectralHourglassWorkspace(QMainWindow):
     def _onPrepared(self, result) -> None:
         self.model.applyPrepared(result)
         self.pipeline.showStep(Step.REDUCE)
+        if self._resuming:
+            self._runMnf()
 
     def _runMnf(self) -> None:
         self.runner.run("MNF", self.model.mnfTask(), self._onMnf)
@@ -165,6 +236,8 @@ class SpectralHourglassWorkspace(QMainWindow):
             self.model.setComponents(self._pendingComponents)
             self._pendingComponents = None
         self.scene.enableComponents(result.scores.shape[1], self.model.componentImage)
+        if self._resuming:
+            self._finishResume()
 
     def _runPpi(self, iterations: int, threshold: float, resume: bool) -> None:
         task = self.model.ppiTask(iterations, threshold, resume=resume)
@@ -372,16 +445,22 @@ class SpectralHourglassWorkspace(QMainWindow):
         x = self._x()
         active = self.endmemberTable.activeEndmemberId()
         activeSpectrum = None
-        for endmember in self.model.usableEndmembers():
+        # the active endmember last (on top), thick with a halo; the rest faded
+        ordered = sorted(self.model.usableEndmembers(), key=lambda e: e.id == active)
+        for endmember in ordered:
             spectrum = self.model.endmemberSpectrum(endmember.id)
+            isActive = endmember.id == active
+            color = QColor(endmember.color)
+            if not isActive and active is not None:
+                color.setAlphaF(_FADED_ALPHA)
             curve = plot.plot(
-                x,
-                spectrum,
-                color=Color.fromQColor(QColor(endmember.color)),
-                name=endmember.name,
+                x, spectrum, color=Color.fromQColor(color), name=endmember.name
             )
-            if endmember.id == active:
-                curve.config.width.set(3.5)
+            curve.config.width.set(_ACTIVE_WIDTH if isActive else _OTHER_WIDTH)
+            if isActive:
+                curve.plotDataItem.setShadowPen(
+                    pg.mkPen(255, 255, 255, 90, width=_ACTIVE_WIDTH + 6)
+                )
                 activeSpectrum = spectrum
         if self._hoveredPixel is not None:
             flat = self.model.cube.reshape(-1, self.model.cube.shape[2])
@@ -397,6 +476,96 @@ class SpectralHourglassWorkspace(QMainWindow):
             plot.plot(
                 x, y, color=_LIBRARY_COLOR, name=f"{self._libraryPreview.name} (scaled)"
             )
+
+    # --- starting over, saving and resuming --------------------------------------------------
+
+    def _startOver(self, step: Step) -> None:
+        order = list(Step)
+        later = order[order.index(step) :]
+        self.model.resetFrom(step)
+        if Step.REDUCE in later:
+            self.scene.removeOverlay(Overlay.MNF)
+        if Step.PURITY in later:
+            self.scene.removeOverlay(Overlay.PPI)
+            self.scene.setCandidatePixels(np.zeros(0, dtype=np.int64))
+            self.nd.clear()
+            self._updateHint()
+        if Step.MAP in later:
+            self.scene.clearMaps()
+        self._refreshSpectra()
+        self.pipeline.showStep(step)
+        self.status.showMessage(f"Starting over from {step.value}.")
+
+    def saveWorkflow(self, path=None) -> Path:
+        """Write the workflow (settings, endmembers, exclusions and pixel
+        purity) to a JSON file; returns its path."""
+        if path is None:
+            chosen, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Workflow",
+                f"{self.model.image.name}.hourglass.json",
+                "Workflow (*.json)",
+            )
+            if not chosen:
+                raise OSError("Save cancelled.")
+            path = chosen
+        image = self.model.image
+        document = {
+            "format": _WORKFLOW_FORMAT,
+            "version": 1,
+            "image": {
+                "name": image.name,
+                "path": image.filePath,
+                "shape": [image.height, image.width],
+            },
+            "state": self.sessionState(),
+        }
+        target = Path(path)
+        target.write_text(json.dumps(document))
+        self.status.showMessage(f"Workflow saved to {target}")
+        return target
+
+    def openWorkflow(self, path=None) -> None:
+        """Load a saved workflow for this image and resume it."""
+        if path is None:
+            chosen, _ = QFileDialog.getOpenFileName(
+                self, "Open Workflow", "", "Workflow (*.json)"
+            )
+            if not chosen:
+                return
+            path = chosen
+        document = json.loads(Path(path).read_text())
+        if document.get("format") != _WORKFLOW_FORMAT:
+            raise ValueError(f"{path} is not a Spectral Hourglass workflow.")
+        image = self.model.image
+        if list(document["image"]["shape"]) != [image.height, image.width]:
+            raise ValueError(
+                f"That workflow was saved for a different image ({document['image']['name']})."
+            )
+        self.restoreSessionState(document["state"])
+        self.resume()
+
+    def resume(self) -> None:
+        """Re-run Prepare and MNF, then restore the saved component count and
+        pixel purity."""
+        self.resumeButton.setVisible(False)
+        self._resuming = True
+        self._runPrepare()
+
+    def _finishResume(self) -> None:
+        self._resuming = False
+        purity = self.pipeline.purityPage
+        self.model.minCount = purity.minCount.value()
+        self.model.maxCandidates = purity.maxCandidates.value()
+        if self._pendingPpi is not None:
+            try:
+                self.model.ppiFromJson(self._pendingPpi)
+            except ValueError as error:
+                self.status.showMessage(f"{error} Run Pixel Purity again.")
+            else:
+                self.scene.setPpi(self.model.ppiImage())
+                self.pipeline.showStep(Step.ENDMEMBERS)
+            self._pendingPpi = None
 
     # --- sessions --------------------------------------------------------------------------
 
@@ -419,6 +588,8 @@ class SpectralHourglassWorkspace(QMainWindow):
                 "maxCandidates": purity.maxCandidates.value(),
             },
             "endmembers": self.model.endmembersToJson(),
+            "excludedLibrarySpectra": self.identifyPanel.excludedNames(),
+            "ppiCounts": self.model.ppiToJson(),
         }
 
     def restoreSessionState(self, state: dict) -> None:
@@ -426,9 +597,7 @@ class SpectralHourglassWorkspace(QMainWindow):
         prepare = self.pipeline.preparePage
         window = settings.get("wavelengthRange")
         if window is not None:
-            prepare.limitBox.setChecked(True)
-            prepare.low.setValue(float(window[0]))
-            prepare.high.setValue(float(window[1]))
+            prepare.setWavelengthRange(float(window[0]), float(window[1]))
         prepare.iovfBox.setChecked(
             bool(settings.get("useIovf", prepare.iovfBox.isChecked()))
         )
@@ -445,9 +614,11 @@ class SpectralHourglassWorkspace(QMainWindow):
         )
         if state.get("endmembers"):
             self.model.endmembersFromJson(state["endmembers"])
+        self.identifyPanel.setExcluded(state.get("excludedLibrarySpectra", []))
+        self._pendingPpi = state.get("ppiCounts")
+        self.resumeButton.setVisible(self.model.prepared is None)
         self.status.showMessage(
-            "Session restored: run Prepare, MNF and Pixel Purity again to continue "
-            "with the saved endmembers."
+            "Restored: press Resume to recompute Prepare and MNF and continue."
         )
 
     # --- lifecycle -------------------------------------------------------------------------

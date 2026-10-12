@@ -1,9 +1,12 @@
 """The spectral hourglass workspace, driven end to end."""
 
+import numpy as np
 import pytest
+from PyQt6.QtGui import QColor
 
 from synthetic_scene import PATCHES, WAVELENGTHS, endmemberSpectra, syntheticScene
 from varda.analysis.spectral_library import LibrarySpectrum
+from varda.image_rendering.image_renderer import RenderMode
 from varda.workspaces.spectral_hourglass.hourglass_model import (
     MapMethod,
     Step,
@@ -106,7 +109,7 @@ def test_suggest_identify_and_map_end_to_end(workspace):
     page.runButton.click()
     result = workspace.projectImages[-1]
     assert result.name == "scene SAM"
-    assert workspace.scene.currentOverlay() == Overlay.MAP
+    assert workspace.scene.currentOverlay() == "Map: SAM"
     assert model.state(Step.MAP) is StepState.DONE
 
     page.buttons[MapMethod.MTMF].setChecked(True)
@@ -114,7 +117,7 @@ def test_suggest_identify_and_map_end_to_end(workspace):
     assert workspace.projectImages[-1].name == "scene MTMF"
     assert page.review.isVisibleTo(page)
     page.review.endmemberBox.setCurrentIndex(1)
-    page.review.setThresholds(minScore=0.8, maxInfeasibility=50.0)
+    page.review.scoreLine.setValue(0.8)
     assert workspace.scene.currentOverlay() == Overlay.DETECTIONS
     page.review.sigAddToProject.emit(page.review.detectionsRaster())
     assert workspace.projectImages[-1].name.startswith("scene MTMF detections")
@@ -159,3 +162,126 @@ def test_ctrl_z_undoes_a_lasso(workspace, qtbot):
     assert workspace.model.endmembers[0].pixels.size > 0
     workspace.undoShortcut.activated.emit()
     assert all(e.pixels.size == 0 for e in workspace.model.endmembers)
+
+
+def test_display_controls_drive_the_scene_image(workspace):
+    settings = workspace.scene.renderer.settings
+    assert workspace.displayPanel.settings is settings
+    settings.mode.set(RenderMode.MONO)
+    settings.mono.band.set(5)
+    assert workspace.scene.renderer.settings.mono.band.get() == 5
+    assert workspace.histogram is not None
+
+
+def _withPatchEndmembers(workspace):
+    _runThroughPpi(workspace)
+    for name, (r0, c0) in PATCHES.items():
+        endmember = workspace.model.addEndmember(name)
+        workspace.model.assignPixels(
+            endmember.id,
+            [r * 36 + c for r in range(r0, r0 + 4) for c in range(c0, c0 + 4)],
+        )
+
+
+def test_every_map_result_keeps_its_own_overlay_entry(workspace):
+    _withPatchEndmembers(workspace)
+    page = workspace.pipeline.mapPage
+    for method in (MapMethod.SAM, MapMethod.UNMIX, MapMethod.MTMF):
+        page.buttons[method].setChecked(True)
+        page.runButton.click()
+    scene = workspace.scene
+    overlays = [scene.overlayBox.itemText(i) for i in range(scene.overlayBox.count())]
+    for label in ("Map: SAM", "Map: Unmixing", "Map: MTMF"):
+        assert label in overlays
+    assert (
+        scene.currentOverlay() == "Map: MTMF"
+    )  # the latest, not the review's detections
+    scene.showOverlay("Map: Unmixing")
+    bands = [scene.mapBandBox.itemText(i) for i in range(scene.mapBandBox.count())]
+    assert bands[0] == "All endmembers" and bands[1:4] == ["flat", "clay", "mafic"]
+    assert scene._overlayRenderer is not None
+    scene._overlayRenderer.render()
+
+
+def test_all_endmembers_composite_colours_each_by_its_endmember(workspace):
+    _withPatchEndmembers(workspace)
+    page = workspace.pipeline.mapPage
+    page.buttons[MapMethod.UNMIX].setChecked(True)
+    page.runButton.click()
+    rgb = workspace.scene.compositeImage(workspace.projectImages[-1])
+    assert rgb.shape == (40, 36, 3) and rgb.min() >= 0 and rgb.max() <= 1
+    clay = workspace.model.endmembers[1].color  # pure clay patch at (3, 31)
+    expected = QColor(clay)
+    np.testing.assert_allclose(
+        rgb[3, 31], [expected.redF(), expected.greenF(), expected.blueF()], atol=0.08
+    )
+
+
+def test_moving_the_mtmf_thresholds_shows_the_detections(workspace):
+    _withPatchEndmembers(workspace)
+    page = workspace.pipeline.mapPage
+    page.buttons[MapMethod.MTMF].setChecked(True)
+    page.runButton.click()
+    assert workspace.scene.currentOverlay() == "Map: MTMF"
+    page.review.scoreLine.setValue(0.7)
+    assert workspace.scene.currentOverlay() == Overlay.DETECTIONS
+
+
+def test_the_active_endmember_stands_out_in_the_spectra_plot(workspace):
+    _withPatchEndmembers(workspace)
+    clay = workspace.model.endmembers[1]
+    workspace.endmemberTable.setActiveEndmember(clay.id)
+    curves = {c.plotDataItem.name(): c for c in workspace.spectraPlot.plots}
+    active, other = curves["clay"], curves["flat"]
+    assert workspace.spectraPlot.plots[-1] is active  # drawn on top
+    assert active.config.width.value > other.config.width.value
+    assert other.config.color.value.alpha() < 128 <= active.config.color.value.alpha()
+    assert active.plotDataItem.opts["shadowPen"] is not None
+
+
+def test_starting_over_from_purity_clears_the_candidates_and_overlay(workspace):
+    _runThroughPpi(workspace)
+    assert workspace.nd.projected().shape[0] > 0
+    workspace.pipeline.startOverButtons[Step.PURITY].click()
+    assert workspace.model.ppi is None
+    assert workspace.nd.projected().shape[0] == 0
+    overlays = [
+        workspace.scene.overlayBox.itemText(i)
+        for i in range(workspace.scene.overlayBox.count())
+    ]
+    assert Overlay.PPI not in overlays and Overlay.MNF in overlays
+    assert workspace.pipeline.currentIndex() == list(Step).index(Step.PURITY)
+
+
+def test_save_and_open_a_workflow_resumes_where_it_left_off(workspace, qtbot, tmp_path):
+    _withPatchEndmembers(workspace)
+    workspace.identifyPanel.excludeMatch("Pyroxene")
+    path = workspace.saveWorkflow(tmp_path / "run.hourglass.json")
+    assert workspace.model.ppi is not None
+    counts = workspace.model.ppi.counts.copy()
+
+    image = workspace.model.image
+    fresh = SpectralHourglassWorkspace(
+        image, [image], library=workspace.identifyPanel.library()
+    )
+    fresh.runner.synchronous = True
+    qtbot.addWidget(fresh)
+    fresh.openWorkflow(path)
+
+    model = fresh.model
+    assert [e.name for e in model.endmembers] == ["flat", "clay", "mafic"]
+    assert model.state(Step.PURITY) is StepState.DONE and model.ppi is not None
+    np.testing.assert_array_equal(model.ppi.counts, counts)
+    assert model.components == 3
+    assert fresh.nd.projected().shape[0] == model.candidatePixels().size > 0
+    assert fresh.identifyPanel.excludedNames() == ["Pyroxene"]
+
+
+def test_a_workflow_for_another_image_is_refused(workspace, qtbot, tmp_path):
+    _runThroughPpi(workspace)
+    path = workspace.saveWorkflow(tmp_path / "run.hourglass.json")
+    other, _ = syntheticScene(rows=30, cols=30)
+    fresh = SpectralHourglassWorkspace(other, [other])
+    qtbot.addWidget(fresh)
+    with pytest.raises(ValueError, match="different image"):
+        fresh.openWorkflow(path)

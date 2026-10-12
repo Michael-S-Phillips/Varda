@@ -535,6 +535,78 @@ class HourglassModel:
                 endmember.identification = entry.get("identification", "")
         self._endmembersChanged()
 
+    # --- starting over -----------------------------------------------------------------
+
+    def resetFrom(self, step: Step) -> None:
+        """Clear ``step``'s result and every later one, as if starting the run
+        again from there. Endmember classes (pixel sets) survive a restart of
+        an earlier step; starting over from Endmembers clears them (undoably),
+        and from Identify clears only the identifications."""
+        order = list(Step)
+        later = order[order.index(step) :]
+        if Step.PREPARE in later:
+            self.prepared = None
+            self._validFlat = None
+        if Step.REDUCE in later:
+            self.mnf = None
+            self.components = 0
+        if Step.PURITY in later:
+            self.ppi = None
+            self.sigCandidatesChanged.emit()
+        if step is Step.ENDMEMBERS:
+            self._clearEndmembers()
+        elif step is Step.IDENTIFY:
+            self._clearIdentifications()
+        for s in later:
+            if s is not Step.ENDMEMBERS or step is Step.ENDMEMBERS:
+                self._setState(s, StepState.NOT_RUN)
+        if self.usableEndmembers():
+            self._setState(Step.ENDMEMBERS, StepState.DONE)
+
+    @_undoable
+    def _clearEndmembers(self) -> None:
+        self.endmembers = []
+        self._endmembersChanged()
+
+    @_undoable
+    def _clearIdentifications(self) -> None:
+        for endmember in self.endmembers:
+            endmember.identification = ""
+        self._endmembersChanged()
+
+    def ppiToJson(self) -> dict | None:
+        """The purity counts, compactly (non-zero rows only), for saving."""
+        if self.ppi is None:
+            return None
+        rows = np.flatnonzero(self.ppi.counts)
+        return {
+            "validPixels": int(self.ppi.counts.size),
+            "rows": rows.tolist(),
+            "counts": self.ppi.counts[rows].tolist(),
+            "iterations": self.ppi.iterations,
+            "threshold": self.ppi.threshold,
+        }
+
+    def ppiFromJson(self, data: dict) -> None:
+        """Restore saved purity counts (needs Prepare and MNF run on the same
+        image and settings, so the valid pixels line up)."""
+        n = int(data["validPixels"])
+        if self._validFlat is None or self._validFlat.size != n:
+            raise ValueError(
+                "The saved pixel purity was computed on different valid pixels."
+            )
+        counts = np.zeros(n, dtype=np.int64)
+        counts[np.asarray(data["rows"], dtype=np.int64)] = np.asarray(
+            data["counts"], dtype=np.int64
+        )
+        self.applyPpi(
+            PpiResult(
+                counts=counts,
+                iterations=int(data["iterations"]),
+                threshold=float(data["threshold"]),
+            )
+        )
+
     # --- 5. identify -------------------------------------------------------------------
 
     def markIdentified(self) -> None:

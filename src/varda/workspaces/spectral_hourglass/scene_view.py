@@ -36,7 +36,8 @@ class Overlay:
     NONE = "None"
     MNF = "MNF component"
     PPI = "Pixel purity (PPI)"
-    MAP = "Map"
+    MAP_PREFIX = "Map: "
+    ALL_ENDMEMBERS = "All endmembers"
     DETECTIONS = "MTMF detections"
 
 
@@ -80,7 +81,7 @@ class SceneView(QWidget):
         self.toolManager.sigToolActivated.connect(self._onToolActivated)
 
         self._sources: dict[str, np.ndarray | None] = {}
-        self._mapRaster: VardaRaster | None = None
+        self._maps: dict[str, VardaRaster] = {}  # overlay label -> map result
         self._overlayRenderer: ImageRenderer | None = None
         self.componentImage = None  # callable: index -> (rows, cols)
 
@@ -100,7 +101,7 @@ class SceneView(QWidget):
         self.overlayBox = QComboBox()
         self.overlayBox.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.overlayBox.addItem(Overlay.NONE)
-        self.overlayBox.currentTextChanged.connect(lambda _: self._applyOverlay())
+        self.overlayBox.currentTextChanged.connect(lambda _: self._onOverlayChosen())
         self.componentSpin = QSpinBox()
         self.componentSpin.setPrefix("MNF ")
         self.componentSpin.setRange(1, 1)
@@ -146,6 +147,24 @@ class SceneView(QWidget):
         if self.overlayBox.findText(name) < 0:
             self.overlayBox.addItem(name)
 
+    def removeOverlay(self, name: str) -> None:
+        """Drop an overlay option (and its data), falling back to None if shown."""
+        index = self.overlayBox.findText(name)
+        if index < 0:
+            return
+        if self.overlayBox.currentText() == name:
+            self.overlayBox.setCurrentText(Overlay.NONE)
+        self.overlayBox.removeItem(index)
+        self._sources.pop(name, None)
+        self._maps.pop(name, None)
+        if name == Overlay.MNF:
+            self.componentImage = None
+
+    def clearMaps(self) -> None:
+        for label in list(self._maps):
+            self.removeOverlay(label)
+        self.removeOverlay(Overlay.DETECTIONS)
+
     def enableComponents(self, count: int, componentImage) -> None:
         """Offer MNF components 1..count; ``componentImage(i)`` gives one."""
         self.componentImage = componentImage
@@ -161,14 +180,53 @@ class SceneView(QWidget):
         if self.overlayBox.currentText() == Overlay.PPI:
             self._applyOverlay()
 
+    @staticmethod
+    def mapLabel(raster: VardaRaster) -> str:
+        """Overlay entry for a map result: one per method (SAM, Unmixing, MTMF)."""
+        method = raster.extraMetadata.get("mapMethod", "")
+        names = {"SAM": "SAM", "UNMIX": "Unmixing", "MTMF": "MTMF"}
+        return Overlay.MAP_PREFIX + names.get(method, raster.name)
+
     def setMapResult(self, raster: VardaRaster) -> None:
-        self._mapRaster = raster
+        """Keep a map result under its own overlay entry (replacing an earlier
+        run of the same method) and show it."""
+        label = self.mapLabel(raster)
+        self._maps[label] = raster
+        self._ensureOverlayOption(label)
+        if self.overlayBox.currentText() == label:
+            self._fillBandBox(raster)
+        self.showOverlay(label)
+
+    def _currentMap(self) -> VardaRaster | None:
+        return self._maps.get(self.overlayBox.currentText())
+
+    def _fillBandBox(self, raster: VardaRaster) -> None:
+        bands = list(raster.bandNames)
+        if bands and bands[0] != "Class":  # unmixing and MTMF: show all at once first
+            bands = [Overlay.ALL_ENDMEMBERS, *bands]
         self.mapBandBox.blockSignals(True)
         self.mapBandBox.clear()
-        self.mapBandBox.addItems(list(raster.bandNames))
+        self.mapBandBox.addItems(bands)
         self.mapBandBox.blockSignals(False)
-        self._ensureOverlayOption(Overlay.MAP)
-        self.showOverlay(Overlay.MAP)
+
+    def compositeImage(self, raster: VardaRaster) -> np.ndarray:
+        """(rows, cols, 3) RGB in 0-1: each endmember's abundance (unmixing) or
+        matched-filter score (MTMF), clipped to 0-1, in its colour, added up."""
+        names = list(raster.extraMetadata.get("classes", []))
+        colors = raster.extraMetadata.get("classColors", [])
+        bandNames = list(raster.bandNames)
+        data = raster.getData()
+        rgb = np.zeros(data.shape[:2] + (3,), dtype=np.float32)
+        for name, color in zip(names, colors):
+            band = f"MF({name})" if f"MF({name})" in bandNames else name
+            if band not in bandNames:
+                continue
+            score = np.nan_to_num(np.clip(data[:, :, bandNames.index(band)], 0.0, 1.0))
+            c = pg.mkColor(color)
+            rgb += score[:, :, None] * np.array(
+                [c.redF(), c.greenF(), c.blueF()], np.float32
+            )
+        return np.clip(rgb, 0.0, 1.0)
 
     def setDetections(self, mask: np.ndarray, color: str) -> None:
         """Pixels picked in the MTMF review, in ``color`` (others black)."""
@@ -184,13 +242,19 @@ class SceneView(QWidget):
                 self._applyOverlay()
             self.overlayBox.setCurrentText(name)
 
+    def _onOverlayChosen(self) -> None:
+        raster = self._currentMap()
+        if raster is not None:
+            self._fillBandBox(raster)
+        self._applyOverlay()
+
     def currentOverlay(self) -> str:
         return self.overlayBox.currentText()
 
     def _syncControls(self) -> None:
         overlay = self.overlayBox.currentText()
         self.componentSpin.setVisible(overlay == Overlay.MNF)
-        self.mapBandBox.setVisible(overlay == Overlay.MAP)
+        self.mapBandBox.setVisible(overlay.startswith(Overlay.MAP_PREFIX))
         self.opacitySlider.setEnabled(overlay != Overlay.NONE)
 
     def _overlayRaster(
@@ -214,9 +278,17 @@ class SceneView(QWidget):
             rgb = self._sources[Overlay.DETECTIONS]
             assert rgb is not None
             return _rasterLike(self.image, rgb, "Detections"), True, (0.0, 1.0)
-        if overlay == Overlay.MAP and self._mapRaster is not None:
-            raster = self._mapRaster
-            band = max(0, self.mapBandBox.currentIndex())
+        raster = self._currentMap()
+        if raster is not None:
+            choice = self.mapBandBox.currentText()
+            if choice == Overlay.ALL_ENDMEMBERS:
+                return (
+                    _rasterLike(self.image, self.compositeImage(raster), "Endmembers"),
+                    True,
+                    (0.0, 1.0),
+                )
+            bandNames = list(raster.bandNames)
+            band = bandNames.index(choice) if choice in bandNames else 0
             values = raster.getData()[:, :, band]
             if raster.bandNames[band] == "Class":
                 colors = raster.extraMetadata.get("classColors", [])

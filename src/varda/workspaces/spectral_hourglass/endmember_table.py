@@ -46,8 +46,12 @@ class EndmemberTable(QWidget):
         vertical.setVisible(False)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.resizeSection(0, 24)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        for column in (1, 2, 3):  # drag the dividers to resize
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+        header.resizeSection(1, 160)
+        header.resizeSection(2, 60)
+        header.setStretchLastSection(True)
+        self.table.setSortingEnabled(True)  # click a header to sort
         self.table.itemChanged.connect(self._onItemChanged)
         self.table.cellDoubleClicked.connect(self._onCellDoubleClicked)
         self.table.currentCellChanged.connect(lambda row, *_: self._onCurrentRow(row))
@@ -115,6 +119,8 @@ class EndmemberTable(QWidget):
         self.undoButton.setEnabled(self.model.canUndo())
         endmembers = self.model.endmembers
         with QSignalBlocker(self.table):
+            # rows must not move while being filled; re-sorted below
+            self.table.setSortingEnabled(False)
             self.table.setRowCount(len(endmembers))
             for row, endmember in enumerate(endmembers):
                 swatch = QTableWidgetItem()
@@ -124,7 +130,10 @@ class EndmemberTable(QWidget):
                 )
                 swatch.setToolTip("Double-click to change the colour")
                 name = QTableWidgetItem(endmember.name)
-                count = QTableWidgetItem(str(endmember.pixels.size))
+                count = QTableWidgetItem()
+                count.setData(
+                    Qt.ItemDataRole.DisplayRole, int(endmember.pixels.size)
+                )  # sorts numerically
                 count.setFlags(count.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 count.setTextAlignment(
                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
@@ -134,11 +143,19 @@ class EndmemberTable(QWidget):
                 for column, item in enumerate((swatch, name, count, ident)):
                     item.setData(Qt.ItemDataRole.UserRole, endmember.id)
                     self.table.setItem(row, column, item)
-            ids = [e.id for e in endmembers]
-            if self._activeId in ids:
-                self.table.setCurrentCell(ids.index(self._activeId), 1)
+            self.table.setSortingEnabled(True)
+            row = self._rowOf(self._activeId)
+            if row is not None:
+                self.table.setCurrentCell(row, 1)
         if self._activeId not in [e.id for e in endmembers]:
             self._setActive(endmembers[-1].id if endmembers else None)
+
+    def _rowOf(self, endmemberId: int | None) -> int | None:
+        """The (possibly sorted) table row showing an endmember."""
+        for row in range(self.table.rowCount()):
+            if endmemberId is not None and self._rowId(row) == endmemberId:
+                return row
+        return None
 
     def _rowId(self, row: int) -> int | None:
         item = self.table.item(row, 1)
@@ -149,10 +166,10 @@ class EndmemberTable(QWidget):
 
     def setActiveEndmember(self, endmemberId: int | None) -> None:
         self._setActive(endmemberId)
-        ids = [e.id for e in self.model.endmembers]
-        if endmemberId in ids:
+        row = self._rowOf(endmemberId)
+        if row is not None:
             with QSignalBlocker(self.table):
-                self.table.setCurrentCell(ids.index(endmemberId), 1)
+                self.table.setCurrentCell(row, 1)
 
     def _setActive(self, endmemberId: int | None) -> None:
         if endmemberId != self._activeId:

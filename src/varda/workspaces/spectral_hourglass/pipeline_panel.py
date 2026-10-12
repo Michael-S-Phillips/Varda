@@ -4,7 +4,7 @@ a primary action. Step titles carry their status (done, needs re-running)."""
 from __future__ import annotations
 
 import numpy as np
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -20,6 +20,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from superqt import QLabeledDoubleRangeSlider
 
 from varda.analysis.eigenvalue_plot import EigenvaluePlot
 from varda.analysis.unmixing import Constraint
@@ -57,6 +59,16 @@ def _primary(text: str) -> QPushButton:
     return button
 
 
+def shortUnits(units: str) -> str:
+    """'Nanometers' -> 'nm', 'Micrometers' -> 'µm'; anything else unchanged."""
+    lowered = units.strip().lower()
+    if lowered.startswith("nano") or lowered == "nm":
+        return "nm"
+    if lowered.startswith("micro") or lowered in ("um", "µm"):
+        return "µm"
+    return units.strip()
+
+
 class PreparePage(QWidget):
     def __init__(self, model: HourglassModel, run) -> None:
         super().__init__()
@@ -67,18 +79,26 @@ class PreparePage(QWidget):
             if image.wavelengthsType is str
             else np.asarray(image.wavelengths, float)
         )
-        self.limitBox = QCheckBox("Only use wavelengths")
-        self.low = QDoubleSpinBox()
-        self.high = QDoubleSpinBox()
-        for spin in (self.low, self.high):
-            spin.setRange(0.0, 1e6)
-            spin.setDecimals(1)
-            spin.setSuffix(f" {image.wavelengthUnits or ''}".rstrip())
+        self._wavelengths = numeric
+        self._units = shortUnits(image.wavelengthUnits or "")
+        # one slider for the band window; the full range means no limit
+        self.rangeSlider = QLabeledDoubleRangeSlider(Qt.Orientation.Horizontal)
+        self.rangeSlider.setToolTip(
+            "Drag the handles to keep only this wavelength window"
+        )
+        self.bandCountLabel = QLabel()
         if numeric is not None:
-            self.low.setValue(float(np.nanmin(numeric)))
-            self.high.setValue(float(np.nanmax(numeric)))
+            lo, hi = float(np.nanmin(numeric)), float(np.nanmax(numeric))
+            # superqt's stubs inherit the int slider's signatures; the double
+            # slider takes floats
+            self.rangeSlider.setRange(lo, hi)  # ty: ignore[invalid-argument-type]
+            self.rangeSlider.setSingleStep(max((hi - lo) / 1000.0, 1e-6))  # ty: ignore[invalid-argument-type]
+            self.rangeSlider.setDecimals(0 if hi > 100 else 3)
+            self.rangeSlider.setValue((lo, hi))
+            self.rangeSlider.valueChanged.connect(lambda _: self._updateBandCount())
         else:
-            self.limitBox.setEnabled(False)
+            self.rangeSlider.setEnabled(False)
+        self._updateBandCount()
         self.iovfBox = QCheckBox("Remove spikes with IOVF")
         self.iovfBox.setToolTip(
             "Iterative outlier voting filter. Spikes otherwise pose as pure "
@@ -92,10 +112,6 @@ class PreparePage(QWidget):
         self.summary = QLabel()
         self.summary.setWordWrap(True)
 
-        row = QHBoxLayout()
-        row.addWidget(self.low)
-        row.addWidget(QLabel("–"))
-        row.addWidget(self.high)
         layout = QVBoxLayout(self)
         layout.addWidget(
             _hint(
@@ -104,17 +120,39 @@ class PreparePage(QWidget):
                 "beyond 2.6 µm); missing bands are filled along each spectrum."
             )
         )
-        layout.addWidget(self.limitBox)
-        layout.addLayout(row)
+        layout.addWidget(QLabel("Wavelength window"))
+        layout.addWidget(self.rangeSlider)
+        layout.addWidget(self.bandCountLabel)
         layout.addWidget(self.iovfBox)
         layout.addWidget(self.runButton)
         layout.addWidget(self.summary)
         layout.addStretch()
 
-    def _settings(self) -> None:
-        self.model.settings.wavelengthRange = (
-            (self.low.value(), self.high.value()) if self.limitBox.isChecked() else None
+    def wavelengthRange(self) -> tuple[float, float] | None:
+        """The chosen window, or None when it covers every band."""
+        if self._wavelengths is None:
+            return None
+        lo, hi = (float(v) for v in self.rangeSlider.value())
+        keep = (self._wavelengths >= lo) & (self._wavelengths <= hi)
+        return None if keep.all() else (lo, hi)
+
+    def setWavelengthRange(self, lo: float, hi: float) -> None:
+        self.rangeSlider.setValue((lo, hi))
+        self._updateBandCount()
+
+    def _updateBandCount(self) -> None:
+        if self._wavelengths is None:
+            self.bandCountLabel.setText("No numeric wavelengths: every band is used.")
+            return
+        lo, hi = (float(v) for v in self.rangeSlider.value())
+        kept = int(((self._wavelengths >= lo) & (self._wavelengths <= hi)).sum())
+        total = self._wavelengths.size
+        self.bandCountLabel.setText(
+            f"{lo:g}–{hi:g} {self._units}: {kept} of {total} bands".replace("  ", " ")
         )
+
+    def _settings(self) -> None:
+        self.model.settings.wavelengthRange = self.wavelengthRange()
         self.model.settings.useIovf = self.iovfBox.isChecked()
 
     def refresh(self) -> None:
@@ -358,7 +396,11 @@ class MapPage(QWidget):
 
 
 class PipelinePanel(QToolBox):
-    """Accordion of the six steps. The workspace supplies the actions."""
+    """Accordion of the six steps. The workspace supplies the actions. Click
+    any step to go back to it; re-running it marks later steps as needing a
+    re-run, and "Start over" clears them."""
+
+    sigStartOver = pyqtSignal(object)  # Step
 
     def __init__(
         self,
@@ -389,8 +431,23 @@ class PipelinePanel(QToolBox):
             Step.IDENTIFY: identifyPanel,
             Step.MAP: self.mapPage,
         }
+        self.startOverButtons: dict[Step, QPushButton] = {}
         for step, page in self._pages.items():
-            self.addItem(page, "")
+            button = QPushButton("↺ Start over from this step")
+            button.setFlat(True)
+            button.setToolTip(
+                "Clear this step's result and every later one, then begin again "
+                "here. Endmember classes are kept unless you start over from "
+                "Endmembers (which can be undone)."
+            )
+            button.clicked.connect(lambda _=False, st=step: self.sigStartOver.emit(st))
+            self.startOverButtons[step] = button
+            container = QWidget()
+            column = QVBoxLayout(container)
+            column.setContentsMargins(0, 0, 0, 0)
+            column.addWidget(page, stretch=1)
+            column.addWidget(button)
+            self.addItem(container, "")
         self._runButtons = [
             self.preparePage.runButton,
             self.reducePage.runButton,

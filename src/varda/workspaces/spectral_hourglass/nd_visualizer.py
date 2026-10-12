@@ -17,7 +17,7 @@ import numpy as np
 import pyqtgraph as pg
 from matplotlib.path import Path
 from PyQt6.QtCore import QPointF, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtGui import QBrush, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -36,7 +36,7 @@ _FRAME_MS = 33
 _HOVER_PIXELS = 7.0
 _FIT_PLANES = 12  # random projections sampled to size the view
 _STEP_REPEAT_MS = 33  # holding Step advances the tour at the Play frame rate
-_ROTATE_RADIANS_PER_PIXEL = 0.01
+_ROTATE_RADIANS_PER_PIXEL = 0.008  # a drag across the view turns ~half a turn
 
 
 class _CloudViewBox(pg.ViewBox):
@@ -44,7 +44,9 @@ class _CloudViewBox(pg.ViewBox):
     wheel zooms."""
 
     sigLassoFinished = pyqtSignal(object, bool)  # [(x, y), ...] view coords, add
-    sigRotateDrag = pyqtSignal(float, float)  # screen-pixel deltas (dx, dy)
+    sigRotateStart = pyqtSignal()
+    sigRotateDrag = pyqtSignal(float, float)  # screen pixels from the press (dx, dy)
+    sigRotateEnd = pyqtSignal()
 
     def __init__(self) -> None:
         super().__init__(lockAspect=True)
@@ -62,8 +64,12 @@ class _CloudViewBox(pg.ViewBox):
             self.translateBy(x=-delta.x(), y=-delta.y())
             return
         if not self.lassoMode:
-            d = ev.pos() - ev.lastPos()
+            if ev.isStart():
+                self.sigRotateStart.emit()
+            d = ev.pos() - ev.buttonDownPos()
             self.sigRotateDrag.emit(float(d.x()), float(d.y()))
+            if ev.isFinish():
+                self.sigRotateEnd.emit()
             return
         point = self.mapSceneToView(ev.scenePos())
         if ev.isStart():
@@ -110,7 +116,12 @@ class NdVisualizer(QWidget):
 
         self.viewBox = _CloudViewBox()
         self.viewBox.sigLassoFinished.connect(self.selectPolygon)
-        self.viewBox.sigRotateDrag.connect(self.rotateBy)
+        self.viewBox.sigRotateStart.connect(self.beginRotate)
+        self.viewBox.sigRotateDrag.connect(self.dragRotate)
+        self.viewBox.sigRotateEnd.connect(self.endRotate)
+        self._rotateFrame: np.ndarray | None = None  # [u, v, depth] frozen at the press
+        self._resumeTour = False
+        self._brushes: list[QBrush] = []
         self._axisItems: list[pg.GraphicsObject] = []
         self._radius = 1.0
         self.plotWidget = pg.PlotWidget(viewBox=self.viewBox)
@@ -256,10 +267,24 @@ class NdVisualizer(QWidget):
             np.zeros((0, k)) if background is None else np.asarray(background) - centre
         )
         self._colors = [self.UNASSIGNED_COLOR] * self._ids.size
+        self._brushes = []
         previous = set(self._dims)
         self._rebuildDimButtons(k)
         dims = [d for d in range(k) if d in previous] if previous else list(range(k))
         self.setActiveDims(dims if len(dims) >= 2 else list(range(k)))
+
+    def clear(self) -> None:
+        """Show nothing (e.g. after starting over from Pixel Purity)."""
+        self._data = np.zeros((0, 2))
+        self._background = np.zeros((0, 2))
+        self._ids = np.zeros(0, dtype=np.int64)
+        self._colors, self._brushes = [], []
+        self._projected = np.zeros((0, 2))
+        self.scatter.setData([], [])
+        self.backgroundItem.setData([], [])
+        for item in self._axisItems:
+            self.viewBox.removeItem(item)
+        self._axisItems = []
 
     def _rebuildDimButtons(self, k: int) -> None:
         if len(self._dimButtons) == k:
@@ -310,6 +335,7 @@ class NdVisualizer(QWidget):
     def setPointColors(self, colors: dict[int, str]) -> None:
         """Colour per pixel id (pixels not listed are unassigned)."""
         self._colors = [colors.get(int(i), self.UNASSIGNED_COLOR) for i in self._ids]
+        self._brushes = []
         self._redraw()
 
     def pointColors(self) -> list[str]:
@@ -337,9 +363,18 @@ class NdVisualizer(QWidget):
         return self.LASSO if self.viewBox.lassoMode else self.ROTATE
 
     def setMode(self, mode: str) -> None:
-        self.viewBox.lassoMode = mode == self.LASSO
-        self.lassoButton.setChecked(mode == self.LASSO)
-        self.rotateButton.setChecked(mode != self.LASSO)
+        lasso = mode == self.LASSO
+        self.viewBox.lassoMode = lasso
+        self.lassoButton.setChecked(lasso)
+        self.rotateButton.setChecked(not lasso)
+        self._setCursor(
+            Qt.CursorShape.CrossCursor if lasso else Qt.CursorShape.OpenHandCursor
+        )
+
+    def _setCursor(self, shape: Qt.CursorShape) -> None:
+        viewport = self.plotWidget.viewport()
+        if viewport is not None:
+            viewport.setCursor(shape)
 
     # --- projection -------------------------------------------------------------------
 
@@ -376,26 +411,60 @@ class NdVisualizer(QWidget):
         self._plane = interpolatePlane(self._start, self._target, self._t)
         self._redraw()
 
-    def rotateBy(self, dx: float, dy: float) -> None:
-        """Turn the view by a mouse drag: horizontal motion swings the view's x
-        axis, vertical its y axis, towards the hidden direction (within the
-        tour's dimensions) along which the cloud spreads most."""
-        if len(self._dims) < 2 or not self._data.size:
-            return
+    def beginRotate(self) -> None:
+        """Freeze the view's frame (x axis, y axis, and the hidden direction the
+        cloud spreads along most) for a trackball drag; pause the tour."""
         hidden = self._hiddenDirection()
         if hidden is None:
+            self._rotateFrame = None
             return
-        plane = self._plane.copy()
-        for axis, delta in ((0, dx), (1, -dy)):
-            angle = delta * _ROTATE_RADIANS_PER_PIXEL
-            u = plane[:, axis].copy()
-            plane[:, axis] = np.cos(angle) * u + np.sin(angle) * hidden
-            hidden = -np.sin(angle) * u + np.cos(angle) * hidden
-        q, r = np.linalg.qr(plane)
-        self._plane = q * np.sign(np.diag(r))
-        # the tour continues from here
-        self._start, self._target, self._t = self._plane, self._randomPlane(), 0.0
+        self._rotateFrame = np.column_stack([self._plane, hidden])
+        self._resumeTour = self._timer.isActive()
+        self._timer.stop()
+        self._setCursor(Qt.CursorShape.ClosedHandCursor)
+
+    def dragRotate(self, dx: float, dy: float) -> None:
+        """Turn the cloud like a trackball by the drag (dx, dy) in screen
+        pixels from the press: points follow the cursor, and the turn depends
+        only on the offset, so dragging back undoes it."""
+        if self._rotateFrame is None:
+            return
+        up = -dy  # screen y grows downwards, the view's y axis upwards
+        length = float(np.hypot(dx, up))
+        if length == 0.0:
+            rotation = np.eye(3)
+        else:
+            axis = np.array([-up, dx, 0.0]) / length  # turns depth towards the drag
+            angle = length * _ROTATE_RADIANS_PER_PIXEL
+            k = np.array(
+                [[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]]
+            )
+            rotation = np.eye(3) + np.sin(angle) * k + (1 - np.cos(angle)) * (k @ k)
+        self._plane = self._rotateFrame @ rotation[:2, :].T
         self._redraw()
+
+    def endRotate(self) -> None:
+        if self._rotateFrame is not None:
+            # the tour carries on from the new view
+            self._start, self._target, self._t = self._plane, self._randomPlane(), 0.0
+        self._rotateFrame = None
+        self._setCursor(
+            Qt.CursorShape.CrossCursor
+            if self.viewBox.lassoMode
+            else Qt.CursorShape.OpenHandCursor
+        )
+        if self._resumeTour:
+            self._timer.start()
+        self._resumeTour = False
+
+    def rotateBy(self, dx: float, dy: float) -> None:
+        """One-off trackball turn by (dx, dy) screen pixels."""
+        resume = self._timer.isActive()
+        self.beginRotate()
+        self.dragRotate(dx, dy)
+        self.endRotate()
+        if resume:
+            self._timer.start()
 
     def _hiddenDirection(self) -> np.ndarray | None:
         """Unit vector, within the tour's dimensions and orthogonal to the view,
@@ -469,10 +538,12 @@ class NdVisualizer(QWidget):
             self.scatter.setData([], [])
             return
         self._projected = self.projectPoints(self._data)
-        brushes = [pg.mkBrush(c) for c in self._colors]
+        if len(self._brushes) != len(self._colors):  # rebuilt only when colours change
+            cache = {c: pg.mkBrush(c) for c in set(self._colors)}
+            self._brushes = [cache[c] for c in self._colors]
         self.scatter.setData(
             pos=self._projected,
-            brush=brushes,
+            brush=self._brushes,
             data=self._ids,
             size=self.sizeSlider.value(),
         )
