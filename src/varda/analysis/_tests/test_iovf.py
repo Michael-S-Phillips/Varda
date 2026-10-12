@@ -4,7 +4,7 @@ the smooth spectra around them."""
 import numpy as np
 import pytest
 
-from varda.analysis.iovf import iovfFilter
+from varda.analysis.iovf import _isStalled, iovfFilter
 
 
 def _smoothCube(rows=24, cols=20, bands=60, seed=0) -> np.ndarray:
@@ -84,3 +84,9 @@ def test_stops_once_a_round_replaces_little_compared_with_the_first():
     assert early.replaced[-1] < 0.2 * early.replaced[0]
     assert all(count >= 0.2 * early.replaced[0] for count in early.replaced[1:-1])
     assert early.replaced == full.replaced[: early.rounds]
+
+
+def test_stalled_rounds_stop_the_filter():
+    assert not _isStalled([100, 50, 40, 30, 20, 10])
+    assert _isStalled([100, 50, 40, 41, 42, 40, 40, 41])  # no net fall over five rounds
+    assert not _isStalled([100, 90])

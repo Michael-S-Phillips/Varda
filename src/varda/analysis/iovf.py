@@ -114,12 +114,19 @@ def iovfFilter(
         )
         if flagged.shape[0] == 0 or _isCycling(replaced):
             break
-        if round_ > 1 and flagged.shape[0] < stopFraction * replaced[0]:
-            break
+        if stopFraction > 0 and round_ > 1:
+            if flagged.shape[0] < stopFraction * replaced[0] or _isStalled(replaced):
+                break
     report(100, "done")
     return IovfResult(
         filtered=noise + reference, replaced=replaced, reference=reference
     )
+
+
+def _isStalled(replaced: list[int], rounds: int = 5) -> bool:
+    """True when the last ``rounds`` rounds replaced no fewer voxels, overall,
+    than the round before them (the filter has stopped making progress)."""
+    return len(replaced) > rounds and replaced[-1] >= replaced[-1 - rounds]
 
 
 def _isCycling(replaced: list[int]) -> bool:
