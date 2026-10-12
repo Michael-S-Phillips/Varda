@@ -30,6 +30,7 @@ from varda.analysis.endmembers import interpolatePlane, randomPlane
 
 _FRAME_MS = 33
 _HOVER_PIXELS = 7.0
+_FIT_PLANES = 12  # random projections sampled to size the view
 
 
 class _LassoViewBox(pg.ViewBox):
@@ -308,9 +309,16 @@ class NdVisualizer(QWidget):
     def _fitView(self) -> None:
         if not self._data.size or not self._dims:
             return
-        # frame the bulk of the cloud, not the farthest outlier
-        norms = np.linalg.norm(self._data[:, self._dims], axis=1)
-        radius = float(np.percentile(norms, 99.5)) * 1.15
+        # Frame the bulk of the cloud as it looks projected (a 2-D view of many
+        # dimensions is far narrower than the cloud's full radius), judged
+        # over a set of random planes so the frame suits the whole tour.
+        rng = np.random.default_rng(0)
+        data = self._data[:, self._dims]
+        spans = [
+            np.percentile(np.abs(data @ randomPlane(len(self._dims), rng)), 99.5)
+            for _ in range(_FIT_PLANES)
+        ]
+        radius = float(np.max(spans)) * 1.2
         radius = radius or 1.0
         self.viewBox.setRange(
             xRange=(-radius, radius), yRange=(-radius, radius), padding=0

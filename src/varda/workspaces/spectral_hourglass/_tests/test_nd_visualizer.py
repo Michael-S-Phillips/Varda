@@ -93,3 +93,13 @@ def test_new_data_leaves_no_stray_dimension_buttons(viz):
         if b.parent() is viz and b.isVisibleTo(viz)
     ]
     assert [b.text() for b in buttons] == ["1", "2", "3"]
+
+
+def test_view_frames_the_projected_cloud_in_many_dimensions(qtbot):
+    widget = NdVisualizer()
+    qtbot.addWidget(widget)
+    rng = np.random.default_rng(0)
+    widget.setData(rng.normal(size=(2000, 18)), np.arange(2000))
+    (x0, x1), _ = widget.viewBox.viewRange()
+    typical = np.percentile(np.abs(widget.projected()), 99)
+    assert (x1 - x0) / 2 < 3 * typical  # not sized by the 18-D radius (~4.2x)
