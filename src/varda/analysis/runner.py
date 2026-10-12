@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 
 from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
-from PyQt6.QtWidgets import QMessageBox, QProgressDialog, QWidget
+from PyQt6.QtWidgets import QMessageBox, QWidget
 
 from varda.analysis.analysis import Analysis
+from varda.branding.loader import BusyDialog
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
 from varda.image_loading.raster_writer import writeRaster
@@ -62,16 +63,14 @@ class AnalysisRunner(QObject):
         self, analysis: Analysis, image: VardaRaster, outputPath: str | None = None
     ) -> None:
         """``outputPath``: also write the result there (ENVI or GeoTIFF)."""
-        dialog = QProgressDialog(
+        # No cancel button: analyses run to completion
+        dialog = BusyDialog(
             f"Running {analysis.name} on {image.name}…",
-            None,  # no cancel button: analyses run to completion
-            0,
-            100,
-            self._parentWidget,
+            title="Analysis",
+            parent=self._parentWidget,
         )
-        dialog.setWindowTitle("Analysis")
-        dialog.setMinimumDuration(0)
         dialog.setValue(0)
+        dialog.show()
 
         job = _AnalysisJob(analysis, image, outputPath)
         self._jobs.append(job)

@@ -13,10 +13,10 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QLineEdit,
     QMessageBox,
-    QProgressDialog,
     QWidget,
 )
 
+from varda.branding.loader import BusyDialog
 from varda.common.entities import VardaRaster
 from varda.common.parameter import ImageParameter
 from varda.common.ui import ButtonBuilder, HBoxBuilder, VBoxBuilder
@@ -121,11 +121,12 @@ class ExportImageDialog(QDialog):
     def _export(self) -> None:
         image = self.selectedImage()
         path = self.pathEdit.text().strip()
-        progress = QProgressDialog(
-            f"Writing {image.name} to {path}…", None, 0, 0, self.parentWidget()
+        progress = BusyDialog(
+            f"Writing {image.name} to {path}…",
+            title="Export Image",
+            parent=self.parentWidget(),
         )
-        progress.setWindowTitle("Export Image")
-        progress.setMinimumDuration(0)
+        progress.show()
 
         job = _WriteJob(image, path)
         self._jobs.append(job)
