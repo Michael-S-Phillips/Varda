@@ -1,9 +1,8 @@
-"""The Varda wordmark in the main window's title area.
+"""The Varda V mark in the main window's title area.
 
-Native title bars only draw text, so the wordmark sits in a slim, fixed
-toolbar at the top of the window. On macOS the toolbar is unified with the
-title bar. The brand guide's minimum height for the small wordmark is 30 px,
-so it is drawn at exactly that size.
+Native title bars only draw text, so the mark sits in a slim, fixed toolbar
+at the top of the window, centred like a title. On macOS the toolbar is
+unified with the title bar.
 """
 
 from __future__ import annotations
@@ -17,24 +16,24 @@ from PyQt6.QtWidgets import QLabel, QMainWindow, QSizePolicy, QToolBar, QWidget
 
 from varda.utilities.resources import resource_path
 
-WORDMARK_DIR = Path(resource_path("resources/brand/wordmark"))
-MIN_HEIGHT = 30  # px; the small (no dots) wordmark is for 30-60 px
+ICON_DIR = Path(resource_path("resources/brand/icon"))
+MARK_HEIGHT = 28  # px, about the height of a title bar
 
 
-def wordmarkPath(palette: QPalette) -> Path:
-    """The small wordmark made for the palette's window colour."""
+def markPath(palette: QPalette) -> Path:
+    """The V mark made for the palette's window colour."""
     dark = palette.color(QPalette.ColorRole.Window).lightness() < 128
-    return WORDMARK_DIR / f"varda-wordmark-small-on-{'dark' if dark else 'light'}.svg"
+    return ICON_DIR / f"varda-mark-on-{'dark' if dark else 'light'}.svg"
 
 
-class WordmarkLabel(QLabel):
-    """The wordmark at ``MIN_HEIGHT``, redrawn when the palette changes."""
+class MarkLabel(QLabel):
+    """The V mark at ``MARK_HEIGHT``, redrawn when the palette changes."""
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setToolTip("Varda")
         self.setAccessibleName("Varda")
-        self._path = wordmarkPath(self.palette())
+        self._path = markPath(self.palette())
         self._render()
 
     def currentPath(self) -> Path:
@@ -43,7 +42,7 @@ class WordmarkLabel(QLabel):
     def changeEvent(self, a0: QEvent | None) -> None:
         super().changeEvent(a0)
         if a0 is not None and a0.type() == QEvent.Type.PaletteChange:
-            path = wordmarkPath(self.palette())
+            path = markPath(self.palette())
             if path != self._path:
                 self._path = path
                 self._render()
@@ -52,9 +51,9 @@ class WordmarkLabel(QLabel):
         path = self._path
         renderer = QSvgRenderer(str(path))
         size = renderer.defaultSize()
-        width = MIN_HEIGHT * size.width() / size.height()
+        width = MARK_HEIGHT * size.width() / size.height()
         ratio = self.devicePixelRatioF()
-        pixmap = QPixmap(round(width * ratio), round(MIN_HEIGHT * ratio))
+        pixmap = QPixmap(round(width * ratio), round(MARK_HEIGHT * ratio))
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -64,17 +63,17 @@ class WordmarkLabel(QLabel):
         self.setPixmap(pixmap)
 
 
-def addWordmarkBar(window: QMainWindow) -> QToolBar:
-    """Add the fixed wordmark bar, centred like a title, to the top of ``window``."""
+def addTitleMarkBar(window: QMainWindow) -> QToolBar:
+    """Add the fixed V-mark bar, centred like a title, to the top of ``window``."""
     bar = QToolBar("Varda", window)
-    bar.setObjectName("wordmarkBar")
+    bar.setObjectName("titleMarkBar")
     bar.setMovable(False)
     bar.setFloatable(False)
     toggle = bar.toggleViewAction()
     if toggle is not None:
         toggle.setVisible(False)  # keep it out of the toolbar context menu
     bar.addWidget(_spacer(bar))
-    bar.addWidget(WordmarkLabel(bar))
+    bar.addWidget(MarkLabel(bar))
     bar.addWidget(_spacer(bar))
     window.addToolBar(Qt.ToolBarArea.TopToolBarArea, bar)
     window.setUnifiedTitleAndToolBarOnMac(True)

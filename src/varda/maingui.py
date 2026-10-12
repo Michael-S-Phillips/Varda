@@ -7,7 +7,7 @@ from PyQt6 import QtWidgets
 from PyQt6.QtCore import QMimeData, Qt, pyqtSignal
 from PyQt6.QtWidgets import QWidget
 from app_model.backends.qt import QModelMainWindow
-from varda.branding.wordmark import addWordmarkBar
+from varda.branding.title_mark import addTitleMarkBar
 from varda.common.ui import DetachableTabWidget
 from varda.all_images_view_list.imageview_list import ImageListWidget
 from varda.context_keys import WORKSPACE_COUNT
@@ -46,7 +46,7 @@ class MainGUI(QModelMainWindow):
         logger.info("MainGUI Initialized")
 
     def initUI(self):
-        addWordmarkBar(self)
+        addTitleMarkBar(self)
         self.setTabPosition(
             Qt.DockWidgetArea.AllDockWidgetAreas,
             QtWidgets.QTabWidget.TabPosition.North,

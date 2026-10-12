@@ -1,14 +1,14 @@
-"""The wordmark in the main window's title area."""
+"""The V mark in the main window's title area."""
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import QMainWindow, QToolBar
 
-from varda.branding.wordmark import (
-    MIN_HEIGHT,
-    WordmarkLabel,
-    addWordmarkBar,
-    wordmarkPath,
+from varda.branding.title_mark import (
+    MARK_HEIGHT,
+    MarkLabel,
+    addTitleMarkBar,
+    markPath,
 )
 
 
@@ -19,21 +19,23 @@ def _palette(window: str) -> QPalette:
 
 
 def test_the_variant_follows_the_ground():
-    assert wordmarkPath(_palette("#1e1e1e")).name == "varda-wordmark-small-on-dark.svg"
-    assert wordmarkPath(_palette("#f6f4ef")).name == "varda-wordmark-small-on-light.svg"
+    assert markPath(_palette("#1e1e1e")).name == "varda-mark-on-dark.svg"
+    assert markPath(_palette("#f6f4ef")).name == "varda-mark-on-light.svg"
 
 
-def test_the_label_is_never_smaller_than_the_brand_minimum(qtbot):
-    label = WordmarkLabel()
+def test_the_label_draws_the_square_mark_at_title_height(qtbot):
+    label = MarkLabel()
     qtbot.addWidget(label)
     pixmap = label.pixmap()
     assert not pixmap.isNull()
-    assert pixmap.height() / pixmap.devicePixelRatio() >= MIN_HEIGHT
+    ratio = pixmap.devicePixelRatio()
+    assert pixmap.height() / ratio == MARK_HEIGHT
+    assert pixmap.width() == pixmap.height()
     assert label.toolTip()  # "Varda" for screen readers and hover
 
 
 def test_the_label_redraws_for_a_new_palette(qtbot):
-    label = WordmarkLabel()
+    label = MarkLabel()
     qtbot.addWidget(label)
     label.setPalette(_palette("#110d2b"))
     assert label.currentPath().name.endswith("on-dark.svg")
@@ -44,11 +46,11 @@ def test_the_label_redraws_for_a_new_palette(qtbot):
 def test_the_bar_is_fixed_at_the_top_and_centred(qtbot):
     window = QMainWindow()
     qtbot.addWidget(window)
-    bar = addWordmarkBar(window)
+    bar = addTitleMarkBar(window)
     assert isinstance(bar, QToolBar)
     assert window.toolBarArea(bar) == Qt.ToolBarArea.TopToolBarArea
     assert not bar.isMovable() and not bar.isFloatable()
-    label = bar.findChild(WordmarkLabel)
+    label = bar.findChild(MarkLabel)
     assert label is not None
     window.resize(900, 600)
     window.show()
