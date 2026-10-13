@@ -69,6 +69,10 @@ can alter results.
 
 ### Faster
 
+- **Very large images open quickly.** An image that would take more than a
+  quarter of the computer's memory is read from disk on demand (recent band
+  reads are cached) instead of being loaded whole; smaller images still load
+  into memory as before.
 - Changing the stretch no longer re-reads the image, and changing opacity
   no longer re-reads or re-stretches it (about 70 ms to under 25 ms on a
   3000 × 3000 RGB view). Only a new band selection reads bands again.
