@@ -151,6 +151,7 @@ class DualImageWorkspace(QMainWindow):
             self.plotWidget,
             parent=self,
             drawingState=self.roiDrawingState,
+            images=self.projectImages,
         )
         # Saved pixel points (from the pixel-spectra plots' Save Point)
         self.pointCollection = PointCollection()
