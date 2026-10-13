@@ -41,7 +41,7 @@ We also try to do as much wiring as possible at this initialization stage, to re
 - **`rois/`** — ROI graphics item (`VardaROI`), management widgets, table model/view, property editor, statistics dialog. **Much of this is outdated and should be ignored. We will be rewriting it.**
 - **`common/`** — Shared code that is used in many places: `entities.py` (important domain objects such as VardaRaster), `parameter.py` (typed settings as plain psygnal state, no Qt) and `parameter_widgets.py` (the widgets that edit them: `parameterWidget`, `groupWidget`; register new parameter widgets with `@widgetFor`), `ui.py` (useful widgets and builders).
 - **`workspaces/`** — Workspace views: `dual_image_workspace/` (side-by-side comparison), `general_image_analysis/` (standard analysis view).
-- **`utilities/`** — Helpers: threading, signal utils, debug tools, etc..
+- **`utilities/`** — Helpers: background work, signal utils, debug tools, etc. Run anything slow through `background.runInBackground` (results and failures come back on the GUI thread; wrap progress callbacks with `onMainThread`), never a hand-made QRunnable or QThread.
 - **`maingui.py`** — `MainGUI` (QMainWindow): tabbed workspaces, child window management, docking.
 
 ## Incomplete/On-Hold

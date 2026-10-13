@@ -11,7 +11,7 @@ from PyQt6.QtGui import QTransform
 
 import pyqtgraph as pg
 
-from varda.image_loading import ImageLoadingService
+from varda.image_loading.image_loading_service import loadRaster
 from varda.image_rendering.stretch_algorithms import (
     LinearPercentileStretch,
 )
@@ -58,21 +58,20 @@ class SpatialViewBox(pg.ViewBox):
 def main():
     app = QApplication(sys.argv)
 
-    imageLoadingService = ImageLoadingService()
-    raster, metadata = imageLoadingService.load_image_sync(
+    image = loadRaster(
         str(
             Path("../../testImages/Data/CRISM/frt00012dfa_07_if164j_mtr3.img").resolve()
         )
     )
     print("Image done loading.")
-    rgbData = raster[:, :, [1, 2, 3]]
+    rgbData = image.getBands([1, 2, 3])
     stretch = LinearPercentileStretch()
     stretch.lowPercent.set(1)
     stretch.highPercent.set(99)
 
     rgbData = stretch.apply(rgbData)
     rgbData = rgbData.filled(1)
-    affine = metadata.transform
+    affine = image.transform
 
     pg.setConfigOptions(imageAxisOrder="row-major")
     win = pg.GraphicsLayoutWidget(show=True, title="SpatialViewBox + ROI Demo")

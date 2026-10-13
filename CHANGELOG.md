@@ -106,6 +106,11 @@ can alter results.
 - The Spectral Hourglass library preview was blank for µm images.
 - User plugins in `plugins/user_plugins/` never loaded.
 - Closing an image that had been loaded into memory left its file open.
+- An analysis could fail with a read error, or read wrong values, if the display
+  read the same file at the same time. Each thread now has its own file handle.
+- Opening a large file no longer blocks the window while it loads.
+- An unexpected error while installing PyTorch left the Optional Features
+  dialog busy forever.
 - Saved plot curves kept their colour but lost its transparency.
 - Settings changed after a dialog or panel closed could still reach its
   widgets.

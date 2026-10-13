@@ -10,7 +10,7 @@ import platform
 import shutil
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QFont, QGuiApplication
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -28,10 +28,10 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.branding.loader import RedrawSpinner
+from varda.utilities.background import onMainThread, runInBackground
 from varda.optional_features.torch_runtime import (
     Backend,
     InstallCancelled,
-    InstallError,
     Installer,
     LOW_SPACE_FACTOR,
     TorchRuntime,
@@ -56,30 +56,6 @@ def _freeSpaceMB(path: Path) -> float | None:
     return None
 
 
-class _InstallSignals(QObject):
-    log = pyqtSignal(str)
-    step = pyqtSignal(str)
-    finished = pyqtSignal()
-    failed = pyqtSignal(str, bool)  # message, cancelled
-
-
-class _InstallJob(QRunnable):
-    def __init__(self, installer: Installer, signals: _InstallSignals):
-        super().__init__()
-        self.installer = installer
-        self.signals = signals
-
-    def run(self) -> None:
-        try:
-            self.installer.run()
-        except InstallCancelled as error:
-            self.signals.failed.emit(str(error), True)
-        except (InstallError, OSError, ValueError, KeyError) as error:
-            self.signals.failed.emit(str(error), False)
-        else:
-            self.signals.finished.emit()
-
-
 class OptionalFeaturesDialog(QDialog):
     sigInstalled = pyqtSignal()
 
@@ -98,7 +74,6 @@ class OptionalFeaturesDialog(QDialog):
         self.backends = backends
         self.detected = detected
         self._installer: Installer | None = None
-        self._signals: _InstallSignals | None = None
 
         self.reasonLabel = QLabel(reason)
         self.reasonLabel.setWordWrap(True)
@@ -251,19 +226,19 @@ class OptionalFeaturesDialog(QDialog):
         if backend is None:
             return
         self.log.clear()
-        signals = _InstallSignals(self)
-        signals.log.connect(self.log.appendPlainText)
-        signals.step.connect(self.stepLabel.setText)
-        signals.finished.connect(self._onInstalled)
-        signals.failed.connect(self._onFailed)
-        self._signals = signals
         self._installer = Installer(
-            self.runtime, backend, signals.log.emit, signals.step.emit
+            self.runtime,
+            backend,
+            onMainThread(self.log.appendPlainText),
+            onMainThread(self.stepLabel.setText),
         )
         self._setBusy(True)
-        pool = QThreadPool.globalInstance()
-        assert pool is not None
-        pool.start(_InstallJob(self._installer, signals))
+        runInBackground(
+            self._installer.run,
+            lambda _result: self._onInstalled(),
+            self._onInstallError,
+            description="Installing PyTorch",
+        )
 
     def _cancel(self) -> None:
         if self._installer is not None:
@@ -277,6 +252,9 @@ class OptionalFeaturesDialog(QDialog):
         self.stepLabel.setText("PyTorch is ready.")
         self._refresh()
         self.sigInstalled.emit()
+
+    def _onInstallError(self, error: Exception) -> None:
+        self._onFailed(str(error), isinstance(error, InstallCancelled))
 
     def _onFailed(self, message: str, cancelled: bool) -> None:
         self._installer = None

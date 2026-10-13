@@ -7,6 +7,9 @@ All data methods transpose from rasterio's native (bands, h, w) to (h, w, bands)
 
 from __future__ import annotations
 
+import threading
+import weakref
+
 import logging
 from functools import cached_property
 from typing import TYPE_CHECKING
@@ -46,11 +49,33 @@ class RasterioDataSource(DataSource):
     """DataSource backed by a rasterio-opened file handle.
 
     Works with any format GDAL supports: GeoTIFF, ENVI, PNG, JPEG, BMP, HDF5, etc.
+
+    A GDAL handle must not be used by two threads at once, so pixels are read
+    through one handle per thread (``_reader``); the display and a background
+    analysis can read the same image together.
     """
 
     def __init__(self, filePath: str):
         self._filePath = filePath
         self._src: rio.DatasetReader = rio.open(filePath)
+        self._readerThread = threading.get_ident()
+        self._threadReaders = threading.local()
+        # every other thread's handle, until close() or that thread ends
+        self._extraReaders: weakref.WeakSet[rio.DatasetReader] = weakref.WeakSet()
+        self._readersLock = threading.Lock()
+
+    def _reader(self) -> rio.DatasetReader:
+        """This thread's handle: the original for the thread that opened the
+        file, a new one (kept for reuse) for any other."""
+        if threading.get_ident() == self._readerThread:
+            return self._src
+        reader = getattr(self._threadReaders, "reader", None)
+        if reader is None:
+            reader = rio.open(self._src.name)
+            self._threadReaders.reader = reader
+            with self._readersLock:
+                self._extraReaders.add(reader)
+        return reader
 
     # --- Data access ---
 
@@ -88,7 +113,9 @@ class RasterioDataSource(DataSource):
             rio_indices = [int(i) + 1 for i in bandIndices]
 
         # get data
-        data = self._src.read(indexes=rio_indices, window=rio_window, masked=masked)
+        data = self._reader().read(
+            indexes=rio_indices, window=rio_window, masked=masked
+        )
 
         # (bands, h, w) -> (h, w, bands)
         data = np.moveaxis(data, 0, -1)
@@ -277,8 +304,12 @@ class RasterioDataSource(DataSource):
     # --- Lifecycle ---
 
     def close(self) -> None:
-        if self._src is not None and not self._src.closed:
-            self._src.close()
+        with self._readersLock:
+            readers = [self._src, *self._extraReaders]
+            self._extraReaders.clear()
+        for reader in readers:
+            if not reader.closed:
+                reader.close()
 
     def __del__(self):
         self.close()

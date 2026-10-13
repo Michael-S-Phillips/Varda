@@ -1,0 +1,49 @@
+"""The one way Varda runs work off the GUI thread.
+
+``runInBackground`` runs a function on Qt's global thread pool, then calls
+``onDone`` with its result, or ``onFailed`` with the exception, on the GUI
+thread. A task that reports progress is given a callback wrapped with
+``onMainThread``, which is safe to call from the worker.
+
+Workers may read images while the display does: data sources keep reads
+thread-safe (see ``RasterioDataSource`` and ``CachedDataSource``).
+"""
+
+import logging
+from collections.abc import Callable
+
+from superqt.utils import FunctionWorker, create_worker, ensure_main_thread
+
+logger = logging.getLogger(__name__)
+
+
+def runInBackground[R](
+    task: Callable[[], R],
+    onDone: Callable[[R], None],
+    onFailed: Callable[[Exception], None],
+    *,
+    description: str = "Background task",
+) -> FunctionWorker[R]:
+    """Run ``task`` on a worker thread; its outcome comes back on the GUI thread.
+    A failure is logged as "<description> failed" before ``onFailed`` runs."""
+
+    def failed(error: Exception) -> None:
+        logger.error("%s failed", description, exc_info=error)
+        onFailed(error)
+
+    worker = create_worker(
+        task, _start_thread=False, _connect={"returned": onDone, "errored": failed}
+    )
+    worker.start()
+    return worker
+
+
+def onMainThread(callback: Callable[..., object]) -> Callable[..., None]:
+    """``callback``, safe to call from a worker: each call runs on the GUI
+    thread, in order, without the worker waiting for it."""
+    run = ensure_main_thread(lambda *args: callback(*args))
+
+    def call(*args) -> None:
+        run(*args)
+
+    return call
