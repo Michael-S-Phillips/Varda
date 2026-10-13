@@ -43,7 +43,7 @@ def openRunAnalysisDialog(
         QMessageBox.information(
             mainGui,
             f"{analysis.name} is unavailable",
-            f"{analysis.name} needs {analysis.requirement}; see the README.",
+            f"{analysis.name} needs {analysis.requirement}; see Help → Documentation.",
         )
         return
     runner = AnalysisRunner(images, parent=mainGui)

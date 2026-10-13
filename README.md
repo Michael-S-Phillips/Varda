@@ -6,178 +6,65 @@
   </picture>
 </p>
 
-Varda is a GUI based app to visualize and analyze image data, with an emphasis on supporting hyperspectral and multispectral data workflows.
-It currently offers basic image visualization, and spectra exploration (viewing individual pixel spectra, and mean spectra of ROIs). There are many features we still plan to add, including richer ROI features and image processing/analysis pipelines. As well as continuing to improve the modularity and exposing plugin APIs for users to inject their own features.
+Varda is a desktop application for exploring and analyzing hyperspectral and
+multispectral images. Open an image, look at it in true or false colour,
+click any pixel to see its spectrum, outline regions of interest, and run
+analyses, without writing code. It is developed at the Space Imagery Center
+(Lunar and Planetary Laboratory, University of Arizona) for planetary and
+Earth remote sensing work such as CRISM, and its design follows tools like
+ENVI Classic and napari.
 
-This project is still very much a WIP! As such, things will be changing rapidly, and may feel a bit unpolished. If you encounter any issues or would like to request any features, feel free to contact me at jesseoved@arizona.edu, or you may open a new issue here on GitHub.
+## What you can do with it
 
+- **View images:** ENVI, GeoTIFF and HDF5 cubes, shown in true colour, false
+  colour or one band at a time, with adjustable stretches and colour maps.
+  Compare two images side by side in linked views, and overlay one on
+  another.
+- **Explore spectra:** plot pixel spectra and the mean spectra of regions of
+  interest, compare them with spectral libraries, and export plots as SVG,
+  PDF, PNG or CSV.
+- **Work with regions of interest:** draw them on the image, group them into
+  classes, and tabulate their statistics.
+- **Run analyses:** band math and spectral parameters, continuum removal,
+  PCA, MNF and ICA, classification (from maximum likelihood and k-means to
+  small neural networks), target and anomaly detection, filtering and more.
+  Results join your project as new images, which you can save as ENVI or
+  GeoTIFF files.
+- **Find and map endmembers** with the Spectral Hourglass, an ENVI-style
+  workflow from noise reduction through pixel purity and the n-D visualizer
+  to identification against spectral libraries and mapping.
+- **Pick up where you left off:** sessions save your images, workspaces and
+  regions of interest, and Varda autosaves as you work.
 
-# Getting Started
+Varda is under active development, so expect rough edges and frequent
+changes. Bug reports and feature requests are welcome on the
+[issue tracker](https://github.com/Michael-S-Phillips/Varda/issues/new/choose).
 
-## Download a release (no Python needed)
-Each release on the [Releases page](https://github.com/Michael-S-Phillips/Varda/releases)
-ships a zip per platform (`Varda-windows-x64.zip`, `Varda-macos-arm64.zip`,
-`Varda-linux-x64.zip`). Unzip it and run the `Varda` executable inside.
-- **macOS:** the build is not code-signed, so the first launch is blocked by
-  Gatekeeper. Right-click the app → *Open* (once), or run
-  `xattr -dr com.apple.quarantine <path to Varda>`.
-- The packaged app includes HyPyRameter band parameters. The PyTorch CNN/ViT
-  classifiers download PyTorch the first time you use them (see
-  [below](#optional-cnn--vit-classifiers-pytorch)).
+## Getting Varda
 
-## Run from source
+**Download:** each release on the
+[Releases page](https://github.com/Michael-S-Phillips/Varda/releases) has a
+ready-to-run build for Windows, macOS (Apple silicon) and Linux; no Python
+needed.
 
-### Prerequisites
-- Python 3.13
-- the [uv package manager](https://docs.astral.sh/uv/)
+**From source:** with Python 3.13 and [uv](https://docs.astral.sh/uv/):
 
-### Setup
-1. Clone the repository and navigate to the project directory.
-2. Install the dependencies (add the optional extras you want):
 ```bash
-uv sync
-# with the optional extras (see below):
-uv sync --extra hypyrameter --extra ml
-```
-`uv sync` on its own removes extras that were installed before — repeat the
-`--extra` flags whenever you sync.
-
-### Run Varda
-```bash
+git clone https://github.com/Michael-S-Phillips/Varda.git
+cd Varda
+uv sync --extra hypyrameter
 uv run varda
 ```
 
-## Sessions
-**File → Save Session…** (⌘S) writes a `.varda` file recording the open
-images (by path), the open workspaces and their ROIs; **File → Open Session…**
-(⌘O) loads the images and reopens the workspaces alongside whatever is already
-open. Images that exist only in memory (analysis results you have not exported)
-are left out — export them first.
+See [Installing Varda](docs/user-guide/installing.md) for details, including
+the first launch on macOS and the optional extras.
 
-Varda also autosaves the session every three minutes and on quit (to
-`autosave.varda` in its app-data folder, next to the logs); after a crash,
-**File → Restore Last Session** brings it back.
+## Documentation
 
-## Choosing how many PCA / MNF / ICA components to keep
-The forward transforms (**Processing → Transforms**) default to every
-component and attach the eigenvalues and inverse to the result. Open the
-result in a workspace and step through its bands to see where the components
-turn into noise, and use **Transforms → Eigenvalue Plot…** to plot and tabulate
-the eigenvalues (with % and cumulative variance) and drag a cutoff to where they
-flatten out. Its button opens **Transforms → Inverse Transform (Keep N
-Components)** with that N preset, which rebuilds a denoised image in the
-original bands from the chosen components (or keeps just those component
-bands). The first N are ticked by default; untick any (e.g. component 1 to
-drop albedo) or type a range such as `3-19, 22`.
-
-## Spectral Hourglass: finding, identifying and mapping endmembers
-**Workspace → New Spectral Hourglass Workspace…** (also under **Processing →
-Endmembers**) runs ENVI's spectral hourglass workflow in one linked view. The
-Pipeline panel walks through the steps; each is marked done, or "needs
-re-running" when you change an earlier choice:
-
-1. **Prepare** — pick a wavelength window (e.g. drop CRISM beyond 2.6 µm) and,
-   for hyperspectral data, remove spikes with the IOVF filter (on by default
-   for 100+ bands, as spikes otherwise pose as pure pixels).
-2. **Reduce (MNF)** — drag the cutoff on the eigenvalue plot, or step through
-   the components in the scene overlay to see where they turn to noise.
-3. **Pixel Purity** — PPI counts how often each pixel is extreme in random
-   projections; the top pixels (2,000 by default) go to the n-D view. **Run
-   More** adds iterations to the current counts.
-4. **Endmembers** — in the **n-D Visualizer**, press Play to tour the
-   candidates through the kept MNF dimensions. Drag a lasso around a corner
-   of the cloud to add it to the active endmember (Shift-drag removes);
-   **Suggest** proposes one group per corner; **Collapse classes** hides the
-   corners you already have so the next stands out. Lassoed pixels are filled
-   in the scene and their mean spectrum is plotted. Ctrl+Z undoes any edit.
-5. **Identify** — rank a spectral library against the active endmember by
-   spectral angle, absorption shape and binary encoding; double-click a match
-   to overlay it, then **Use as Name**. Two libraries are bundled: the CRISM
-   MICA numerators (Viviano-Beck et al. 2014; picked automatically for CRISM
-   products) and USGS splib07 minerals. **Load Library…** adds your own (see
-   below; the **?** button beside it explains the formats).
-6. **Map** — SAM (class + angle images), fully constrained linear unmixing
-   (abundances + RMS error) or MTMF (matched-filter score + infeasibility,
-   with a review plot whose threshold lines highlight detections live).
-
-Maps join the project's images (as can the MNF and PPI images); endmember
-classes can be saved as JSON or exported as a CSV spectral library, and the
-workspace is part of saved sessions.
-
-**Processing** also offers the pieces on their own: **Filtering → Iterative
-Outlier Voting Filter (IOVF)**, **Endmembers → Pixel Purity Index**, and SAM,
-unmixing and MTMF that use the workspace's ROIs as endmembers.
-
-### Preparing a spectral library
-Wavelengths may be in nm or µm (values below 10 are read as µm). The library
-is resampled to the image's bands and must overlap at least five of them;
-matching ignores overall brightness, so reflectance, I/F or scaled values all
-work.
-
-- **CSV** (`.csv`/`.txt`): first column wavelength, one column per spectrum,
-  names in the first non-comment row; lines starting with `#` are comments and
-  empty cells are missing values.
-  ```
-  # optional comments
-  wavelength_um,Kaolinite,Nontronite
-  1.0010,0.512,0.430
-  1.0075,0.515,0.431
-  ```
-- **ENVI spectral library** (`.sli` + `.hdr`) with `spectra names`,
-  `wavelength` and `wavelength units` in the header.
-- **USGS splib07 folder**: one sub-folder per spectrum holding its `.txt` and
-  `*Wavelengths*.txt` files.
-
-For CRISM, compare unratioed I/F endmembers with the MICA *numerators*;
-ratioed type spectra only match ratioed data.
-
-## Saving results
-Every Processing result joins the project's image list. Tick **Save result to
-file** in the analysis dialog to also write it to disk (ENVI `.img`/`.hdr` or
-GeoTIFF), or export any image later with **File → Export Image…** / right-click
-an image → **Export Image…**.
-
-## Optional: Band Parameters (HyPyRameter)
-**Processing → Spectral Parameters → Band Parameters (HyPyRameter)** computes
-CRISM-style spectral parameters with
-[HyPyRameter](https://github.com/Michael-S-Phillips/HyPyRameter); the dialog
-lists every parameter the image's wavelength range supports (hover a name for
-its definition) and lets you pick which to compute. It is optional: without it
-Varda runs normally and lists that analysis as unavailable. The downloadable
-app includes it; from source, the `hypyrameter` extra installs it from PyPI:
-```bash
-uv sync --extra hypyrameter
-# or, with pip:  pip install "varda[hypyrameter]"
-```
-
-## Optional: CNN / ViT classifiers (PyTorch)
-**Processing → Classification → Train CNN on ROIs / Train ViT on ROIs** train
-small neural networks on spatial-spectral patches around your ROI pixels. They
-need PyTorch, which is too large to ship in every download. (The MLP
-classifier is pure numpy and always available.)
-
-**In the app.** The first time you pick one of these classifiers, Varda offers
-to install PyTorch. You can also open **Processing → Optional Features…** at
-any time. Varda picks the build for your hardware: Apple GPU on Apple silicon,
-CUDA 13 for a recent NVIDIA GPU and driver, otherwise CPU. You can override
-that choice. The CPU and Apple builds are a few hundred MB; the CUDA build is
-about 3 GB.
-
-PyTorch goes into its own Python environment in Varda's data folder (shown in
-the dialog), so nothing else on your computer changes. Varda installs exactly
-the versions pinned for its release, checked against their hashes. The
-classifiers then run in a separate process using that environment.
-**Uninstall** deletes the folder. Intel Macs and ARM Linux are not supported.
-
-**From source.** Install the `ml` extra to run PyTorch inside Varda's own
-environment instead:
-```bash
-uv sync --extra ml
-# or, with pip:  pip install "varda[ml]"
-```
-Training runs on CUDA or Apple MPS when available, otherwise on the CPU.
-Maintainers: `scripts/compile_torch_locks.py` regenerates the pinned locks in
-`resources/optional_features/torch/`.
+The [user guide](docs/user-guide/README.md) covers Varda's features in
+detail: sessions and saving, choosing PCA/MNF components, the Spectral
+Hourglass and spectral libraries, and optional features such as PyTorch
+classifiers. In the app, **Help → Documentation** opens it.
 
 ## Citing Varda
 
