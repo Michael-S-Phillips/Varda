@@ -88,6 +88,18 @@ class ROIManagerWidget(QWidget):
         self.deselectButton = QPushButton("Deselect")
         self.deselectButton.clicked.connect(lambda: self._table.clearSelection())
 
+        # Hide All while any ROI is shown, Show All once they are all hidden
+        self.visibilityButton = QPushButton()
+        self.visibilityButton.setToolTip(
+            "Hide or show every ROI on the image; untick one in the table to hide it"
+        )
+        self.visibilityButton.clicked.connect(self._toggleAllVisible)
+        collection.sigVisibilityChanged.connect(
+            lambda _: self._updateVisibilityButton()
+        )
+        collection.sigCollectionChanged.connect(self._updateVisibilityButton)
+        self._updateVisibilityButton()
+
         self._deleteBtn = QPushButton("Delete Selected")
         self._deleteBtn.clicked.connect(self._deleteSelected)
 
@@ -117,6 +129,7 @@ class ROIManagerWidget(QWidget):
         btnRow = QHBoxLayout()
         btnRow.addWidget(self.selectAllButton)
         btnRow.addWidget(self.deselectButton)
+        btnRow.addWidget(self.visibilityButton)
         btnRow.addWidget(self._deleteBtn)
         btnRow.addWidget(self._addColumnBtn)
         btnRow.addWidget(self._exportBtn)
@@ -341,6 +354,17 @@ class ROIManagerWidget(QWidget):
         fid = self.selectedFid()
         if fid is not None:
             self.plotSpectrum(fid)
+
+    def _anyVisible(self) -> bool:
+        return any(self._collection.isVisible(fid) for fid in self._collection.fids)
+
+    def _toggleAllVisible(self) -> None:
+        self._collection.setAllVisible(not self._anyVisible())
+
+    def _updateVisibilityButton(self) -> None:
+        anyShown = self._anyVisible() or len(self._collection) == 0
+        self.visibilityButton.setText("Hide All" if anyShown else "Show All")
+        self.visibilityButton.setEnabled(len(self._collection) > 0)
 
     def _deleteSelected(self) -> None:
         fids = self.selectedFids()

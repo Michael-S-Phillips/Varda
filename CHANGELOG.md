@@ -33,6 +33,9 @@ can alter results.
 
 ### Added
 
+- **Hide and show ROIs:** untick an ROI in the ROI table to hide it on the
+  image, use **Hide All / Show All**, or right-click a row for **Show Only
+  This ROI**. Hidden ROIs stay in the table and in saved sessions.
 - **Duplicate Workspace** (Workspace menu, or right-click a workspace's tab):
   opens a copy on the same images with its own copies of the ROIs and
   display settings.

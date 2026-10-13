@@ -53,6 +53,7 @@ class ROIDisplayController(QObject):
         self._collection.sigROIAdded.connect(self._onROIAdded)
         self._collection.sigROIRemoved.connect(self._onROIRemoved)
         self._collection.sigROIUpdated.connect(self._onROIUpdated)
+        self._collection.sigVisibilityChanged.connect(self._onVisibilityChanged)
 
     # --- Viewport management ---
 
@@ -118,6 +119,14 @@ class ROIDisplayController(QObject):
                 handle.setColor(roi.color.toQColor())
         self.displayUpdated.emit()
 
+    def _onVisibilityChanged(self, fid: int) -> None:
+        visible = self._collection.isVisible(fid)
+        for items in self._items.values():
+            handle = items.get(fid)
+            if handle is not None:
+                handle.setVisible(visible)
+        self.displayUpdated.emit()
+
     # --- Internal ---
 
     def _addOverlay(self, viewportId: str, fid: int) -> None:
@@ -129,6 +138,7 @@ class ROIDisplayController(QObject):
         handle = viewport.addROIOverlay(_toQPoints(localCoords), roi.color.toQColor())
         if fid == self._highlightedFid:
             handle.setHighlighted(True)
+        handle.setVisible(self._collection.isVisible(fid))
         self._items[viewportId][fid] = handle
 
     def _refreshViewport(self, viewportId: str) -> None:

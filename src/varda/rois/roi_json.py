@@ -23,6 +23,7 @@ def roisToJson(collection: ROICollection) -> dict:
                 "color": roi.color.toHexString(),
                 "roi_type": roi.roiType.name,
                 **roi.properties,
+                **({} if collection.isVisible(roi.fid) else {"visible": False}),
             },
         }
         for roi in collection.getAllROIs()
@@ -41,12 +42,15 @@ def roisFromJson(data: dict, collection: ROICollection) -> None:
         properties = dict(feature.get("properties", {}))
         name = properties.pop("name", "ROI")
         color = Color.fromHexString(properties.pop("color", "#ff000080"))
+        visible = bool(properties.pop("visible", True))
         roiTypeName = properties.pop("roi_type", ROIMode.POLYGON.name)
         roiType = (
             ROIMode[roiTypeName]
             if roiTypeName in ROIMode.__members__
             else ROIMode.POLYGON
         )
-        collection.addROI(
+        fid = collection.addROI(
             shape(feature["geometry"]), name, color, roiType, **properties
         )
+        if not visible:
+            collection.setVisible(fid, False)
