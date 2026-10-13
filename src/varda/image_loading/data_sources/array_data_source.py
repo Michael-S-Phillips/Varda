@@ -16,7 +16,7 @@ from affine import Affine
 import affine as affine_module
 from pyproj import CRS
 
-from .data_source import DataSource
+from .data_source import DataSource, geoToPixelIndex, pixelCenterToGeo
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -190,13 +190,10 @@ class ArrayDataSource(DataSource):
     # --- Coordinate transformation ---
 
     def pixelToGeo(self, col: int, row: int) -> tuple[float, float]:
-        x, y = self._transform * (col, row)
-        return x, y
+        return pixelCenterToGeo(self._transform, col, row)
 
     def geoToPixel(self, x: float, y: float) -> tuple[int, int]:
-        inv = ~self._transform
-        col, row = inv * (x, y)
-        return int(col), int(row)
+        return geoToPixelIndex(self._transform, x, y)
 
     # --- Lifecycle ---
 

@@ -9,7 +9,7 @@ and are reported back to the caller instead.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 
 import attrs
@@ -28,7 +28,10 @@ from varda.workspaces.spectral_hourglass.hourglass_workspace import (
 SESSION_SUFFIX = ".varda"
 SESSION_FILE_FILTER = "Varda session (*.varda)"
 _FORMAT = "varda-session"
-_VERSION = 1
+_VERSION = 1  # bump when the format changes, and add a MIGRATIONS entry
+
+# version n -> a function turning an n document into an n + 1 document
+MIGRATIONS: dict[int, Callable[[dict], dict]] = {}
 
 
 @attrs.frozen
@@ -160,6 +163,7 @@ def readSession(path: str | Path) -> SessionState:
     document = json.loads(Path(path).read_text())
     if not isinstance(document, dict) or document.get("format") != _FORMAT:
         raise ValueError(f"{path} is not a Varda session file.")
+    document = _upgrade(document, path)
     return SessionState(
         tuple(document["images"]),
         tuple(
@@ -172,3 +176,18 @@ def readSession(path: str | Path) -> SessionState:
             for entry in document["workspaces"]
         ),
     )
+
+
+def _upgrade(document: dict, path: str | Path) -> dict:
+    """Bring a session document up to the current format, or refuse one
+    written by a newer Varda."""
+    version = int(document.get("version", 1))
+    if version > _VERSION:
+        raise ValueError(
+            f"{path} was saved by a newer version of Varda (session format "
+            f"{version}; this one reads up to {_VERSION}). Update Varda to open it."
+        )
+    while version < _VERSION:
+        document = MIGRATIONS[version](document)
+        version += 1
+    return document

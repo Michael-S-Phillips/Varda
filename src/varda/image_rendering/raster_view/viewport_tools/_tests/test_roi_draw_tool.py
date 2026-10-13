@@ -1,9 +1,13 @@
 """The Draw ROI tool stays armed: shape after shape, in the chosen shape type."""
 
+import numpy as np
 import pytest
+from affine import Affine
+from rasterio.crs import CRS
 from PyQt6.QtCore import QEvent, QPointF, Qt
 
-from varda.common.entities import ROIMode
+from varda.common.entities import Color, ROIMode, VardaRaster
+from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.image_rendering.raster_view.pointer_event import (
@@ -12,6 +16,7 @@ from varda.image_rendering.raster_view.pointer_event import (
     PointerEvent,
 )
 from varda.image_rendering.raster_view.viewport_tools.roi_tools import ROIDrawTool
+from varda.rois.roi_collection import ROICollection
 from varda.utilities.debug import generate_random_image
 
 LEFT, RIGHT = Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton
@@ -211,3 +216,29 @@ def test_the_view_hands_double_clicks_to_the_tool(qtbot):
     viewport.installTool(_Recorder())
     viewport.eventFilter(viewport._imageItem, _FakeDoubleClick())
     assert seen == [PointerAction.DOUBLE_CLICK]
+
+
+def test_shapes_on_a_georeferenced_image_keep_their_exact_corners(qtbot):
+    """No snapping to whole pixels and no half-pixel shift through map coordinates."""
+    data = np.zeros((50, 50, 3), dtype=np.float32)
+    source = ArrayDataSource(
+        data, transform=Affine(10, 0, 1000, 0, -10, 5000), crs=CRS.from_epsg(32633)
+    )
+    image = VardaRaster(source, name="geo")
+    viewport = ImageViewport(ImageRenderer(image=image))
+    qtbot.addWidget(viewport)
+    tool = ROIDrawTool(viewport)
+    tool.activate()
+    shapes = []
+    tool.sigROIDrawingComplete.connect(shapes.append)
+    tool.setShape(ROIMode.RECTANGLE)
+    _drag(tool, [(10.7, 5.2), (30.3, 25.9)])
+    tool.deactivate()
+    rois = ROICollection.fromImage(image)
+    fid = rois.addROI(
+        shapes[0]["geometry"], "r", Color(1, 0, 0, 0.5), ROIMode.RECTANGLE
+    )
+    coords = rois.getPixelCoordinates(fid)
+    np.testing.assert_allclose(
+        coords[:4], [[10.7, 5.2], [30.3, 5.2], [30.3, 25.9], [10.7, 25.9]]
+    )

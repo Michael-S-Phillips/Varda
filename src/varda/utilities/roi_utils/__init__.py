@@ -5,5 +5,4 @@ from .roi_functions import (
     createROIMaskAlternative,
     getMaskedArrayRegionSimple,
     getRectImageRegion,
-    _evaluateFormula,
 )

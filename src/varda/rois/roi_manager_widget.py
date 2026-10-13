@@ -261,11 +261,7 @@ class ROIManagerWidget(QWidget):
 
         newPixels = pixelCoords + np.array([dx, dy])
         if self._image.hasGeospatialData:
-            geoCoords = [
-                self._image.pixelToGeo(int(round(c)), int(round(r)))
-                for c, r in newPixels
-            ]
-            geometry = Polygon(geoCoords)
+            geometry = Polygon(self._image.imageToGeo(newPixels))
         else:
             geometry = Polygon(newPixels)
 

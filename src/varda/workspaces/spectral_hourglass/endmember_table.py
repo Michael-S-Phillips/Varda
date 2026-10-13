@@ -73,8 +73,9 @@ class EndmemberTable(QWidget):
         self.suggestCount.setToolTip("How many groups to suggest")
         self.suggestButton = QPushButton("Suggest")
         self.suggestButton.setToolTip(
-            "Group the candidate pure pixels into new endmembers by k-means; "
-            "then refine them in the n-D view"
+            "Find that many corners of the candidate cloud (ATGP) and group "
+            "the candidates close to each corner into new endmembers; then "
+            "refine them in the n-D view"
         )
         self.suggestButton.clicked.connect(self._suggest)
         saveButton = QPushButton("Save…")

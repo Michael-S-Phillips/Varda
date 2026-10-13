@@ -96,12 +96,25 @@ class VardaRaster:
     # --- Coordinate transformation ---
 
     def pixelToGeo(self, col: int, row: int) -> tuple[float, float]:
-        """Convert pixel coordinates to CRS coordinates."""
+        """CRS coordinates of the centre of pixel (``col``, ``row``)."""
         return self._dataSource.pixelToGeo(col, row)
 
     def geoToPixel(self, x: float, y: float) -> tuple[int, int]:
-        """Convert CRS coordinates to pixel coordinates."""
+        """The (col, row) of the pixel containing CRS point (``x``, ``y``)."""
         return self._dataSource.geoToPixel(x, y)
+
+    def imageToGeo(self, points: npt.ArrayLike) -> np.ndarray:
+        """Continuous image coordinates (x = column, y = row; whole numbers on
+        pixel edges, as for shape corners) to CRS coordinates, shape (n, 2)."""
+        xy = np.asarray(points, dtype=np.float64).reshape(-1, 2)
+        x, y = self.transform * (xy[:, 0], xy[:, 1])
+        return np.column_stack([x, y])
+
+    def geoToImage(self, points: npt.ArrayLike) -> np.ndarray:
+        """CRS coordinates to continuous image coordinates; see ``imageToGeo``."""
+        xy = np.asarray(points, dtype=np.float64).reshape(-1, 2)
+        col, row = ~self.transform * (xy[:, 0], xy[:, 1])
+        return np.column_stack([col, row])
 
     @cached_property
     def _geodeticTransformer(self) -> Transformer | None:
