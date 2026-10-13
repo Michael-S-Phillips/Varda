@@ -15,7 +15,14 @@ from html import escape
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSlider, QWidget
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QSlider,
+    QToolButton,
+    QWidget,
+)
 
 from varda.common.entities import VardaRaster
 from varda.common.grid import compatibleImages
@@ -28,6 +35,7 @@ from varda.image_rendering.raster_view.image_viewport import ImageViewport
 NO_OVERLAY = "No overlay"
 CLASSES = "Classes"
 COLOR_MAP = "viridis"
+NAME_CHARS = 24  # the overlay picker shows about this much of a name
 
 
 def isClassMap(raster: VardaRaster) -> bool:
@@ -71,7 +79,8 @@ def overlayRaster(raster: VardaRaster, layer: str) -> tuple[VardaRaster, bool]:
 
 
 class OverlayBar(QWidget):
-    """Overlay picker, layer picker, opacity and (for class maps) a legend."""
+    """Overlay picker, layer picker (when there's a choice) and opacity. A class
+    map's legend goes over the first view's image, toggled from the bar."""
 
     def __init__(
         self,
@@ -91,28 +100,38 @@ class OverlayBar(QWidget):
         self.imageBox.setToolTip(
             "Lay another image of this scene (e.g. a classification) over the view"
         )
-        self.imageBox.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        # Long result names are elided (the full name is in each item's tooltip)
+        self.imageBox.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.imageBox.setMinimumContentsLength(NAME_CHARS)
         self.layerBox = QComboBox()
+        self.opacityLabel = QLabel("Opacity:")
         self.opacitySlider = QSlider(Qt.Orientation.Horizontal)
         self.opacitySlider.setRange(0, 100)
         self.opacitySlider.setValue(60)
-        self.opacitySlider.setMaximumWidth(120)
+        self.opacitySlider.setFixedWidth(100)
         self.opacitySlider.setToolTip("Overlay opacity")
-        self.legend = QLabel()
-        self.legend.setTextFormat(Qt.TextFormat.RichText)
+        self.legendButton = QToolButton()
+        self.legendButton.setText("Legend")
+        self.legendButton.setCheckable(True)
+        self.legendButton.setChecked(True)
+        self.legendButton.setToolTip("Show the class colours over the image")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 0, 4, 0)
         layout.addWidget(QLabel("Overlay:"))
         layout.addWidget(self.imageBox)
         layout.addWidget(self.layerBox)
-        layout.addWidget(QLabel("Opacity:"))
+        layout.addWidget(self.opacityLabel)
         layout.addWidget(self.opacitySlider)
-        layout.addWidget(self.legend, 1)
+        layout.addWidget(self.legendButton)
+        layout.addStretch(1)
 
         self.imageBox.currentIndexChanged.connect(self._onImageChosen)
         self.layerBox.currentIndexChanged.connect(lambda _: self._apply())
         self.opacitySlider.valueChanged.connect(self._applyOpacity)
+        self.legendButton.toggled.connect(lambda _: self._showLegend())
         if isinstance(images, ObservableList):
             images.sigDataChanged.connect(lambda _: self._refreshImages())
         self._refreshImages()
@@ -137,6 +156,9 @@ class OverlayBar(QWidget):
         self.imageBox.addItem(NO_OVERLAY)
         for image in self._candidates:
             self.imageBox.addItem(image.name)
+            self.imageBox.setItemData(
+                self.imageBox.count() - 1, image.name, Qt.ItemDataRole.ToolTipRole
+            )
         self.imageBox.blockSignals(False)
         if current in self._candidates:
             self.setOverlay(current)
@@ -157,9 +179,11 @@ class OverlayBar(QWidget):
         overlay = self.currentOverlay()
         layer = self.layerBox.currentText()
         hasOverlay = overlay is not None and bool(layer)
-        self.layerBox.setVisible(hasOverlay)
-        self.opacitySlider.setEnabled(hasOverlay)
-        self.legend.setVisible(hasOverlay and layer == CLASSES)
+        self.layerBox.setVisible(hasOverlay and self.layerBox.count() > 1)
+        self.opacityLabel.setVisible(hasOverlay)
+        self.opacitySlider.setVisible(hasOverlay)
+        self.legendButton.setVisible(hasOverlay and layer == CLASSES)
+        self._showLegend()
         for viewport in self.viewports:
             if viewport.hasOverlayImage():
                 viewport.removeOverlayImage()
@@ -177,11 +201,22 @@ class OverlayBar(QWidget):
             renderer.settings.mono.colorMap.set(pg.colormap.get(COLOR_MAP))
         renderer.settings.opacity.set(self.opacitySlider.value() / 100)
         self.renderer = renderer
-        if layer == CLASSES:
-            self.legend.setText(self._legendHtml(overlay))
         for viewport in self.viewports:
             viewport.overlayImage(renderer)
         self._refreshViews()
+
+    def _showLegend(self) -> None:
+        """The class key over the first view, when a class map is shown and
+        the Legend button is on."""
+        if not self.viewports:
+            return
+        overlay = self.currentOverlay()
+        show = (
+            overlay is not None
+            and self.layerBox.currentText() == CLASSES
+            and self.legendButton.isChecked()
+        )
+        self.viewports[0].setLegend(self._legendHtml(overlay) if show else "")
 
     def _refreshViews(self) -> None:
         for viewport in self.viewports:
@@ -194,8 +229,9 @@ class OverlayBar(QWidget):
 
     @staticmethod
     def _legendHtml(raster: VardaRaster) -> str:
+        """One class per line, so a long list grows down the image."""
         names = raster.extraMetadata.get("classes", [])
-        return "&nbsp;&nbsp;".join(
+        return "<br>".join(
             f'<span style="color:{color}">&#9632;</span>&nbsp;{escape(str(name))}'
             for name, color in zip(names, classColors(raster))
         )
