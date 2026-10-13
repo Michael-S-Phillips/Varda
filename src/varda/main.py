@@ -20,8 +20,9 @@ from varda.branding.splash import createSplash
 from varda.utilities.resources import resource_path
 
 if sys.platform == "win32":
-    # this "registers" varda as its own unique application, which lets it use its own icon for the taskbar, instead of the generic python icon
-    appid = "varda.0.3.1"
+    # this "registers" varda as its own unique application, which lets it use its own icon for the taskbar, instead of the generic python icon.
+    # Kept free of the version, so taskbar pins survive updates.
+    appid = "varda"
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(appid)
 
 ICON_PATH = resource_path("resources/logo.svg")
