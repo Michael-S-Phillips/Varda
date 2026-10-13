@@ -276,7 +276,6 @@ class ROIDrawTool(ViewportTool):
     def _geometry(self, outline: list[Point]) -> ShapelyPolygon:
         imagePoints = self.viewport.localToImage(outline)
         if self.imageEntity.hasGeospatialData:
-            return ShapelyPolygon(
-                [self.imageEntity.pixelToGeo(int(x), int(y)) for x, y in imagePoints]
-            )
+            # Continuous corners through the affine: no snapping to pixels
+            return ShapelyPolygon(self.imageEntity.imageToGeo(imagePoints))
         return ShapelyPolygon(imagePoints)

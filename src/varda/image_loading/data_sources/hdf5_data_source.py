@@ -17,7 +17,7 @@ from affine import Affine
 import affine as affine_module
 from pyproj import CRS
 
-from .data_source import DataSource
+from .data_source import DataSource, geoToPixelIndex, pixelCenterToGeo
 from .registry import register_data_source
 
 if TYPE_CHECKING:
@@ -368,13 +368,10 @@ class HDF5DataSource(DataSource):
     # --- Coordinate transformation ---
 
     def pixelToGeo(self, col: int, row: int) -> tuple[float, float]:
-        x, y = self.transform * (col, row)
-        return x, y
+        return pixelCenterToGeo(self.transform, col, row)
 
     def geoToPixel(self, x: float, y: float) -> tuple[int, int]:
-        inv = ~self.transform
-        col, row = inv * (x, y)
-        return int(col), int(row)
+        return geoToPixelIndex(self.transform, x, y)
 
     # --- Lifecycle ---
 

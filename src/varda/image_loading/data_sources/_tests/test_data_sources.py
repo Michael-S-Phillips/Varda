@@ -138,10 +138,10 @@ class TestArrayDataSource:
         ds.close()  # Should not raise
 
     def test_coordinate_transform_identity(self, ds):
-        # Default transform is identity
+        # Default transform is identity; pixelToGeo gives the pixel's centre
         x, y = ds.pixelToGeo(5, 3)
-        assert x == 5.0
-        assert y == 3.0
+        assert x == 5.5
+        assert y == 3.5
         col, row = ds.geoToPixel(5.0, 3.0)
         assert col == 5
         assert row == 3

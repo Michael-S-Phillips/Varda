@@ -7,6 +7,8 @@ matching the convention used throughout the rest of the application.
 
 from __future__ import annotations
 
+import math
+
 from typing import Protocol, runtime_checkable, TYPE_CHECKING
 
 import numpy as np
@@ -166,27 +168,19 @@ class DataSource(Protocol):
     # --- Coordinate transformation ---
 
     def pixelToGeo(self, col: int, row: int) -> tuple[float, float]:
-        """Convert pixel coordinates to CRS coordinates.
+        """The CRS coordinates of the *centre* of pixel (``col``, ``row``).
 
-        Args:
-            col: Column (x) index.
-            row: Row (y) index.
-
-        Returns:
-            (x, y) in the data source's CRS.
+        Every source uses this convention (as rasterio's ``xy`` does), so a
+        derived raster on the same grid gives the same answer as its source.
+        Use ``pixelCenterToGeo``. For continuous image coordinates (e.g. shape
+        corners, where integers fall on pixel edges) apply the affine directly.
         """
         ...
 
     def geoToPixel(self, x: float, y: float) -> tuple[int, int]:
-        """Convert CRS coordinates to pixel coordinates.
-
-        Args:
-            x: X coordinate in CRS.
-            y: Y coordinate in CRS.
-
-        Returns:
-            (col, row) pixel indices.
-        """
+        """The (col, row) of the pixel containing CRS point (``x``, ``y``);
+        negative or past the edge for points outside the image. The inverse of
+        ``pixelToGeo``. Use ``geoToPixelIndex``."""
         ...
 
     # --- Lifecycle ---
@@ -194,3 +188,16 @@ class DataSource(Protocol):
     def close(self) -> None:
         """Release any underlying file handles or resources."""
         ...
+
+
+def pixelCenterToGeo(transform: Affine, col: int, row: int) -> tuple[float, float]:
+    """The CRS coordinates of the centre of pixel (``col``, ``row``)."""
+    x, y = transform * (col + 0.5, row + 0.5)
+    return float(x), float(y)
+
+
+def geoToPixelIndex(transform: Affine, x: float, y: float) -> tuple[int, int]:
+    """The (col, row) of the pixel containing (``x``, ``y``) (rounded down,
+    so points left of or above the image give negative indices)."""
+    col, row = ~transform * (x, y)
+    return math.floor(col), math.floor(row)

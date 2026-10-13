@@ -27,12 +27,20 @@ def critical(msg, *args, **kwargs):
     logging.getLogger(_getCallerName()).critical(msg, *args, **kwargs)
 
 
-def _getCallerName(depth: int = 1) -> str | None:
+def _getCallerName(depth: int = 1) -> str:
+    """The calling module's logger name. The packaged app's entry script runs
+    as ``__main__``; its messages belong under ``varda`` too."""
     frame = sys._getframe(depth + 1)
-    return frame.f_globals.get("__name__")
+    name = frame.f_globals.get("__name__") or VARDA_LOGGER
+    return "varda.main" if name == "__main__" else name
 
 
 ### Initialize Logging -- Logs stored in user's local appdata folder ###
+# Nothing is configured at import: importing Varda (e.g. in a notebook or the
+# tests) leaves the host's logging alone. The app calls _initializeFullLogging.
+
+VARDA_LOGGER = "varda"
+LOG_FORMAT = "%(levelname)s:%(name)s:%(message)s"
 
 
 def _initializeFullLogging(logFolder: Path | None = None):
@@ -58,18 +66,15 @@ def _initializeFullLogging(logFolder: Path | None = None):
     # compute name for new log file
     logTime = datetime.now().strftime("%Y-%m-%d_%I-%M-%S-%p")
     logName = logFolder / f"Varda.{logTime}.log"
-    # The module-level basicConfig below already configured the root logger;
-    # without force=True this call would be a no-op and the file stay empty.
-    logging.basicConfig(
-        level=logging.DEBUG,
-        handlers=[logging.FileHandler(logName), logging.StreamHandler(sys.stdout)],
-        force=True,
-    )
-
-    # disable logging for some packages
-    logging.getLogger("numba").setLevel(logging.WARNING)
+    # Varda's own messages in detail; every other library only its warnings
+    # (the root logger), both to the log file and the console.
+    formatter = logging.Formatter(LOG_FORMAT)
+    handlers: list[logging.Handler] = [
+        logging.FileHandler(logName),
+        logging.StreamHandler(sys.stdout),
+    ]
+    for handler in handlers:
+        handler.setFormatter(formatter)
+    logging.basicConfig(level=logging.WARNING, handlers=handlers, force=True)
+    logging.getLogger(VARDA_LOGGER).setLevel(logging.DEBUG)
     debug("logging fully initialized, output file found in local appdata folder")
-
-
-# By default, the logger only uses stdout
-logging.basicConfig(level=logging.DEBUG, handlers=[logging.StreamHandler(sys.stdout)])

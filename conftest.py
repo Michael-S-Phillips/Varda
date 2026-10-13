@@ -6,6 +6,9 @@ keeps the GUI tests from segfaulting.
 
 import gc
 
+# Before any test module imports rasterio or pyproj: varda drops a foreign
+# PROJ_DATA/GDAL_DATA (e.g. from an active conda base), as the app does at launch.
+import varda  # noqa: F401
 import pytest
 from PyQt6.QtWidgets import QApplication
 

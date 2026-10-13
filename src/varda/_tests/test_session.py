@@ -4,6 +4,8 @@ import json
 
 import numpy as np
 import pytest
+
+from varda import session
 from shapely.geometry import box
 
 from varda.common.entities import Color, ROIMode, VardaRaster
@@ -113,3 +115,43 @@ def test_reading_a_non_session_file_is_a_clear_error(tmp_path):
     bogus.write_text('{"hello": 1}')
     with pytest.raises(ValueError, match="not a Varda session"):
         readSession(bogus)
+
+
+def test_a_session_from_a_newer_varda_is_refused_clearly(tmp_path):
+    newer = tmp_path / "newer.varda"
+    newer.write_text(
+        json.dumps(
+            {"format": "varda-session", "version": 99, "images": [], "workspaces": []}
+        )
+    )
+    with pytest.raises(ValueError, match="newer version of Varda"):
+        readSession(newer)
+
+
+def test_older_sessions_are_migrated_step_by_step(tmp_path, monkeypatch):
+    old = tmp_path / "old.varda"
+    old.write_text(
+        json.dumps(
+            {
+                "format": "varda-session",
+                "version": 1,
+                "imgs": ["/a.img"],
+                "workspaces": [],
+            }
+        )
+    )
+    monkeypatch.setattr(session, "_VERSION", 2)
+    monkeypatch.setitem(
+        session.MIGRATIONS,
+        1,
+        lambda doc: {**doc, "images": doc.pop("imgs"), "version": 2},
+    )
+    assert readSession(old).images == ("/a.img",)
+
+
+def test_a_session_without_a_version_is_read_as_the_first_format(tmp_path):
+    legacy = tmp_path / "legacy.varda"
+    legacy.write_text(
+        json.dumps({"format": "varda-session", "images": ["/a"], "workspaces": []})
+    )
+    assert readSession(legacy).images == ("/a",)

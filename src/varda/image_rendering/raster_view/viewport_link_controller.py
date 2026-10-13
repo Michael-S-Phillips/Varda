@@ -84,16 +84,14 @@ class ViewportLinkController(QObject):
 
         sourceRect = source.viewRect()
 
-        # Convert source rect corners: source pixels → geo → target pixels
-        geoX1, geoY1 = sourceImage.pixelToGeo(
-            int(sourceRect.left()), int(sourceRect.top())
+        # Source view corners → map coordinates → target view corners
+        corners = [
+            (sourceRect.left(), sourceRect.top()),
+            (sourceRect.right(), sourceRect.bottom()),
+        ]
+        (tCol1, tRow1), (tCol2, tRow2) = targetImage.geoToImage(
+            sourceImage.imageToGeo(corners)
         )
-        geoX2, geoY2 = sourceImage.pixelToGeo(
-            int(sourceRect.right()), int(sourceRect.bottom())
-        )
-
-        tCol1, tRow1 = targetImage.geoToPixel(geoX1, geoY1)
-        tCol2, tRow2 = targetImage.geoToPixel(geoX2, geoY2)
 
         targetRect = QRectF(
             min(tCol1, tCol2),

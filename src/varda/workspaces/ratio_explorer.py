@@ -245,9 +245,7 @@ class RatioExplorerController(QObject):
     @staticmethod
     def _geometryFor(image: VardaRaster, pixels: np.ndarray) -> Polygon:
         if image.hasGeospatialData:
-            return Polygon(
-                [image.pixelToGeo(int(round(c)), int(round(r))) for c, r in pixels]
-            )
+            return Polygon(image.imageToGeo(pixels))
         return Polygon(pixels)
 
 

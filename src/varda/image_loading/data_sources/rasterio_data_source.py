@@ -21,7 +21,7 @@ from pyproj import CRS
 
 from varda.utilities.proj_lock import PROJ_LOCK
 
-from .data_source import DataSource
+from .data_source import DataSource, geoToPixelIndex, pixelCenterToGeo
 from .registry import register_data_source
 
 if TYPE_CHECKING:
@@ -255,11 +255,10 @@ class RasterioDataSource(DataSource):
     # --- Coordinate transformation ---
 
     def pixelToGeo(self, col: int, row: int) -> tuple[float, float]:
-        return self._src.xy(row, col)
+        return pixelCenterToGeo(self.transform, col, row)
 
     def geoToPixel(self, x: float, y: float) -> tuple[int, int]:
-        row, col = self._src.index(x, y)
-        return int(col), int(row)
+        return geoToPixelIndex(self.transform, x, y)
 
     # --- Lifecycle ---
 
