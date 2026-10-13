@@ -112,10 +112,13 @@ def _coordinateSystems() -> str:
 def _roundTrip(image: VardaRaster, path: Path) -> str:
     written = writeRaster(image, path)
     loaded = _load(written)
-    assert loaded.shape == image.shape, f"{loaded.shape} != {image.shape}"
-    np.testing.assert_allclose(loaded.wavelengths, image.wavelengths, rtol=1e-4)
-    assert loaded.crs is not None and loaded.crs.to_epsg() == CRS_EPSG
-    return f"{written.name} {loaded.shape}"
+    try:
+        assert loaded.shape == image.shape, f"{loaded.shape} != {image.shape}"
+        np.testing.assert_allclose(loaded.wavelengths, image.wavelengths, rtol=1e-4)
+        assert loaded.crs is not None and loaded.crs.to_epsg() == CRS_EPSG
+        return f"{written.name} {loaded.shape}"
+    finally:
+        loaded.close()  # Windows can't delete a file that is still open
 
 
 def _load(path: Path) -> VardaRaster:
