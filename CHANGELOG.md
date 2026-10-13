@@ -40,6 +40,14 @@ can alter results.
 - The Hourglass endmember export names its wavelength unit, so it loads back
   as a library.
 
+### Faster
+
+- Changing the stretch no longer re-reads the image, and changing opacity
+  no longer re-reads or re-stretches it (about 70 ms to under 25 ms on a
+  3000 × 3000 RGB view). Only a new band selection reads bands again.
+- Numba's compiled stretch kernels are cached on disk when running from
+  source, so the first stretch of a session no longer compiles for seconds.
+
 ### Fixed
 
 - ENVI files open whatever their data file is called: `.img`, `.dat`, `.raw`,
