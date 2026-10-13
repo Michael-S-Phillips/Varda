@@ -191,7 +191,7 @@ def resampleTo(
     weighted by a Gaussian band response (SPy's resampling matrix), so a
     narrow feature is diluted as a wide band would see it; gaps in the
     library are left out of each band's average. Without it, the library is
-    linearly interpolated at the band centres. Library wavelengths are in nm.
+    linearly interpolated at the band centers. Library wavelengths are in nm.
     """
     x = np.asarray(spectrum.wavelengths, dtype=np.float64)
     y = np.asarray(spectrum.reflectance, dtype=np.float64)
@@ -291,7 +291,7 @@ def rankLibrary(
     """Library spectra ranked by weighted similarity to ``spectrum`` (best
     first). Comparison uses the bands both cover, within ``wavelengthRange``
     (nm) if given; spectra overlapping fewer than five bands are skipped.
-    ``wavelengths`` are the unknown's band centres in nm (``bandModel.centers``);
+    ``wavelengths`` are the unknown's band centers in nm (``bandModel.centers``);
     with their FWHM (nm) the library is resampled through each band's response."""
     weights = DEFAULT_WEIGHTS if weights is None else weights
     total = sum(weights.values()) or 1.0

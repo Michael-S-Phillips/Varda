@@ -88,7 +88,7 @@ class EndmemberTable(QWidget):
         self.suggestButton.clicked.connect(self._suggest)
         saveButton = QPushButton("Save…")
         saveButton.setToolTip(
-            "Save the endmember classes (names, colours, pixels) as JSON"
+            "Save the endmember classes (names, colors, pixels) as JSON"
         )
         saveButton.clicked.connect(self._save)
         loadButton = QPushButton("Load…")
@@ -137,7 +137,7 @@ class EndmemberTable(QWidget):
                 swatch.setFlags(
                     Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
                 )
-                swatch.setToolTip("Double-click to change the colour")
+                swatch.setToolTip("Double-click to change the color")
                 name = QTableWidgetItem(endmember.name)
                 count = QTableWidgetItem()
                 count.setData(

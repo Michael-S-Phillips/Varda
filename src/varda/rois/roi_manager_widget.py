@@ -250,8 +250,8 @@ class ROIManagerWidget(QWidget):
         pixelCoords = self._collection.getPixelCoordinates(
             self._templateFid
         )  # (N,2) col,row
-        # Polygon coordinates are pixel corners, so centre the copy on the
-        # clicked pixel's centre (c + 0.5), not its top-left corner. Use the
+        # Polygon coordinates are pixel corners, so center the copy on the
+        # clicked pixel's center (c + 0.5), not its top-left corner. Use the
         # true centroid (the stored ring repeats its first vertex, which would
         # bias a vertex mean) and shift by whole pixels so the copy is an exact
         # pixel-set translate of the template.

@@ -347,7 +347,7 @@ class FileInputDialog(QDialog):
         dialog = FileInputDialog(message, default_path, fileFilter, parent)
         if dialog.exec():
             return dialog.fileInput.result  # Return the selected path
-        return None  # Return None if cancelled
+        return None  # Return None if canceled
 
 
 class DetachableTabWidget(QTabWidget):
@@ -537,11 +537,11 @@ class VardaDockWidget(ads.CDockWidget):
         return self
 
 
-MUTED_TEXT_WEIGHT = 0.65  # share of the normal text colour in muted text
+MUTED_TEXT_WEIGHT = 0.65  # share of the normal text color in muted text
 
 
 def mutedTextColor(palette: QPalette) -> QColor:
-    """Secondary text: the text colour blended towards the window colour, so
+    """Secondary text: the text color blended towards the window color, so
     it reads as quieter than normal text but stays legible on light and dark
     themes (unlike palette(mid), which is near the background in macOS dark
     mode)."""

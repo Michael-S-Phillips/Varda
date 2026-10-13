@@ -170,7 +170,7 @@ class DataSource(Protocol):
     # --- Coordinate transformation ---
 
     def pixelToGeo(self, col: int, row: int) -> tuple[float, float]:
-        """The CRS coordinates of the *centre* of pixel (``col``, ``row``).
+        """The CRS coordinates of the *center* of pixel (``col``, ``row``).
 
         Every source uses this convention (as rasterio's ``xy`` does), so a
         derived raster on the same grid gives the same answer as its source.
@@ -193,7 +193,7 @@ class DataSource(Protocol):
 
 
 def pixelCenterToGeo(transform: Affine, col: int, row: int) -> tuple[float, float]:
-    """The CRS coordinates of the centre of pixel (``col``, ``row``)."""
+    """The CRS coordinates of the center of pixel (``col``, ``row``)."""
     x, y = transform * (col + 0.5, row + 0.5)
     return float(x), float(y)
 
@@ -208,7 +208,7 @@ def geoToPixelIndex(transform: Affine, x: float, y: float) -> tuple[int, int]:
 def fallbackDisplayBands(
     wavelengths, wavelengthUnits: str, nodata, extraMetadata, bandCount: int
 ) -> np.ndarray:
-    """Display bands when a file names none: true or false colour from the
+    """Display bands when a file names none: true or false color from the
     spectral axis (``displayBands``), else the first three bands."""
     model = bandModelFor(wavelengths, wavelengthUnits, nodata, extraMetadata, bandCount)
     chosen = displayBands(model)

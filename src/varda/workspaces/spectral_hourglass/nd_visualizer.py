@@ -333,7 +333,7 @@ class NdVisualizer(QWidget):
         self._redraw()
 
     def setPointColors(self, colors: dict[int, str]) -> None:
-        """Colour per pixel id (pixels not listed are unassigned)."""
+        """Color per pixel id (pixels not listed are unassigned)."""
         self._colors = [colors.get(int(i), self.UNASSIGNED_COLOR) for i in self._ids]
         self._brushes = []
         self._redraw()
@@ -389,7 +389,7 @@ class NdVisualizer(QWidget):
         return self._plane
 
     def projectPoints(self, points: np.ndarray) -> np.ndarray:
-        """Project points given in the data's centred coordinates."""
+        """Project points given in the data's centered coordinates."""
         data = np.asarray(points, dtype=np.float64)
         if self._collapse is not None:
             data = data @ self._collapse
@@ -538,7 +538,7 @@ class NdVisualizer(QWidget):
             self.scatter.setData([], [])
             return
         self._projected = self.projectPoints(self._data)
-        if len(self._brushes) != len(self._colors):  # rebuilt only when colours change
+        if len(self._brushes) != len(self._colors):  # rebuilt only when colors change
             cache = {c: pg.mkBrush(c) for c in set(self._colors)}
             self._brushes = [cache[c] for c in self._colors]
         self.scatter.setData(

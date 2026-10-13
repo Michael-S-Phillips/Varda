@@ -2,7 +2,7 @@
 
 One class per ROI class: ROIs sharing a name train the same class. Every
 classifier produces the same result image: a Class band (0-based class index)
-plus one probability band per class, with the class names and colours in the
+plus one probability band per class, with the class names and colors in the
 metadata.
 """
 
@@ -223,7 +223,7 @@ def _patchSizeParameter() -> IntParameter:
         "Patch Size",
         5,
         range=(1, 15),
-        description="Square neighbourhood in pixels (odd)",
+        description="Square neighborhood in pixels (odd)",
     )
 
 
@@ -287,7 +287,7 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
         reportProgress(0, "reading image")
         cube, valid = readCube(image)
         cube = cube.astype(np.float32)
-        # Patches may straddle invalid pixels: neutralise those with band means.
+        # Patches may straddle invalid pixels: neutralize those with band means.
         cube[~valid] = cube[valid].mean(axis=0)
 
         reportProgress(5, "collecting training patches")
@@ -327,7 +327,7 @@ class CnnClassificationAnalysis(_PatchClassificationAnalysis):
     description = (
         "Trains a small convolutional network on spatial-spectral patches "
         "around the pixels of each ROI (bands as channels) and classifies "
-        "every pixel from its neighbourhood."
+        "every pixel from its neighborhood."
     )
     suffix = "CNN classes"
 
@@ -354,7 +354,7 @@ class VitClassificationAnalysis(_PatchClassificationAnalysis):
     description = (
         "Trains a small vision transformer whose tokens are the pixel spectra "
         "of the patch around each ROI pixel, and classifies every pixel from "
-        "its neighbourhood."
+        "its neighborhood."
     )
     suffix = "ViT classes"
 

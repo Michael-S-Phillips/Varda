@@ -114,7 +114,7 @@ class ImageItemDelegate(QtWidgets.QStyledItemDelegate):
         scene.render(painter, QtCore.QRectF(option.rect))
 
         # Selection: a translucent tint plus a solid frame in the palette's
-        # highlight colour over the whole item (thumbnail and label), so it
+        # highlight color over the whole item (thumbnail and label), so it
         # reads at a glance. Hover: a thin frame as a clickability cue.
         highlight = option.palette.highlight().color()
         frame = option.rect.adjusted(1, 1, -2, -2)

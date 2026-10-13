@@ -32,7 +32,7 @@ def syntheticScene(
     rng = np.random.default_rng(seed)
     E = endmemberSpectra()
     # spatially smooth mixtures, like a real scene (MNF's shift-difference
-    # noise estimate relies on neighbouring pixels being similar)
+    # noise estimate relies on neighboring pixels being similar)
     fields = gaussian_filter(rng.normal(size=(rows, cols, 3)), sigma=(4, 4, 0)) * 6.0
     weights = np.exp(fields)
     abundances = weights / weights.sum(axis=2, keepdims=True)

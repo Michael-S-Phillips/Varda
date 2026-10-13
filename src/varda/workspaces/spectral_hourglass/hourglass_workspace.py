@@ -2,7 +2,7 @@
 
 Pipeline steps on the left, the scene in the middle, the n-D visualizer and
 the endmember table on the right, spectra underneath. Everything is linked:
-lassoing points in the n-D view colours those pixels in the scene and plots
+lassoing points in the n-D view colors those pixels in the scene and plots
 the class mean spectrum; hovering a point marks its pixel; clicking a pixel
 rings its point; picking a library match overlays it on the endmember.
 """
@@ -515,7 +515,7 @@ class SpectralHourglassWorkspace(QMainWindow):
                 "Workflow (*.json)",
             )
             if not chosen:
-                raise OSError("Save cancelled.")
+                raise OSError("Save canceled.")
             path = chosen
         image = self.model.image
         document = {

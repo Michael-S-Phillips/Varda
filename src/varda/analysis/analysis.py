@@ -58,7 +58,7 @@ class Analysis(ParameterGroup):
         return True
 
     def prepareFor(self, image: VardaRaster) -> None:
-        """Adapt the settings to the image about to be analysed, e.g. offer the
+        """Adapt the settings to the image about to be analyzed, e.g. offer the
         choices its wavelengths support. Called on the GUI thread whenever the
         dialog's image changes, before the settings widget is (re)built."""
 

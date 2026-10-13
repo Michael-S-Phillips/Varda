@@ -1,4 +1,4 @@
-"""Distinct colours for categories: ROI classes and the classes of a class map."""
+"""Distinct colors for categories: ROI classes and the classes of a class map."""
 
 CLASS_PALETTE = [
     "#e6194b",  # red

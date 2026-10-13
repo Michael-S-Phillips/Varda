@@ -95,7 +95,7 @@ def mapRaster(
     detail: str,
 ) -> VardaRaster:
     """A map result over ``image``'s footprint; ``bands`` holds one row per
-    flat index in ``validFlat``. The endmember names and colours go in the
+    flat index in ``validFlat``. The endmember names and colors go in the
     metadata (``classes``, ``classColors``)."""
     shape = (image.height, image.width)
     out = np.full((shape[0] * shape[1], bands.shape[1]), np.nan, dtype=np.float32)

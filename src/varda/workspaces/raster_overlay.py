@@ -1,8 +1,8 @@
 """Overlay a co-registered project image on a workspace's views.
 
 Any project image on the same pixel grid as the workspace's image can be laid
-over it: a classification shows its classes in their colours (or one class's
-probability), any other result one band through a colour map. Pixels without
+over it: a classification shows its classes in their colors (or one class's
+probability), any other result one band through a color map. Pixels without
 data stay see-through. The bar sits under the main view and drives every view
 it is given (the triple view's zoom panels follow the main view).
 """
@@ -116,7 +116,7 @@ class OverlayBar(QWidget):
         self.legendButton.setText("Legend")
         self.legendButton.setCheckable(True)
         self.legendButton.setChecked(True)
-        self.legendButton.setToolTip("Show the class colours over the image")
+        self.legendButton.setToolTip("Show the class colors over the image")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 0, 4, 0)

@@ -1,4 +1,4 @@
-"""One pixel convention everywhere: ``pixelToGeo`` gives a pixel's centre and
+"""One pixel convention everywhere: ``pixelToGeo`` gives a pixel's center and
 ``geoToPixel`` the pixel containing a point, whatever the source, so derived
 rasters (analysis results) line up with the image they came from."""
 

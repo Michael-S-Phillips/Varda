@@ -160,7 +160,7 @@ class PyqtgraphPointOverlay:
 
 
 class PyqtgraphROIOverlay(pg.GraphicsObject):
-    """A display-only ROI polygon: coloured outline + fill, with a highlight state.
+    """A display-only ROI polygon: colored outline + fill, with a highlight state.
 
     Points are in viewport-local coordinates. This is both the handle and the
     graphics item (a `pg.GraphicsObject`), so it can paint a closed, filled polygon

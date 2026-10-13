@@ -188,7 +188,7 @@ class NewHistogramView(QWidget):
 def _histogram(
     values: np.ndarray, valueRange: tuple[float, float]
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Bin centres and counts of ``values`` within ``valueRange``."""
+    """Bin centers and counts of ``values`` within ``valueRange``."""
     lo, hi = valueRange
     if lo == hi:
         lo, hi = lo - 0.5, hi + 0.5

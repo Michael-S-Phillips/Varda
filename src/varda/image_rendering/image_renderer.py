@@ -161,7 +161,7 @@ class ImageRenderer(QObject):
         return rgba
 
     def _renderRgb8(self) -> tuple[np.ndarray, np.ndarray]:
-        """The stretched (and, in mono, colour-mapped) 8-bit RGB picture and
+        """The stretched (and, in mono, color-mapped) 8-bit RGB picture and
         the (rows, cols) mask of pixels with no data in any channel."""
         mode = self.settings.mode.get()
         data = self.settings.stretch.current.apply(self._readBands())

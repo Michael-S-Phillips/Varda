@@ -1,9 +1,9 @@
 """The Varda splash: a draw-on animation of the wordmark ("one pen,
 branching"), painted with QPainter from resources/brand/splash/splash-motion.json
-(schema 2: geometry, colours and timing all come from the JSON). Its last frame
+(schema 2: geometry, colors and timing all come from the JSON). Its last frame
 matches varda-splash.svg, which is also the static fallback.
 
-The animation runs while the app initialises and never holds the main window
+The animation runs while the app initializes and never holds the main window
 back by more than a second: see ``AnimatedSplash.finishWhenDone``.
 """
 
@@ -301,7 +301,7 @@ def staticSplashPixmap() -> QPixmap:
 
 
 class SplashWindow(QWidget):
-    """A frameless, centred window showing a pixmap.
+    """A frameless, centered window showing a pixmap.
 
     Not QSplashScreen: its show() blocks for up to a second waiting for the
     window system, which on macOS is most of the time before anything

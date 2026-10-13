@@ -7,7 +7,7 @@ class NavigableViewBox(pg.ViewBox):
 
     pyqtgraph's ViewBox already implements pan (`mouseDragEvent`) and zoom (`wheelEvent`)
     cleanly, anchoring zoom at the cursor and respecting the aspect lock. We keep that
-    behaviour for self-navigation. When self-navigation is turned off, we instead
+    behavior for self-navigation. When self-navigation is turned off, we instead
     translate the same gestures into high-level signals (in view/data coordinates) so an
     external controller (e.g. RegionController) can decide what they mean — without the
     ViewBox moving its own view.
@@ -21,7 +21,7 @@ class NavigableViewBox(pg.ViewBox):
     sigPanStarted = pyqtSignal(QPointF)  # press position
     sigPanned = pyqtSignal(QPointF, QPointF)  # (current position, start position)
     # (scaleFactor, anchorFraction): scaleFactor < 1 zooms in; anchorFraction is the cursor
-    # position normalised to [0, 1] within the current view rect.
+    # position normalized to [0, 1] within the current view rect.
     sigZoomed = pyqtSignal(float, QPointF)
 
     zoomFactor: float = 1.2  # View scale change per wheel notch (120 units)

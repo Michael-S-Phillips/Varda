@@ -1,10 +1,10 @@
-"""Spatial-spectral patches: the square neighbourhood of a pixel, all bands.
+"""Spatial-spectral patches: the square neighborhood of a pixel, all bands.
 
 The training/prediction unit for the CNN and ViT classifiers. Patches are
-(size, size, bands) with the pixel at the centre; the cube is reflect-padded
+(size, size, bands) with the pixel at the center; the cube is reflect-padded
 so border pixels get full patches. Whole-image prediction goes through
 ``iterPatchChunks`` so the full (pixels x size² x bands) array — tens of GB for
-a CRISM cube — is never materialised.
+a CRISM cube — is never materialized.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import numpy as np
 def extractPatches(
     cube: np.ndarray, rows: np.ndarray, cols: np.ndarray, size: int
 ) -> np.ndarray:
-    """(n, size, size, bands) patches centred on the given pixels."""
+    """(n, size, size, bands) patches centered on the given pixels."""
     half = size // 2
     padded = np.pad(
         np.asarray(cube), ((half, half), (half, half), (0, 0)), mode="reflect"

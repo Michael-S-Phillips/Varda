@@ -1,7 +1,7 @@
 """A small multi-layer perceptron classifier in plain numpy.
 
 Adjustable depth and width, tanh hidden units, softmax output trained with
-cross-entropy and Adam on shuffled mini-batches. Features are standardised
+cross-entropy and Adam on shuffled mini-batches. Features are standardized
 from the training data. Sized for spectra (hundreds of features, up to a
 few hundred thousand samples), not for images of pixels.
 """

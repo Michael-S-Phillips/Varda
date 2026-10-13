@@ -63,7 +63,7 @@ class RunAnalysisDialog(QDialog):
         # Analyses whose setting changes already re-check whether Run is allowed
         self._watched: set[Analysis] = set()
 
-        self.imageParam = ImageParameter("Image", "The image to analyse")
+        self.imageParam = ImageParameter("Image", "The image to analyze")
         self.imageParam.setProvider(lambda: list(images))
         if image is not None:
             self.imageParam.set(image)

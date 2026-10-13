@@ -1,5 +1,5 @@
 """Every plotted pixel spectrum is marked on the image(s) it came from, in the
-curve's colour, for as long as the curve is on a plot."""
+curve's color, for as long as the curve is on a plot."""
 
 import numpy as np
 import PyQt6Ads as ads

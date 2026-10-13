@@ -21,7 +21,7 @@ can alter results.
     column (`wavelength_um`) or a `# units:` comment.
   - A file that declares no unit gets one inferred from its values, with a
     warning in the log.
-- **Bad bands are honoured.** Bands marked bad in an ENVI header (`bbl`) are
+- **Bad bands are honored.** Bands marked bad in an ENVI header (`bbl`) are
   ignored by analyses (filled along each spectrum), left out of Spectral Slope
   and of the Spectral Hourglass's Prepare step.
 - **Scaled reflectance.** Band Parameters divides by the header's reflectance
@@ -29,7 +29,7 @@ can alter results.
 - **Half-pixel alignment.** Map coordinates of analysis results now line up
   with their source image (they were half a pixel off). Drawn ROIs on
   map-referenced images keep their exact corners instead of snapping to pixel
-  centres.
+  centers.
 
 ### Added
 
@@ -54,17 +54,17 @@ can alter results.
 - **Classifiers**: Gaussian maximum likelihood and Mahalanobis distance
   (trained on ROI classes; small classes are handled by reducing to principal
   components instead of being dropped) and k-means clustering.
-- **MNF noise estimate** can use vertical, diagonal or averaged neighbour
+- **MNF noise estimate** can use vertical, diagonal or averaged neighbor
   differences, or a homogeneous ROI class (horizontal stays the default).
 - Library spectra are resampled through each band's response when the image
-  header gives band widths (FWHM), instead of being sampled at band centres.
+  header gives band widths (FWHM), instead of being sampled at band centers.
 - **Band Math** (Processing → Spectral Parameters): expressions such as
   `R2300 / R2200` (bands nearest 2300 and 2200 nm), `(b10 - b4) / (b10 + b4)`
   or `where(b3 > 0.2, R2300, 0)`. References are checked before anything is
   read, the result size is shown, large images are processed in chunks, and
   expressions can be saved for reuse.
-- Images open in **true colour** when they cover the visible (bands nearest
-  640, 550 and 470 nm), otherwise in a false colour spread over their range;
+- Images open in **true color** when they cover the visible (bands nearest
+  640, 550 and 470 nm), otherwise in a false color spread over their range;
   a file's own default bands still win.
 - **Histogram equalization, square-root and logarithmic stretches.**
 - **Export spectral plots** as PNG (high resolution), SVG, PDF or CSV (the
@@ -113,7 +113,7 @@ can alter results.
   Opening the data file directly also works when its header sits beside it,
   and an `.img` without a header (e.g. Erdas or PDS) is no longer forced
   through the ENVI reader.
-- ENVI headers written with capitalised keys (e.g. `Wavelength Units`) lost
+- ENVI headers written with capitalized keys (e.g. `Wavelength Units`) lost
   their wavelengths, units and band metadata.
 - Integer ENVI files with a `data ignore value` failed to load.
 - The Spectral Hourglass library preview was blank for µm images.
@@ -124,7 +124,7 @@ can alter results.
 - Opening a large file no longer blocks the window while it loads.
 - An unexpected error while installing PyTorch left the Optional Features
   dialog busy forever.
-- Saved plot curves kept their colour but lost its transparency.
+- Saved plot curves kept their color but lost its transparency.
 - Settings changed after a dialog or panel closed could still reach its
   widgets.
 - A session saved by a newer Varda is refused with a clear message.

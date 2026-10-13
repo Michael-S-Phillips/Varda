@@ -9,12 +9,12 @@ spectra around them:
    default) of the noise cube (alpha 0.125, or 0.05 for edge windows truncated
    below 45 voxels). Every voxel a window flags gets one vote.
 3. Voxels with at least ``min(window)`` votes are replaced by the
-   Gaussian-weighted average of their unflagged neighbours.
+   Gaussian-weighted average of their unflagged neighbors.
 4. Later rounds re-run the election only around the voxels replaced in the
    previous round, until nothing is flagged or the vote counts cycle.
 5. The result is reference + cleaned noise.
 
-Ported from the vectorised ``iovf_fast.py`` (PTYS 551 lab code), without its
+Ported from the vectorized ``iovf_fast.py`` (PTYS 551 lab code), without its
 mode that reproduces the original ``iovf_generic`` round-off for round-off.
 One change: NaN voxels (no-data) are left out of the windows instead of
 counting as zero noise, so a scene's no-data border is not mistaken for
@@ -307,7 +307,7 @@ class _Election:
         self.kernels = _kernelTables(window)
 
     def _screen(self, P: np.ndarray, i0: int, i1: int, ncent: tuple[int, ...]):
-        """The first Grubbs iteration for every window centred in rows i0..i1-1,
+        """The first Grubbs iteration for every window centered in rows i0..i1-1,
         from box statistics. True where the window might hold an outlier; a
         window that fails the first iteration casts no votes, so only these
         need the full iterative test. The margin keeps the screen conservative."""
@@ -333,7 +333,7 @@ class _Election:
     def run(
         self, P: np.ndarray, centers: np.ndarray | None, shape: tuple[int, ...]
     ) -> np.ndarray:
-        """Votes (``shape``) from the Grubbs test on every window whose centre is
+        """Votes (``shape``) from the Grubbs test on every window whose center is
         True in ``centers`` (None: every voxel). ``P`` is the padded noise cube."""
         window = self.window
         half = tuple(w // 2 for w in window)
@@ -365,7 +365,7 @@ class _Election:
                     candidate = self._screen(P, i0, i1, ncent) & chunk
             a, b, c = np.nonzero(candidate)
             a = a + i0
-            # windows centred on no-data voxels have nothing to vote on
+            # windows centered on no-data voxels have nothing to vote on
             centred = ~np.isnan(P[a + half[0], b + half[1], c + half[2]])
             a, b, c = a[centred], b[centred], c[centred]
             ws = getattr(local, "ws", None)
@@ -414,10 +414,10 @@ class _Election:
 
 
 def _kernelTables(window: tuple[int, ...]) -> list[np.ndarray]:
-    """Per axis, normalised 1-D Gaussian weights for every truncation (lo
+    """Per axis, normalized 1-D Gaussian weights for every truncation (lo
     members cut at the start, hi at the end): K[d][lo, hi] has length
     window[d], zero at truncated positions. exp(-(x²+y²+z²)/2) is separable,
-    so the product of the three equals the normalised 3-D kernel."""
+    so the product of the three equals the normalized 3-D kernel."""
     tables = []
     for w in window:
         K = np.zeros((w, w, w))
@@ -440,7 +440,7 @@ def _replace(
     batchMb: float,
 ) -> None:
     """Every flagged voxel gets the weighted average of its unflagged
-    neighbours, using the values from before this round (order-independent)."""
+    neighbors, using the values from before this round (order-independent)."""
     shape = noise.shape
     V = sliding_window_view(P, window)
     FP = np.zeros(P.shape, dtype=bool)

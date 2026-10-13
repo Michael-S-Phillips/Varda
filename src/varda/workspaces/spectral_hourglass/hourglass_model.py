@@ -38,7 +38,7 @@ from varda.common.entities import VardaRaster
 
 ProgressCallback = Callable[[int, str], None]
 
-# Distinct, colour-blind-friendly-ish class colours (Kelly / Tol mixes)
+# Distinct, color-blind-friendly-ish class colors (Kelly / Tol mixes)
 PALETTE = [
     "#e6194b",
     "#3cb44b",
@@ -130,9 +130,9 @@ class Endmember:
 class PreparedData:
     cube: np.ndarray  # float64 (rows, cols, bands), unusable pixels NaN
     valid: np.ndarray  # bool (rows, cols)
-    wavelengths: np.ndarray | None  # band centres in the image's own unit, or None
+    wavelengths: np.ndarray | None  # band centers in the image's own unit, or None
     bandIndices: np.ndarray  # indices of the kept bands in the source image
-    wavelengthsNm: np.ndarray | None = None  # the same centres in nm (for libraries)
+    wavelengthsNm: np.ndarray | None = None  # the same centers in nm (for libraries)
     fwhmNm: np.ndarray | None = None  # their FWHM in nm, when the header gives it
 
 
@@ -202,7 +202,7 @@ class HourglassModel:
 
     @property
     def wavelengths(self) -> np.ndarray | None:
-        """Kept band centres in the image's own unit (labels, the window)."""
+        """Kept band centers in the image's own unit (labels, the window)."""
         return self._require(self.prepared, Step.PREPARE).wavelengths
 
     @property
@@ -212,7 +212,7 @@ class HourglassModel:
 
     @property
     def wavelengthsNm(self) -> np.ndarray | None:
-        """Kept band centres in nm, for comparing with spectral libraries."""
+        """Kept band centers in nm, for comparing with spectral libraries."""
         return self._require(self.prepared, Step.PREPARE).wavelengthsNm
 
     def prepareTask(self) -> Callable[[ProgressCallback], PreparedData]:
@@ -458,7 +458,7 @@ class HourglassModel:
 
     @_undoable
     def mergeEndmembers(self, endmemberIds: Sequence[int]) -> Endmember:
-        """Merge into the first of ``endmemberIds`` (keeping its name and colour)."""
+        """Merge into the first of ``endmemberIds`` (keeping its name and color)."""
         keep = self.endmember(endmemberIds[0])
         for other in [self.endmember(i) for i in endmemberIds[1:]]:
             keep.pixels = np.union1d(keep.pixels, other.pixels)

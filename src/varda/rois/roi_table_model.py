@@ -192,7 +192,7 @@ class ROITableModel(QAbstractTableModel):
             checked = Qt.CheckState(value) == Qt.CheckState.Checked
             self._collection.setVisible(roi.fid, checked)
             return True
-        if col == 1:  # Class: an existing class's ROIs share its colour
+        if col == 1:  # Class: an existing class's ROIs share its color
             name = str(value)
             classColor = self._collection.classColor(name)
             if classColor is not None and name != roi.name:

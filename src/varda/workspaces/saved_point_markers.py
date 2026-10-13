@@ -1,5 +1,5 @@
 """Keep the saved points of a workspace marked on its viewport(s) as circles
-in their colour, with the point selected in the Points Manager highlighted."""
+in their color, with the point selected in the Points Manager highlighted."""
 
 from __future__ import annotations
 

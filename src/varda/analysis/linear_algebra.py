@@ -34,7 +34,7 @@ class TransformResult:
     """``scores``: (samples, k) transformed data. ``loadings``: (bands, k)
     component vectors in band space. ``explainedVariance``: (k,) each
     component's share (of variance for PCA/ICA, of noise-whitened variance for
-    MNF), in decreasing order. ``eigenvalues``: (k,) the unnormalised values
+    MNF), in decreasing order. ``eigenvalues``: (k,) the unnormalized values
     behind those shares. ``mean``: (bands,) and ``inverse``: (k, bands) such that
     ``data ~ scores @ inverse + mean``."""
 
@@ -157,8 +157,8 @@ def pca(X: np.ndarray, components: int) -> TransformResult:
 class NoiseEstimate(Enum):
     """How MNF estimates the noise covariance."""
 
-    HORIZONTAL = "horizontal"  # differences between left-right neighbours (default)
-    VERTICAL = "vertical"  # up-down neighbours
+    HORIZONTAL = "horizontal"  # differences between left-right neighbors (default)
+    VERTICAL = "vertical"  # up-down neighbors
     DIAGONAL = "diagonal"  # each pixel and the one below-right
     AVERAGED = "averaged"  # horizontal and vertical together
     HOMOGENEOUS_REGION = "region"  # the spread within a uniform area
@@ -189,7 +189,7 @@ def noiseCovariance(
 ) -> np.ndarray:
     """The noise covariance for MNF.
 
-    Neighbour methods (Green et al. 1988) difference adjacent valid pixels in
+    Neighbor methods (Green et al. 1988) difference adjacent valid pixels in
     one direction (or both, averaged): the scene is assumed smooth at that
     scale, so differences are mostly noise. Pick the direction along which the
     sensor's noise varies (e.g. vertical for along-track striping).

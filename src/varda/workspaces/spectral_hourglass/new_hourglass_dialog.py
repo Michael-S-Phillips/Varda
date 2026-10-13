@@ -15,7 +15,7 @@ from varda.common.parameter_widgets import groupWidget
 
 
 class _Config(ParameterGroup):
-    image = ImageParameter("Image", "The reflectance image to analyse.")
+    image = ImageParameter("Image", "The reflectance image to analyze.")
 
     def __init__(self, images: list[VardaRaster]) -> None:
         super().__init__()

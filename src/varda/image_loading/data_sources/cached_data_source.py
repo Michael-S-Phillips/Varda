@@ -3,7 +3,7 @@ reads (e.g. the displayed bands) in a small least-recently-used cache.
 
 Used instead of loading the whole image into memory when it would take too
 much of it (see ``image_loading_service.wrapForReading``). Whole-image reads
-(an analysis) go straight to the file and are not cached. Reads are serialised
+(an analysis) go straight to the file and are not cached. Reads are serialized
 with a lock: the display (GUI thread) and an analysis (a worker) may read at
 once, and a rasterio file handle is not thread-safe.
 """

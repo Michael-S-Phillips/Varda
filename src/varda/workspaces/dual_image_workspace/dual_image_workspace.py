@@ -286,7 +286,7 @@ class DualImageWorkspace(QMainWindow):
             configurePlot=self._configurePixelPlot,
             parent=self,
         )
-        # Every plotted pixel spectrum is marked on both views in its colour;
+        # Every plotted pixel spectrum is marked on both views in its color;
         # saved points stay marked as circles
         self.pixelMarkers = PixelMarkerController(
             self.pixelSpectraDocks, self._allViewports(), parent=self
@@ -303,7 +303,7 @@ class DualImageWorkspace(QMainWindow):
             self.pixelSpectraDocks.dedicated("Ratio Spectra"),
             self.ratioExplorerConfig,
             parent=self,
-            imagesFor=self._imagesForSource,  # honours Spectrum Source
+            imagesFor=self._imagesForSource,  # honors Spectrum Source
             labelWithImageName=True,
         )
         # The images are co-registered: show the boxes on both views
@@ -378,7 +378,7 @@ class DualImageWorkspace(QMainWindow):
             configurePlot=self._configurePixelPlot,
             parent=self,
         )
-        # Every plotted pixel spectrum is marked on both views in its colour;
+        # Every plotted pixel spectrum is marked on both views in its color;
         # saved points stay marked as circles
         self.pixelMarkers = PixelMarkerController(
             self.pixelSpectraDocks, self._allViewports(), parent=self
@@ -395,7 +395,7 @@ class DualImageWorkspace(QMainWindow):
             self.pixelSpectraDocks.dedicated("Ratio Spectra"),
             self.ratioExplorerConfig,
             parent=self,
-            imagesFor=self._imagesForSource,  # honours Spectrum Source
+            imagesFor=self._imagesForSource,  # honors Spectrum Source
             labelWithImageName=True,
         )
         # The images are co-registered: show the boxes on both views
@@ -455,7 +455,7 @@ class DualImageWorkspace(QMainWindow):
         plot.sigSavePointRequested.connect(functools.partial(self._savePoint, plot))
 
     def _savePoint(self, plot: PixelSpectraPlotWidget, curve) -> None:
-        """Save a pixel curve's pixel to the Points Manager, in the curve's colour."""
+        """Save a pixel curve's pixel to the Points Manager, in the curve's color."""
         origin = plot.pixelOrigins.get(curve)
         if origin is not None:
             self.pointCollection.addPixel(

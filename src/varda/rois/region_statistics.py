@@ -20,8 +20,8 @@ def boxPolygonPixels(
 ) -> np.ndarray:
     """(4, 2) (col, row) pixel-corner polygon of a ``width`` x ``height`` box.
 
-    Pixel ``c`` spans ``c..c+1``, so the polygon rasterises to exactly
-    ``width * height`` pixels. Odd sizes are centred on the given pixel; even
+    Pixel ``c`` spans ``c..c+1``, so the polygon rasterizes to exactly
+    ``width * height`` pixels. Odd sizes are centered on the given pixel; even
     sizes extend one extra pixel to the right and down.
     """
     left = centerCol - (width - 1) // 2
@@ -38,7 +38,7 @@ def boxPolygonPixels(
 
 
 def rasterizeFootprint(pixelPolygon: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
-    """Boolean mask of the pixels whose centres fall inside a (col, row) polygon."""
+    """Boolean mask of the pixels whose centers fall inside a (col, row) polygon."""
     polygon = Polygon([(float(c), float(r)) for c, r in pixelPolygon])
     mask = rasterio.features.rasterize(
         [(shapely_mapping(polygon), 1)], out_shape=shape, fill=0, dtype=np.uint8

@@ -31,7 +31,7 @@ class VardaPoint:
     x: int
     y: int
     geometry: (
-        Point  # CRS coordinates when the image is georeferenced, else pixel centre
+        Point  # CRS coordinates when the image is georeferenced, else pixel center
     )
 
 
@@ -93,7 +93,7 @@ class PointCollection:
 
     def toFile(self, path: str | Path, driver: str | None = None) -> Path:
         """Write the points as a GIS file (GeoJSON, GeoPackage or Shapefile by
-        suffix) with name, image, pixel column/row and colour as attributes."""
+        suffix) with name, image, pixel column/row and color as attributes."""
         if not self._points:
             raise ValueError("No points to export.")
         target = Path(path)

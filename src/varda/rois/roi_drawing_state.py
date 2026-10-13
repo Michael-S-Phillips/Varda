@@ -40,7 +40,7 @@ class ROIDrawingState:
         self.collection = collection
         self.shape = ROIMode.FREEHAND
         self.activeClass: str | None = None
-        # Colours of classes made active here, for when they have no ROIs
+        # Colors of classes made active here, for when they have no ROIs
         self._colors: dict[str, Color] = {}
         for signal in (
             collection.sigROIAdded,
@@ -72,7 +72,7 @@ class ROIDrawingState:
         self.sigClassesChanged.emit()
 
     def newClass(self) -> str:
-        """Start a class with an unused name and colour, and make it active."""
+        """Start a class with an unused name and color, and make it active."""
         taken = {c.name for c in self.classes()}
         number = 1
         while f"Class {number}" in taken:

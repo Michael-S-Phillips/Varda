@@ -37,7 +37,7 @@ stretchAlgorithmRegistry: dict[str, Type["StretchAlgorithm"]] = {}
 def validateArrayShape(image):
     if image.ndim != 3 or image.shape[2] not in (1, 3):
         raise ValueError(
-            f"Image must be 3-dimensional greyscale or RGB. Got {image.shape} "
+            f"Image must be 3-dimensional grayscale or RGB. Got {image.shape} "
         )
 
 

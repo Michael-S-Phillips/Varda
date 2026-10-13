@@ -369,7 +369,7 @@ class Installer:
 
     def _runStep(self, command: list[str], env: dict[str, str]) -> str:
         if self._cancelled.is_set():
-            raise InstallCancelled("Install cancelled.")
+            raise InstallCancelled("Install canceled.")
         self.onLog("$ " + " ".join(command))
         try:
             self._process = subprocess.Popen(
@@ -389,7 +389,7 @@ class Installer:
             self.onLog(lines[-1])
         code = self._process.wait()
         if self._cancelled.is_set():
-            raise InstallCancelled("Install cancelled.")
+            raise InstallCancelled("Install canceled.")
         if code != 0:
             tail = "\n".join(lines[-15:])
             raise InstallError(f"{command[0]} exited with code {code}:\n{tail}")

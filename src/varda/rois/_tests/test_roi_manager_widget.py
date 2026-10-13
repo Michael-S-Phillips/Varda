@@ -167,8 +167,8 @@ def test_place_template_plain_paste(qtbot, make_split_image):
 
     copy = Polygon(c.getPixelCoordinates(new_fid))
     # The copy is the template shifted by a whole number of pixels (so it has
-    # the template's exact footprint), centred as close as that allows to the
-    # clicked pixel's centre (20.5, 14.5).
+    # the template's exact footprint), centered as close as that allows to the
+    # clicked pixel's center (20.5, 14.5).
     assert abs(copy.centroid.x - 20.5) <= 0.5
     assert abs(copy.centroid.y - 14.5) <= 0.5
     shift = (copy.centroid.x - 4.0, copy.centroid.y - 4.0)
@@ -183,7 +183,7 @@ def test_place_template_copy_covers_pixels_centred_on_the_click(
 
     c = ROICollection()
     # 4x4 pixels (cols 2..5, rows 2..5); stored with a closing vertex, which
-    # must not bias the copy's centre.
+    # must not bias the copy's center.
     tmpl = c.addROI(box(2, 2, 6, 6), "tmpl", RED, ROIMode.RECTANGLE)
     w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
     w.setTemplate(tmpl)
@@ -194,7 +194,7 @@ def test_place_template_copy_covers_pixels_centred_on_the_click(
         [(mapping(copy), 1)], out_shape=(40, 40), fill=0, dtype=np.uint8
     ).astype(bool)
     rows, cols = np.nonzero(mask)
-    # An even-sized copy centred on the click extends right/down, the same
+    # An even-sized copy centered on the click extends right/down, the same
     # convention as boxPolygonPixels.
     assert set(cols.tolist()) == {19, 20, 21, 22}
     assert set(rows.tolist()) == {13, 14, 15, 16}

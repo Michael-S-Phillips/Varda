@@ -21,7 +21,7 @@ def dragMouseMode(modifiers: Qt.KeyboardModifier) -> int:
 
 
 class ModifierDragViewBox(pg.ViewBox):
-    """ViewBox whose left-drag behaviour follows the keyboard modifiers."""
+    """ViewBox whose left-drag behavior follows the keyboard modifiers."""
 
     def mouseDragEvent(self, ev, axis=None):
         self.setMouseMode(dragMouseMode(ev.modifiers()))
