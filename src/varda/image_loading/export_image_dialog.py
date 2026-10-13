@@ -25,6 +25,7 @@ from varda.image_loading.raster_writer import (
     suggestedOutputPath,
     writeRaster,
 )
+from varda.common.parameter_widgets import parameterWidget
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ class ExportImageDialog(QDialog):
         self.exportButton = ButtonBuilder("Export").onClick(self.accept)
 
         form = QFormLayout()
-        form.addRow("Image", self.imageParam.getWidget())
+        form.addRow("Image", parameterWidget(self.imageParam))
         form.addRow(
             "Save as",
             HBoxBuilder(margins=0)

@@ -13,7 +13,7 @@ from PyQt6.QtCore import (
     QMimeData,
     QSize,
 )
-from PyQt6.QtGui import QDrag, QColor
+from PyQt6.QtGui import QDrag
 from PyQt6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -59,6 +59,7 @@ from varda.common.parameter import (
     EnumParameter,
     IntParameter,
 )
+from varda.common.parameter_widgets import groupWidget
 
 CURVE_MIME_TYPE = "application/x-varda-curve"
 
@@ -122,7 +123,9 @@ class Curve(QObject):
         self.onConfigChanged()
 
     def onConfigChanged(self):
-        pen = pg.mkPen(color=self.config.color.value, width=self.config.width.value)
+        pen = pg.mkPen(
+            color=self.config.color.value.toQColor(), width=self.config.width.value
+        )
         self.plotDataItem.setPen(pen)
         self._applyPointStyle()
         # translate-then-scale composes to y -> y * scale + offset, matching
@@ -148,7 +151,7 @@ class Curve(QObject):
             return
         self.plotDataItem.setSymbol("o")
         self.plotDataItem.setSymbolSize(self._pointSize)
-        self.plotDataItem.setSymbolBrush(pg.mkBrush(self.config.color.value))
+        self.plotDataItem.setSymbolBrush(pg.mkBrush(self.config.color.value.toQColor()))
         self.plotDataItem.setSymbolPen(None)
 
     def displayedData(self) -> tuple[np.ndarray, np.ndarray]:
@@ -177,7 +180,7 @@ class Curve(QObject):
             "x": x.tolist() if x is not None else [],
             "y": y.tolist() if y is not None else [],
             "name": self.plotDataItem.name() or "",
-            "color": self.config.color.value.name(),
+            "color": self.config.color.value.toHexString(),
             "width": self.config.width.value,
             "offset": self.config.offset.value,
             "scale": self.config.scale.value,
@@ -186,16 +189,18 @@ class Curve(QObject):
     @classmethod
     def deserialize(cls, data: dict) -> "Curve":
         curve = cls.fromData(
-            data["x"], data["y"], QColor(data["color"]), name=data["name"] or None
+            data["x"],
+            data["y"],
+            Color.fromHexString(data["color"]),
+            name=data["name"] or None,
         )
-        curve.config.color.set(QColor(data["color"]))
         curve.config.width.set(data["width"])
         curve.config.offset.set(data["offset"])
         curve.config.scale.set(data["scale"])
         return curve
 
     @classmethod
-    def fromData(cls, x, y, color: QColor, **kwargs):
+    def fromData(cls, x, y, color: Color, **kwargs):
         plotItem = pg.PlotDataItem(x, y, **kwargs)
         defaultConfig = CurveConfig()
         curve = cls(plotItem, defaultConfig)
@@ -419,8 +424,8 @@ class VardaPlotWidget(QWidget):
                         "Save the plot as PNG, SVG or PDF, or its curves as CSV"
                     )
                 )
-                .withWidget(self.viewConfig.createWidget())
-                .withWidget(self.rangeConfig.createWidget())
+                .withWidget(groupWidget(self.viewConfig))
+                .withWidget(groupWidget(self.rangeConfig))
                 .withWidget(hint),
             )
         )
@@ -463,7 +468,7 @@ class VardaPlotWidget(QWidget):
                     )
                     .withWidget(ButtonBuilder("Clear").onClick(self.clearMarkers))
                 )
-                .withWidget(self.markerConfig.createWidget()),
+                .withWidget(groupWidget(self.markerConfig)),
             )
         )
         # Labels dodge each other in pixel space, so re-lay them out whenever
@@ -497,9 +502,7 @@ class VardaPlotWidget(QWidget):
             )
 
         sidebar.withWidget(self.curveSettingsBox)
-        sidebar.withWidget(
-            SectionBox("Appearance", self.appearanceConfig.createWidget())
-        )
+        sidebar.withWidget(SectionBox("Appearance", groupWidget(self.appearanceConfig)))
         self._sidebar = sidebar
         self.sidebarArea = VerticalScrollArea(sidebar)
         # A slim arrow beside the plot folds the settings away in narrow docks
@@ -547,7 +550,7 @@ class VardaPlotWidget(QWidget):
         return QSize(1200, 600)
 
     def onAppearanceParamsChanged(self):
-        self.gv.setBackground(self.appearanceConfig.backgroundColor.value)
+        self.gv.setBackground(self.appearanceConfig.backgroundColor.value.toQColor())
 
     def onViewParamsChanged(self):
         self.legend.setVisible(self.viewConfig.showLegend.value)
@@ -755,7 +758,7 @@ class VardaPlotWidget(QWidget):
         :param y: Description
         :param kwargs: Description
         """
-        curve = Curve.fromData(x, y, color.toQColor(), **kwargs)
+        curve = Curve.fromData(x, y, color, **kwargs)
         self._adoptCurve(curve)
         return curve
 
@@ -790,7 +793,7 @@ class VardaPlotWidget(QWidget):
         self.curveSettingsBox.setContent(
             WrapperWidget(
                 VBoxBuilder(Qt.AlignmentFlag.AlignTop)
-                .withWidget(curve.config.createWidget())
+                .withWidget(groupWidget(curve.config))
                 .withWidget(
                     ButtonBuilder("Remove Curve").onClick(
                         lambda: self.removePlot(curve)

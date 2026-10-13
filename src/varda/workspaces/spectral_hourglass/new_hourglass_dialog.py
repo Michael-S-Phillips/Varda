@@ -11,6 +11,7 @@ from varda.common.ui import ButtonBuilder, HBoxBuilder, VBoxBuilder
 from varda.workspaces.spectral_hourglass.hourglass_workspace import (
     SpectralHourglassWorkspace,
 )
+from varda.common.parameter_widgets import groupWidget
 
 
 class _Config(ParameterGroup):
@@ -41,7 +42,7 @@ class NewSpectralHourglassDialog(QDialog):
         self.setLayout(
             VBoxBuilder()
             .withWidget(intro)
-            .withWidget(self.config.createWidget())
+            .withWidget(groupWidget(self.config))
             .withStretch()
             .withLayout(
                 HBoxBuilder()

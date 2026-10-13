@@ -14,7 +14,7 @@ from varda.common.parameter import (
     ParameterGroup,
     EnumParameter,
 )
-from varda.common.entities import Color, VardaRaster
+from varda.common.entities import VardaRaster
 from varda.image_rendering.raster_view import (
     ImageViewport,
     ROIDisplayController,
@@ -50,6 +50,7 @@ from varda.workspaces.ratio_explorer import (
     RatioExplorerConfig,
     RatioExplorerController,
 )
+from varda.common.parameter_widgets import groupWidget
 
 logger = logging.getLogger(__name__)
 
@@ -447,7 +448,7 @@ class DualImageWorkspace(QMainWindow):
     def _configurePixelPlot(self, plot: PixelSpectraPlotWidget) -> None:
         # After the plot's "View" and "Pixel Spectra" sections
         plot.insertSidebarSection(
-            2, SectionBox("Dual Image", self.pixelSourceConfig.createWidget())
+            2, SectionBox("Dual Image", groupWidget(self.pixelSourceConfig))
         )
         plot.insertSidebarSection(3, self.ratioExplorer.createSidebarSection())
         plot.sigSavePointRequested.connect(functools.partial(self._savePoint, plot))
@@ -461,7 +462,7 @@ class DualImageWorkspace(QMainWindow):
                 origin.x,
                 origin.y,
                 name=curve.plotDataItem.name(),
-                color=Color.fromQColor(curve.config.color.value),
+                color=curve.config.color.value,
             )
 
     def _imagesForSource(self, clickedImage: VardaRaster) -> list[VardaRaster]:

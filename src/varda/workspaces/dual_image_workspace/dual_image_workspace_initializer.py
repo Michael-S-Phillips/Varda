@@ -7,6 +7,7 @@ from varda.workspaces.dual_image_workspace.dual_image_workspace import (
 )
 from varda import log
 from varda.common.ui import VBoxBuilder, HBoxBuilder, ButtonBuilder
+from varda.common.parameter_widgets import groupWidget
 
 
 class NewDualImageWorkspaceDialog(QDialog):
@@ -44,7 +45,7 @@ class NewDualImageWorkspaceDialog(QDialog):
 
         self.setLayout(
             VBoxBuilder()
-            .withWidget(self.dualImageWorkspaceConfig.createWidget())
+            .withWidget(groupWidget(self.dualImageWorkspaceConfig))
             .withStretch()
             .withLayout(
                 HBoxBuilder()

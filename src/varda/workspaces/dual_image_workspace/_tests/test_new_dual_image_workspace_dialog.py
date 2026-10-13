@@ -1,6 +1,6 @@
 """Tests for pre-filling the New Dual Image Workspace dialog."""
 
-from varda.common.parameter import ImageParameter
+from varda.common.parameter_widgets import ImageParameterWidget
 from varda.utilities.debug import generate_random_image
 from varda.workspaces.dual_image_workspace import NewDualImageWorkspaceDialog
 
@@ -37,7 +37,7 @@ def test_dialog_dropdowns_display_the_prefilled_images(qapp):
         [first, second, third], primary=second, secondary=third
     )
 
-    dropdowns = dialog.findChildren(ImageParameter.ImageParameterWidget)
+    dropdowns = dialog.findChildren(ImageParameterWidget)
     shown = {w.param.name: w.comboBox.currentIndex() for w in dropdowns}
     assert shown == {"Primary Image": 1, "Secondary Image": 2}
 

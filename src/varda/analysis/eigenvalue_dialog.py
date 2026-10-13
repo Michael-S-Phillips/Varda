@@ -16,6 +16,7 @@ from varda.analysis.transforms import TRANSFORM_METADATA_KEY
 from varda.common.entities import VardaRaster
 from varda.common.parameter import ImageParameter, IntParameter
 from varda.common.ui import ButtonBuilder, HBoxBuilder, SectionBox, VBoxBuilder
+from varda.common.parameter_widgets import parameterWidget
 
 _COLUMNS = ("Component", "Eigenvalue", "Variance %", "Cumulative %")
 
@@ -89,8 +90,8 @@ class EigenvaluePlotDialog(QDialog):
         )
 
         form = QFormLayout()
-        form.addRow("Image", self.imageParam.getWidget())
-        form.addRow("Components to keep", self.components.getWidget())
+        form.addRow("Image", parameterWidget(self.imageParam))
+        form.addRow("Components to keep", parameterWidget(self.components))
         self.setLayout(
             VBoxBuilder()
             .withLayout(form)

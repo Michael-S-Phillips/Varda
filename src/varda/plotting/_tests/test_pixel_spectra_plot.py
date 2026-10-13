@@ -27,7 +27,7 @@ def widget(qtbot):
 
 
 def _color(scheme: ColorScheme, index: int):
-    return paletteColor(scheme, index).toQColor()
+    return paletteColor(scheme, index)
 
 
 def test_collect_mode_accumulates_spectra_with_successive_palette_colors(widget, image):

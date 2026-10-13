@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QStatusBar,
 )
 
-from varda.common.entities import Color, VardaRaster
+from varda.common.entities import VardaRaster
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.new_histogram_view import (
     NewHistogramView,
@@ -316,7 +316,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
                 origin.x,
                 origin.y,
                 name=curve.plotDataItem.name(),
-                color=Color.fromQColor(curve.config.color.value),
+                color=curve.config.color.value,
             )
 
         # plotDock = Dock("Spectral Plot", widget=self.plotWidget, size=(400, 300))

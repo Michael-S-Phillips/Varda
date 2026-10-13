@@ -78,7 +78,7 @@ def test_a_plotted_pixel_is_marked_at_its_centre_on_every_viewport(setup):
     for viewport in viewports:
         (marker,) = viewport.live()
         assert (marker.pos.x(), marker.pos.y()) == (3.5, 5.5)
-        assert marker.color == curve.config.color.value
+        assert marker.color == curve.config.color.value.toQColor()
 
 
 def test_collect_mode_keeps_a_marker_per_spectrum_and_replace_keeps_the_latest(setup):

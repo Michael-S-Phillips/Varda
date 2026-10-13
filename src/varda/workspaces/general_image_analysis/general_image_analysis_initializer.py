@@ -6,6 +6,7 @@ from varda.workspaces.general_image_analysis import (
     GeneralImageAnalysisConfig,
 )
 from varda.common.ui import VBoxBuilder, HBoxBuilder, ButtonBuilder
+from varda.common.parameter_widgets import groupWidget
 
 
 class NewGeneralImageAnalysisWorkspaceDialog(QDialog):
@@ -29,7 +30,7 @@ class NewGeneralImageAnalysisWorkspaceDialog(QDialog):
 
         self.setLayout(
             VBoxBuilder()
-            .withWidget(self.config.createWidget())
+            .withWidget(groupWidget(self.config))
             .withStretch()
             .withLayout(
                 HBoxBuilder()

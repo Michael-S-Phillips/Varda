@@ -3,6 +3,7 @@
 from PyQt6.QtCore import Qt
 
 from varda.common.parameter import MultiChoiceParameter
+from varda.common.parameter_widgets import parameterWidget
 
 
 def test_defaults_to_every_choice_selected():
@@ -42,7 +43,7 @@ def test_set_choices_can_keep_an_explicit_selection():
 
 def test_widget_shows_checked_items_and_toggling_updates_the_value(qtbot):
     param = MultiChoiceParameter("Things", ["a", "b", "c"], default=["b"])
-    widget = param.getWidget()
+    widget = parameterWidget(param)
     qtbot.addWidget(widget)
 
     states = [
@@ -60,7 +61,7 @@ def test_widget_shows_checked_items_and_toggling_updates_the_value(qtbot):
 
 def test_widget_all_and_none_buttons(qtbot):
     param = MultiChoiceParameter("Things", ["a", "b", "c"], default=["b"])
-    widget = param.getWidget()
+    widget = parameterWidget(param)
     qtbot.addWidget(widget)
 
     widget.allButton.click()
@@ -71,7 +72,7 @@ def test_widget_all_and_none_buttons(qtbot):
 
 def test_widget_follows_new_choices(qtbot):
     param = MultiChoiceParameter("Things", ["a", "b"])
-    widget = param.getWidget()
+    widget = parameterWidget(param)
     qtbot.addWidget(widget)
 
     param.setChoices(["p", "q", "r"], selected=["q"])
@@ -86,7 +87,7 @@ def test_widget_follows_new_choices(qtbot):
 
 def test_widget_range_entry_selects_choices_by_position(qtbot):
     param = MultiChoiceParameter("Things", [f"c{i}" for i in range(1, 9)])
-    widget = param.getWidget()
+    widget = parameterWidget(param)
     qtbot.addWidget(widget)
 
     widget.rangeEdit.setText("2-4, 7")
@@ -97,7 +98,7 @@ def test_widget_range_entry_selects_choices_by_position(qtbot):
 
 def test_widget_range_entry_ignores_junk_and_out_of_range_positions(qtbot):
     param = MultiChoiceParameter("Things", ["a", "b", "c"])
-    widget = param.getWidget()
+    widget = parameterWidget(param)
     qtbot.addWidget(widget)
 
     widget.rangeEdit.setText("0, 2-9, x")
@@ -116,7 +117,7 @@ def test_clone_copies_choices_and_default():
 
 def test_widget_shows_a_tooltip_per_choice(qtbot):
     param = MultiChoiceParameter("Things", ["a", "b"])
-    widget = param.getWidget()
+    widget = parameterWidget(param)
     qtbot.addWidget(widget)
 
     param.setChoices(["p", "q"], tooltips={"q": "the letter q"})

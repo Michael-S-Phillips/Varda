@@ -39,7 +39,7 @@ We also try to do as much wiring as possible at this initialization stage, to re
 - **`image_loading/`** — Pluggable image loaders behind `ImageLoaderProtocol`. `ImageLoadingService` runs loading in background threads.
 - **`image_rendering/`** — Systems related to visualization of images. `image_renderer.py` calculates an rgb image from based on settings. `stretch_algorithms.py` contains band stretch implementations (min-max, linear percentile, etc). `raster_view/` has the widgets to display the results from the image renderer, and other supporting classes for viewport tools, linked viewports, etc.
 - **`rois/`** — ROI graphics item (`VardaROI`), management widgets, table model/view, property editor, statistics dialog. **Much of this is outdated and should be ignored. We will be rewriting it.**
-- **`common/`** — Shared code that is used in many places: `entities.py` (important domain objects such as VardaRaster), `parameter.py` (parameter system that can auto-generate UI for adjusting values), `ui.py` (useful widgets and builders).
+- **`common/`** — Shared code that is used in many places: `entities.py` (important domain objects such as VardaRaster), `parameter.py` (typed settings as plain psygnal state, no Qt) and `parameter_widgets.py` (the widgets that edit them: `parameterWidget`, `groupWidget`; register new parameter widgets with `@widgetFor`), `ui.py` (useful widgets and builders).
 - **`workspaces/`** — Workspace views: `dual_image_workspace/` (side-by-side comparison), `general_image_analysis/` (standard analysis view).
 - **`utilities/`** — Helpers: threading, signal utils, debug tools, etc..
 - **`maingui.py`** — `MainGUI` (QMainWindow): tabbed workspaces, child window management, docking.

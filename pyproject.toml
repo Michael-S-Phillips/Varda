@@ -104,16 +104,13 @@ source_modules = [
     "varda.common.expressions",
     "varda.common.grid",
     "varda.common.provenance",
+    "varda.common.parameter",
 ]
 forbidden_modules = ["PyQt6"]
 ignore_imports = [
     # Color.toQColor / fromQColor in the shared entities
     "varda.common.entities -> PyQt6",
-    # Parameters are QObjects that build their own widgets (to be split)
-    "varda.common.parameter -> PyQt6",
-    "varda.common.parameter -> varda.common.ui",
-    "varda.common.parameter -> varda.utilities.debug",
-    # Analysis is a ParameterGroup (a QObject) and may offer a preview widget
+    # An analysis may offer a preview widget
     "varda.analysis.analysis -> PyQt6",
     # The PyTorch runtime finds its folder with QStandardPaths
     "varda.optional_features.torch_runtime -> PyQt6",
@@ -125,4 +122,5 @@ ignore_imports = [
     "varda.analysis.eigenvalue_plot -> **",
     "varda.analysis.transforms -> PyQt6",
     "varda.analysis.band_math -> PyQt6",
+    "varda.analysis.band_math -> varda.common.parameter_widgets",
 ]

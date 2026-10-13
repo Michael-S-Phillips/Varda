@@ -6,6 +6,7 @@ import numpy as np
 import pyqtgraph as pg
 
 from varda.common.parameter import IntParameter
+from varda.common.parameter_widgets import connectWhileAlive
 
 
 class EigenvaluePlot(pg.PlotWidget):
@@ -57,7 +58,9 @@ class EigenvaluePlot(pg.PlotWidget):
         )
         self.getPlotItem().addItem(self.cutoff, ignoreBounds=True)
         self.cutoff.sigPositionChanged.connect(self._onCutoffMoved)
-        components.sigParameterChanged.connect(self._onComponentsChanged)
+        connectWhileAlive(
+            components.sigParameterChanged, self._onComponentsChanged, self
+        )
 
     def _onCutoffMoved(self) -> None:
         count = int(round(self.cutoff.value()))

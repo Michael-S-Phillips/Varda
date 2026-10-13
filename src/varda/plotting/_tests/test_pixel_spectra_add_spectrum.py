@@ -18,7 +18,7 @@ def test_add_spectrum_uses_the_palette_and_is_tracked_like_a_pixel_curve(qtbot):
 
     assert widget.pixelCurves == [curve]
     assert curve.plotDataItem.name() == "Ratio A"
-    assert curve.config.color.value == paletteColor(ColorScheme.TAB10, 0).toQColor()
+    assert curve.config.color.value == paletteColor(ColorScheme.TAB10, 0)
 
 
 def test_add_spectrum_honours_replace_mode(qtbot):
