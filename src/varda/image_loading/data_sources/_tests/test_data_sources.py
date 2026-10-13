@@ -240,3 +240,15 @@ class TestRegistry:
         assert "ENVI Image" in filt
         assert "HDF5" in filt
         assert "TIFF/GeoTIFF" in filt
+
+
+def test_closing_an_in_memory_image_closes_its_file():
+    class _Source(ArrayDataSource):
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    source = _Source(np.zeros((2, 2, 2), dtype=np.float32))
+    InMemoryDataSource(source).close()
+    assert source.closed  # Windows can't delete or replace a file left open
