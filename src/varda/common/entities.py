@@ -6,7 +6,7 @@ entities.py: data structures used throughout Varda
 from __future__ import annotations
 from dataclasses import dataclass, field
 import logging
-import warnings
+
 from typing import Any, Dict, Optional, TYPE_CHECKING
 from datetime import datetime
 import uuid
@@ -26,6 +26,7 @@ import rasterio as rio
 from pyproj import CRS, Transformer
 from pyproj.exceptions import CRSError
 
+from varda.common.deprecation import warnDeprecated
 from varda.common.spectral_axis import BandModel, bandModelFor
 from varda.utilities.proj_lock import PROJ_LOCK
 from shapely.geometry.base import BaseGeometry
@@ -261,10 +262,10 @@ class VardaRaster:
             Use getBands(), getData(), or getSpectrum() instead.
             This loads the entire image into memory.
         """
-        warnings.warn(
-            "VardaRaster.raster is deprecated. Use getBands(), getData(), or getSpectrum() instead.",
-            DeprecationWarning,
-            stacklevel=2,
+        warnDeprecated(
+            "VardaRaster.raster",
+            since="0.0.2",
+            instead="getBands(), getData() or getSpectrum()",
         )
         return self._dataSource.readAllBands()
 

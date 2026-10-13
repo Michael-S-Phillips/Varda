@@ -77,6 +77,8 @@ varda = "varda.main:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["varda"]
+# Varda must not use its own deprecated APIs (varda.common.deprecation)
+filterwarnings = ["error::varda.common.deprecation.VardaDeprecationWarning"]
 
 [tool.mypy]
 disable_error_code = ["import-untyped"]
