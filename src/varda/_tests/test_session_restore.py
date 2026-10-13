@@ -7,7 +7,8 @@ from varda.common.di_types import ProjectImages
 from varda.common.entities import Color, ROIMode, VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.rois.roi_collection import ROICollection
-from varda.session import SessionState, WorkspaceState, roisToJson
+from varda.rois.roi_json import roisToJson
+from varda.session import SessionState, WorkspaceState
 from varda.session_restore import SessionRestorer
 from varda.workspaces.dual_image_workspace.dual_image_workspace import (
     DualImageWorkspace,

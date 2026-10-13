@@ -11,13 +11,12 @@ from shapely.geometry import box
 from varda.common.entities import Color, ROIMode, VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.rois.roi_collection import ROICollection
+from varda.rois.roi_json import roisFromJson, roisToJson
 from varda.session import (
     SessionState,
     WorkspaceState,
     captureSession,
     readSession,
-    roisFromJson,
-    roisToJson,
     writeSession,
 )
 from varda.workspaces.dual_image_workspace.dual_image_workspace import (

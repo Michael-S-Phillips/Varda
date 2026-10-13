@@ -33,6 +33,11 @@ can alter results.
 
 ### Added
 
+- **Duplicate Workspace** (Workspace menu, or right-click a workspace's tab):
+  opens a copy on the same images with its own copies of the ROIs and
+  display settings.
+- The class legend of an overlaid classification sits over the image instead
+  of crowding the overlay toolbar.
 - **File → Save Session (Self-Contained)** writes one `.varda.zip` holding
   the session and every result that exists only in memory (as ENVI files);
   **Open Session** reopens it from anywhere. Paths inside a session folder

@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.common.entities import VardaRaster
-from varda.common.parameter import Parameter, ParameterGroup
+from varda.common.parameter import Parameter, ParameterGroup, copyValues
 from varda.common.parameter_widgets import (
     connectWhileAlive,
     groupWidget,
@@ -125,6 +125,15 @@ class StretchParameter(Parameter[StretchAlgorithm]):
 
     def selectByName(self, name: str) -> None:
         self.set(self._instances[name])
+
+    def copyFrom(self, source: Parameter[StretchAlgorithm]) -> None:
+        """Every algorithm's settings, then the same choice of algorithm (each
+        parameter keeps its own algorithm instances)."""
+        if not isinstance(source, StretchParameter):
+            return
+        for name, group in source._paramGroups.items():
+            copyValues(group, self._paramGroups[name])
+        self.selectByName(source.nameOf(source.current))
 
     def clone(self) -> StretchParameter:
         new = StretchParameter(self.name, self.description)

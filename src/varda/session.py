@@ -15,19 +15,12 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 
 import attrs
-from shapely.geometry import mapping, shape
 
 from varda.common.expressions import words
 from varda.image_loading.raster_writer import writeRaster
-from varda.common.entities import Color, ROIMode, VardaRaster
-from varda.rois.roi_collection import ROICollection
-from varda.workspaces.dual_image_workspace.dual_image_workspace import (
-    DualImageWorkspace,
-)
-from varda.workspaces.general_image_analysis import GeneralImageAnalysisWorkflow
-from varda.workspaces.spectral_hourglass.hourglass_workspace import (
-    SpectralHourglassWorkspace,
-)
+from varda.common.entities import VardaRaster
+from varda.rois.roi_json import roisToJson
+from varda.workspaces.workspace_kinds import describeWorkspace
 
 SESSION_SUFFIX = ".varda"
 SESSION_FILE_FILTER = "Varda session (*.varda)"
@@ -61,47 +54,6 @@ class SessionCapture:
     unsavedImages: tuple[str, ...]
 
 
-def roisToJson(collection: ROICollection) -> dict:
-    """A GeoJSON FeatureCollection (plain JSON types) of the collection's ROIs,
-    with Varda's name/color/roi_type and any user columns as properties."""
-    features = [
-        {
-            "type": "Feature",
-            "geometry": mapping(roi.geometry),
-            "properties": {
-                "name": roi.name,
-                "color": roi.color.toHexString(),
-                "roi_type": roi.roiType.name,
-                **roi.properties,
-            },
-        }
-        for roi in collection.getAllROIs()
-    ]
-    data = {
-        "type": "FeatureCollection",
-        "features": features,
-        "crs": collection.crs.to_wkt() if collection.crs is not None else None,
-    }
-    return json.loads(json.dumps(data, default=str))
-
-
-def roisFromJson(data: dict, collection: ROICollection) -> None:
-    """Add the ROIs of a ``roisToJson`` document to ``collection``."""
-    for feature in data.get("features", []):
-        properties = dict(feature.get("properties", {}))
-        name = properties.pop("name", "ROI")
-        color = Color.fromHexString(properties.pop("color", "#ff000080"))
-        roiTypeName = properties.pop("roi_type", ROIMode.POLYGON.name)
-        roiType = (
-            ROIMode[roiTypeName]
-            if roiTypeName in ROIMode.__members__
-            else ROIMode.POLYGON
-        )
-        collection.addROI(
-            shape(feature["geometry"]), name, color, roiType, **properties
-        )
-
-
 def captureSession(
     images: Sequence[VardaRaster],
     workspaces: Iterable[object],
@@ -121,7 +73,7 @@ def captureSession(
 
     states = []
     for workspace in workspaces:
-        described = _describe(workspace)
+        described = describeWorkspace(workspace)
         if described is None:
             continue
         kind, shown = described
@@ -140,16 +92,6 @@ def captureSession(
     return SessionCapture(
         SessionState(tuple(pathOf.values()), tuple(states)), tuple(unsaved)
     )
-
-
-def _describe(workspace: object) -> tuple[str, list[VardaRaster]] | None:
-    if isinstance(workspace, GeneralImageAnalysisWorkflow):
-        return "general", [workspace.config.image.get()]
-    if isinstance(workspace, DualImageWorkspace):
-        return "dual", [workspace.image1, workspace.image2]
-    if isinstance(workspace, SpectralHourglassWorkspace):
-        return "hourglass", [workspace.model.image]
-    return None
 
 
 def writeSession(
