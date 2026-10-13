@@ -157,3 +157,34 @@ def test_integer_and_float_data_ignore_values_become_no_data(tmp_path, ignore):
     data = openDataSource(str(header)).readAllBands()
     assert np.isnan(data[0, 0]).all()
     assert not np.isnan(data[1:]).any()
+
+
+def test_without_default_bands_a_spectral_image_opens_in_true_colour(tmp_path):
+    wavelengths = list(np.arange(400.0, 1001.0, 50.0))
+    header = tmp_path / "vis.hdr"
+    data = np.ones((3, 4, len(wavelengths)), dtype=np.float32)
+    envi.save_image(
+        str(header),
+        data,
+        metadata={"wavelength": wavelengths, "wavelength units": "nm"},
+        ext=".img",
+    )
+    bands = openDataSource(str(header)).defaultBands
+    assert [wavelengths[b] for b in bands] == [650.0, 550.0, 450.0]
+
+
+def test_a_header_default_bands_entry_still_wins(tmp_path):
+    wavelengths = list(np.arange(400.0, 1001.0, 50.0))
+    header = tmp_path / "vis.hdr"
+    data = np.ones((3, 4, len(wavelengths)), dtype=np.float32)
+    envi.save_image(
+        str(header),
+        data,
+        metadata={
+            "wavelength": wavelengths,
+            "wavelength units": "nm",
+            "default bands": [1, 2, 3],
+        },
+        ext=".img",
+    )
+    assert list(openDataSource(str(header)).defaultBands) == [0, 1, 2]

@@ -34,7 +34,9 @@ class TestVardaRaster:
         assert raster.filePath == "/test/image.tif"
 
     def test_defaultBands(self, raster):
-        npt.assert_array_equal(raster.defaultBands, [0, 1, 2])
+        # 400-800 nm in 100 nm steps: too coarse for three distinct true-colour
+        # bands, so a false colour spread over the range (long wavelength red)
+        npt.assert_array_equal(raster.defaultBands, [3, 2, 1])
 
     def test_wavelengths(self, raster):
         npt.assert_array_equal(raster.wavelengths, [400.0, 500.0, 600.0, 700.0, 800.0])

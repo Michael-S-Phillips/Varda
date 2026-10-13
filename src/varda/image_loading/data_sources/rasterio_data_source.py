@@ -21,7 +21,12 @@ from pyproj import CRS
 
 from varda.utilities.proj_lock import PROJ_LOCK
 
-from .data_source import DataSource, geoToPixelIndex, pixelCenterToGeo
+from .data_source import (
+    DataSource,
+    fallbackDisplayBands,
+    geoToPixelIndex,
+    pixelCenterToGeo,
+)
 from .registry import register_data_source
 
 if TYPE_CHECKING:
@@ -241,9 +246,13 @@ class RasterioDataSource(DataSource):
 
     @cached_property
     def defaultBands(self) -> np.ndarray:
-        if self.bandCount >= 3:
-            return np.array([0, 1, 2], dtype=np.uint)
-        return np.array([0, 0, 0], dtype=np.uint)
+        return fallbackDisplayBands(
+            self.wavelengths,
+            self.wavelengthUnits,
+            self.nodata,
+            self.extraMetadata,
+            self.bandCount,
+        )
 
     @cached_property
     def isParameterImage(self) -> bool:

@@ -8,6 +8,7 @@ from varda.common.spectral_axis import (
     BandModel,
     SpectralUnit,
     bandModelFor,
+    displayBands,
     fromNanometres,
     parseEnviList,
     parseUnit,
@@ -121,3 +122,42 @@ def test_band_model_is_frozen():
     model = BandModel.empty(3)
     with pytest.raises(AttributeError):
         model.scaleFactor = 2.0  # ty: ignore[invalid-assignment]
+
+
+def test_visible_coverage_gives_true_colour_bands():
+    centres = np.arange(400.0, 2501.0, 10.0)
+    model = bandModelFor(centres, "nm", None, {}, centres.size)
+    red, green, blue = displayBands(model)
+    assert centres[[red, green, blue]].tolist() == [640.0, 550.0, 470.0]
+
+
+def test_infrared_only_gives_spread_false_colour_long_wavelengths_red():
+    centres = np.linspace(1000.0, 2600.0, 81)
+    model = bandModelFor(centres, "nm", None, {}, centres.size)
+    red, green, blue = displayBands(model)
+    assert centres[red] > centres[green] > centres[blue]
+    assert centres[red] - centres[blue] > 800
+
+
+def test_bad_bands_are_never_chosen_for_display():
+    centres = np.arange(400.0, 2501.0, 10.0)
+    bbl = np.ones(centres.size, int)
+    bbl[np.flatnonzero(centres == 640.0)] = 0
+    model = bandModelFor(centres, "nm", None, {"bbl": list(bbl)}, centres.size)
+    red, _, _ = displayBands(model)
+    assert centres[red] != 640.0 and abs(centres[red] - 640.0) <= 10
+
+
+def test_no_display_choice_without_a_spectral_axis():
+    assert displayBands(bandModelFor(np.arange(5), "Unknown", None, {}, 5)) is None
+    assert (
+        displayBands(bandModelFor(np.array([500.0, 600.0]), "nm", None, {}, 2)) is None
+    )
+
+
+def test_coarse_visible_sampling_falls_back_to_distinct_false_colour():
+    model = bandModelFor(
+        np.array([400.0, 500.0, 600.0, 700.0, 800.0]), "nm", None, {}, 5
+    )
+    bands = displayBands(model)
+    assert bands is not None and len(set(bands.tolist())) == 3

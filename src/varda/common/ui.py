@@ -194,6 +194,10 @@ class ButtonBuilder(QPushButton):
         self.setDefault(True)
         return self
 
+    def withToolTip(self, text: str) -> ButtonBuilder:
+        self.setToolTip(text)
+        return self
+
 
 class SectionBox(QWidget):
     def __init__(

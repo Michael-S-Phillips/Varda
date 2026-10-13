@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .data_source import fallbackDisplayBands
 from .rasterio_data_source import RasterioDataSource
 from .registry import register_data_source
 
@@ -223,10 +224,14 @@ class ENVIDataSource(RasterioDataSource):
             indices = [min(max(idx, 0), maxBand) for idx in indices[:3]]
             return np.array(indices, dtype=np.uint)
 
-        # Default: first 3 bands or band 0 repeated
-        if self.bandCount >= 3:
-            return np.array([0, 1, 2], dtype=np.uint)
-        return np.array([0, 0, 0], dtype=np.uint)
+        # None named in the header: true/false colour from the wavelengths
+        return fallbackDisplayBands(
+            self.wavelengths,
+            self.wavelengthUnits,
+            self.nodata,
+            self.extraMetadata,
+            self.bandCount,
+        )
 
     @cached_property
     def extraMetadata(self) -> dict[str, str]:

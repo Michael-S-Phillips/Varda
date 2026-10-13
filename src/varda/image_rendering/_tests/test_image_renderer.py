@@ -20,11 +20,12 @@ def test_settings_defaults(qtbot):
     assert s.image is img
     assert s.mode.get() == RenderMode.MONO
     assert s.opacity.get() == 1.0
-    # bands seeded from image.defaultBands ([0, 1, 2])
-    assert s.rgb.red.get() == 0
-    assert s.rgb.green.get() == 1
-    assert s.rgb.blue.get() == 2
-    assert s.mono.band.get() == 0
+    # bands seeded from image.defaultBands
+    red, green, blue = (int(b) for b in img.defaultBands)
+    assert s.rgb.red.get() == red
+    assert s.rgb.green.get() == green
+    assert s.rgb.blue.get() == blue
+    assert s.mono.band.get() == red
 
 
 def test_settings_band_params_are_image_aware(qtbot):
