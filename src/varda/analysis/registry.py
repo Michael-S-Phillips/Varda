@@ -27,6 +27,11 @@ from varda.analysis.mapping import (
     SamMappingAnalysis,
     UnmixingAnalysis,
 )
+from varda.analysis.statistical_classifiers import (
+    KMeansAnalysis,
+    MahalanobisAnalysis,
+    MaximumLikelihoodAnalysis,
+)
 from varda.analysis.statistics import SpatialEntropyAnalysis, SpectralEntropyAnalysis
 from varda.analysis.transforms import (
     IcaAnalysis,
@@ -53,6 +58,9 @@ ANALYSES: list[type[Analysis]] = [
     MlpClassificationAnalysis,
     CnnClassificationAnalysis,
     VitClassificationAnalysis,
+    MaximumLikelihoodAnalysis,
+    MahalanobisAnalysis,
+    KMeansAnalysis,
     PixelPurityAnalysis,
     SamMappingAnalysis,
     UnmixingAnalysis,
