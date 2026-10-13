@@ -19,6 +19,7 @@ from varda.all_images_view_list.image_list_menu_controller import (
 from varda.app import VardaApplication
 from varda.branding.splash import createSplash
 from varda.maingui import MainGUI
+from varda.self_test import FLAG as SELF_TEST_FLAG, runSelfTest
 from varda.session_autosave import SessionAutosaver
 from varda.utilities.resources import resource_path
 
@@ -33,8 +34,8 @@ if sys.platform == "win32":
 ICON_PATH = resource_path("resources/logo.svg")
 
 
-def initVarda() -> None:
-    """Initialize and start the Varda application."""
+def createVarda() -> tuple[QApplication, VardaApplication]:
+    """Build the application and show its main window."""
 
     q_app = QApplication(sys.argv)
     q_app.setApplicationName("Varda")
@@ -82,6 +83,12 @@ def initVarda() -> None:
     varda.log.info("Varda initialized successfully!")
 
     splash.finishWhenDone(app.maingui)
+    return q_app, app
+
+
+def initVarda() -> None:
+    """Initialize and start the Varda application."""
+    q_app, _app = createVarda()
     varda.log.info("starting the GUI event loop...")
     exitCode = q_app.exec()
     varda.log.info("Application exiting, performing cleanup...")
@@ -89,6 +96,9 @@ def initVarda() -> None:
 
 
 def main():
+    if SELF_TEST_FLAG in sys.argv:
+        _q_app, app = createVarda()
+        sys.exit(runSelfTest(app))
     initVarda()
 
 

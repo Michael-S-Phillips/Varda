@@ -20,6 +20,7 @@ uv run pytest                  # tests (colocated in _tests/ folders)
 uv run ruff format             # format
 uv run ruff check              # lint
 uv run ty check                # type check
+uv run varda --self-test       # what release builds check before publishing
 ```
 
 Before opening a pull request:

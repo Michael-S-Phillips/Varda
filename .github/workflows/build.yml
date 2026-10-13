@@ -40,6 +40,25 @@ jobs:
         # Features uses to install PyTorch on the user's computer
         run: uv run pyinstaller Varda.spec
 
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1
+
+      - name: Self-test the bundle
+        # Runs the built app headless; a bundle that can't start, read and
+        # write images, render, or run its analyses is never released
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            ./dist/Varda/Varda.exe --self-test
+          else
+            ./dist/Varda/Varda --self-test
+          fi
+
       - name: Package build (Windows)
         if: runner.os == 'Windows'
         run: Compress-Archive -Path dist/Varda/* -DestinationPath Varda-${{ matrix.name }}.zip
