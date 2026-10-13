@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use Varda in your research, please cite it as below."
+title: "Varda: visualization and analysis of raster data"
+abstract: >-
+  Varda is a desktop application for visualizing and analyzing hyperspectral
+  and multispectral imagery: spectral plots, ROIs that work across images and
+  coordinate systems, transforms, classifiers, band parameters and an
+  endmember workflow (the Spectral Hourglass).
+type: software
+authors:
+  - given-names: Michael
+    family-names: Phillips
+    affiliation: "Lunar and Planetary Laboratory, University of Arizona"
+  - given-names: Jesse
+    family-names: Oved
+    affiliation: "Lunar and Planetary Laboratory, University of Arizona"
+  - given-names: Emma
+    family-names: Elliott
+    affiliation: "Lunar and Planetary Laboratory, University of Arizona"
+  - given-names: Hamad
+    family-names: Ayaz
+    affiliation: "Lunar and Planetary Laboratory, University of Arizona"
+license: GPL-3.0-or-later
+repository-code: "https://github.com/Michael-S-Phillips/Varda"
+version: "0.3.1"
+keywords:
+  - hyperspectral
+  - multispectral
+  - remote sensing
+  - spectroscopy
+  - planetary science

@@ -178,3 +178,19 @@ uv sync --extra ml
 Training runs on CUDA or Apple MPS when available, otherwise on the CPU.
 Maintainers: `scripts/compile_torch_locks.py` regenerates the pinned locks in
 `resources/optional_features/torch/`.
+
+## Citing Varda
+
+If Varda helps your research, please cite it: GitHub's **Cite this
+repository** button (from [CITATION.cff](CITATION.cff)) gives APA and BibTeX,
+and so does **Help → Cite Varda** in the app. A DOI for each release will
+follow.
+
+## Contributing and license
+
+Bug reports, ideas and pull requests are welcome; see
+[CONTRIBUTING.md](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md).
+
+Varda is free software under the [GNU General Public License v3 or later](LICENSE).
+Developed at the Space Imagery Center, Lunar and Planetary Laboratory,
+University of Arizona.

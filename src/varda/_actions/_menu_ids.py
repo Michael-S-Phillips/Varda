@@ -6,6 +6,7 @@ class MenuId(StrEnum):
     WORKSPACE = "varda/workspace"
     PROCESSING = "varda/processing"
     DEBUG = "varda/debug"
+    HELP = "varda/help"
 
 
 class MenuGroup(StrEnum):
@@ -15,6 +16,9 @@ class MenuGroup(StrEnum):
     WORKSPACE_NEW = "1_new"
     WORKSPACE_MANAGE = "2_manage"
     DEBUG_TESTING = "1_testing"
+    HELP_LINKS = "1_links"
+    HELP_INFO = "2_info"
+    HELP_ABOUT = "9_about"
 
 
 MENUBAR: list[tuple[str, str]] = [
@@ -22,4 +26,5 @@ MENUBAR: list[tuple[str, str]] = [
     (MenuId.WORKSPACE, "Workspace"),
     (MenuId.PROCESSING, "Processing"),
     (MenuId.DEBUG, "Debug"),
+    (MenuId.HELP, "Help"),
 ]

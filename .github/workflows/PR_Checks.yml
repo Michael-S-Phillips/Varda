@@ -99,3 +99,17 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: uv run pytest
+
+  # CITATION.cff must stay valid so GitHub's "Cite this repository" and Zenodo work
+  citation:
+    name: Citation file (CFF)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Validate CITATION.cff
+        run: uvx cffconvert --validate -i CITATION.cff

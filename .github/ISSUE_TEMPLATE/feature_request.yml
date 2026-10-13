@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea for Varda
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What would you like to do?
+      description: The task you're trying to get done, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How might it work?
+      description: Optional. Comparable tools (e.g. ENVI, napari) are useful references.
