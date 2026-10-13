@@ -74,6 +74,11 @@ class ROIManagerWidget(QWidget):
         self._table = ROITableView(self._model, parent=self)
 
         # Buttons
+        self.selectAllButton = QPushButton("Select All")
+        self.selectAllButton.clicked.connect(lambda: self._table.selectAll())
+        self.deselectButton = QPushButton("Deselect")
+        self.deselectButton.clicked.connect(lambda: self._table.clearSelection())
+
         self._deleteBtn = QPushButton("Delete Selected")
         self._deleteBtn.clicked.connect(self._deleteSelected)
 
@@ -101,6 +106,8 @@ class ROIManagerWidget(QWidget):
 
         # Layout
         btnRow = QHBoxLayout()
+        btnRow.addWidget(self.selectAllButton)
+        btnRow.addWidget(self.deselectButton)
         btnRow.addWidget(self._deleteBtn)
         btnRow.addWidget(self._addColumnBtn)
         btnRow.addWidget(self._exportBtn)
@@ -157,6 +164,15 @@ class ROIManagerWidget(QWidget):
     @property
     def denominatorFid(self) -> int | None:
         return self._denominatorFid
+
+    def selectedFids(self) -> list[int]:
+        """The fids of every selected row, in table order."""
+        selection = self._table.selectionModel()
+        if selection is None:
+            return []
+        rows = sorted(index.row() for index in selection.selectedRows())
+        fids = [self._model.fidForRow(row) for row in rows]
+        return [fid for fid in fids if fid is not None]
 
     def selectedFid(self) -> int | None:
         """Return the fid of the currently selected row, or None."""
@@ -322,8 +338,14 @@ class ROIManagerWidget(QWidget):
             self.plotSpectrum(fid)
 
     def _deleteSelected(self) -> None:
-        fid = self.selectedFid()
-        if fid is not None:
+        fids = self.selectedFids()
+        if len(fids) > 1:
+            answer = QMessageBox.question(
+                self, "Delete ROIs", f"Delete the {len(fids)} selected ROIs?"
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        for fid in fids:
             self._collection.removeROI(fid)
 
     def _addColumn(self) -> None:

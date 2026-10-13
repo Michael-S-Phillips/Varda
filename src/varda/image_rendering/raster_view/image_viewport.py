@@ -53,6 +53,7 @@ _POINTER_ACTIONS = {
     QEvent.Type.GraphicsSceneMousePress: PointerAction.PRESS,
     QEvent.Type.GraphicsSceneMouseMove: PointerAction.MOVE,
     QEvent.Type.GraphicsSceneMouseRelease: PointerAction.RELEASE,
+    QEvent.Type.GraphicsSceneMouseDoubleClick: PointerAction.DOUBLE_CLICK,
 }
 
 

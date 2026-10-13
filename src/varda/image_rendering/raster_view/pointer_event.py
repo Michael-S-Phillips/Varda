@@ -31,6 +31,7 @@ class PointerAction(Enum):
     PRESS = auto()
     MOVE = auto()
     RELEASE = auto()
+    DOUBLE_CLICK = auto()  # the second press of a double-click
 
 
 @dataclass(frozen=True)

@@ -9,22 +9,21 @@ image is georeferenced, otherwise in pixels.
 
 - Freehand: press, drag, release.
 - Rectangle / ellipse: drag from corner to corner.
-- Polygon: click each vertex; Enter or a double-click finishes, Backspace
-  removes the last vertex.
+- Polygon: click each vertex; a double-click, a right-click or Enter
+  finishes, Backspace removes the last vertex.
 - Cmd-drag (Ctrl-drag elsewhere) pans the view, even partway through a shape.
-- Esc or a right-click drops the shape being drawn. With nothing in
-  progress they fall through (a right-click still opens the view's menu).
+- Esc drops the shape being drawn, and so does a right-click on a freehand,
+  rectangle or ellipse shape. With nothing in progress both fall through (a
+  right-click still opens the view's menu).
 """
 
 from __future__ import annotations
 
 import logging
-import time
 from typing import TYPE_CHECKING
 
 import numpy as np
 from PyQt6.QtCore import QPointF, Qt, pyqtSignal
-from PyQt6.QtWidgets import QApplication
 from shapely.geometry import Polygon as ShapelyPolygon
 
 from varda.common.entities import ROIMode
@@ -45,7 +44,6 @@ logger = logging.getLogger(__name__)
 
 Point = tuple[float, float]
 MIN_DRAG = 5  # px (view-local); smaller rectangles/ellipses are taken as clicks
-DOUBLE_CLICK_SLOP = 2  # px (view-local) between the two clicks of a double-click
 
 
 class _Sketch:
@@ -119,23 +117,11 @@ class _Polygon(_Sketch):
     def __init__(self, start: Point):
         super().__init__(start)
         self.cursor: Point | None = None
-        self._lastPress = time.monotonic()
 
     def move(self, pos: Point) -> None:
         self.cursor = pos
 
     def press(self, pos: Point) -> bool:
-        """Add a vertex; a quick second click on the last vertex finishes."""
-        now = time.monotonic()
-        last = self.points[-1]
-        doubleClick = (
-            now - self._lastPress < QApplication.doubleClickInterval() / 1000
-            and abs(pos[0] - last[0]) <= DOUBLE_CLICK_SLOP
-            and abs(pos[1] - last[1]) <= DOUBLE_CLICK_SLOP
-        )
-        self._lastPress = now
-        if doubleClick:
-            return True
         self.points.append(pos)
         return False
 
@@ -203,8 +189,16 @@ class ROIDrawTool(ViewportTool):
             return False  # Cmd/Ctrl-drag pans the view, even mid-shape
         pos = (event.localPos.x(), event.localPos.y())
         sketch = self._sketch
+        if event.action == PointerAction.DOUBLE_CLICK:
+            if isinstance(sketch, _Polygon):
+                self._finish()  # the first click of it already placed the vertex
+                return True
+            return sketch is not None
         if event.action == PointerAction.PRESS:
             if event.button == Qt.MouseButton.RightButton:
+                if isinstance(sketch, _Polygon):
+                    self._finish()  # dropped if it has fewer than three corners
+                    return True
                 return self._cancel()
             if event.button != Qt.MouseButton.LeftButton:
                 return False
