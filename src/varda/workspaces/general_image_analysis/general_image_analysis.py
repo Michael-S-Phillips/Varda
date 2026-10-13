@@ -47,6 +47,8 @@ from varda.workspaces.ratio_explorer import (
     RatioExplorerController,
 )
 from varda.rois.roi_collection import ROICollection
+from varda.rois.roi_drawing_state import ROIDrawingState
+from varda.rois.roi_drawing_widgets import ROIDrawingController
 from varda.rois.roi_manager_widget import ROIManagerWidget
 from varda.common.ui import VardaDockWidget
 
@@ -148,8 +150,20 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # --- Spectral plot (pixel-spectra plots are created with the docks) ---
         self.plotWidget = VardaPlotWidget(parent=self)
 
+        # Shape and class of the next drawn ROIs, shared by the ROI manager
+        # and the Draw ROI tool under each view
+        self.roiDrawingState = ROIDrawingState(self.roiCollection)
+        self.roiDrawingController = ROIDrawingController(
+            self.roiDrawingState,
+            [self.toolManager1, self.toolManager2, self.toolManager3],
+            parent=self,
+        )
         self.roiManagerWidget = ROIManagerWidget(
-            self.roiCollection, image, self.plotWidget, parent=self
+            self.roiCollection,
+            image,
+            self.plotWidget,
+            parent=self,
+            drawingState=self.roiDrawingState,
         )
         # Saved pixel points (from the pixel-spectra plots' Save Point)
         self.pointCollection = PointCollection()
@@ -316,7 +330,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     def _connectSignals(self):
         """Connect signals between workflow components"""
 
-        # Wire ROI drawing tools to collection via ToolManager signals
+        # Pixel and ratio tools (ROI drawing is wired by roiDrawingController)
         for tm in (self.toolManager1, self.toolManager2, self.toolManager3):
             tm.sigToolActivated.connect(self._onToolActivated)
 
@@ -326,14 +340,8 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         )
 
     def _onToolActivated(self, tool) -> None:
-        """Connect drawing tool signals when a drawing tool is activated."""
-        from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
-            ROIDrawingTool,
-        )
-
-        if isinstance(tool, ROIDrawingTool):
-            tool.sigROIDrawingComplete.connect(self._onROIDrawn)
-        elif isinstance(tool, PixelSelectTool):
+        """Connect a pixel or ratio tool's signals when it is activated."""
+        if isinstance(tool, PixelSelectTool):
             tool.sigPixelSelected.connect(
                 functools.partial(self._onPixelSelected, tool.viewport.imageEntity)
             )
@@ -351,13 +359,6 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     @property
     def pixelPlotDock(self) -> VardaDockWidget:
         return self.pixelSpectraDocks.activeDock
-
-    def _onROIDrawn(self, result: dict) -> None:
-        """Handle completion of an ROI drawing tool."""
-        self.roiCollection.addROIFromDrawing(
-            geometry=result["geometry"],
-            roiType=result["roiType"],
-        )
 
     def setStatusMessage(self, message):
         """Set a status message in the status bar"""

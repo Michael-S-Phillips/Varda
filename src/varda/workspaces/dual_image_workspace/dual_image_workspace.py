@@ -35,6 +35,8 @@ from varda.image_rendering.raster_view.viewport_tools.ratio_explorer_tool import
 )
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.rois.roi_collection import ROICollection
+from varda.rois.roi_drawing_state import ROIDrawingState
+from varda.rois.roi_drawing_widgets import ROIDrawingController
 from varda.rois.roi_manager_widget import ROIManagerWidget
 from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
@@ -141,8 +143,14 @@ class DualImageWorkspace(QMainWindow):
         self.plotWidget = VardaPlotWidget(parent=self)
         self.pixelSourceConfig = PixelSourceConfig()
         self.ratioExplorerConfig = RatioExplorerConfig()
+        # Shape and class of the next drawn ROIs (see _connectSignals)
+        self.roiDrawingState = ROIDrawingState(self.roiCollection)
         self.roiManagerWidget = ROIManagerWidget(
-            self.roiCollection, self.image1, self.plotWidget, parent=self
+            self.roiCollection,
+            self.image1,
+            self.plotWidget,
+            parent=self,
+            drawingState=self.roiDrawingState,
         )
         # Saved pixel points (from the pixel-spectra plots' Save Point)
         self.pointCollection = PointCollection()
@@ -396,7 +404,11 @@ class DualImageWorkspace(QMainWindow):
         rootSplitter.setSizes([600, 200])
 
     def _connectSignals(self):
-        # Wire drawing tools (only right viewport in side-by-side, single viewport in overlay)
+        # Draw ROI on either viewport (or the single overlay viewport); pixel
+        # and ratio tools are wired in _onToolActivated
+        self.roiDrawingController = ROIDrawingController(
+            self.roiDrawingState, self._drawingToolManagers, parent=self
+        )
         for tm in self._drawingToolManagers:
             tm.sigToolActivated.connect(self._onToolActivated)
 
@@ -424,13 +436,7 @@ class DualImageWorkspace(QMainWindow):
         return viewports
 
     def _onToolActivated(self, tool) -> None:
-        from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
-            ROIDrawingTool,
-        )
-
-        if isinstance(tool, ROIDrawingTool):
-            tool.sigROIDrawingComplete.connect(self._onROIDrawn)
-        elif isinstance(tool, PixelSelectTool):
+        if isinstance(tool, PixelSelectTool):
             tool.sigPixelSelected.connect(
                 functools.partial(self._onPixelSelected, tool.viewport.imageEntity)
             )
@@ -485,12 +491,6 @@ class DualImageWorkspace(QMainWindow):
     @property
     def pixelPlotDock(self) -> VardaDockWidget:
         return self.pixelSpectraDocks.activeDock
-
-    def _onROIDrawn(self, result: dict) -> None:
-        self.roiCollection.addROIFromDrawing(
-            geometry=result["geometry"],
-            roiType=result["roiType"],
-        )
 
     def closeEvent(self, event):
         if self.viewportLinkController is not None:

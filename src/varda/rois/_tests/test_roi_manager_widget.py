@@ -7,6 +7,8 @@ from shapely.geometry import box
 
 from varda.common.entities import Color, ROIMode
 from varda.rois.roi_collection import ROICollection
+from varda.rois.roi_drawing_state import ROIDrawingState
+from varda.rois.roi_drawing_widgets import ROIClassPicker, ROIShapePicker
 from varda.rois.roi_manager_widget import ROIManagerWidget
 
 RED = Color(1.0, 0.0, 0.0, 0.5)
@@ -208,3 +210,14 @@ def test_removing_template_clears_it(qtbot, make_split_image):
     w.setTemplate(fid)
     c.removeROI(fid)
     assert w.templateFid is None
+
+
+def test_the_manager_offers_the_shape_and_class_for_drawing(qtbot, make_split_image):
+    c = ROICollection()
+    state = ROIDrawingState(c)
+    w = ROIManagerWidget(
+        c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot(), drawingState=state
+    )
+    qtbot.addWidget(w)
+    assert w.findChild(ROIShapePicker).state is state
+    assert w.findChild(ROIClassPicker).state is state

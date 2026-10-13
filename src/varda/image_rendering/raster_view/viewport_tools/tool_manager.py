@@ -20,8 +20,15 @@ class ToolManager(QObject):
     sigToolActivated = pyqtSignal(object)  # Emits the activated tool
     sigToolDeactivated = pyqtSignal(object)  # Emits the deactivated tool
 
-    def __init__(self, viewport: ImageViewport, parent=None):
+    def __init__(
+        self,
+        viewport: ImageViewport,
+        parent=None,
+        excludeCategories: tuple[str, ...] = (),
+    ):
+        """``excludeCategories``: tool categories this viewport has no use for."""
         super().__init__(parent)
+        self.excludeCategories = excludeCategories
         self.viewport = viewport
         self.viewport.installEventFilter(self)
         self.activeTool: Optional[ViewportTool] = None
@@ -75,7 +82,11 @@ class ToolManager(QObject):
         currentCategory = None
 
         # Sort categories to ensure consistent order
-        categories = sorted(self.toolRegistry.getCategories())
+        categories = sorted(
+            c
+            for c in self.toolRegistry.getCategories()
+            if c not in self.excludeCategories
+        )
 
         for category in categories:
             # Add separator between categories
