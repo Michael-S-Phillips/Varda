@@ -39,21 +39,31 @@ def _splash(qtbot, clock):
     return widget
 
 
-def test_window_ready_early_skips_to_the_last_frame_and_closes(qtbot, window):
-    clock = FakeClock(0.3)  # 2.0 s of animation left
+def test_window_ready_early_plays_the_rest_faster_and_closes_within_a_second(
+    qtbot, window
+):
+    clock = FakeClock(0.3)
     splash = _splash(qtbot, clock)
+    left = splash.end - 0.3  # well over a second
     splash.finishWhenDone(window)
-    assert splash.isDone() and splash.currentTime() == splash.end
+    assert splash.currentTime() == pytest.approx(0.3)  # no jump
+    clock.now += 0.5
+    assert splash.currentTime() == pytest.approx(0.3 + 0.5 * left)  # sped up
+    assert splash.isVisible()
+    clock.now += 0.5  # one second after the window was ready
+    assert splash.isDone()
     qtbot.waitUntil(lambda: not splash.isVisible(), timeout=2000)
 
 
 def test_window_ready_near_the_end_waits_for_the_animation(qtbot, window):
-    clock = FakeClock(1.8)  # 0.5 s left: worth waiting for
+    clock = FakeClock(0.0)
     splash = _splash(qtbot, clock)
+    clock.now = splash.end - 0.5  # 0.5 s left: worth waiting for
     splash.finishWhenDone(window)
     qtbot.wait(100)
     assert splash.isVisible()
-    clock.now = 2.4
+    assert splash.currentTime() == pytest.approx(splash.end - 0.5)  # normal speed
+    clock.now = splash.end + 0.1
     qtbot.waitUntil(lambda: not splash.isVisible(), timeout=2000)
 
 

@@ -28,7 +28,7 @@ change, ask for a new export.
 | `wordmark/varda-wordmark-mono-white.svg`, `-mono-ink.svg` | One-color versions, for single-color printing, embossing and overlays on photos |
 | `lockup/varda-lockup-on-dark.svg`, `-on-light.svg` | Wordmark over the tagline "visualization and analysis of raster data". The tagline is set exactly to the wordmark's width |
 | `splash/varda-splash.svg` | Static splash: a 16:9 ink panel (logical 640×360) with the lockup centered. It is also the last frame of the animation |
-| `splash/splash-motion.json` | Draw-on animation data for QPainter: polylines, gradient and timeline |
+| `splash/splash-motion.json` | The "one pen, branching" draw-on for QPainter (schema 2): strokes with keyframed progress, gradient, dots and tagline timing. See `docs/superpowers/specs/2026-10-13-splash-motion-v2-design.md` |
 | `splash/varda-splash-tagline.svg` | The tagline on its own, in splash coordinates, which the animation fades in |
 | `loader/loader-motion.json` | Busy-indicator ("redraw") animation data for QPainter |
 | `loader/varda-loader-web-on-dark.svg`, `-on-light.svg` | The busy indicator as a CSS-animated SVG, for web pages only |
@@ -37,7 +37,8 @@ change, ask for a new export.
 GitHub-only assets are in `docs/assets/`:
 
 - `varda-hero-on-dark.svg` and `varda-hero-on-light.svg` are the README header. They draw the
-  logo on once (about 2.6 s) and then hold. With reduced motion they show the final frame.
+  logo on once with the "one pen, branching" motion (about 3.9 s) and then hold. With reduced
+  motion they show the final frame.
 - `varda-social-preview.png` (1280×640) is the image for the repository's social preview.
 
 ### Qt compatibility
