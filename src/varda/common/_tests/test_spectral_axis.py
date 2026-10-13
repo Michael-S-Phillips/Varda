@@ -1,0 +1,123 @@
+"""The spectral axis: units parsed once, wavelengths in nm for every calculation,
+FWHM, bad bands, scale factor and no-data carried alongside."""
+
+import numpy as np
+import pytest
+
+from varda.common.spectral_axis import (
+    BandModel,
+    SpectralUnit,
+    bandModelFor,
+    fromNanometres,
+    parseEnviList,
+    parseUnit,
+    toNanometres,
+    unitLabel,
+)
+
+
+@pytest.mark.parametrize(
+    "text, unit",
+    [
+        ("Nanometers", SpectralUnit.NANOMETRE),
+        ("nm", SpectralUnit.NANOMETRE),
+        ("nanometres", SpectralUnit.NANOMETRE),
+        ("Micrometers", SpectralUnit.MICROMETRE),
+        ("um", SpectralUnit.MICROMETRE),
+        ("µm", SpectralUnit.MICROMETRE),
+        ("microns", SpectralUnit.MICROMETRE),
+        ("Wavenumber", SpectralUnit.WAVENUMBER),
+        ("cm-1", SpectralUnit.WAVENUMBER),
+        ("Unknown", None),
+        ("parameters", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_unit_strings_are_parsed(text, unit):
+    assert parseUnit(text) is unit
+
+
+def test_conversions_to_and_from_nanometres():
+    np.testing.assert_allclose(
+        toNanometres([1.0, 2.5], SpectralUnit.MICROMETRE), [1000, 2500]
+    )
+    np.testing.assert_allclose(toNanometres([10000.0], SpectralUnit.WAVENUMBER), [1000])
+    np.testing.assert_allclose(toNanometres([700.0], SpectralUnit.NANOMETRE), [700])
+    np.testing.assert_allclose(fromNanometres([2500.0], SpectralUnit.MICROMETRE), [2.5])
+    np.testing.assert_allclose(
+        fromNanometres([1000.0], SpectralUnit.WAVENUMBER), [10000]
+    )
+
+
+def test_envi_lists_are_parsed():
+    assert parseEnviList("{ 1 , 0 , 1 }") == [1.0, 0.0, 1.0]
+    assert parseEnviList([0.01, 0.02]) == [0.01, 0.02]
+    assert parseEnviList(None) is None
+
+
+def test_a_declared_unit_wins_over_the_size_of_the_numbers():
+    """Thermal IR in µm (above 10) was read as nm by the old guess."""
+    model = bandModelFor(np.array([8.0, 10.5, 12.0]), "Micrometers", None, {}, 3)
+    np.testing.assert_allclose(model.centers, [8000, 10500, 12000])
+    assert model.unit is SpectralUnit.MICROMETRE and not model.unitWasInferred
+
+
+def test_the_envi_extras_are_read_and_converted():
+    extra = {
+        "fwhm": "{ 0.01 , 0.01 , 0.02 }",
+        "bbl": "{ 1 , 0 , 1 }",
+        "reflectance_scale_factor": "10000",
+    }
+    model = bandModelFor(np.array([1.0, 1.5, 2.0]), "Micrometers", -9999.0, extra, 3)
+    np.testing.assert_allclose(model.fwhm, [10, 10, 20])
+    assert model.badBands.tolist() == [False, True, False]
+    assert model.scaleFactor == 10000
+    assert model.noData == -9999
+
+
+def test_band_indices_and_labels_are_not_a_spectral_axis():
+    indices = bandModelFor(np.arange(5), "Unknown", None, {}, 5)
+    labels = bandModelFor(np.array(["a", "b"]), "Unknown", None, {}, 2)
+    parameters = bandModelFor(np.array([1.0, 2.0]), "parameters", None, {}, 2)
+    for model in (indices, labels, parameters):
+        assert not model.isSpectral and model.centers is None
+    assert indices.badBands.tolist() == [False] * 5
+
+
+@pytest.mark.parametrize(
+    "values, unit",
+    [
+        (np.linspace(400, 2500, 10), SpectralUnit.NANOMETRE),
+        (np.linspace(0.4, 2.5, 10), SpectralUnit.MICROMETRE),
+        (np.linspace(7.5, 13.5, 10), SpectralUnit.MICROMETRE),  # thermal IR, undeclared
+    ],
+)
+def test_undeclared_units_are_inferred_once_and_flagged(values, unit, caplog):
+    model = bandModelFor(values, "Unknown", None, {}, len(values))
+    assert model.unit is unit and model.unitWasInferred
+    assert "assuming" in caplog.text
+
+
+def test_native_values_round_trip():
+    model = bandModelFor(np.array([1.0, 2.0]), "um", None, {}, 2)
+    np.testing.assert_allclose(model.native(model.centers), [1.0, 2.0])
+
+
+def test_unit_labels():
+    assert unitLabel(SpectralUnit.NANOMETRE) == "nm"
+    assert unitLabel(SpectralUnit.MICROMETRE) == "µm"
+    assert unitLabel(SpectralUnit.WAVENUMBER) == "cm⁻¹"
+    assert unitLabel(None, "Unknown") == "Unknown"
+
+
+def test_a_bad_band_list_of_the_wrong_length_is_ignored(caplog):
+    model = bandModelFor(np.array([1.0, 2.0]), "um", None, {"bbl": "{1, 0, 1}"}, 2)
+    assert model.badBands.tolist() == [False, False]
+    assert "bbl" in caplog.text
+
+
+def test_band_model_is_frozen():
+    model = BandModel.empty(3)
+    with pytest.raises(AttributeError):
+        model.scaleFactor = 2.0  # ty: ignore[invalid-assignment]

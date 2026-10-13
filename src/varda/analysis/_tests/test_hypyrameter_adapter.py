@@ -10,7 +10,6 @@ from varda.analysis.hypyrameter_adapter import (  # noqa: E402
     computeParameterCube,
     parameterDescription,
     parameterNames,
-    toNanometres,
     validParameterNames,
 )
 
@@ -24,11 +23,6 @@ def _cube():
 
 def test_available_flag_is_true_when_installed():
     assert HYPYRAMETER_AVAILABLE
-
-
-def test_micrometre_wavelengths_are_converted_to_nanometres():
-    np.testing.assert_allclose(toNanometres([1.0, 2.5]), [1000.0, 2500.0])
-    np.testing.assert_allclose(toNanometres([1000.0, 2500.0]), [1000.0, 2500.0])
 
 
 def test_parameter_names_come_from_the_registry_with_descriptions():

@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import QMessageBox
 from shapely.geometry import box
 
 from varda.common.entities import Color, ROIMode
+from varda.common.spectral_axis import BandModel
+from varda.plotting.plot import VardaPlotWidget
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_drawing_state import ROIDrawingState
 from varda.rois.roi_drawing_widgets import ROIClassPicker, ROIShapePicker
@@ -18,6 +20,9 @@ BLUE = Color(0.0, 0.0, 1.0, 0.5)
 
 class _FakePlot:
     """Records plot() and plotWithFill() calls instead of drawing."""
+
+    def xValuesFor(self, image, bandCount):
+        return VardaPlotWidget.getPlottableWavelengths(image, bandCount)
 
     def __init__(self):
         self.calls = []
@@ -74,6 +79,7 @@ def test_plot_spectrum_fill_band_is_mean_plus_minus_std(qtbot):
         filePath=None,
         wavelengths=np.array([0.0]),
         wavelengthsType=float,
+        bandModel=BandModel.empty(1),
         getData=get_data,
     )
     c = ROICollection()

@@ -84,3 +84,69 @@ def test_derivative_analyses_are_filed_under_derivatives():
         SpatialGradientAnalysis,
     ):
         assert analysis.category == "Derivatives"
+
+
+def _image(cube, wavelengths, units, extra=None) -> VardaRaster:
+    return VardaRaster(
+        ArrayDataSource(
+            cube,
+            wavelengths=wavelengths,
+            wavelengthUnits=units,
+            extraMetadata=extra or {},
+        ),
+        name="scene",
+    )
+
+
+def _slopeCube():
+    rng = np.random.default_rng(3)
+    return rng.random((5, 6, WAVELENGTHS.size))
+
+
+def test_a_micrometre_image_gives_the_same_slope_as_its_nanometre_twin():
+    cube = _slopeCube()
+    analysis = SpectralSlopeAnalysis()  # range in nm: 1000-2000
+    nm = analysis.run(_image(cube, WAVELENGTHS, "nm"), lambda p, m: None).getData()
+    um = analysis.run(
+        _image(cube, WAVELENGTHS / 1000, "Micrometers"), lambda p, m: None
+    ).getData()
+    np.testing.assert_allclose(um, nm, equal_nan=True)
+
+
+def test_the_derivative_is_per_nanometre_whatever_the_unit_and_keeps_the_axis():
+    cube = _slopeCube()
+    analysis = SpectralDerivativeAnalysis()
+    nm = analysis.run(_image(cube, WAVELENGTHS, "nm"), lambda p, m: None)
+    um = analysis.run(
+        _image(cube, WAVELENGTHS / 1000, "Micrometers"), lambda p, m: None
+    )
+    np.testing.assert_allclose(um.getData(), nm.getData(), rtol=1e-5, equal_nan=True)
+    assert um.bandModel.isSpectral
+    np.testing.assert_allclose(um.bandModel.centers, WAVELENGTHS)
+    assert "per nm" in um.dataSource.description
+
+
+def test_bad_bands_are_left_out_of_the_slope():
+    cube = _slopeCube()
+    bbl = np.ones(WAVELENGTHS.size)
+    inRange = np.flatnonzero((WAVELENGTHS >= 1000) & (WAVELENGTHS <= 2000))
+    bbl[inRange[1]] = 0
+    spoiled = cube.copy()
+    spoiled[:, :, inRange[1]] = 1e6  # garbage in the bad band
+    clean = cube.copy()
+    keep = np.ones(WAVELENGTHS.size, bool)
+    keep[inRange[1]] = False
+    analysis = SpectralSlopeAnalysis()
+    expected = analysis.run(
+        _image(clean[:, :, keep], WAVELENGTHS[keep], "nm"), lambda p, m: None
+    ).getData()
+    result = analysis.run(
+        _image(
+            spoiled,
+            WAVELENGTHS,
+            "nm",
+            {"bbl": "{" + ",".join(str(int(b)) for b in bbl) + "}"},
+        ),
+        lambda p, m: None,
+    ).getData()
+    np.testing.assert_allclose(result, expected, rtol=1e-6, equal_nan=True)

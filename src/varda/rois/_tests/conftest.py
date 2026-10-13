@@ -8,6 +8,8 @@ from typing import Callable
 import numpy as np
 import pytest
 
+from varda.common.spectral_axis import BandModel
+
 
 @pytest.fixture
 def make_split_image() -> Callable[[int, int, int, float, float], SimpleNamespace]:
@@ -38,6 +40,7 @@ def make_split_image() -> Callable[[int, int, int, float, float], SimpleNamespac
             filePath=None,
             wavelengths=np.arange(bands, dtype=np.float64),
             wavelengthsType=float,
+            bandModel=BandModel.empty(bands),  # band numbers, no spectral axis
             getData=lambda bandIndices=None, window=None: (
                 data[
                     window[0] : window[0] + window[2],

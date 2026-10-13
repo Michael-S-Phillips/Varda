@@ -26,6 +26,7 @@ import rasterio as rio
 from pyproj import CRS, Transformer
 from pyproj.exceptions import CRSError
 
+from varda.common.spectral_axis import BandModel, bandModelFor
 from varda.utilities.proj_lock import PROJ_LOCK
 from shapely.geometry.base import BaseGeometry
 
@@ -193,6 +194,19 @@ class VardaRaster:
     @property
     def wavelengthUnits(self) -> str:
         return self._dataSource.wavelengthUnits
+
+    @cached_property
+    def bandModel(self) -> BandModel:
+        """The spectral axis: centres in nm (None if the bands aren't one),
+        FWHM, bad bands, scale factor and no-data. Use it for any calculation
+        with wavelengths instead of ``wavelengths`` and ``wavelengthUnits``."""
+        return bandModelFor(
+            self.wavelengths,
+            self.wavelengthUnits,
+            self.nodata,
+            self.extraMetadata,
+            self.bandCount,
+        )
 
     @property
     def bandNames(self) -> list[str]:

@@ -220,7 +220,7 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
         curves = []
         for image in inBounds:
             spectrum = image.getSpectrum(x, y)
-            wavelengths = self.getPlottableWavelengths(image, len(spectrum.values))
+            wavelengths = self.xValuesFor(image, len(spectrum.values))
             label = (
                 f"{image.name} ({x}, {y})"
                 if labelWithImageName

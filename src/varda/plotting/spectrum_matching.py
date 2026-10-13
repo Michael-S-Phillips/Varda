@@ -2,27 +2,12 @@
 
 Library spectra arrive in their own wavelength unit and reflectance scale, so
 dropping one onto a plot of scene spectra usually lands it off-screen. These
-helpers bring it onto the reference curve: same wavelength unit, and a Y
-scale/offset that lays it over the reference within the visible window.
+helpers bring it onto the reference curve: a Y scale/offset that lays it over the reference within the visible window.
 """
 
 from __future__ import annotations
 
 import numpy as np
-
-
-def harmonizeWavelengthUnits(x: np.ndarray, referenceX: np.ndarray) -> np.ndarray:
-    """Express ``x`` in the unit of ``referenceX``.
-
-    The only mismatch that occurs in practice is micrometres vs nanometres, so
-    a median ratio near 1000 either way triggers the conversion.
-    """
-    ratio = np.nanmedian(referenceX) / np.nanmedian(x)
-    if ratio > 100.0:
-        return x * 1000.0
-    if ratio < 0.01:
-        return x / 1000.0
-    return x
 
 
 def matchToReference(

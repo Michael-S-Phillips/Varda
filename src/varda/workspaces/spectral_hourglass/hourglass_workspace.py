@@ -471,8 +471,8 @@ class SpectralHourglassWorkspace(QMainWindow):
             flat = self.model.cube.reshape(-1, self.model.cube.shape[2])
             if 0 <= self._hoveredPixel < flat.shape[0]:
                 plot.plot(x, flat[self._hoveredPixel], color=_HOVER_COLOR, name="Pixel")
-        if self._libraryPreview is not None and self.model.wavelengths is not None:
-            y = resampleTo(self._libraryPreview, self.model.wavelengths)
+        if self._libraryPreview is not None and self.model.wavelengthsNm is not None:
+            y = resampleTo(self._libraryPreview, self.model.wavelengthsNm)
             if activeSpectrum is not None:
                 scale, offset = matchToReference(
                     x, y, x, activeSpectrum, (float(x.min()), float(x.max()))

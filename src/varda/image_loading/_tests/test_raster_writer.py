@@ -89,3 +89,37 @@ def test_geotiff_round_trip_keeps_data_and_georeferencing(tmp_path):
 def test_unknown_extension_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="\\.png"):
         writeRaster(_spectralImage(), tmp_path / "scene.png")
+
+
+def test_envi_export_keeps_fwhm_bad_bands_and_scale_factor(tmp_path):
+    cube = np.ones((3, 4, 3), dtype=np.float32)
+    source = ArrayDataSource(
+        cube,
+        wavelengths=np.array([1.0, 1.5, 2.0]),
+        wavelengthUnits="Micrometers",
+        extraMetadata={
+            "fwhm": "{ 0.01 , 0.01 , 0.02 }",
+            "bbl": "{ 1 , 0 , 1 }",
+            "reflectance_scale_factor": "10000",
+        },
+    )
+    written = writeRaster(VardaRaster(source, name="cube"), tmp_path / "cube.hdr")
+    loaded = VardaRaster(openDataSource(str(written)), name="back")
+    model = loaded.bandModel
+    np.testing.assert_allclose(model.centers, [1000, 1500, 2000])
+    np.testing.assert_allclose(model.fwhm, [10, 10, 20])
+    assert model.badBands.tolist() == [False, True, False]
+    assert model.scaleFactor == 10000
+
+
+def test_a_product_that_is_not_a_spectrum_gets_no_wavelength(tmp_path):
+    source = ArrayDataSource(
+        np.zeros((3, 3, 1), dtype=np.float32),
+        wavelengths=np.array(["Slope 1000-2000 nm"]),
+        wavelengthUnits="per nm",
+        bandNames=["Slope 1000-2000 nm"],
+    )
+    writeRaster(VardaRaster(source, name="slope"), tmp_path / "slope.hdr")
+    header = (tmp_path / "slope.hdr").read_text().lower()
+    assert "wavelength =" not in header and "wavelength units" not in header
+    assert "slope 1000-2000 nm" in header  # still named, as its band

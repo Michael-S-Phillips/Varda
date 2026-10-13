@@ -26,6 +26,7 @@ from superqt import QLabeledDoubleRangeSlider
 from varda.analysis.eigenvalue_plot import EigenvaluePlot
 from varda.analysis.unmixing import Constraint
 from varda.common.parameter import IntParameter
+from varda.common.spectral_axis import SpectralUnit
 from varda.workspaces.spectral_hourglass.hourglass_model import (
     DEFAULT_MAX_CANDIDATES,
     DEFAULT_PPI_ITERATIONS,
@@ -59,28 +60,16 @@ def _primary(text: str) -> QPushButton:
     return button
 
 
-def shortUnits(units: str) -> str:
-    """'Nanometers' -> 'nm', 'Micrometers' -> 'µm'; anything else unchanged."""
-    lowered = units.strip().lower()
-    if lowered.startswith("nano") or lowered == "nm":
-        return "nm"
-    if lowered.startswith("micro") or lowered in ("um", "µm"):
-        return "µm"
-    return units.strip()
-
-
 class PreparePage(QWidget):
     def __init__(self, model: HourglassModel, run) -> None:
         super().__init__()
         self.model = model
         image = model.image
-        numeric = (
-            None
-            if image.wavelengthsType is str
-            else np.asarray(image.wavelengths, float)
-        )
+        bands = image.bandModel
+        # The window is chosen in the image's own unit (e.g. µm for CRISM)
+        numeric = None if bands.centers is None else bands.native(bands.centers)
         self._wavelengths = numeric
-        self._units = shortUnits(image.wavelengthUnits or "")
+        self._units = bands.label
         # one slider for the band window; the full range means no limit
         self.rangeSlider = QLabeledDoubleRangeSlider(Qt.Orientation.Horizontal)
         self.rangeSlider.setToolTip(
@@ -93,7 +82,9 @@ class PreparePage(QWidget):
             # slider takes floats
             self.rangeSlider.setRange(lo, hi)  # ty: ignore[invalid-argument-type]
             self.rangeSlider.setSingleStep(max((hi - lo) / 1000.0, 1e-6))  # ty: ignore[invalid-argument-type]
-            self.rangeSlider.setDecimals(0 if hi > 100 else 3)
+            self.rangeSlider.setDecimals(
+                3 if bands.unit is SpectralUnit.MICROMETRE else 0
+            )
             self.rangeSlider.setValue((lo, hi))
             self.rangeSlider.valueChanged.connect(lambda _: self._updateBandCount())
         else:

@@ -6,16 +6,10 @@ import numpy as np
 from scipy import ndimage
 
 from varda.analysis.analysis import Analysis, ProgressCallback
-from varda.analysis.rasters import bandIndex, readCube, singleBandRaster
+from varda.analysis.rasters import bandIndex, bandMetadata, readCube, singleBandRaster
 from varda.common.entities import VardaRaster
 from varda.common.parameter import FloatParameter, IntParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
-
-
-def _numericWavelengths(image: VardaRaster) -> np.ndarray | None:
-    if image.wavelengthsType is str:
-        return None
-    return np.asarray(image.wavelengths, dtype=np.float64)
 
 
 class SpectralDerivativeAnalysis(Analysis):
@@ -33,12 +27,8 @@ class SpectralDerivativeAnalysis(Analysis):
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
         cube, _valid = readCube(image)  # unusable pixels are NaN throughout
-        wavelengths = _numericWavelengths(image)
-        x = (
-            wavelengths
-            if wavelengths is not None
-            else np.arange(image.bandCount, dtype=float)
-        )
+        centers = image.bandModel.centers  # nm, whatever the image's own unit
+        x = centers if centers is not None else np.arange(image.bandCount, dtype=float)
 
         reportProgress(40, "differentiating")
         derivative = cube
@@ -46,14 +36,19 @@ class SpectralDerivativeAnalysis(Analysis):
             derivative = np.gradient(derivative, x, axis=2)
 
         suffix = "d/dλ" if int(self.order.value) == 1 else "d²/dλ²"
+        per = "nm" if centers is not None else "band"
+        if int(self.order.value) == 2:
+            per += "²"
+        # Same bands as the source: its spectral axis (and FWHM, bad bands) carries over
         source = ArrayDataSource(
             derivative.astype(np.float32),
             wavelengths=np.asarray(image.wavelengths),
-            wavelengthUnits="per nm" if wavelengths is not None else "per band",
+            wavelengthUnits=image.wavelengthUnits,
             bandNames=list(image.bandNames),
             transform=image.transform,
             crs=image.crs,
-            description=f"{suffix} of {image.name}",
+            extraMetadata=bandMetadata(image),
+            description=f"{suffix} of {image.name} (per {per})",
         )
         return VardaRaster(source, name=f"{image.name} {suffix}")
 
@@ -76,14 +71,17 @@ class SpectralSlopeAnalysis(Analysis):
     )
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
-        wavelengths = _numericWavelengths(image)
+        model = image.bandModel
+        wavelengths = model.centers  # nm
         if wavelengths is None:
             raise ValueError(
-                f"{image.name} has no numeric wavelengths to fit a slope over."
+                f"{image.name} has no numeric wavelengths with units to fit a slope over."
             )
         low = min(float(self.startWavelength.value), float(self.endWavelength.value))
         high = max(float(self.startWavelength.value), float(self.endWavelength.value))
-        selected = np.where((wavelengths >= low) & (wavelengths <= high))[0]
+        selected = np.where(
+            (wavelengths >= low) & (wavelengths <= high) & ~model.badBands
+        )[0]
         if selected.size < 2:
             raise ValueError(
                 f"Fewer than two bands fall in the wavelength range {low:g}-{high:g}."

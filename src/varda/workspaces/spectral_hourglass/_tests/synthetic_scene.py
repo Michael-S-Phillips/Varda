@@ -24,10 +24,11 @@ def endmemberSpectra() -> np.ndarray:
 
 
 def syntheticScene(
-    rows=40, cols=36, seed=0, filePath=None
+    rows=40, cols=36, seed=0, filePath=None, units="nm", extraMetadata=None
 ) -> tuple[VardaRaster, np.ndarray]:
     """A scene mixed from ``endmemberSpectra`` with pure patches in three
-    corners, and the (rows, cols, 3) true abundances. Pixel (0, 0) is nodata."""
+    corners, and the (rows, cols, 3) true abundances. Pixel (0, 0) is nodata.
+    ``units="µm"`` gives the same scene with micrometre wavelengths."""
     rng = np.random.default_rng(seed)
     E = endmemberSpectra()
     # spatially smooth mixtures, like a real scene (MNF's shift-difference
@@ -41,9 +42,10 @@ def syntheticScene(
     cube[0, 0, :] = -1.0
     source = ArrayDataSource(
         cube,
-        wavelengths=WAVELENGTHS,
-        wavelengthUnits="nm",
+        wavelengths=WAVELENGTHS / 1000.0 if units == "µm" else WAVELENGTHS,
+        wavelengthUnits=units,
         nodata=-1.0,
+        extraMetadata=extraMetadata or {},
         defaultBands=np.array([60, 40, 10]),
         filePath=filePath,
     )
@@ -54,10 +56,10 @@ def _quiet(percent, message):
     pass
 
 
-def modelThroughPpi():
+def modelThroughPpi(units="nm"):
     """A HourglassModel on the synthetic scene with prepare, MNF (3 components)
     and PPI done."""
-    image, _ = syntheticScene()
+    image, _ = syntheticScene(units=units)
     model = HourglassModel(image)
     model.applyPrepared(model.prepareTask()(_quiet))
     model.applyMnf(model.mnfTask()(_quiet))
@@ -70,9 +72,9 @@ def modelThroughPpi():
 PATCHES = {"flat": (2, 2), "clay": (2, 30), "mafic": (34, 2)}
 
 
-def modelWithEndmembers():
+def modelWithEndmembers(units="nm"):
     """``modelThroughPpi`` plus one endmember per pure patch."""
-    model = modelThroughPpi()
+    model = modelThroughPpi(units)
     for name, (r0, c0) in PATCHES.items():
         endmember = model.addEndmember(name)
         model.assignPixels(

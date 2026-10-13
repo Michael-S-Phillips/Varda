@@ -2,6 +2,8 @@
 missing bands are filled along its spectrum, and only pixels missing most of
 their bands are dropped — instead of dropping every pixel with any bad band."""
 
+import logging
+
 import numpy as np
 
 from varda.analysis.rasters import fillAlongSpectrum, readCube
@@ -82,3 +84,21 @@ def test_transforms_keep_pixels_that_merely_have_a_bad_band():
     assert np.isnan(data[0, 0]).all()
     assert np.isfinite(data[5:]).all()
     assert np.isfinite(data[:5, 1:]).all()  # kept despite the bad band
+
+
+def test_bad_bands_are_blanked_and_filled_without_dropping_pixels(caplog):
+    caplog.set_level(logging.INFO)
+    data = np.tile(np.array([1.0, 999.0, 999.0, 999.0, 5.0]), (2, 3, 1))
+    image = VardaRaster(
+        ArrayDataSource(
+            data,
+            wavelengths=np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+            wavelengthUnits="um",
+            extraMetadata={"bbl": "{1, 0, 0, 0, 1}"},
+        ),
+        name="bbl",
+    )
+    cube, valid = readCube(image)
+    assert valid.all()  # three of five bands bad, but every good band is there
+    np.testing.assert_allclose(cube[0, 0], [1.0, 2.0, 3.0, 4.0, 5.0])  # no 999s
+    assert "bad band" in caplog.text
