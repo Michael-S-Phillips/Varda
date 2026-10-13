@@ -17,9 +17,11 @@ from PyQt6.QtGui import QDrag, QColor
 from PyQt6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
+    QFileDialog,
     QGraphicsItem,
     QLabel,
     QListWidget,
+    QMessageBox,
     QSizePolicy,
     QToolButton,
     QWidget,
@@ -38,6 +40,7 @@ from varda.common.ui import (
 )
 from varda.common.vec2 import Vec2
 from varda.common.spectral_axis import SpectralUnit, fromNanometres, unitLabel
+from varda.plotting.plot_export import EXPORT_FILTER, exportPlot
 from varda.plotting.library_spectra import (
     DEFAULT_LIBRARY_PATH,
     listSpectra,
@@ -409,6 +412,13 @@ class VardaPlotWidget(QWidget):
                 "View",
                 VBoxBuilder()
                 .withWidget(ButtonBuilder("Fit to Data").onClick(self.fitToData))
+                .withWidget(
+                    ButtonBuilder("Export…")
+                    .onClick(self.exportWithDialog)
+                    .withToolTip(
+                        "Save the plot as PNG, SVG or PDF, or its curves as CSV"
+                    )
+                )
                 .withWidget(self.viewConfig.createWidget())
                 .withWidget(self.rangeConfig.createWidget())
                 .withWidget(hint),
@@ -887,6 +897,20 @@ class VardaPlotWidget(QWidget):
         model = image.bandModel
         self.setSpectralUnit(model.unit if model.isSpectral else None)
         return self.getPlottableWavelengths(image, bandCount)
+
+    def exportWithDialog(self) -> None:
+        path, chosenFilter = QFileDialog.getSaveFileName(
+            self, "Export Plot", "spectra.png", EXPORT_FILTER
+        )
+        if not path:
+            return
+        target = Path(path)
+        if not target.suffix:  # take the suffix from the chosen filter
+            target = target.with_suffix(chosenFilter.split("*")[-1].rstrip(")"))
+        try:
+            exportPlot(self, target)
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self, "Export failed", str(error))
 
     def setSpectralUnit(self, unit: SpectralUnit | None) -> None:
         self.spectralUnit = unit

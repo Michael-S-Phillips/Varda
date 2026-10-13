@@ -33,6 +33,14 @@ can alter results.
 
 ### Added
 
+- Images open in **true colour** when they cover the visible (bands nearest
+  640, 550 and 470 nm), otherwise in a false colour spread over their range;
+  a file's own default bands still win.
+- **Histogram equalization, square-root and logarithmic stretches.**
+- **Export spectral plots** as PNG (high resolution), SVG, PDF or CSV (the
+  **Export…** button in the plot's View section).
+- **Continuum Removal** (Processing → Spectral Parameters): each spectrum
+  divided by its upper hull within a wavelength window.
 - **Help menu**: About Varda, Cite Varda (APA and BibTeX), Copy System Info
   (for bug reports), Documentation and Report an Issue.
 - Varda is licensed under the GNU GPL v3 or later; the repository has a

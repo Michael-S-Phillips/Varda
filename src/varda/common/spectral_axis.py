@@ -245,3 +245,35 @@ def bandModelFor(
         scaleFactor=scaleFactor,
         noData=noData,
     )
+
+
+TRUE_COLOUR_NM = (640.0, 550.0, 470.0)  # red, green, blue
+TRUE_COLOUR_TOLERANCE_NM = 50.0
+FALSE_COLOUR_FRACTIONS = (0.85, 0.5, 0.15)  # of the band range: long -> red
+
+
+def displayBands(model: BandModel) -> np.ndarray | None:
+    """Default (red, green, blue) band indices for a spectral image: true
+    colour when it covers the visible, otherwise a false colour spread across
+    its range with long wavelengths as red. Bad bands are never chosen. None
+    when the bands aren't a spectral axis (the caller keeps its own default)."""
+    if model.centers is None:
+        return None
+    good = np.flatnonzero(~model.badBands & np.isfinite(model.centers))
+    if good.size < 3:
+        return None
+    centers = model.centers[good]
+
+    def nearest(target: float) -> int:
+        return int(good[np.argmin(np.abs(centers - target))])
+
+    trueColour = [nearest(t) for t in TRUE_COLOUR_NM]
+    close = all(
+        np.min(np.abs(centers - t)) <= TRUE_COLOUR_TOLERANCE_NM for t in TRUE_COLOUR_NM
+    )
+    if close and len(set(trueColour)) == 3:  # coarse sampling can't give 3 distinct
+        return np.array(trueColour, dtype=np.uint)
+    lo, hi = float(np.min(centers)), float(np.max(centers))
+    return np.array(
+        [nearest(lo + f * (hi - lo)) for f in FALSE_COLOUR_FRACTIONS], dtype=np.uint
+    )

@@ -428,3 +428,75 @@ class LinearPercentileStretch(StretchAlgorithm):
             return self.minVals, self.maxVals
         else:
             return None
+
+
+class _CurvedPercentileStretch(LinearPercentileStretch):
+    """A percentile stretch to 0-1, then a curve that brightens the dark end."""
+
+    def linear(self, image: np.ndarray) -> np.ndarray:
+        return super().apply(image)
+
+    def curve(self, values: np.ndarray) -> np.ndarray:
+        raise NotImplementedError
+
+    def apply(self, image: np.ndarray) -> np.ndarray:
+        return self.curve(self.linear(image))
+
+
+@registerStretchAlgorithm("Square Root (Percentile)")
+class SquareRootStretch(_CurvedPercentileStretch):
+    """Square root of the percentile stretch: lifts shadows gently."""
+
+    def curve(self, values: np.ndarray) -> np.ndarray:
+        return np.sqrt(values)
+
+
+@registerStretchAlgorithm("Logarithmic (Percentile)")
+class LogStretch(_CurvedPercentileStretch):
+    """log10(1 + 9x) of the percentile stretch: lifts shadows strongly."""
+
+    def curve(self, values: np.ndarray) -> np.ndarray:
+        return np.log10(1.0 + 9.0 * values)
+
+
+EQUALIZATION_BINS = 4096
+
+
+@registerStretchAlgorithm("Histogram Equalization")
+class HistogramEqualizationStretch(StretchAlgorithm):
+    """Each channel mapped through its cumulative histogram, so its values
+    spread evenly over the display range (strong contrast where data is dense)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.minVals: np.ndarray | None = None
+        self.maxVals: np.ndarray | None = None
+
+    def apply(self, image: np.ndarray) -> np.ndarray:
+        validateArrayShape(image)
+        out = np.full(image.shape, np.nan, dtype=np.float64)
+        lows, highs = [], []
+        for channel in range(image.shape[2]):
+            values = image[:, :, channel]
+            finite = values[np.isfinite(values)]
+            if finite.size == 0:
+                lows.append(0.0)
+                highs.append(1.0)
+                continue
+            lo, hi = float(finite.min()), float(finite.max())
+            if hi <= lo:
+                hi = lo + 1.0
+            counts, edges = np.histogram(finite, bins=EQUALIZATION_BINS, range=(lo, hi))
+            cdf = np.cumsum(counts).astype(np.float64)
+            cdf /= cdf[-1]
+            mask = np.isfinite(values)
+            out[:, :, channel][mask] = np.interp(values[mask], edges[1:], cdf)
+            lows.append(lo)
+            highs.append(hi)
+        self.minVals, self.maxVals = np.asarray(lows), np.asarray(highs)
+        return np.clip(out, 0.0, 1.0)
+
+    def minMaxVals(self) -> tuple[np.ndarray, np.ndarray] | None:
+        if self.minVals is None or self.maxVals is None:
+            return None
+        return self.minVals, self.maxVals

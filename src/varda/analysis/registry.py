@@ -7,6 +7,7 @@ from varda.analysis.classification import (
     MlpClassificationAnalysis,
     VitClassificationAnalysis,
 )
+from varda.analysis.continuum import ContinuumRemovalAnalysis
 from varda.analysis.derivatives import (
     SpatialGradientAnalysis,
     SpectralDerivativeAnalysis,
@@ -30,6 +31,7 @@ from varda.analysis.transforms import (
 # Menu order: categories appear in first-appearance order, entries in list order.
 ANALYSES: list[type[Analysis]] = [
     BandParametersAnalysis,
+    ContinuumRemovalAnalysis,
     IovfAnalysis,
     PcaAnalysis,
     MnfAnalysis,

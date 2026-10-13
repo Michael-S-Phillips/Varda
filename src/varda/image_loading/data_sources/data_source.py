@@ -15,6 +15,8 @@ import numpy as np
 from affine import Affine
 from pyproj import CRS
 
+from varda.common.spectral_axis import bandModelFor, displayBands
+
 if TYPE_CHECKING:
     import numpy.typing as npt
 
@@ -201,3 +203,15 @@ def geoToPixelIndex(transform: Affine, x: float, y: float) -> tuple[int, int]:
     so points left of or above the image give negative indices)."""
     col, row = ~transform * (x, y)
     return math.floor(col), math.floor(row)
+
+
+def fallbackDisplayBands(
+    wavelengths, wavelengthUnits: str, nodata, extraMetadata, bandCount: int
+) -> np.ndarray:
+    """Display bands when a file names none: true or false colour from the
+    spectral axis (``displayBands``), else the first three bands."""
+    model = bandModelFor(wavelengths, wavelengthUnits, nodata, extraMetadata, bandCount)
+    chosen = displayBands(model)
+    if chosen is not None:
+        return chosen
+    return np.array([0, 1, 2] if bandCount >= 3 else [0, 0, 0], dtype=np.uint)

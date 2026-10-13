@@ -16,7 +16,12 @@ from affine import Affine
 import affine as affine_module
 from pyproj import CRS
 
-from .data_source import DataSource, geoToPixelIndex, pixelCenterToGeo
+from .data_source import (
+    DataSource,
+    fallbackDisplayBands,
+    geoToPixelIndex,
+    pixelCenterToGeo,
+)
 
 if TYPE_CHECKING:
     import numpy.typing as npt
@@ -73,12 +78,18 @@ class ArrayDataSource(DataSource):
         self._extraMetadata = extraMetadata if extraMetadata is not None else {}
         self._description = description
 
-        if defaultBands is not None:
-            self._defaultBands = defaultBands
-        elif data.shape[2] >= 3:
-            self._defaultBands = np.array([0, 1, 2], dtype=np.uint)
-        else:
-            self._defaultBands = np.array([0, 0, 0], dtype=np.uint)
+        # None given: true/false colour from the wavelengths, else bands 1-3
+        self._defaultBands = (
+            defaultBands
+            if defaultBands is not None
+            else fallbackDisplayBands(
+                self._wavelengths,
+                self._wavelengthUnits,
+                nodata,
+                self._extraMetadata,
+                data.shape[2],
+            )
+        )
 
     # --- Data access ---
 
