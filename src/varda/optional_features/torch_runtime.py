@@ -28,13 +28,13 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from importlib import metadata
 from pathlib import Path
 
 import numpy as np
 from PyQt6.QtCore import QStandardPaths
 
 from varda.utilities.resources import resource_path
+from varda.version import vardaVersion
 import varda_torch_worker
 from varda_torch_worker import protocol
 
@@ -134,13 +134,6 @@ def detectBackend(
     return choices["cpu"]
 
 
-def _vardaVersion() -> str:
-    try:
-        return metadata.version("varda")
-    except metadata.PackageNotFoundError:
-        return "unknown"
-
-
 class InstallError(RuntimeError):
     pass
 
@@ -210,7 +203,7 @@ class TorchRuntime:
             "lockSha256": self.lockHash(backend),
             "torch": probe["torch"],
             "device": probe["device"],
-            "vardaVersion": _vardaVersion(),
+            "vardaVersion": vardaVersion(),
             "installedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }
         self.manifestPath.write_text(json.dumps(manifest, indent=2))

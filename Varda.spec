@@ -3,7 +3,7 @@
 import shutil
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 # The USGS library folders also hold photos and web pages (~95 MB); Varda reads
 # only the spectra and wavelength .txt files (~4 MB)
@@ -30,7 +30,10 @@ a = Analysis(
     + collect_data_files('hypyrameter')
     + [('resources', 'resources')]
     + LIBRARY_SPECTRA
-    + TORCH_WORKER,
+    + TORCH_WORKER
+    # Help > About reads the version from package metadata; Cite reads CITATION.cff
+    + copy_metadata('varda')
+    + [('CITATION.cff', '.'), ('LICENSE', '.')],
     # HyPyRameter's optional denoiser (iovf_generic) needs packages Varda does not ship
     hiddenimports=collect_submodules('rasterio')
     + collect_submodules('hypyrameter', filter=lambda name: 'iovf' not in name),

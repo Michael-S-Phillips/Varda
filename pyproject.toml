@@ -3,6 +3,8 @@ name = "varda"
 version = "0.3.1"
 description = "An extensible GUI application for analyzing hyperspectral images."
 readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 requires-python = "~=3.13.0"
 authors = [{"name" = "Michael Phillips", "email" = "phillipsm@arizona.edu"},
            {"name" = "Jesse Oved", "email" = "jesseoved@arizona.edu"},
@@ -35,6 +37,7 @@ dependencies = [
     "app-model>=0.5.1",
     "superqt>=0.8.0",
     "pyconify>=0.2.1",
+    "pyyaml>=6.0.3",
 ]
 
 [project.optional-dependencies]
@@ -63,7 +66,7 @@ dev = [
 ]
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=77"]  # SPDX license expressions (PEP 639)
 build-backend = "setuptools.build_meta"
 
 [project.gui-scripts]

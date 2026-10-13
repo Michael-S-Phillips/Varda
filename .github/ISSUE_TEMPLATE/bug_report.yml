@@ -1,0 +1,31 @@
+name: Bug report
+description: Something in Varda doesn't work as it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open an image ...
+        2. Run Processing → ...
+  - type: textarea
+    id: data
+    attributes:
+      label: Data
+      description: The image type (e.g. CRISM ENVI, GeoTIFF) and anything unusual about it.
+  - type: textarea
+    id: system
+    attributes:
+      label: System info
+      description: In Varda, Help → Copy System Info, then paste here.
+      render: text
+    validations:
+      required: true

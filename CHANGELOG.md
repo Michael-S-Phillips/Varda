@@ -33,6 +33,10 @@ can alter results.
 
 ### Added
 
+- **Help menu**: About Varda, Cite Varda (APA and BibTeX), Copy System Info
+  (for bug reports), Documentation and Report an Issue.
+- Varda is licensed under the GNU GPL v3 or later; the repository has a
+  citation file, contributing guide, code of conduct and issue templates.
 - ENVI export writes `fwhm`, `bbl` and `reflectance scale factor`, and no
   longer writes a `wavelength` list for products that aren't spectra.
 - Spectral plots label their x axis with the unit, and library spectra are
