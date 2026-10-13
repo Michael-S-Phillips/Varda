@@ -1,18 +1,17 @@
 from typing import Type
+import sys
+
 import numpy as np
 from numba import njit, prange
 
 from PyQt6.QtCore import QObject
-from PyQt6.QtWidgets import QWidget
 
 from varda.common.parameter import (
     IntParameter,
-    FloatParameter,
     Vec2Parameter,
     ParameterGroup,
 )
 from varda.common.vec2 import Vec2
-from varda.utilities.debug import Profiler
 
 # TODO: Implement the other stretch algorithms:
 # - Gaussian Stretch
@@ -75,13 +74,19 @@ class NoStretch(StretchAlgorithm):
         return None
 
 
-@njit
+# Keep compiled kernels on disk between runs (the first compile takes seconds).
+# Not in the packaged app: without .py sources Numba has nowhere to key the
+# cache and would raise at import.
+_CACHE = not getattr(sys, "frozen", False)
+
+
+@njit(cache=_CACHE)
 def normalize(image, minVals, maxVals):
     scale = maxVals - minVals + 1e-10  # prevent division by zero
     return (np.clip(image, minVals, maxVals) - minVals) / scale
 
 
-@njit(parallel=True)
+@njit(parallel=True, cache=_CACHE)
 def normalize_numba(image, minVals, maxVals):
     if len(minVals) != image.shape[2] or len(maxVals) != image.shape[2]:
         raise ValueError(
@@ -222,7 +227,7 @@ class ManualValueStretchRGB(StretchAlgorithm):
             return None
 
 
-@njit(parallel=True)
+@njit(parallel=True, cache=_CACHE)
 def histogram(vals, hist, vmin, vmax):
     n, c = vals.shape
     nbins = hist.shape[1]

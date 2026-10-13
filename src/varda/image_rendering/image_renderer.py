@@ -86,18 +86,52 @@ class ImageRenderer(QObject):
         else:
             raise ValueError("Either image or settings must be provided.")
         self.image = self.settings.image
+        # Three caches, cleared only as far as a change needs:
+        # - the raw bands, re-read only when the band selection changes
+        # - the 8-bit picture (and its no-data mask), redone for any other
+        #   change except opacity
+        # - the final RGBA, rebuilt from the 8-bit picture for opacity
         self.cachedRender = None
         self._stretchedData = None  # latest render post-stretch but pre-colormap
         self._rawBandData = None  # extracted band data with no processing applied
+        self._rawKey: tuple | None = None
+        self._rgb8: np.ndarray | None = None
+        self._noData: np.ndarray | None = None
+        self._lastOpacity = self.settings.opacity.get()
         # Overlays leave no-data pixels see-through instead of opaque black
         self.transparentNoData = False
         self.settings.sigParameterChanged.connect(self._onSettingsChanged)
 
     def _onSettingsChanged(self, *args) -> None:
-        # any parameter (UI or programmatic) changed: drop caches and request a refresh
+        # Each signal is one parameter change; if opacity moved, that was it
+        opacity = self.settings.opacity.get()
+        if opacity != self._lastOpacity:
+            self._lastOpacity = opacity
+        else:
+            self._rgb8 = None
+            self._stretchedData = None
         self.cachedRender = None
-        self._stretchedData = None
         self.sigShouldRefresh.emit()
+
+    def _bandKey(self) -> tuple:
+        mode = self.settings.mode.get()
+        if mode == RenderMode.MONO:
+            return (mode, int(self.settings.mono.band.get()))
+        rgb = self.settings.rgb
+        return (mode, int(rgb.red.get()), int(rgb.green.get()), int(rgb.blue.get()))
+
+    def _readBands(self) -> np.ndarray:
+        """The selected bands as float with NaN for no-data, read once per
+        band selection (read-only: stretches must not modify it)."""
+        key = self._bandKey()
+        if self._rawBandData is None or self._rawKey != key:
+            raw = self.image.getBands(list(key[1:]))
+            data = np.asarray(
+                np.ma.filled(raw, np.nan) if np.ma.isMaskedArray(raw) else raw
+            )
+            data.setflags(write=False)
+            self._rawBandData, self._rawKey = data, key
+        return self._rawBandData
 
     def render(self):
         """
@@ -108,48 +142,35 @@ class ImageRenderer(QObject):
             return self.cachedRender
         if self.image is None or self.settings is None:
             raise ValueError("Image and settings must be set before rendering.")
-
-        mode = self.settings.mode.get()
-        if mode == RenderMode.MONO:
-            # maintain 3D shape so stretch algorithms don't branch on 2d/3d
-            data = self.image.getBands([int(self.settings.mono.band.get())])
-        else:
-            data = self.image.getBands(
-                [
-                    int(self.settings.rgb.red.get()),
-                    int(self.settings.rgb.green.get()),
-                    int(self.settings.rgb.blue.get()),
-                ]
-            )
-        self._rawBandData = data
-
-        if np.ma.isMaskedArray(data):
-            data = data.filled(np.nan)
-
-        data = self.settings.stretch.current.apply(data)
-        self._stretchedData = data
-        noData = np.isnan(data).all(axis=2)
-        data[np.isnan(data)] = 0
-
-        if mode == RenderMode.MONO:
-            data = np.squeeze(data)  # back to 2D because ColorMap expects it
-            lut = self.settings.mono.colorMap.get().getLookupTable(
-                0, 1, 256, alpha=False
-            )
-            data = lut[(data * 255).astype(np.uint8)]
-        else:
-            data = (data * 255).astype(np.uint8)
-
+        if self._rgb8 is None:
+            self._rgb8, self._noData = self._renderRgb8()
         alpha = np.full(
-            (data.shape[0], data.shape[1], 1),
+            (self._rgb8.shape[0], self._rgb8.shape[1], 1),
             int(self.settings.opacity.get() * 255),
             dtype=np.uint8,
         )
         if self.transparentNoData:
-            alpha[noData] = 0
-        rgba = np.concatenate((data, alpha), axis=2)
+            alpha[self._noData] = 0
+        rgba = np.concatenate((self._rgb8, alpha), axis=2)
         self.cachedRender = rgba
         return rgba
+
+    def _renderRgb8(self) -> tuple[np.ndarray, np.ndarray]:
+        """The stretched (and, in mono, colour-mapped) 8-bit RGB picture and
+        the (rows, cols) mask of pixels with no data in any channel."""
+        mode = self.settings.mode.get()
+        data = self.settings.stretch.current.apply(self._readBands())
+        self._stretchedData = data
+        noData = np.asarray(np.isnan(data).all(axis=2))
+        data[np.isnan(data)] = 0
+
+        if mode == RenderMode.MONO:
+            data = np.squeeze(data, axis=2)  # back to 2D because ColorMap expects it
+            lut = self.settings.mono.colorMap.get().getLookupTable(
+                0, 1, 256, alpha=False
+            )
+            return np.asarray(lut[(data * 255).astype(np.uint8)]), noData
+        return np.asarray((data * 255).astype(np.uint8)), noData
 
     def getStretchedData(self) -> np.ndarray:
         if self._stretchedData is None:
