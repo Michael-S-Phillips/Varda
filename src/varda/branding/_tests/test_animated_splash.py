@@ -1,6 +1,10 @@
 """The splash never holds the main window back by more than a second."""
 
+import time
+
 import pytest
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QCursor, QGuiApplication
 from PyQt6.QtWidgets import QWidget
 
 from varda.branding import splash as splashModule
@@ -81,3 +85,38 @@ def test_static_splash_pixmap_is_hidpi_sized(qtbot):
     assert pixmap.width() == round(640 * ratio) and pixmap.height() == round(
         360 * ratio
     )
+
+
+def test_the_splash_appears_at_once(qtbot):
+    """QSplashScreen.show() waited up to a second for the window system;
+    the splash is the first thing on screen, so it must not."""
+    splash = createSplash()
+    qtbot.addWidget(splash)
+    started = time.perf_counter()
+    splash.show()
+    assert time.perf_counter() - started < 0.3
+    assert splash.isVisible()
+
+
+def test_the_splash_opens_on_the_screen_under_the_mouse(qtbot, monkeypatch):
+    """With several displays, the one being looked at is the one with the
+    mouse (QSplashScreen did the same), not necessarily the primary."""
+    screen = QGuiApplication.primaryScreen()
+    picked = []
+    monkeypatch.setattr(
+        splashModule.QGuiApplication,
+        "screenAt",
+        staticmethod(lambda point: picked.append(point) or screen),
+    )
+    splash = createSplash()
+    qtbot.addWidget(splash)
+    assert picked and all(point == QCursor.pos() for point in picked)
+    assert screen.availableGeometry().contains(splash.frameGeometry().center())
+
+
+def test_the_splash_stays_visible_while_the_app_is_in_the_background(qtbot):
+    """macOS hides splash windows of an inactive app, and Varda launched from
+    a terminal is inactive until its main window opens."""
+    splash = createSplash()
+    qtbot.addWidget(splash)
+    assert splash.testAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow)

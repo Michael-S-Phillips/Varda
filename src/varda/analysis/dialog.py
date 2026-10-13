@@ -20,7 +20,13 @@ from PyQt6.QtWidgets import (
 from varda.analysis.analysis import Analysis, AnalysisContext
 from varda.common.entities import VardaRaster
 from varda.common.parameter import ImageParameter
-from varda.common.ui import ButtonBuilder, HBoxBuilder, SectionBox, VBoxBuilder
+from varda.common.ui import (
+    ButtonBuilder,
+    HBoxBuilder,
+    SectionBox,
+    VBoxBuilder,
+    MutedLabel,
+)
 from varda.image_loading.raster_writer import SAVE_FILE_FILTER, suggestedOutputPath
 from varda.rois.roi_collection import ROICollection
 from varda.common.parameter_widgets import (
@@ -67,9 +73,8 @@ class RunAnalysisDialog(QDialog):
         if analysis is not None and analysis in self._analyses:
             self.analysisCombo.setCurrentIndex(self._analyses.index(analysis))
 
-        self.descriptionLabel = QLabel()
+        self.descriptionLabel = MutedLabel()
         self.descriptionLabel.setWordWrap(True)
-        self.descriptionLabel.setStyleSheet("color: palette(mid);")
         self.settingsBox = SectionBox("Settings")
         # Analyses may offer a widget that helps choose their settings
         self.previewBox = SectionBox("Preview")

@@ -18,16 +18,19 @@ from pathlib import Path
 from PyQt6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, QTimer
 from PyQt6.QtGui import (
     QBrush,
+    QCursor,
     QColor,
     QGuiApplication,
     QLinearGradient,
     QPainter,
     QPainterPath,
+    QPaintEvent,
     QPen,
     QPixmap,
+    QScreen,
 )
 from PyQt6.QtSvg import QSvgRenderer
-from PyQt6.QtWidgets import QApplication, QSplashScreen, QWidget
+from PyQt6.QtWidgets import QApplication, QWidget
 
 from varda.utilities.resources import resource_path
 
@@ -250,8 +253,14 @@ def paintSplash(
 # --- the splash screen ---------------------------------------------------------------
 
 
+def splashScreen() -> QScreen | None:
+    """The display with the mouse on it, the one being looked at (as
+    QSplashScreen chose); the primary display if that's unknown."""
+    return QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
+
+
 def _devicePixelRatio() -> float:
-    screen = QGuiApplication.primaryScreen()
+    screen = splashScreen()
     return screen.devicePixelRatio() if screen is not None else 1.0
 
 
@@ -273,7 +282,51 @@ def staticSplashPixmap() -> QPixmap:
     return pixmap
 
 
-class AnimatedSplash(QSplashScreen):
+class SplashWindow(QWidget):
+    """A frameless, centred window showing a pixmap.
+
+    Not QSplashScreen: its show() blocks for up to a second waiting for the
+    window system, which on macOS is most of the time before anything
+    appears."""
+
+    def __init__(self, pixmap: QPixmap) -> None:
+        super().__init__(
+            None,
+            Qt.WindowType.SplashScreen
+            | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint,
+        )
+        self._pixmap = pixmap
+        # macOS hides splash (tool) windows while their app is in the
+        # background, and an app launched from a terminal stays there until
+        # its main window opens: without this the splash only flashed up then
+        self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow)
+        self.setFixedSize(*LOGICAL_SIZE)
+        screen = splashScreen()
+        if screen is not None:
+            self.setScreen(screen)
+            frame = self.frameGeometry()
+            frame.moveCenter(screen.availableGeometry().center())
+            self.move(frame.topLeft())
+
+    def pixmap(self) -> QPixmap:
+        return self._pixmap
+
+    def setPixmap(self, pixmap: QPixmap) -> None:
+        self._pixmap = pixmap
+        self.update()
+
+    def paintEvent(self, a0: QPaintEvent | None) -> None:
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self._pixmap)
+        painter.end()
+
+    def finish(self, window: QWidget) -> None:
+        """Close now that ``window`` is up."""
+        self.close()
+
+
+class AnimatedSplash(SplashWindow):
     """Plays the draw-on while the app starts; see ``finishWhenDone``.
 
     ``clock`` returns seconds since the splash appeared (defaults to a
@@ -338,7 +391,7 @@ class AnimatedSplash(QSplashScreen):
         self._window = window  # _tick finishes when the animation ends
 
 
-class StaticSplash(QSplashScreen):
+class StaticSplash(SplashWindow):
     """The final frame only (``VARDA_STATIC_SPLASH=1`` or no motion spec)."""
 
     def __init__(self) -> None:

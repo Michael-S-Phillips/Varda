@@ -1,30 +1,23 @@
 """
-Entrypoint for Varda
-This module initializes all the core components of Varda right away, and then starts the GUI.
+Entrypoint for Varda.
+
+Shows the splash before anything else: importing the application takes a few
+seconds, so this module imports only what the splash needs, and ``main``
+imports the rest once the splash is on screen.
 """
 
+import ctypes
+import importlib
 import sys
+import threading
 
-import pyqtgraph as pg
+from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QSize
 
 import varda
-from varda._actions import MENUBAR
-from varda._actions._file_actions import importImagePaths
-from varda.all_images_view_list.image_list_menu_controller import (
-    ImageListMenuController,
-)
-from varda.app import VardaApplication
 from varda.branding.splash import createSplash
-from varda.maingui import MainGUI
-from varda.self_test import FLAG as SELF_TEST_FLAG, runSelfTest
-from varda.session_autosave import SessionAutosaver
 from varda.utilities.resources import resource_path
-
-
-import ctypes
 
 if sys.platform == "win32":
     # this "registers" varda as its own unique application, which lets it use its own icon for the taskbar, instead of the generic python icon
@@ -32,74 +25,69 @@ if sys.platform == "win32":
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(appid)
 
 ICON_PATH = resource_path("resources/logo.svg")
+SELF_TEST_FLAG = "--self-test"
+FRAME_SECONDS = 0.016
+
+# Libraries without Qt that most of the import time goes to. They load on a
+# worker thread while this thread keeps the splash animating.
+PRELOAD = (
+    "numpy",
+    "scipy.ndimage",
+    "scipy.signal",
+    "scipy.stats",
+    "pandas",
+    "geopandas",
+    "shapely",
+    "pyproj",
+    "rasterio",
+    "numba",
+    "spectral",
+    "torch",  # only when installed in Varda's own environment (the ml extra)
+)
 
 
-def createVarda() -> tuple[QApplication, VardaApplication]:
-    """Build the application and show its main window."""
+def _preload(q_app: QApplication) -> None:
+    """Import ``PRELOAD`` in the background, repainting the splash meanwhile."""
 
+    def load() -> None:
+        for name in PRELOAD:
+            try:
+                importlib.import_module(name)
+            except ImportError:
+                pass  # the real import later reports it properly
+
+    worker = threading.Thread(target=load, name="preload", daemon=True)
+    worker.start()
+    while worker.is_alive():
+        q_app.processEvents()
+        worker.join(FRAME_SECONDS)
+
+
+def main():
     q_app = QApplication(sys.argv)
     q_app.setApplicationName("Varda")
-    app_icon = QIcon()
-    app_icon.addFile(ICON_PATH, QSize(16, 16))
-    q_app.setWindowIcon(app_icon)
-    # The splash animates while initialisation runs on this thread, so let
-    # it repaint between stages
+    appIcon = QIcon()
+    appIcon.addFile(ICON_PATH, QSize(16, 16))
+    q_app.setWindowIcon(appIcon)
     splash = createSplash()
     splash.show()
     q_app.processEvents()
+    _preload(q_app)
 
-    varda.log._initializeFullLogging()
-    q_app.processEvents()
+    # Imported here, not at the top, so the splash is up while they load
+    from varda.startup import createVarda
 
-    pg.setConfigOptions(imageAxisOrder="row-major")
-    varda.log.debug("Configurations set")
+    app = createVarda(q_app)
+    if SELF_TEST_FLAG in sys.argv:
+        from varda.self_test import runSelfTest
 
-    app = VardaApplication()
-    app.pluginManager.hook.onLoad(app=app)
-    q_app.processEvents()
-
-    app.maingui = MainGUI(app=app)
-    q_app.processEvents()
-    app.maingui.setModelMenuBar(MENUBAR)
-    imageListController = ImageListMenuController(app, parent=app.maingui)
-    app.maingui.imageList.sigImagesActivated.connect(
-        imageListController.onImagesActivated
-    )
-    app.maingui.imageList.sigContextMenuRequested.connect(
-        imageListController.onContextMenuRequested
-    )
-    # Files dragged onto the window import like File > Import Image(s)
-    app.maingui.sigFilesDropped.connect(
-        lambda paths: importImagePaths(paths, app.images)
-    )
-    app.context.changed.connect(
-        lambda _keys: app.maingui.menuBar().update_from_context(app.context)
-    )
-    # Autosave the session every few minutes and on quit (File > Restore Last Session)
-    app.autosaver = SessionAutosaver(app.images, app.maingui, parent=app.maingui)
-    app.maingui.showMaximized()
-    q_app.processEvents()
-
-    varda.log.info("Varda initialized successfully!")
-
+        sys.exit(runSelfTest(app))
+    assert app.maingui is not None  # createVarda builds and shows it
     splash.finishWhenDone(app.maingui)
-    return q_app, app
-
-
-def initVarda() -> None:
-    """Initialize and start the Varda application."""
-    q_app, _app = createVarda()
     varda.log.info("starting the GUI event loop...")
     exitCode = q_app.exec()
     varda.log.info("Application exiting, performing cleanup...")
     sys.exit(exitCode)
-
-
-def main():
-    if SELF_TEST_FLAG in sys.argv:
-        _q_app, app = createVarda()
-        sys.exit(runSelfTest(app))
-    initVarda()
 
 
 if __name__ == "__main__":

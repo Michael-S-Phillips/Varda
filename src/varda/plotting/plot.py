@@ -37,6 +37,7 @@ from varda.common.ui import (
     ButtonBuilder,
     WrapperWidget,
     VerticalScrollArea,
+    MutedLabel,
 )
 from varda.common.vec2 import Vec2
 from varda.common.spectral_axis import SpectralUnit, fromNanometres, unitLabel
@@ -403,12 +404,11 @@ class VardaPlotWidget(QWidget):
 
         self.curveSettingsBox = SectionBox("Selected Curve", self._curvePlaceholder())
 
-        hint = QLabel(
+        hint = MutedLabel(
             "Drag to pan · Shift-drag to zoom to a box · "
             "Scroll to zoom · Right-drag to stretch axes"
         )
         hint.setWordWrap(True)
-        hint.setStyleSheet("color: palette(mid);")
 
         # Most-used controls first: getting the view right, then what's
         # plotted, then per-curve tweaks, then cosmetics.
@@ -483,12 +483,11 @@ class VardaPlotWidget(QWidget):
                 QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
             )
             self.libraryCombo.addItems(spectraNames)
-            libraryHint = QLabel(
+            libraryHint = MutedLabel(
                 "Added spectra are scaled to overlay the selected curve "
                 "within the visible wavelength range."
             )
             libraryHint.setWordWrap(True)
-            libraryHint.setStyleSheet("color: palette(mid);")
             sidebar.withWidget(
                 SectionBox(
                     "Library Spectra",
@@ -614,8 +613,7 @@ class VardaPlotWidget(QWidget):
 
     @staticmethod
     def _curvePlaceholder() -> QLabel:
-        label = QLabel("Click a curve to edit it.")
-        label.setStyleSheet("color: palette(mid);")
+        label = MutedLabel("Click a curve to edit it.")
         return label
 
     # --- Wavelength markers ---

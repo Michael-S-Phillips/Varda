@@ -31,7 +31,6 @@ from varda.image_loading.raster_writer import writeRaster
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.version import vardaVersion
 
-FLAG = "--self-test"
 LOAD_TIMEOUT_S = 60
 SHAPE = (16, 16, 60)  # rows, columns, bands
 CRS_EPSG = 32612
