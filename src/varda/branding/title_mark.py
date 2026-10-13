@@ -7,6 +7,8 @@ unified with the title bar.
 
 from __future__ import annotations
 
+import sys
+
 from pathlib import Path
 
 from PyQt6.QtCore import QEvent, QRectF, Qt
@@ -63,8 +65,15 @@ class MarkLabel(QLabel):
         self.setPixmap(pixmap)
 
 
-def addTitleMarkBar(window: QMainWindow) -> QToolBar:
-    """Add the fixed V-mark bar, centred like a title, to the top of ``window``."""
+def addTitleMarkBar(
+    window: QMainWindow, hideTitleText: bool = sys.platform == "darwin"
+) -> QToolBar:
+    """Add the fixed V-mark bar, centred like a title, to the top of ``window``.
+
+    On macOS the bar is unified with the title bar and the mark stands in for
+    the title text, which is cleared (the Dock and menu bar still name the
+    app). Elsewhere the title text stays, since taskbars show it.
+    """
     bar = QToolBar("Varda", window)
     bar.setObjectName("titleMarkBar")
     bar.setMovable(False)
@@ -77,6 +86,9 @@ def addTitleMarkBar(window: QMainWindow) -> QToolBar:
     bar.addWidget(_spacer(bar))
     window.addToolBar(Qt.ToolBarArea.TopToolBarArea, bar)
     window.setUnifiedTitleAndToolBarOnMac(True)
+    if hideTitleText:
+        window.setAccessibleName(window.windowTitle())
+        window.setWindowTitle("")
     return bar
 
 

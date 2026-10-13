@@ -58,3 +58,20 @@ def test_the_bar_is_fixed_at_the_top_and_centred(qtbot):
     centre = label.mapTo(window, label.rect().center()).x()
     assert abs(centre - window.width() / 2) < 20
     assert window.unifiedTitleAndToolBarOnMac()
+
+
+def test_on_macos_the_mark_replaces_the_title_text(qtbot):
+    window = QMainWindow()
+    qtbot.addWidget(window)
+    window.setWindowTitle("Varda")
+    addTitleMarkBar(window, hideTitleText=True)
+    assert window.windowTitle() == ""
+    assert window.accessibleName() == "Varda"  # still named for screen readers
+
+
+def test_elsewhere_the_title_text_stays_for_the_taskbar(qtbot):
+    window = QMainWindow()
+    qtbot.addWidget(window)
+    window.setWindowTitle("Varda")
+    addTitleMarkBar(window, hideTitleText=False)
+    assert window.windowTitle() == "Varda"
