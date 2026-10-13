@@ -1,7 +1,7 @@
-"""The Varda splash: a draw-on animation of the wordmark, painted with QPainter
-from resources/brand/splash/splash-motion.json (geometry, colours and timing
-all come from the JSON). Its last frame matches varda-splash.svg, which is also
-the static fallback.
+"""The Varda splash: a draw-on animation of the wordmark ("one pen,
+branching"), painted with QPainter from resources/brand/splash/splash-motion.json
+(schema 2: geometry, colours and timing all come from the JSON). Its last frame
+matches varda-splash.svg, which is also the static fallback.
 
 The animation runs while the app initialises and never holds the main window
 back by more than a second: see ``AnimatedSplash.finishWhenDone``.
@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import math
 import os
+from bisect import bisect_right
 from collections.abc import Callable
 from pathlib import Path
 
@@ -42,20 +43,23 @@ STATIC_SPLASH_PATH = BRAND_DIR / "splash" / "varda-splash.svg"
 STATIC_SPLASH_ENV = "VARDA_STATIC_SPLASH"
 LOGICAL_SIZE = (640, 360)
 FRAME_MS = 16  # ~60 fps
-# If the window is ready with more than this left, skip to the last frame
+# The splash never holds the window back longer than this: with more left
+# when the window is ready, the rest of the animation plays faster
 MAX_WAIT_SECONDS = 1.0
 
+SCHEMA = 2
 _REQUIRED_KEYS = (
     "viewBox",
     "background",
     "strokeWidth",
+    "cut",
     "gradient",
-    "lowerHalves",
+    "lowerColor",
+    "clipOut",
+    "strokes",
     "dots",
-    "v",
-    "trace",
     "tagline",
-    "timeline",
+    "end",
 )
 
 
@@ -63,8 +67,11 @@ _REQUIRED_KEYS = (
 
 
 def loadSplashSpec(path: Path) -> dict:
-    """The splash motion spec, checked for the keys the painter uses."""
+    """The splash motion spec, checked for its schema and the keys the painter
+    uses (a ValueError makes ``createSplash`` fall back to the static splash)."""
     spec = json.loads(Path(path).read_text())
+    if spec.get("schema") != SCHEMA:
+        raise ValueError(f"Splash spec {path} is not schema {SCHEMA}")
     missing = [key for key in _REQUIRED_KEYS if key not in spec]
     if missing:
         raise ValueError(f"Splash spec {path} is missing: {', '.join(missing)}")
@@ -95,6 +102,34 @@ def cubicBezierEase(
 def progress(t: float, start: float, end: float) -> float:
     """Fraction of the way from start to end at time t, clamped to [0, 1]."""
     return min(1.0, max(0.0, (t - start) / (end - start)))
+
+
+def keyframeFraction(keys: list[list[float]], t: float) -> float:
+    """Linear interpolation of (time, fraction) keyframes: 0 before the first,
+    1 after the last."""
+    if t <= keys[0][0]:
+        return 0.0
+    if t >= keys[-1][0]:
+        return 1.0
+    i = bisect_right([key[0] for key in keys], t)
+    (t0, f0), (t1, f1) = keys[i - 1], keys[i]
+    return f0 + (f1 - f0) * (t - t0) / (t1 - t0)
+
+
+def partialPolyline(poly: list[Point], f: float) -> list[Point]:
+    """The first fraction ``f`` of a polyline, by arc length."""
+    target = f * sum(math.dist(a, b) for a, b in zip(poly, poly[1:]))
+    out = [poly[0]]
+    walked = 0.0
+    for a, b in zip(poly, poly[1:]):
+        length = math.dist(a, b)
+        if walked + length >= target:
+            u = (target - walked) / length if length else 0.0
+            out.append((a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u))
+            return out
+        out.append(b)
+        walked += length
+    return out
 
 
 def partialPolylines(
@@ -151,12 +186,21 @@ def _svg(path: Path) -> QSvgRenderer:
     return _svgCache[key]
 
 
+def _roundPen(brush: QBrush | QColor, width: float) -> QPen:
+    return QPen(
+        brush,
+        width,
+        Qt.PenStyle.SolidLine,
+        Qt.PenCapStyle.RoundCap,
+        Qt.PenJoinStyle.RoundJoin,
+    )
+
+
 def paintSplash(
     p: QPainter, spec: dict, brandDir: Path, t: float, target: QRectF
 ) -> None:
     """Paint the splash at time t (seconds) into target (antialiasing on)."""
     x, y, w, h = spec["viewBox"]
-    tl = spec["timeline"]
     sw = spec["strokeWidth"]
     p.save()
     p.fillRect(target, QColor(spec["background"]))
@@ -164,39 +208,31 @@ def paintSplash(
     p.scale(target.width() / w, target.height() / h)
     p.translate(-x, -y)
 
-    # 1. lower halves of the letters, fading in as the trace passes each one
-    lower = spec["lowerHalves"]
-    for name, group in lower["groups"].items():
-        opacity = progress(t, *tl["lowerHalves"][name])
-        if opacity <= 0:
-            continue
-        p.setOpacity(opacity)
-        color = QColor(lower["color"])
-        p.setPen(
-            QPen(
-                color,
-                sw,
-                Qt.PenStyle.SolidLine,
-                Qt.PenCapStyle.FlatCap,
-                Qt.PenJoinStyle.RoundJoin,
-            )
-        )
-        for poly in group["polylines"]:
-            p.drawPath(_toPath(poly))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(color)
-        for cx, cy in group["discs"]:
-            p.drawEllipse(QPointF(cx, cy), sw / 2, sw / 2)
-        p.setBrush(Qt.BrushStyle.NoBrush)
+    def drawStrokes(kind: str, pen: QPen) -> None:
+        """Each stroke of ``kind``, drawn from its start as far as its
+        keyframes say."""
+        p.setPen(pen)
+        for stroke in spec["strokes"]:
+            if stroke["kind"] != kind:
+                continue
+            f = keyframeFraction(stroke["progress"], t)
+            if f > 0:
+                p.drawPath(_toPath(partialPolyline(stroke["polyline"], f)))
+
+    # 1. the white lower halves, written in below the halfway line
+    cut = spec["cut"]
+    p.setClipRect(QRectF(x, cut, w, y + h - cut))
+    drawStrokes("lower", _roundPen(QColor(spec["lowerColor"]), sw))
+    p.setClipping(False)
 
     # 2. continuum dots pop in one after another (scale 0 -> 1.4 -> 1)
-    dots, dt = spec["dots"], tl["dots"]
+    dots = spec["dots"]
     p.setPen(Qt.PenStyle.NoPen)
     p.setBrush(QColor(dots["color"]))
-    peak = 0.57
+    peak = 0.56
     for i, (cx, cy) in enumerate(dots["centers"]):
-        start = dt["popStart"] + i * dt["stagger"]
-        u = progress(t, start, start + dt["pop"])
+        start = dots["popStart"] + i * dots["stagger"]
+        u = progress(t, start, start + dots["pop"])
         if u <= 0:
             continue
         if u < peak:
@@ -210,42 +246,24 @@ def paintSplash(
     p.setOpacity(1.0)
     p.setBrush(Qt.BrushStyle.NoBrush)
 
-    # 3. the V draws on, then 4. the trace (clipped so its ends stop flat at the cut)
-    p.setPen(
-        QPen(
-            _spectrumBrush(spec["gradient"]),
-            sw,
-            Qt.PenStyle.SolidLine,
-            Qt.PenCapStyle.RoundCap,
-            Qt.PenJoinStyle.RoundJoin,
-        )
-    )
-    for key, polylines in (
-        ("v", [spec["v"]["polyline"]]),
-        ("trace", spec["trace"]["polylines"]),
-    ):
-        f = cubicBezierEase(*tl[key]["easing"])(progress(t, *tl[key]["draw"]))
-        if f <= 0:
-            continue
-        if key == "trace":
-            clip = QPainterPath()
-            clip.addRect(QRectF(x, y, w, h))
-            for rect in spec["trace"]["clipOut"]:
-                hole = QPainterPath()
-                hole.addRect(QRectF(*rect))
-                clip = clip.subtracted(hole)
-            p.setClipPath(clip)
-        for piece in partialPolylines(polylines, 0.0, f):
-            p.drawPath(_toPath(piece))
-        p.setClipping(False)
+    # 3. the pen and its branches, clipped so round ends stop flat at the cut
+    clip = QPainterPath()
+    clip.addRect(QRectF(x, y, w, h))
+    for rect in spec["clipOut"]:
+        hole = QPainterPath()
+        hole.addRect(QRectF(*rect))
+        clip = clip.subtracted(hole)
+    p.setClipPath(clip)
+    drawStrokes("color", _roundPen(_spectrumBrush(spec["gradient"]), sw))
+    p.setClipping(False)
 
-    # 5. tagline fades in while rising into place
-    tg = tl["tagline"]
-    u = cubicBezierEase(*tg["easing"])(progress(t, *tg["fadeIn"]))
+    # 4. tagline fades in while rising into place
+    tagline = spec["tagline"]
+    u = cubicBezierEase(*tagline["easing"])(progress(t, *tagline["fadeIn"]))
     if u > 0:
         p.setOpacity(u)
-        _svg(brandDir / "splash" / spec["tagline"]["svg"]).render(
-            p, QRectF(x, y + tg["rise"] * (1 - u), w, h)
+        _svg(brandDir / "splash" / tagline["svg"]).render(
+            p, QRectF(x, y + tagline["rise"] * (1 - u), w, h)
         )
     p.restore()
 
@@ -335,13 +353,14 @@ class AnimatedSplash(SplashWindow):
     def __init__(self, spec: dict, clock: Callable[[], float] | None = None) -> None:
         super().__init__(_blankPixmap())
         self.spec = spec
-        self.end = float(spec["timeline"]["end"])
+        self.end = float(spec["end"])
         if clock is None:
             elapsed = QElapsedTimer()
             elapsed.start()
             clock = lambda: elapsed.elapsed() / 1000.0  # noqa: E731
         self._clock = clock
-        self._skipTo: float | None = None  # jump straight to the last frame
+        # (clock, animation time, speed) once the rest is sped up to fit
+        self._speedUp: tuple[float, float, float] | None = None
         self._window: QWidget | None = None
         self._timer = QTimer(self)
         self._timer.setInterval(FRAME_MS)
@@ -350,7 +369,11 @@ class AnimatedSplash(SplashWindow):
         self._paintFrame()
 
     def currentTime(self) -> float:
-        return self._skipTo if self._skipTo is not None else self._clock()
+        now = self._clock()
+        if self._speedUp is None:
+            return now
+        since, start, speed = self._speedUp
+        return start + (now - since) * speed
 
     def isDone(self) -> bool:
         return self.currentTime() >= self.end
@@ -377,12 +400,12 @@ class AnimatedSplash(SplashWindow):
                 self.finish(self._window)
 
     def finishWhenDone(self, window: QWidget) -> None:
-        """Close for ``window``: once the animation ends if under a second is
-        left, otherwise straight away on its last frame."""
-        remaining = self.end - self.currentTime()
+        """Close for ``window`` when the animation ends, within a second: if
+        more is left, the rest plays faster rather than jumping to the end."""
+        now = self.currentTime()
+        remaining = self.end - now
         if remaining > MAX_WAIT_SECONDS:
-            self._skipTo = self.end
-            remaining = 0.0
+            self._speedUp = (self._clock(), now, remaining / MAX_WAIT_SECONDS)
         if remaining <= 0:
             self._timer.stop()
             self._paintFrame()

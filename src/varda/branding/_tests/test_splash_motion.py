@@ -1,5 +1,5 @@
-"""Splash animation helpers: easing, progress, partial polylines, spec loading
-and the painter's final frame."""
+"""Splash animation helpers: easing, progress, keyframes, partial polylines,
+spec loading and the painter's first and last frames."""
 
 import json
 import math
@@ -14,8 +14,10 @@ from varda.branding.splash import (
     BRAND_DIR,
     SPLASH_SPEC_PATH,
     cubicBezierEase,
+    keyframeFraction,
     loadSplashSpec,
     paintSplash,
+    partialPolyline,
     partialPolylines,
     progress,
 )
@@ -38,32 +40,53 @@ def test_progress_is_clamped_and_linear():
     assert progress(1.25, 1.0, 2.0) == pytest.approx(0.25)
 
 
-def _length(polylines):
-    return sum(math.dist(a, b) for poly in polylines for a, b in zip(poly, poly[1:]))
+def test_keyframes_interpolate_linearly_and_clamp():
+    keys = [[1.0, 0.0], [2.0, 0.5], [4.0, 1.0]]
+    assert keyframeFraction(keys, 0.5) == 0.0
+    assert keyframeFraction(keys, 1.5) == pytest.approx(0.25)
+    assert keyframeFraction(keys, 3.0) == pytest.approx(0.75)
+    assert keyframeFraction(keys, 9.0) == 1.0
+
+
+def _length(poly):
+    return sum(math.dist(a, b) for a, b in zip(poly, poly[1:]))
+
+
+def test_partial_polyline_follows_arc_length():
+    corner = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0)]  # an L, 20 long
+    half = partialPolyline(corner, 0.5)
+    assert half == [(0.0, 0.0), pytest.approx((10.0, 0.0))]
+    threeQuarters = partialPolyline(corner, 0.75)
+    assert threeQuarters[-1] == pytest.approx((10.0, 5.0))
+    assert _length(partialPolyline(corner, 1.0)) == pytest.approx(20.0)
+    assert _length(partialPolyline([(0.0, 0.0), (0.0, 0.0), (3.0, 4.0)], 1.0)) == (
+        pytest.approx(5.0)
+    )
 
 
 def test_partial_polylines_lengths_and_spanning_cuts():
+    """The busy indicator draws windows of a chain of polylines."""
     chain = [[(0.0, 0.0), (10.0, 0.0)], [(10.0, 5.0), (10.0, 15.0)]]  # 10 + 10 long
-    assert _length(partialPolylines(chain, 0.0, 1.0)) == pytest.approx(20.0)
-    half = partialPolylines(chain, 0.0, 0.5)
-    assert _length(half) == pytest.approx(10.0) and len(half) == 1
+    total = sum(_length(poly) for poly in partialPolylines(chain, 0.0, 1.0))
+    assert total == pytest.approx(20.0)
     spanning = partialPolylines(chain, 0.25, 0.75)
     assert len(spanning) == 2
     assert spanning[0][0] == pytest.approx((5.0, 0.0))
     assert spanning[1][-1] == pytest.approx((10.0, 10.0))
     assert partialPolylines(chain, 0.0, 0.0) == []
-    assert _length(
-        partialPolylines([[(0.0, 0.0), (0.0, 0.0), (3.0, 4.0)]], 0.0, 1.0)
-    ) == pytest.approx(5.0)
 
 
-def test_load_splash_spec_checks_its_keys(tmp_path):
+def test_load_splash_spec_checks_its_schema_and_keys(tmp_path):
     spec = loadSplashSpec(SPLASH_SPEC_PATH)
-    assert spec["timeline"]["end"] == pytest.approx(2.3)
-    broken = tmp_path / "broken.json"
-    broken.write_text(json.dumps({"viewBox": [0, 0, 1, 1]}))
-    with pytest.raises(ValueError, match="timeline"):
-        loadSplashSpec(broken)
+    assert spec["schema"] == 2 and spec["end"] == pytest.approx(3.115)
+    oldSchema = tmp_path / "v1.json"
+    oldSchema.write_text(json.dumps({"viewBox": [0, 0, 1, 1], "timeline": {}}))
+    with pytest.raises(ValueError, match="schema"):
+        loadSplashSpec(oldSchema)
+    missing = tmp_path / "missing.json"
+    missing.write_text(json.dumps({"schema": 2, "viewBox": [0, 0, 1, 1]}))
+    with pytest.raises(ValueError, match="strokes"):
+        loadSplashSpec(missing)
 
 
 def _render(paint) -> np.ndarray:
@@ -83,7 +106,7 @@ def test_final_frame_matches_the_static_splash(qapp):
     spec = loadSplashSpec(SPLASH_SPEC_PATH)
     target = QRectF(0, 0, 640, 360)
     animated = _render(
-        lambda p: paintSplash(p, spec, BRAND_DIR, spec["timeline"]["end"] + 0.1, target)
+        lambda p: paintSplash(p, spec, BRAND_DIR, spec["end"] + 0.1, target)
     )
     static = _render(
         lambda p: QSvgRenderer(str(BRAND_DIR / "splash" / "varda-splash.svg")).render(
