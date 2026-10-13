@@ -38,6 +38,7 @@ from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
 from varda.points.point_collection import PointCollection
 from varda.points.point_manager_widget import PointManagerWidget
+from varda.workspaces.raster_overlay import OverlayBar
 from varda.workspaces.pixel_markers import PixelMarkerController
 from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
 from varda.workspaces.saved_point_markers import SavedPointMarkers
@@ -113,6 +114,16 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.tripleRasterView.viewport1.addToolBar(self.toolManager1.getToolbar())
         self.tripleRasterView.viewport2.addToolBar(self.toolManager2.getToolbar())
         self.tripleRasterView.viewport3.addToolBar(self.toolManager3.getToolbar())
+
+        # Lay a result of this scene (e.g. a classification) over all three views
+        view = self.tripleRasterView
+        self.overlayBar = OverlayBar(
+            self.config.imageList,
+            self.config.image.value,
+            [view.viewport1, view.viewport2, view.viewport3],
+            self,
+        )
+        view.viewport1.addToolBar(self.overlayBar)
 
         # initialize histogram view
         self.histogram = NewHistogramView(self.imageRenderer, self)

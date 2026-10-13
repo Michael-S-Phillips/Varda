@@ -40,6 +40,7 @@ from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
 from varda.points.point_collection import PointCollection
 from varda.points.point_manager_widget import PointManagerWidget
+from varda.workspaces.raster_overlay import OverlayBar
 from varda.workspaces.pixel_markers import PixelMarkerController
 from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
 from varda.workspaces.saved_point_markers import SavedPointMarkers
@@ -109,6 +110,7 @@ class DualImageWorkspaceConfig(ParameterGroup):
 class DualImageWorkspace(QMainWindow):
     def __init__(self, config: DualImageWorkspaceConfig, parent=None):
         super().__init__(parent)
+        self.projectImages = config.imageList
         self.image1 = config.image1Param.get()
         self.image2 = config.image2Param.get()
         self.displayMode = config.displayModeParam.get()
@@ -186,6 +188,15 @@ class DualImageWorkspace(QMainWindow):
         self.toolManager2 = ToolManager(self.viewport2, self)
         self.viewport1.addToolBar(self.toolManager1.getToolbar())
         self.viewport2.addToolBar(self.toolManager2.getToolbar())
+        # Each side can have its own result laid over it
+        self.overlayBar1 = OverlayBar(
+            self.projectImages, self.image1, [self.viewport1], self
+        )
+        self.overlayBar2 = OverlayBar(
+            self.projectImages, self.image2, [self.viewport2], self
+        )
+        self.viewport1.addToolBar(self.overlayBar1)
+        self.viewport2.addToolBar(self.overlayBar2)
 
         self.roiDisplayController.registerViewport("primary", self.viewport1)
         self.roiDisplayController.registerViewport("secondary", self.viewport2)
