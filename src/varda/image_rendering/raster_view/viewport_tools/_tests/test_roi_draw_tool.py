@@ -129,3 +129,31 @@ def test_changing_the_shape_mid_drawing_drops_the_unfinished_shape(tool):
     assert not tool.isSketching()
     _drag(tool, [(10, 10), (30, 30)])
     assert [s["roiType"] for s in shapes] == [ROIMode.RECTANGLE]
+
+
+CMD = Qt.KeyboardModifier.ControlModifier  # Qt's name for Cmd on macOS
+
+
+def test_cmd_drag_is_left_to_the_view_for_panning(tool):
+    tool, shapes = tool
+    for action, button in [
+        (PointerAction.PRESS, LEFT),
+        (PointerAction.MOVE, NONE),
+        (PointerAction.RELEASE, LEFT),
+    ]:
+        pos = QPointF(10, 10)
+        assert not tool.onPointerEvent(PointerEvent(action, pos, pos, button, CMD))
+    assert shapes == [] and not tool.isSketching()
+
+
+def test_panning_mid_polygon_keeps_the_polygon(tool):
+    tool, shapes = tool
+    tool.setShape(ROIMode.POLYGON)
+    for x, y in [(10, 10), (30, 10)]:
+        tool.onPointerEvent(_event(PointerAction.PRESS, x, y))
+    pos = QPointF(40, 40)
+    tool.onPointerEvent(PointerEvent(PointerAction.PRESS, pos, pos, LEFT, CMD))
+    tool.onPointerEvent(PointerEvent(PointerAction.RELEASE, pos, pos, LEFT, CMD))
+    tool.onPointerEvent(_event(PointerAction.PRESS, 30, 30))
+    _key(tool, Qt.Key.Key_Return)
+    assert len(shapes[0]["geometry"].exterior.coords) == 4  # the pan added no vertex

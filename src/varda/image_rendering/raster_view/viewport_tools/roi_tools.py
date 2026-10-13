@@ -11,6 +11,7 @@ image is georeferenced, otherwise in pixels.
 - Rectangle / ellipse: drag from corner to corner.
 - Polygon: click each vertex; Enter or a double-click finishes, Backspace
   removes the last vertex.
+- Cmd-drag (Ctrl-drag elsewhere) pans the view, even partway through a shape.
 - Esc or a right-click drops the shape being drawn. With nothing in
   progress they fall through (a right-click still opens the view's menu).
 """
@@ -198,6 +199,8 @@ class ROIDrawTool(ViewportTool):
     # --- input ---------------------------------------------------------------
 
     def onPointerEvent(self, event: PointerEvent) -> bool:
+        if event.modifiers & Qt.KeyboardModifier.ControlModifier:
+            return False  # Cmd/Ctrl-drag pans the view, even mid-shape
         pos = (event.localPos.x(), event.localPos.y())
         sketch = self._sketch
         if event.action == PointerAction.PRESS:

@@ -59,6 +59,7 @@ _POINTER_ACTIONS = {
 IMAGE_Z = -2
 OVERLAY_IMAGE_Z = -1
 
+
 class _PixelReadoutOverlay(QLabel):
     """A floating HUD pinned to the bottom-left of its parent viewport.
 
@@ -338,8 +339,9 @@ class ImageViewport(QWidget):
     def addROIOverlay(
         self, points: Sequence[QPointF], color: QColor
     ) -> "ROIOverlayHandle":
-        """Add a display-only ROI polygon overlay; returns a handle to drive it."""
-        return PyqtgraphROIOverlay(self._vb, points, color)
+        """Add a display-only ROI polygon overlay; returns a handle to drive it.
+        It is clipped to the displayed image (a zoom panel's region)."""
+        return PyqtgraphROIOverlay(self._vb, points, color, clipTo=self.imageBounds)
 
     def addPointOverlay(
         self, pos: QPointF, color: QColor, symbol: str = "x"
