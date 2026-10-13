@@ -21,14 +21,16 @@ logger = logging.getLogger(__name__)
 def openDataSource(filePath: str) -> DataSource:
     """Open a DataSource for the given file path.
 
-    Uses extension-based dispatch from the registry. Falls back to
-    RasterioDataSource for unregistered extensions (supports any GDAL format).
+    The first registered source whose extensions match and whose ``canOpen``
+    (if it has one) accepts the file opens it; e.g. an ``.img`` is ENVI only
+    with a header beside it. Otherwise RasterioDataSource (any GDAL format).
     """
     ext = Path(filePath).suffix.lower()
-
-    # Find a registered DataSource for this extension
     for entry in datasource_registry:
-        if ext in entry.fileExtensions:
+        if ext not in entry.fileExtensions:
+            continue
+        canOpen = getattr(entry.dataSourceClass, "canOpen", None)
+        if canOpen is None or canOpen(filePath):
             return entry.dataSourceClass(filePath)
 
     # Default: try RasterioDataSource (supports any GDAL format)

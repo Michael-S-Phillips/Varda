@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from functools import cached_property
+from pathlib import Path
 
 import numpy as np
 
@@ -19,21 +20,89 @@ from .registry import register_data_source
 logger = logging.getLogger(__name__)
 
 
-@register_data_source("ENVI Image", (".hdr", ".img"))
+# Data-file extensions to try beside a header, as Spectral Python does
+# (spectral/io/envi.py KNOWN_EXTS), plus the interleave names
+DATA_EXTENSIONS = (
+    "",
+    ".img",
+    ".dat",
+    ".sli",
+    ".hyspex",
+    ".raw",
+    ".bin",
+    ".bsq",
+    ".bil",
+    ".bip",
+)
+HEADER_SUFFIX = ".hdr"
+
+
+def _isHeader(path: Path) -> bool:
+    return path.suffix.lower() == HEADER_SUFFIX
+
+
+def _siblings(folder: Path) -> dict[str, Path]:
+    """Files in ``folder`` by lower-cased name (names match case-insensitively,
+    and the result is the name as it is on disk)."""
+    try:
+        return {p.name.lower(): p for p in folder.iterdir() if p.is_file()}
+    except OSError:
+        return {}
+
+
+def findEnviHeader(dataFile: str | Path) -> Path | None:
+    """The header beside an ENVI data file (``foo.hdr`` or ``foo.img.hdr``,
+    any case), or None."""
+    path = Path(dataFile)
+    files = _siblings(path.parent)
+    names = (
+        [path.stem + HEADER_SUFFIX, path.name + HEADER_SUFFIX]
+        if path.suffix
+        else [path.name + HEADER_SUFFIX]
+    )
+    return next((files[n.lower()] for n in names if n.lower() in files), None)
+
+
+def findEnviDataFile(header: str | Path) -> Path:
+    """The data file an ENVI header describes: ``foo.img.hdr`` -> ``foo.img``,
+    else ``foo`` plus each known extension (any case). Only the file name is
+    looked at, never a folder name."""
+    path = Path(header)
+    files = _siblings(path.parent)
+    stem = path.name[: -len(path.suffix)] if path.suffix else path.name
+    if Path(stem).suffix and stem.lower() in files:  # foo.img.hdr
+        return files[stem.lower()]
+    for extension in DATA_EXTENSIONS:
+        name = (stem + extension).lower()
+        if name in files and name != path.name.lower():
+            return files[name]
+    raise FileNotFoundError(f"No ENVI data file found for {path.name}")
+
+
+@register_data_source("ENVI Image", (HEADER_SUFFIX, *[e for e in DATA_EXTENSIONS if e]))
 class ENVIDataSource(RasterioDataSource):
     """DataSource for ENVI format images.
 
-    Opens the ``.img`` file via rasterio and reads ENVI-specific metadata
-    from the ``ENVI`` namespace tags.
+    Opens the data file via rasterio and reads ENVI-specific metadata from the
+    ``ENVI`` namespace tags. Accepts the header or the data file.
     """
 
+    @classmethod
+    def canOpen(cls, filePath: str) -> bool:
+        """An ENVI file is a header, or a data file with a header beside it."""
+        path = Path(filePath)
+        return _isHeader(path) or findEnviHeader(path) is not None
+
     def __init__(self, filePath: str):
-        # Ensure we open the .img file, not the .hdr
-        path = filePath.replace(".hdr", ".img")
-        super().__init__(path)
+        path = Path(filePath)
+        dataFile = findEnviDataFile(path) if _isHeader(path) else path
+        super().__init__(str(dataFile))
         # Keep the original path the user provided (could be .hdr)
         self._userFilePath = filePath
-        self._enviTags: dict[str, str] = self._src.tags(ns="ENVI")
+        # ENVI header keys are case-insensitive; GDAL keeps them as written
+        self._enviTags: dict[str, str] = {
+            key.lower(): value for key, value in self._src.tags(ns="ENVI").items()
+        }
 
     @property
     def filePath(self) -> str:

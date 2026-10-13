@@ -88,9 +88,14 @@ class RasterioDataSource(DataSource):
         # (bands, h, w) -> (h, w, bands)
         data = np.moveaxis(data, 0, -1)
 
-        # replace nodata values with NaN (we may want this to be optional in the future?)
+        # replace nodata values with NaN; integer data holding nodata becomes
+        # float first (NaN has no integer form)
         if np.ma.isMaskedArray(data):
-            data = data.filled(np.nan)
+            if np.ma.is_masked(data) and data.dtype.kind in "iub":
+                data = data.astype(
+                    np.float32 if data.dtype.itemsize <= 2 else np.float64
+                )
+            data = data.filled(np.nan) if data.dtype.kind == "f" else data.filled()
 
         return data
 
