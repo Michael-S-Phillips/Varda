@@ -42,6 +42,14 @@ can alter results.
 
 ### Fixed
 
+- ENVI files open whatever their data file is called: `.img`, `.dat`, `.raw`,
+  `.bin`, `.bsq`/`.bil`/`.bip`, no extension, upper case, or `foo.img.hdr`.
+  Opening the data file directly also works when its header sits beside it,
+  and an `.img` without a header (e.g. Erdas or PDS) is no longer forced
+  through the ENVI reader.
+- ENVI headers written with capitalised keys (e.g. `Wavelength Units`) lost
+  their wavelengths, units and band metadata.
+- Integer ENVI files with a `data ignore value` failed to load.
 - The Spectral Hourglass library preview was blank for µm images.
 - User plugins in `plugins/user_plugins/` never loaded.
 - A session saved by a newer Varda is refused with a clear message.
