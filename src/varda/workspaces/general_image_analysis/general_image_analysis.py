@@ -164,6 +164,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             self.plotWidget,
             parent=self,
             drawingState=self.roiDrawingState,
+            images=self.config.imageList,
         )
         # Saved pixel points (from the pixel-spectra plots' Save Point)
         self.pointCollection = PointCollection()

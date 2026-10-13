@@ -2,16 +2,25 @@
 
 from __future__ import annotations
 
+import numpy as np
 from PyQt6.QtCore import Qt, QAbstractTableModel, QModelIndex, QVariant
 from PyQt6.QtGui import QColor, QFont
 
 from varda.common.entities import VardaROI, Color
+from varda.rois.roi_calculations import CalculatedColumns
 from varda.rois.roi_collection import ROICollection
 
 
 # Fixed columns shown for every collection
 # "Class" is the ROI name: ROIs that share one form a class
 _FIXED_COLUMNS = ["FID", "Class", "Color", "Type"]
+
+
+def _formatValue(value) -> str:
+    """Numbers to six significant figures; a missing (NaN) number is blank."""
+    if isinstance(value, float | np.floating):
+        return "" if np.isnan(value) else f"{value:.6g}"
+    return str(value)
 
 
 class ROITableModel(QAbstractTableModel):
@@ -21,9 +30,17 @@ class ROITableModel(QAbstractTableModel):
     via delegate, applies to the whole class), Type (read-only). Additional dynamic columns come from user-added metadata.
     """
 
-    def __init__(self, collection: ROICollection, parent=None) -> None:
+    def __init__(
+        self,
+        collection: ROICollection,
+        parent=None,
+        calculated: CalculatedColumns | None = None,
+    ) -> None:
+        """``calculated``: the collection's calculated columns, shown read-only
+        with their formula as the header tooltip."""
         super().__init__(parent)
         self._collection = collection
+        self._calculated = calculated
         self._denominatorFid: int | None = None
         self._templateFid: int | None = None
         self._roiCache: list[VardaROI] = []
@@ -102,7 +119,7 @@ class ROITableModel(QAbstractTableModel):
             dyn_col = self._dynamicColumns()
             if col - len(_FIXED_COLUMNS) < len(dyn_col):
                 key = dyn_col[col - len(_FIXED_COLUMNS)]
-                return roi.properties.get(key, "")
+                return _formatValue(roi.properties.get(key, ""))
 
         if role == Qt.ItemDataRole.DecorationRole and col == 2:
             return roi.color.toQColor()
@@ -124,13 +141,15 @@ class ROITableModel(QAbstractTableModel):
     def headerData(
         self, section: int, orientation, role: int = Qt.ItemDataRole.DisplayRole
     ):
-        if (
-            orientation == Qt.Orientation.Horizontal
-            and role == Qt.ItemDataRole.DisplayRole
-        ):
+        if orientation == Qt.Orientation.Horizontal:
             all_cols = list(_FIXED_COLUMNS) + self._dynamicColumns()
             if section < len(all_cols):
-                return all_cols[section]
+                if role == Qt.ItemDataRole.DisplayRole:
+                    return all_cols[section]
+                if role == Qt.ItemDataRole.ToolTipRole and self._calculated:
+                    formula = self._calculated.describe(all_cols[section])
+                    if formula is not None:
+                        return f"Calculated: {formula}"
         return super().headerData(section, orientation, role)
 
     def flags(self, index: QModelIndex):
@@ -138,9 +157,13 @@ class ROITableModel(QAbstractTableModel):
         if not index.isValid():
             return base
         col = index.column()
-        # Class and Color are editable; dynamic columns are editable
-        if col == 1 or col == 2 or col >= len(_FIXED_COLUMNS):
+        # Class and Color are editable, and user columns unless calculated
+        if col == 1 or col == 2:
             return base | Qt.ItemFlag.ItemIsEditable
+        if col >= len(_FIXED_COLUMNS):
+            column = self._dynamicColumns()[col - len(_FIXED_COLUMNS)]
+            if self._calculated is None or not self._calculated.isCalculated(column):
+                return base | Qt.ItemFlag.ItemIsEditable
         return base
 
     def setData(

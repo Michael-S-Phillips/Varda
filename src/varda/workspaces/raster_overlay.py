@@ -18,6 +18,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSlider, QWidget
 
 from varda.common.entities import VardaRaster
+from varda.common.grid import compatibleImages
 from varda.common.observable_list import ObservableList
 from varda.common.palette import classColor
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
@@ -27,21 +28,6 @@ from varda.image_rendering.raster_view.image_viewport import ImageViewport
 NO_OVERLAY = "No overlay"
 CLASSES = "Classes"
 COLOR_MAP = "viridis"
-
-
-def _sameGrid(a: VardaRaster, b: VardaRaster) -> bool:
-    if (a.height, a.width) != (b.height, b.width):
-        return False
-    if a.hasGeospatialData and b.hasGeospatialData:
-        return a.crs == b.crs and a.transform.almost_equals(b.transform)
-    return a.hasGeospatialData == b.hasGeospatialData
-
-
-def compatibleImages(
-    images: Sequence[VardaRaster], base: VardaRaster
-) -> list[VardaRaster]:
-    """The images that can be laid over ``base``: same pixel grid, not itself."""
-    return [image for image in images if image is not base and _sameGrid(image, base)]
 
 
 def isClassMap(raster: VardaRaster) -> bool:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -17,7 +18,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QCheckBox,
     QPushButton,
-    QInputDialog,
     QMessageBox,
 )
 
@@ -30,6 +30,8 @@ from varda.image_loading.crism_geometry import (
     wholePixels,
 )
 from varda.plotting.plot import VardaPlotWidget
+from varda.rois.add_column_dialog import AddColumnDialog
+from varda.rois.roi_calculations import CalculatedColumns
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_drawing_state import ROIDrawingState
 from varda.rois.roi_drawing_widgets import ROIClassPicker, ROIShapePicker
@@ -61,7 +63,10 @@ class ROIManagerWidget(QWidget):
         plotWidget: VardaPlotWidget,
         parent: QWidget | None = None,
         drawingState: ROIDrawingState | None = None,
+        images: Sequence[VardaRaster] = (),
     ) -> None:
+        """``images``: the project's images, offered (when on the same pixel
+        grid as ``image``) for zonal-statistic columns."""
         super().__init__(parent)
         self._collection = collection
         self._image = image
@@ -70,7 +75,11 @@ class ROIManagerWidget(QWidget):
         self._templateFid: int | None = None
 
         # Model / View
-        self._model = ROITableModel(collection, parent=self)
+        self._images = images
+        self.calculatedColumns = CalculatedColumns(collection)
+        self._model = ROITableModel(
+            collection, parent=self, calculated=self.calculatedColumns
+        )
         self._table = ROITableView(self._model, parent=self)
 
         # Buttons
@@ -349,13 +358,8 @@ class ROIManagerWidget(QWidget):
             self._collection.removeROI(fid)
 
     def _addColumn(self) -> None:
-        name, ok = QInputDialog.getText(self, "Add Column", "Column name:")
-        if not ok or not name.strip():
-            return
-        try:
-            self._collection.addColumn(name)
-        except ValueError as e:
-            QMessageBox.warning(self, "Cannot Add Column", str(e))
+        images = [self._image, *self._images]
+        AddColumnDialog(self.calculatedColumns, images, parent=self).exec()
 
     def _exportCollection(self) -> None:
         from PyQt6.QtWidgets import QFileDialog
