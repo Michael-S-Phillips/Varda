@@ -7,6 +7,7 @@ ROI drawing, band selection, stretch controls, and metadata management.
 
 import functools
 import logging
+from collections.abc import Sequence
 
 from PyQt6.QtCore import QPointF
 from PyQt6.QtWidgets import (
@@ -61,7 +62,7 @@ class GeneralImageAnalysisConfig(ParameterGroup):
         "The image to view.",
     )
 
-    def __init__(self, imageList: list[VardaRaster]) -> None:
+    def __init__(self, imageList: Sequence[VardaRaster]) -> None:
         super().__init__()
         self.imageList = imageList
         self.image.setProvider(lambda: self.imageList)

@@ -365,11 +365,11 @@ class ImageParameter(Parameter[VardaRaster]):
     """
 
     def __init__(self, name: str, description=None) -> None:
-        self.imageProvider: Callable[[], list[VardaRaster]] = lambda: []
+        self.imageProvider: Callable[[], Sequence[VardaRaster]] = lambda: []
         default = None
         super().__init__(name, default, description)
 
-    def setProvider(self, imageProvider: Callable[[], list[VardaRaster]]) -> None:
+    def setProvider(self, imageProvider: Callable[[], Sequence[VardaRaster]]) -> None:
         """
         Sets the callable image provider that returns the list of images to choose from.
         This must be set before using the parameter for anything else.

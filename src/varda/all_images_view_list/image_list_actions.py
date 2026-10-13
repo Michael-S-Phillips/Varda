@@ -50,8 +50,9 @@ def getCurrentClickContext() -> ImageListClickContext | None:
 def _openInGeneralAnalysis(
     ctx: ImageListClickContext, images: ProjectImages, mainGui: MainGUI
 ) -> None:
-    # The workflow reads its image once at construction, so a snapshot suffices.
-    config = GeneralImageAnalysisConfig(list(images))
+    # The live list, so results added later (e.g. a classification) can be
+    # chosen as overlays
+    config = GeneralImageAnalysisConfig(images)
     config.image.set(ctx.images[0])
     mainGui.addTab(GeneralImageAnalysisWorkflow(config))
 
