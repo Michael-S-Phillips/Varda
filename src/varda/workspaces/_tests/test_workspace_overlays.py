@@ -3,7 +3,7 @@
 import numpy as np
 
 from varda.common.entities import VardaRaster
-from varda.common.observable_list import ObservableList
+from varda.common.di_types import ProjectImages
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.utilities.debug import generate_random_image
 from varda.workspaces.dual_image_workspace.dual_image_workspace import (
@@ -26,7 +26,7 @@ def _classes(image: VardaRaster) -> VardaRaster:
 
 def test_the_general_workspace_overlays_on_all_three_views(qtbot):
     image = generate_random_image((20, 30, 10))
-    images = ObservableList([image])
+    images = ProjectImages([image])
     workspace = GeneralImageAnalysisWorkflow(GeneralImageAnalysisConfig(images))
     qtbot.addWidget(workspace)
     result = _classes(image)

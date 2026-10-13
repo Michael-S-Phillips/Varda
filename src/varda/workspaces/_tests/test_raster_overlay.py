@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from affine import Affine
 
+from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.image_rendering.image_renderer import ImageRenderer
@@ -133,10 +134,8 @@ def test_opacity_and_layer_changes_apply(bar):
 
 
 def test_new_results_appear_in_the_list(qtbot):
-    from varda.common.observable_list import ObservableList
-
     base = _base()
-    images = ObservableList([base])
+    images = ProjectImages([base])
     widget = OverlayBar(images, base, [])
     qtbot.addWidget(widget)
     assert widget.imageBox.count() == 1

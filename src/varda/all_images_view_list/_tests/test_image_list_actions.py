@@ -73,3 +73,23 @@ def test_click_context_is_cleared_after_command_runs(qapp, app):
     ImageListMenuController(app).onImagesActivated([image])
 
     assert ila.getCurrentClickContext() is None
+
+
+def test_a_workspace_opened_from_the_list_offers_later_results_as_overlays(qapp, app):
+    """A result added after the workspace opened (e.g. a classification) must
+    appear in its overlay picker without opening a new workspace."""
+    images = ProjectImages()
+    scene = generate_random_image((20, 20, 10))
+    images.append(scene)
+    mainGui = FakeMainGui()
+    app.injection_store.register_provider(lambda: images, ProjectImages)
+    app.injection_store.register_provider(lambda: mainGui, MainGUI)
+    ImageListMenuController(app).onImagesActivated([scene])
+    workspace, _title = mainGui.tabs[0]
+
+    assert isinstance(workspace, GeneralImageAnalysisWorkflow)
+    result = generate_random_image((20, 20, 10))
+    images.append(result)
+
+    box = workspace.overlayBar.imageBox
+    assert result.name in [box.itemText(i) for i in range(box.count())]

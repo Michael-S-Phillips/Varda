@@ -1,6 +1,7 @@
 # standard library
 import functools
 import logging
+from collections.abc import Sequence
 from enum import Enum
 
 # third party imports
@@ -80,7 +81,7 @@ class PixelSourceConfig(ParameterGroup):
 
 
 class DualImageWorkspaceConfig(ParameterGroup):
-    imageList: list[VardaRaster]
+    imageList: Sequence[VardaRaster]
 
     image1Param: ImageParameter = ImageParameter(
         "Primary Image",
@@ -103,7 +104,7 @@ class DualImageWorkspaceConfig(ParameterGroup):
         "Whether to link the images by pixel or geographic coordinates.",
     )
 
-    def __init__(self, imageList: list[VardaRaster]) -> None:
+    def __init__(self, imageList: Sequence[VardaRaster]) -> None:
         super().__init__()
         self.imageList = imageList
         self.image1Param.setProvider(lambda: self.imageList)
