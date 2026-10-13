@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Sequence
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -26,30 +25,7 @@ from varda.image_loading.raster_writer import (
     writeRaster,
 )
 from varda.common.parameter_widgets import parameterWidget
-
-logger = logging.getLogger(__name__)
-
-
-class _WriteSignals(QObject):
-    finished = pyqtSignal(object, str)  # (VardaRaster, path)
-    failed = pyqtSignal(object)  # Exception
-
-
-class _WriteJob(QRunnable):
-    def __init__(self, image: VardaRaster, path: str) -> None:
-        super().__init__()
-        self.image = image
-        self.path = path
-        self.signals = _WriteSignals()
-
-    def run(self) -> None:
-        try:
-            writeRaster(self.image, self.path)
-        except Exception as error:  # reported to the user by the caller
-            logger.exception("Writing %s to %s failed", self.image.name, self.path)
-            self.signals.failed.emit(error)
-            return
-        self.signals.finished.emit(self.image, self.path)
+from varda.utilities.background import runInBackground
 
 
 class ExportImageDialog(QDialog):
@@ -64,7 +40,6 @@ class ExportImageDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Export Image")
-        self._jobs: list[_WriteJob] = []  # keep running writes alive
 
         self.imageParam = ImageParameter("Image", "The image to write")
         self.imageParam.setProvider(lambda: list(images))
@@ -129,25 +104,21 @@ class ExportImageDialog(QDialog):
         )
         progress.show()
 
-        job = _WriteJob(image, path)
-        self._jobs.append(job)
-
-        def onFinished(written: VardaRaster, writtenPath: str) -> None:
+        def onFinished(_written: object) -> None:
             progress.close()
-            self._jobs.remove(job)
-            self.sigExported.emit(written, writtenPath)
+            self.sigExported.emit(image, path)
 
         def onFailed(error: Exception) -> None:
             progress.close()
-            self._jobs.remove(job)
             QMessageBox.critical(
                 self.parentWidget(),
                 "Export failed",
                 f"Could not write {path}:\n{error}",
             )
 
-        job.signals.finished.connect(onFinished)
-        job.signals.failed.connect(onFailed)
-        pool = QThreadPool.globalInstance()
-        assert pool is not None
-        pool.start(job)
+        runInBackground(
+            lambda: writeRaster(image, path),
+            onFinished,
+            onFailed,
+            description=f"Writing {image.name} to {path}",
+        )

@@ -10,6 +10,7 @@ from varda.optional_features import optional_features_dialog
 from varda.optional_features.optional_features_dialog import OptionalFeaturesDialog
 from varda.optional_features.torch_runtime import (
     BACKENDS,
+    InstallError,
     TorchRuntime,
     platformBackends,
 )
@@ -111,7 +112,7 @@ class _FakeInstaller:
         self.onStep("Downloading PyTorch")
         self.onLog("Installed 12 packages")
         if self.fail:
-            raise optional_features_dialog.InstallError("no network")
+            raise InstallError("no network")
         self.runtime.writeManifest(self.backend, {"torch": "2.14.1", "device": "cuda"})
 
 

@@ -6,11 +6,11 @@ import numpy as np
 
 from varda.analysis.band_math import BandMathAnalysis
 from varda.analysis.provenance import PROVENANCE_KEY, provenanceText, recordProvenance
-from varda.analysis.runner import _AnalysisJob
+from varda.analysis.runner import AnalysisRunner
+from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.image_loading.image_loading_service import openDataSource
-from varda.image_loading.raster_writer import writeRaster
 from varda.version import vardaVersion
 
 
@@ -42,11 +42,11 @@ def test_a_result_records_the_analysis_parameters_inputs_and_version():
 def test_the_runner_records_provenance_before_saving(tmp_path, qtbot):
     analysis = BandMathAnalysis()
     analysis.expression.set("b2 - b1")
-    job = _AnalysisJob(analysis, _image(), str(tmp_path / "diff.img"))
-    results = []
-    job.signals.finished.connect(results.append)
-    job.run()
-    assert PROVENANCE_KEY in results[0].extraMetadata
+    image = _image()
+    runner = AnalysisRunner(ProjectImages([image]))
+    with qtbot.waitSignal(runner.sigFinished, timeout=10_000) as blocker:
+        runner.run(analysis, image, str(tmp_path / "diff.img"))
+    assert PROVENANCE_KEY in blocker.args[0].extraMetadata
     description = openDataSource(str(tmp_path / "diff.img")).description
     assert (
         "Band Math" in description
