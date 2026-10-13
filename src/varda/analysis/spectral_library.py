@@ -11,7 +11,9 @@ score by a linear ramp and combined by weights:
 - Binary encoding: the fraction of bands where both spectra are on the same
   side of their own mean
 
-Pure numpy; wavelengths are in nm (values below 10 are taken as µm).
+Pure numpy; wavelengths are in nm. Library files declare their unit (ENVI
+``wavelength units``, a CSV column name such as ``wavelength_um``, or a
+``# units:`` comment); otherwise it is inferred once, with a warning.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ import attrs
 import numpy as np
 import spectral.io.envi as envi
 
+from varda.common.spectral_axis import nanometresFrom, parseUnit, unitInText
 from varda.plotting.library_spectra import (
     DEFAULT_LIBRARY_PATH,
     listSpectra,
@@ -38,8 +41,9 @@ MICA_LIBRARY_PATH = Path(
 )
 
 LIBRARY_FORMAT_HELP = """\
-<p>Load Library accepts three formats. Wavelengths may be in nm or µm (values
-below 10 are read as µm); the library is resampled to your image's bands, and
+<p>Load Library accepts three formats. Wavelengths may be in nm, µm or cm⁻¹:
+name the unit in the wavelength column (e.g. <code>wavelength_um</code>) or in a
+<code># units: µm</code> comment; otherwise Varda infers it. The library is resampled to your image's bands, and
 it must overlap at least five of them. Matching ignores overall brightness,
 so reflectance, I/F or scaled values all work.</p>
 
@@ -78,7 +82,7 @@ CLOSE_FRACTION = 0.10
 @attrs.frozen
 class LibrarySpectrum:
     name: str
-    wavelengths: np.ndarray  # nm or µm as stored; see resampleTo
+    wavelengths: np.ndarray  # nm (the loaders convert declared units)
     reflectance: np.ndarray
     source: str = ""
 
@@ -93,13 +97,6 @@ class LibraryMatch:
     binary: float  # fraction of bands matching
     flag: str  # "best", "close" (within 10% of the best score) or "far"
     spectrum: LibrarySpectrum
-
-
-def toNanometres(wavelengths) -> np.ndarray:
-    values = np.asarray(wavelengths, dtype=np.float64)
-    if values.size and np.nanmax(values) < 10.0:
-        return values * 1000.0
-    return values
 
 
 # --- loading ---------------------------------------------------------------------
@@ -124,7 +121,8 @@ def loadEnviLibrary(header: str | Path) -> list[LibrarySpectrum]:
         header = header.with_suffix(".hdr")
     library = envi.open(str(header))
     names = list(library.names)
-    wavelengths = toNanometres(library.bands.centers)
+    unit = parseUnit(library.metadata.get("wavelength units"))
+    wavelengths = nanometresFrom(library.bands.centers, unit)
     spectra = np.asarray(library.spectra, dtype=np.float64)
     return [
         LibrarySpectrum(name, wavelengths, spectra[i], header.stem)
@@ -137,11 +135,19 @@ def loadCsvLibrary(path: str | Path) -> list[LibrarySpectrum]:
     (named by its header)."""
     path = Path(path)
     with open(path, newline="") as f:
-        lines = [line for line in f if not line.lstrip().startswith("#")]
+        allLines = list(f)
+    comments = [line for line in allLines if line.lstrip().startswith("#")]
+    lines = [line for line in allLines if not line.lstrip().startswith("#")]
     rows = list(csv.reader(lines))
     header, body = rows[0], [r for r in rows[1:] if r]
     values = np.array([[float(v) if v.strip() else np.nan for v in r] for r in body])
-    wavelengths = toNanometres(values[:, 0])
+    # The unit from the wavelength column's name (e.g. wavelength_um), else a
+    # "# units: ..." comment, else inferred from the values
+    unitComments = [c for c in comments if "unit" in c.lower()]
+    unit = unitInText(header[0]) or next(
+        (u for c in unitComments if (u := unitInText(c)) is not None), None
+    )
+    wavelengths = nanometresFrom(values[:, 0], unit)
     return [
         LibrarySpectrum(name.strip(), wavelengths, values[:, i + 1], path.stem)
         for i, name in enumerate(header[1:])
@@ -175,8 +181,8 @@ def loadLibrary(path: str | Path) -> list[LibrarySpectrum]:
 
 def resampleTo(spectrum: LibrarySpectrum, wavelengthsNm: np.ndarray) -> np.ndarray:
     """The library spectrum linearly interpolated at ``wavelengthsNm``; NaN
-    outside its range."""
-    x = toNanometres(spectrum.wavelengths)
+    outside its range. Library wavelengths are stored in nm when loaded."""
+    x = np.asarray(spectrum.wavelengths, dtype=np.float64)
     y = np.asarray(spectrum.reflectance, dtype=np.float64)
     keep = np.isfinite(x) & np.isfinite(y)
     x, y = x[keep], y[keep]
@@ -254,10 +260,11 @@ def rankLibrary(
 ) -> list[LibraryMatch]:
     """Library spectra ranked by weighted similarity to ``spectrum`` (best
     first). Comparison uses the bands both cover, within ``wavelengthRange``
-    (nm) if given; spectra overlapping fewer than five bands are skipped."""
+    (nm) if given; spectra overlapping fewer than five bands are skipped.
+    ``wavelengths`` are the unknown's band centres in nm (``bandModel.centers``)."""
     weights = DEFAULT_WEIGHTS if weights is None else weights
     total = sum(weights.values()) or 1.0
-    x = toNanometres(wavelengths)
+    x = np.asarray(wavelengths, dtype=np.float64)
     unknown = np.asarray(spectrum, dtype=np.float64)
     inRange = np.isfinite(x) & np.isfinite(unknown)
     if wavelengthRange is not None:

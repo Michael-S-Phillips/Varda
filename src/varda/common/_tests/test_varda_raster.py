@@ -1,9 +1,12 @@
 import pytest
 import numpy as np
 import numpy.testing as npt
+import spectral.io.envi as envi
 
 from varda.image_loading.data_sources import ArrayDataSource
 from varda.common.entities import VardaRaster, CompatMetadata
+from varda.common.spectral_axis import SpectralUnit
+from varda.image_loading.image_loading_service import openDataSource
 
 
 class TestVardaRaster:
@@ -138,3 +141,22 @@ class TestCompatMetadata:
     def test_metadata_getitem(self, raster):
         assert raster.metadata["name"] == "test"
         assert raster.metadata["width"] == 20
+
+
+def test_the_band_model_comes_from_an_envi_header(tmp_path):
+    data = np.ones((4, 5, 3), dtype=np.float32)
+    metadata = {
+        "wavelength": [1.0, 1.5, 2.0],
+        "wavelength units": "Micrometers",
+        "fwhm": [0.01, 0.01, 0.02],
+        "bbl": [1, 0, 1],
+        "data ignore value": -9999,
+    }
+    envi.save_image(str(tmp_path / "cube.hdr"), data, metadata=metadata, ext=".img")
+    raster = VardaRaster(openDataSource(str(tmp_path / "cube.hdr")), name="cube")
+    model = raster.bandModel
+    assert model.unit is SpectralUnit.MICROMETRE
+    np.testing.assert_allclose(model.centers, [1000, 1500, 2000])
+    np.testing.assert_allclose(model.fwhm, [10, 10, 20])
+    assert model.badBands.tolist() == [False, True, False]
+    assert model.noData == -9999

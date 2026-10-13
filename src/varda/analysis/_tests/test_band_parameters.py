@@ -49,3 +49,41 @@ def test_string_wavelengths_are_rejected_with_a_clear_message():
     )
     with pytest.raises(ValueError, match="numeric wavelengths"):
         BandParametersAnalysis().run(image, lambda p, m: None)
+
+
+def _twin(image: VardaRaster, cube, wavelengths, units, extra=None) -> VardaRaster:
+    return VardaRaster(
+        ArrayDataSource(
+            cube,
+            wavelengths=wavelengths,
+            wavelengthUnits=units,
+            extraMetadata=extra or {},
+        ),
+        name="twin",
+    )
+
+
+def test_a_micrometre_image_gives_the_same_parameters_as_its_nanometre_twin():
+    pytest.importorskip("hypyrameter")
+    image = _reflectanceImage()
+    cube = image.getData()
+    twin = _twin(image, cube, image.wavelengths / 1000.0, "Micrometers")
+    nm = BandParametersAnalysis().run(image, lambda p, m: None)
+    um = BandParametersAnalysis().run(twin, lambda p, m: None)
+    assert um.bandNames == nm.bandNames
+    np.testing.assert_allclose(um.getData(), nm.getData(), equal_nan=True)
+
+
+def test_scaled_reflectance_is_unscaled_before_computing():
+    pytest.importorskip("hypyrameter")
+    image = _reflectanceImage()
+    scaled = _twin(
+        image,
+        image.getData() * 10000,
+        image.wavelengths,
+        "nm",
+        {"reflectance_scale_factor": "10000"},
+    )
+    expected = BandParametersAnalysis().run(image, lambda p, m: None).getData()
+    result = BandParametersAnalysis().run(scaled, lambda p, m: None).getData()
+    np.testing.assert_allclose(result, expected, rtol=1e-5, equal_nan=True)

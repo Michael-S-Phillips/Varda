@@ -1,11 +1,14 @@
 """The endmember table: add, rename, recolour, merge, delete, active row."""
 
+import numpy as np
 import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QHeaderView
 
-from synthetic_scene import modelThroughPpi, modelWithEndmembers
+from synthetic_scene import WAVELENGTHS, modelThroughPpi, modelWithEndmembers
+from varda.analysis.spectral_library import loadCsvLibrary
+from varda.workspaces.spectral_hourglass import endmember_table
 from varda.workspaces.spectral_hourglass.endmember_table import EndmemberTable
 
 
@@ -91,3 +94,21 @@ def test_columns_can_be_resized(table):
     header = table.table.horizontalHeader()
     for column in (1, 2, 3):
         assert header.sectionResizeMode(column) == QHeaderView.ResizeMode.Interactive
+
+
+def test_exported_spectra_load_back_as_a_library_in_nanometres(
+    qtbot, tmp_path, monkeypatch
+):
+    model = modelWithEndmembers("µm")
+    widget = EndmemberTable(model)
+    qtbot.addWidget(widget)
+    target = tmp_path / "endmembers.csv"
+    monkeypatch.setattr(
+        endmember_table.QFileDialog,
+        "getSaveFileName",
+        lambda *a, **k: (str(target), ""),
+    )
+    widget._exportSpectra()
+    library = loadCsvLibrary(target)
+    assert [s.name for s in library] == [e.name for e in model.endmembers]
+    np.testing.assert_allclose(library[0].wavelengths, WAVELENGTHS)

@@ -9,7 +9,6 @@ from varda.analysis.hypyrameter_adapter import (
     HYPYRAMETER_AVAILABLE,
     computeParameterCube,
     parameterDescription,
-    toNanometres,
     validParameterNames,
 )
 from varda.analysis.rasters import readCube
@@ -55,9 +54,8 @@ class BandParametersAnalysis(Analysis):
 
     @staticmethod
     def _supportedNames(image: VardaRaster) -> list[str]:
-        if image.wavelengthsType is str:
-            return []
-        return validParameterNames(toNanometres(image.wavelengths))
+        centers = image.bandModel.centers
+        return [] if centers is None else validParameterNames(centers)
 
     def _chosenNames(self, image: VardaRaster) -> list[str]:
         supported = self._supportedNames(image)
@@ -73,19 +71,21 @@ class BandParametersAnalysis(Analysis):
         return names
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
-        if image.wavelengthsType is str:
+        model = image.bandModel
+        if model.centers is None:
             raise ValueError(
-                f"{image.name} has no numeric wavelengths; band parameters need "
-                "wavelengths in nm or µm."
+                f"{image.name} has no numeric wavelengths with units; band "
+                "parameters need wavelengths in nm, µm or cm⁻¹."
             )
         names = self._chosenNames(image)
         reportProgress(0, "reading image")
         cube, _valid = readCube(image)
+        if model.scaleFactor:  # e.g. reflectance stored as integers x 10000
+            cube /= model.scaleFactor
         if self.clampReflectance.value:
             cube[np.abs(cube) > 1.0] = np.nan
 
-        wavelengths = toNanometres(image.wavelengths)
-        parameters = computeParameterCube(cube, wavelengths, names, reportProgress)
+        parameters = computeParameterCube(cube, model.centers, names, reportProgress)
 
         display = [names.index(n) for n in _DEFAULT_DISPLAY if n in names]
         source = ArrayDataSource(

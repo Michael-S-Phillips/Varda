@@ -108,3 +108,16 @@ def test_excluded_minerals_can_be_restored(panel):
     panel.restoreAll()
     assert panel.excludedNames() == [] and panel.excludedButton.text() == "Excluded (0)"
     assert panel.table.item(0, 1).text() == "Kaolinite KGa-1"
+
+
+def test_a_micrometre_scene_matches_the_library_like_its_nanometre_twin(qtbot):
+    """The library is in nm; the scene's own unit must not matter."""
+    names = {}
+    for units in ("nm", "µm"):
+        model = modelWithEndmembers(units)
+        widget = IdentifyPanel(model, library=_library())
+        qtbot.addWidget(widget)
+        clay = model.endmembers[1]
+        widget.setEndmember(clay.id)
+        names[units] = widget.table.item(0, 0).text()
+    assert names["µm"] == names["nm"] != ""

@@ -130,8 +130,9 @@ class Endmember:
 class PreparedData:
     cube: np.ndarray  # float64 (rows, cols, bands), unusable pixels NaN
     valid: np.ndarray  # bool (rows, cols)
-    wavelengths: np.ndarray | None  # numeric band centres, or None
+    wavelengths: np.ndarray | None  # band centres in the image's own unit, or None
     bandIndices: np.ndarray  # indices of the kept bands in the source image
+    wavelengthsNm: np.ndarray | None = None  # the same centres in nm (for libraries)
 
 
 @attrs.frozen
@@ -200,7 +201,13 @@ class HourglassModel:
 
     @property
     def wavelengths(self) -> np.ndarray | None:
+        """Kept band centres in the image's own unit (labels, the window)."""
         return self._require(self.prepared, Step.PREPARE).wavelengths
+
+    @property
+    def wavelengthsNm(self) -> np.ndarray | None:
+        """Kept band centres in nm, for comparing with spectral libraries."""
+        return self._require(self.prepared, Step.PREPARE).wavelengthsNm
 
     def prepareTask(self) -> Callable[[ProgressCallback], PreparedData]:
         image = self.image
@@ -208,19 +215,18 @@ class HourglassModel:
 
         def task(progress: ProgressCallback) -> PreparedData:
             progress(0, "reading image")
-            numeric = (
-                None
-                if image.wavelengthsType is str
-                else np.asarray(image.wavelengths, float)
-            )
-            indices = np.arange(image.bandCount)
+            bands = image.bandModel
+            nm = bands.centers
+            numeric = None if nm is None else bands.native(nm)  # the image's unit
+            keep = ~bands.badBands  # bands marked bad in the header are left out
             if settings.wavelengthRange is not None and numeric is not None:
                 lo, hi = settings.wavelengthRange
-                indices = np.flatnonzero((numeric >= lo) & (numeric <= hi))
-                if indices.size < 3:
-                    raise ValueError(
-                        "Fewer than three bands fall inside the wavelength range."
-                    )
+                keep &= (numeric >= lo) & (numeric <= hi)
+            indices = np.flatnonzero(keep)
+            if indices.size < 3:
+                raise ValueError(
+                    "Fewer than three usable bands fall inside the wavelength range."
+                )
             cube, valid = readCube(image)
             cube = np.ascontiguousarray(cube[:, :, indices])
             if settings.useIovf:
@@ -236,6 +242,7 @@ class HourglassModel:
                 valid=valid,
                 wavelengths=None if numeric is None else numeric[indices],
                 bandIndices=indices,
+                wavelengthsNm=None if nm is None else nm[indices],
             )
 
         return task

@@ -37,13 +37,13 @@ from varda.common.ui import (
     VerticalScrollArea,
 )
 from varda.common.vec2 import Vec2
+from varda.common.spectral_axis import SpectralUnit, fromNanometres, unitLabel
 from varda.plotting.library_spectra import (
     DEFAULT_LIBRARY_PATH,
     listSpectra,
     loadSpectrum,
 )
 from varda.plotting.spectrum_matching import (
-    harmonizeWavelengthUnits,
     matchToReference,
 )
 from varda.plotting.view_box import ModifierDragViewBox
@@ -349,6 +349,9 @@ class VardaPlotWidget(QWidget):
         self.libraryPath = libraryPath
 
         self.plots: list[Curve] = []
+        # The spectral unit of the x axis, from the images plotted (None: band
+        # numbers or not known yet). Reference spectra (nm) are converted to it.
+        self.spectralUnit: SpectralUnit | None = None
         self.gv = _PlotGraphicsView(self)
         # if the user clicks on the plot area and none of the plots catch the click (therefore selecting it), deselect any selected plot
         self.gv.scene().sigMouseClicked.connect(self.onSceneClicked)
@@ -805,19 +808,20 @@ class VardaPlotWidget(QWidget):
     def addReferenceSpectrum(self, name: str, x, y) -> Curve:
         """Plot a reference (e.g. library) spectrum so it is immediately comparable.
 
-        When a curve to compare against exists (see ``_referenceCurve``), the
-        new spectrum's wavelengths are converted to the same unit and its Y
-        scale/offset are set so it overlays that curve within the visible
+        ``x`` is in nm (library spectra are). It is shown in the plot's spectral
+        unit; when a curve to compare against exists (see ``_referenceCurve``),
+        its Y scale/offset are set so it overlays that curve within the visible
         wavelength range. The view itself is left where it is.
         """
         x = np.asarray(x, dtype=float)
+        if self.spectralUnit is not None:
+            x = fromNanometres(x, self.spectralUnit)
         y = np.asarray(y, dtype=float)
         target = self._referenceCurve()
         if target is None:
             return self.plot(x, y, name=name)
 
         targetX, targetY = target.displayedData()
-        x = harmonizeWavelengthUnits(x, targetX)
         curve = self.plot(x, y, name=name)
         visibleX = self.viewBox.viewRange()[0]
         scale, offset = matchToReference(
@@ -870,14 +874,24 @@ class VardaPlotWidget(QWidget):
 
     @staticmethod
     def getPlottableWavelengths(image: VardaRaster, bandCount: int) -> np.ndarray:
-        """Return a numeric x-axis array suitable for plotting spectral data.
-
-        Uses the image's wavelengths if they are numeric, otherwise falls
-        back to band indices.
-        """
-        if image.wavelengthsType in (int, float):
-            return np.asarray(image.wavelengths, dtype=float)
+        """The x values for an image's spectra: its wavelengths in its own unit
+        when the bands are a spectral axis, otherwise band numbers."""
+        model = image.bandModel
+        if model.centers is not None and model.bandCount == bandCount:
+            return model.native(model.centers)
         return np.arange(bandCount, dtype=float)
+
+    def xValuesFor(self, image: VardaRaster, bandCount: int) -> np.ndarray:
+        """``getPlottableWavelengths``, and the plot takes the image's unit for
+        its x axis (label, and converting reference spectra)."""
+        model = image.bandModel
+        self.setSpectralUnit(model.unit if model.isSpectral else None)
+        return self.getPlottableWavelengths(image, bandCount)
+
+    def setSpectralUnit(self, unit: SpectralUnit | None) -> None:
+        self.spectralUnit = unit
+        label = f"Wavelength ({unitLabel(unit)})" if unit is not None else "Band"
+        self.plotItem.setLabel("bottom", label)
 
     def clearPlots(self):
         for curve in self.plots:

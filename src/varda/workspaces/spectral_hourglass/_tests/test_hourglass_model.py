@@ -301,3 +301,24 @@ def test_ppi_counts_round_trip_compactly():
     np.testing.assert_array_equal(fresh.ppi.counts, model.ppi.counts)
     assert fresh.ppiIterations == model.ppiIterations
     assert fresh.state(Step.PURITY) is StepState.DONE
+
+
+def test_prepare_records_nanometre_centres_whatever_the_unit():
+    image, _ = syntheticScene(units="µm")
+    model = HourglassModel(image)
+    model.applyPrepared(model.prepareTask()(lambda p, m: None))
+    np.testing.assert_allclose(model.wavelengths, WAVELENGTHS / 1000)  # own unit
+    np.testing.assert_allclose(model.wavelengthsNm, WAVELENGTHS)
+
+
+def test_prepare_leaves_out_bands_marked_bad_in_the_header():
+    bbl = np.ones(WAVELENGTHS.size, dtype=int)
+    bbl[[5, 6, 40]] = 0
+    image, _ = syntheticScene(
+        extraMetadata={"bbl": "{" + ",".join(map(str, bbl)) + "}"}
+    )
+    model = HourglassModel(image)
+    model.applyPrepared(model.prepareTask()(lambda p, m: None))
+    assert model.prepared is not None
+    assert 5 not in model.prepared.bandIndices and 40 not in model.prepared.bandIndices
+    assert model.prepared.cube.shape[2] == WAVELENGTHS.size - 3

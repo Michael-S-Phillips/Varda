@@ -2,25 +2,7 @@
 
 import numpy as np
 
-from varda.plotting.spectrum_matching import harmonizeWavelengthUnits, matchToReference
-
-
-def test_micrometre_wavelengths_are_converted_to_a_nanometre_reference():
-    x = np.linspace(0.35, 2.5, 5)
-    referenceX = np.linspace(1000.0, 2600.0, 5)
-    np.testing.assert_allclose(harmonizeWavelengthUnits(x, referenceX), x * 1000.0)
-
-
-def test_nanometre_wavelengths_are_converted_to_a_micrometre_reference():
-    x = np.linspace(350.0, 2500.0, 5)
-    referenceX = np.linspace(1.0, 2.6, 5)
-    np.testing.assert_allclose(harmonizeWavelengthUnits(x, referenceX), x / 1000.0)
-
-
-def test_comparable_wavelengths_are_left_alone():
-    x = np.linspace(350.0, 2500.0, 5)
-    referenceX = np.linspace(1000.0, 2600.0, 5)
-    np.testing.assert_array_equal(harmonizeWavelengthUnits(x, referenceX), x)
+from varda.plotting.spectrum_matching import matchToReference
 
 
 def _spanWithin(x, y, lo, hi):

@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 
 from varda.utilities.resources import resource_path
+from varda.common.spectral_axis import SpectralUnit, toNanometres
 
 _MISSING_VALUE_THRESHOLD = -1e30
 # Bundled with packaged builds too (see Varda.spec)
@@ -40,8 +41,10 @@ def loadSpectrum(
         raise FileNotFoundError(f"No wavelength file found in {path}")
 
     reflectance = _readDataFile(reflectance_path)
-    wavelengths_um = _readDataFile(wavelength_paths[0])
-    wavelengths_nm = wavelengths_um * 1000.0
+    # splib07 wavelength files are in micrometres
+    wavelengths_nm = toNanometres(
+        _readDataFile(wavelength_paths[0]), SpectralUnit.MICROMETRE
+    )
     return name, wavelengths_nm, reflectance
 
 

@@ -57,7 +57,7 @@ def test_binary_encoding_counts_matching_bands():
 
 
 def test_resampling_interpolates_and_blanks_outside_the_library_range():
-    spectrum = LibrarySpectrum("x", WL / 1000.0, np.linspace(0, 1, WL.size))  # in µm
+    spectrum = LibrarySpectrum("x", WL, np.linspace(0, 1, WL.size))  # nm
     out = resampleTo(spectrum, np.array([900.0, 1000.0, 1750.0, 2600.0]))
     assert np.isnan(out[0]) and np.isnan(out[3])
     assert out[1] == pytest.approx(0.0) and out[2] == pytest.approx(0.5, abs=1e-3)
@@ -159,3 +159,41 @@ def test_mica_kaolinite_identifies_itself_from_a_noisy_crism_spectrum():
         0
     ).normal(size=wl.size)
     assert rankLibrary(wl, observed, mica)[0].name == "Kaolinite"
+
+
+def _csv(path, header, wavelengths, comments=()):
+    rows = [*comments, header] + [
+        f"{w},{v}" for w, v in zip(wavelengths, _gauss(2200, 0.3))
+    ]
+    path.write_text("\n".join(rows))
+    (spectrum,) = loadCsvLibrary(path)
+    return spectrum
+
+
+@pytest.mark.parametrize(
+    "header, comments, scale",
+    [
+        ("wavelength_um,A", (), 1000.0),
+        ("Wavelength (nm),A", (), 1.0),
+        ("wavelength,A", ("# units: micrometers",), 1000.0),
+    ],
+)
+def test_csv_libraries_declare_their_units_in_the_header_or_a_comment(
+    tmp_path, header, comments, scale
+):
+    spectrum = _csv(tmp_path / "lib.csv", header, WL / scale, comments)
+    np.testing.assert_allclose(spectrum.wavelengths, WL)
+
+
+def test_a_thermal_library_in_micrometres_is_not_read_as_nanometres(tmp_path):
+    """The old "below 10 means µm" rule read 8-14 µm as 8-14 nm."""
+    thermal = np.linspace(8.0, 14.0, 151)
+    spectrum = _csv(tmp_path / "tir.csv", "wavelength_um,A", thermal)
+    np.testing.assert_allclose(spectrum.wavelengths, thermal * 1000)
+
+
+def test_matching_takes_wavelengths_in_nanometres_only():
+    library = _library()
+    unknown = library[0].reflectance
+    assert rankLibrary(WL, unknown, library)[0].name == library[0].name
+    assert rankLibrary(WL / 1000.0, unknown, library) == []  # µm: no overlap

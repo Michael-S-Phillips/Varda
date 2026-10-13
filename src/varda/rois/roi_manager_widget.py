@@ -280,7 +280,7 @@ class ROIManagerWidget(QWidget):
             return
         mean = np.asarray(stats["mean"])
         std = np.asarray(stats["std"])
-        wavelengths = VardaPlotWidget.getPlottableWavelengths(self._image, len(mean))
+        wavelengths = self._plotWidget.xValuesFor(self._image, len(mean))
         roi = self._collection.getROI(fid)
 
         fillColor = roi.color.toQColor()

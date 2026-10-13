@@ -251,7 +251,7 @@ class IdentifyPanel(QWidget):
         self.refresh()
 
     def _rank(self, endmemberId: int) -> list[LibraryMatch]:
-        if self.model.prepared is None or self.model.wavelengths is None:
+        if self.model.prepared is None or self.model.wavelengthsNm is None:
             return []
         spectrum = self.model.endmemberSpectrum(endmemberId)
         window = (
@@ -260,7 +260,7 @@ class IdentifyPanel(QWidget):
             else None
         )
         return rankLibrary(
-            self.model.wavelengths, spectrum, self.library(), wavelengthRange=window
+            self.model.wavelengthsNm, spectrum, self.library(), wavelengthRange=window
         )
 
     def refresh(self) -> None:

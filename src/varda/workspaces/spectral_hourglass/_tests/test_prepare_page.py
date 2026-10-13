@@ -4,7 +4,7 @@ import pytest
 
 from synthetic_scene import WAVELENGTHS, syntheticScene
 from varda.workspaces.spectral_hourglass.hourglass_model import HourglassModel
-from varda.workspaces.spectral_hourglass.pipeline_panel import PreparePage, shortUnits
+from varda.workspaces.spectral_hourglass.pipeline_panel import PreparePage
 
 
 @pytest.fixture
@@ -15,11 +15,15 @@ def page(qtbot):
     return widget
 
 
-def test_short_units():
-    assert shortUnits("Nanometers") == "nm"
-    assert shortUnits("Micrometers") == "µm"
-    assert shortUnits("nm") == "nm"
-    assert shortUnits("") == ""
+def test_a_micrometre_image_keeps_its_own_unit_on_the_slider(qtbot):
+    image, _ = syntheticScene(units="µm")
+    widget = PreparePage(HourglassModel(image), run=lambda settings=None: None)
+    qtbot.addWidget(widget)
+    lo, hi = widget.rangeSlider.value()
+    assert (lo, hi) == pytest.approx(
+        (WAVELENGTHS.min() / 1000, WAVELENGTHS.max() / 1000)
+    )
+    assert "µm" in widget.bandCountLabel.text()
 
 
 def test_the_slider_spans_the_image_and_starts_at_full_range(page):

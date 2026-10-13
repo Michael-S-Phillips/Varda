@@ -30,15 +30,6 @@ except ImportError as error:  # the optional "hypyrameter" extra is not installe
     HYPYRAMETER_AVAILABLE = False
 
 
-def toNanometres(wavelengths) -> np.ndarray:
-    """Wavelengths in nm; values below 10 are taken to be micrometres, as
-    HyPyRameter itself assumes."""
-    values = np.asarray(wavelengths, dtype=np.float64)
-    if values.size and np.nanmax(values) < 10.0:
-        return values * 1000.0
-    return values
-
-
 def parameterNames() -> list[str]:
     """HyPyRameter's spectral parameters, in its definition order."""
     return list(_require().PARAMETERS)
@@ -50,7 +41,7 @@ def parameterDescription(name: str) -> str:
 
 def validParameterNames(wavelengthsNm) -> list[str]:
     """The parameters an image with these wavelengths (nm) can support."""
-    return _require().valid_parameters(toNanometres(wavelengthsNm))
+    return _require().valid_parameters(np.asarray(wavelengthsNm, dtype=np.float64))
 
 
 def computeParameterCube(
@@ -68,7 +59,7 @@ def computeParameterCube(
 
     return _require().compute(
         np.asarray(cube, dtype=np.float64),
-        toNanometres(wavelengthsNm),
+        np.asarray(wavelengthsNm, dtype=np.float64),
         list(names),
         progress=progress,
     )

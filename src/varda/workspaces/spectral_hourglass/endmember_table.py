@@ -25,9 +25,17 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from varda.common.spectral_axis import SpectralUnit
 from varda.workspaces.spectral_hourglass.hourglass_model import HourglassModel
 
 _COLUMNS = ["", "Name", "Pixels", "Identified as"]
+
+# ASCII unit names for CSV column headers (read back by the library loader)
+EXPORT_UNIT_TOKENS = {
+    SpectralUnit.NANOMETRE: "nm",
+    SpectralUnit.MICROMETRE: "um",
+    SpectralUnit.WAVENUMBER: "cm-1",
+}
 
 
 class EndmemberTable(QWidget):
@@ -280,9 +288,14 @@ class EndmemberTable(QWidget):
             else np.arange(self.model.cube.shape[2]) + 1
         )
         spectra = [self.model.endmemberSpectrum(e.id) for e in endmembers]
-        header = ",".join(
-            ["wavelength", *[e.name.replace(",", " ") for e in endmembers]]
+        # The unit in the column name, so the file loads back as a library
+        unit = self.model.image.bandModel.unit
+        column = (
+            f"wavelength_{EXPORT_UNIT_TOKENS[unit]}"
+            if wavelengths is not None and unit is not None
+            else "band"
         )
+        header = ",".join([column, *[e.name.replace(",", " ") for e in endmembers]])
         np.savetxt(
             path,
             np.column_stack([x, *spectra]),

@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 import rasterio
 
+from varda.common.spectral_axis import BAND_METADATA_KEYS
 from varda.common.entities import VardaRaster
 from varda.utilities.proj_lock import PROJ_LOCK
 
@@ -48,6 +49,10 @@ def writeRaster(image: VardaRaster, path: str | Path) -> Path:
         data = data[:, :, np.newaxis]
     names = [str(name) for name in image.bandNames]
     wavelengths = [str(w) for w in image.wavelengths]
+    # Wavelengths only for spectra (and parameter images, whose reader needs
+    # the list); other products (slopes, classes, components) are named by
+    # their band names alone
+    writeAxis = image.bandModel.isSpectral or image.dataSource.isParameterImage
     displayBands = [str(int(b) + 1) for b in image.defaultBands]  # ENVI is 1-based
 
     with PROJ_LOCK:  # PROJ is not thread-safe; writing usually runs in a worker
@@ -70,20 +75,30 @@ def writeRaster(image: VardaRaster, path: str | Path) -> Path:
         for i, name in enumerate(names, start=1):
             dst.set_band_description(i, name)
         if driver == "ENVI":
-            dst.update_tags(
-                ns="ENVI",
-                wavelength=_enviList(wavelengths),
-                wavelength_units=image.wavelengthUnits,
-                band_names=_enviList(names),
-                default_bands=_enviList(displayBands),
-                description=image.dataSource.description,
-            )
+            tags = {
+                "band_names": _enviList(names),
+                "default_bands": _enviList(displayBands),
+                "description": image.dataSource.description,
+            }
+            if writeAxis:
+                tags["wavelength"] = _enviList(wavelengths)
+                tags["wavelength_units"] = image.wavelengthUnits
+            # FWHM, bad bands and the scale factor, as read (in the file's units)
+            for key in BAND_METADATA_KEYS:
+                value = image.extraMetadata.get(key)
+                if value is not None:
+                    tags[key] = (
+                        value
+                        if isinstance(value, str)
+                        else _enviList([str(v) for v in value])
+                    )
+            dst.update_tags(ns="ENVI", **tags)
         else:
-            dst.update_tags(
-                wavelength=", ".join(wavelengths),
-                wavelength_units=image.wavelengthUnits,
-                description=image.dataSource.description,
-            )
+            tags = {"description": image.dataSource.description}
+            if writeAxis:
+                tags["wavelength"] = ", ".join(wavelengths)
+                tags["wavelength_units"] = image.wavelengthUnits
+            dst.update_tags(**tags)
             for i, name in enumerate(names, start=1):
                 dst.update_tags(i, name=name)
     return target
