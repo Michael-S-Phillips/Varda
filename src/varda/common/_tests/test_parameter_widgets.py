@@ -20,7 +20,9 @@ class _Settings(ParameterGroup):
 
 
 def test_the_registry_picks_the_widget_for_the_parameter_type(qapp):
-    assert isinstance(parameterWidget(FloatParameter("Scale", 1.0)), FloatParameterWidget)
+    assert isinstance(
+        parameterWidget(FloatParameter("Scale", 1.0)), FloatParameterWidget
+    )
 
 
 def test_a_group_widget_edits_the_groups_parameters(qapp):
