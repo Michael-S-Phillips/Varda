@@ -9,6 +9,12 @@ from varda.analysis.classification import (
     VitClassificationAnalysis,
 )
 from varda.analysis.continuum import ContinuumRemovalAnalysis
+from varda.analysis.detection import (
+    AceAnalysis,
+    LocalRxAnalysis,
+    MatchedFilterAnalysis,
+    RxAnalysis,
+)
 from varda.analysis.derivatives import (
     SpatialGradientAnalysis,
     SpectralDerivativeAnalysis,
@@ -51,6 +57,10 @@ ANALYSES: list[type[Analysis]] = [
     SamMappingAnalysis,
     UnmixingAnalysis,
     MtmfAnalysis,
+    RxAnalysis,
+    LocalRxAnalysis,
+    AceAnalysis,
+    MatchedFilterAnalysis,
 ]
 
 
