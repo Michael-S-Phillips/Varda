@@ -26,6 +26,7 @@ import attrs
 import numpy as np
 import spectral.io.envi as envi
 
+from varda.analysis import _spy
 from varda.common.spectral_axis import nanometresFrom, parseUnit, unitInText
 from varda.plotting.library_spectra import (
     DEFAULT_LIBRARY_PATH,
@@ -179,15 +180,43 @@ def loadLibrary(path: str | Path) -> list[LibrarySpectrum]:
 # --- comparison ------------------------------------------------------------------
 
 
-def resampleTo(spectrum: LibrarySpectrum, wavelengthsNm: np.ndarray) -> np.ndarray:
-    """The library spectrum linearly interpolated at ``wavelengthsNm``; NaN
-    outside its range. Library wavelengths are stored in nm when loaded."""
+def resampleTo(
+    spectrum: LibrarySpectrum,
+    wavelengthsNm: np.ndarray,
+    fwhmNm: np.ndarray | None = None,
+) -> np.ndarray:
+    """The library spectrum at the image's bands; NaN outside its range.
+
+    With the bands' FWHM (``bandModel.fwhm``), each band is the library
+    weighted by a Gaussian band response (SPy's resampling matrix), so a
+    narrow feature is diluted as a wide band would see it; gaps in the
+    library are left out of each band's average. Without it, the library is
+    linearly interpolated at the band centres. Library wavelengths are in nm.
+    """
     x = np.asarray(spectrum.wavelengths, dtype=np.float64)
     y = np.asarray(spectrum.reflectance, dtype=np.float64)
-    keep = np.isfinite(x) & np.isfinite(y)
-    x, y = x[keep], y[keep]
     order = np.argsort(x)
-    return np.interp(wavelengthsNm, x[order], y[order], left=np.nan, right=np.nan)
+    x, y = x[order], y[order]
+    targets = np.asarray(wavelengthsNm, dtype=np.float64)
+    if fwhmNm is None:
+        keep = np.isfinite(x) & np.isfinite(y)
+        return np.interp(targets, x[keep], y[keep], left=np.nan, right=np.nan)
+    keepX = np.isfinite(x)
+    x, y = x[keepX], y[keepX]
+    librarySpacing = np.gradient(x) if x.size > 1 else np.ones_like(x)
+    matrix = _spy.resamplingMatrix(
+        x, librarySpacing, targets, np.asarray(fwhmNm, float)
+    )
+    matrix = np.nan_to_num(matrix)
+    finite = np.isfinite(y)
+    weight = matrix @ finite.astype(np.float64)
+    total = matrix.sum(axis=1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        values = (matrix @ np.where(finite, y, 0.0)) / weight
+    covered = (
+        (total > 0) & (weight > 0.5 * total) & (targets >= x[0]) & (targets <= x[-1])
+    )
+    return np.where(covered, values, np.nan)
 
 
 def continuumRemoved(wavelengths: np.ndarray, spectrum: np.ndarray) -> np.ndarray:
@@ -257,11 +286,13 @@ def rankLibrary(
     *,
     weights: dict[str, float] | None = None,
     wavelengthRange: tuple[float, float] | None = None,
+    fwhm: np.ndarray | None = None,
 ) -> list[LibraryMatch]:
     """Library spectra ranked by weighted similarity to ``spectrum`` (best
     first). Comparison uses the bands both cover, within ``wavelengthRange``
     (nm) if given; spectra overlapping fewer than five bands are skipped.
-    ``wavelengths`` are the unknown's band centres in nm (``bandModel.centers``)."""
+    ``wavelengths`` are the unknown's band centres in nm (``bandModel.centers``);
+    with their FWHM (nm) the library is resampled through each band's response."""
     weights = DEFAULT_WEIGHTS if weights is None else weights
     total = sum(weights.values()) or 1.0
     x = np.asarray(wavelengths, dtype=np.float64)
@@ -271,7 +302,7 @@ def rankLibrary(
         inRange &= (x >= wavelengthRange[0]) & (x <= wavelengthRange[1])
     matches = []
     for entry in library:
-        reference = resampleTo(entry, x)
+        reference = resampleTo(entry, x, fwhm)
         use = inRange & np.isfinite(reference)
         if np.count_nonzero(use) < 5:
             continue

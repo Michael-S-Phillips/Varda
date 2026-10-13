@@ -260,7 +260,11 @@ class IdentifyPanel(QWidget):
             else None
         )
         return rankLibrary(
-            self.model.wavelengthsNm, spectrum, self.library(), wavelengthRange=window
+            self.model.wavelengthsNm,
+            spectrum,
+            self.library(),
+            wavelengthRange=window,
+            fwhm=self.model.fwhmNm,
         )
 
     def refresh(self) -> None:
