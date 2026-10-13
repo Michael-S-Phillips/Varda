@@ -36,7 +36,7 @@ class VardaApplication(Application):
         super().__init__("varda")
         self.pluginManager = VardaPluginManager()
         self.maingui: MainGUI | None = None
-        self.autosaver: SessionAutosaver | None = None  # set up in main.initVarda
+        self.autosaver: SessionAutosaver | None = None  # set up in startup.createVarda
         self.images = ProjectImages()
 
         # the lambdas defer resolution till later, since self.maingui isn't assigned right away

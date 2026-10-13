@@ -25,7 +25,9 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QSizePolicy,
     QScrollArea,
+    QApplication,
 )
+from PyQt6.QtGui import QColor, QPalette
 import PyQt6Ads as ads
 
 
@@ -533,3 +535,45 @@ class VardaDockWidget(ads.CDockWidget):
     def withWidget(self, widget: QWidget) -> VardaDockWidget:
         self.setWidget(widget)
         return self
+
+
+MUTED_TEXT_WEIGHT = 0.65  # share of the normal text colour in muted text
+
+
+def mutedTextColor(palette: QPalette) -> QColor:
+    """Secondary text: the text colour blended towards the window colour, so
+    it reads as quieter than normal text but stays legible on light and dark
+    themes (unlike palette(mid), which is near the background in macOS dark
+    mode)."""
+    text = palette.color(QPalette.ColorRole.WindowText)
+    window = palette.color(QPalette.ColorRole.Window)
+    w = MUTED_TEXT_WEIGHT
+    return QColor.fromRgbF(
+        w * text.redF() + (1 - w) * window.redF(),
+        w * text.greenF() + (1 - w) * window.greenF(),
+        w * text.blueF() + (1 - w) * window.blueF(),
+    )
+
+
+class MutedLabel(QLabel):
+    """A label for hints and descriptions, in ``mutedTextColor``; it follows
+    the system switching between light and dark mode."""
+
+    def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(text, parent)
+        self._applyColor()
+
+    def changeEvent(self, a0: QEvent | None) -> None:
+        super().changeEvent(a0)
+        if a0 is not None and a0.type() in (
+            QEvent.Type.PaletteChange,
+            QEvent.Type.ApplicationPaletteChange,
+        ):
+            self._applyColor()
+
+    def _applyColor(self) -> None:
+        color = mutedTextColor(QApplication.palette())
+        palette = self.palette()
+        if palette.color(QPalette.ColorRole.WindowText) != color:  # no loop
+            palette.setColor(QPalette.ColorRole.WindowText, color)
+            self.setPalette(palette)

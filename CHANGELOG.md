@@ -95,6 +95,9 @@ can alter results.
 
 ### Fixed
 
+- The splash appears as soon as Varda starts and animates while it loads; it
+  used to flash up only once loading had finished.
+- Hints and analysis descriptions were too dark to read in dark mode.
 - ENVI files open whatever their data file is called: `.img`, `.dat`, `.raw`,
   `.bin`, `.bsq`/`.bil`/`.bip`, no extension, upper case, or `foo.img.hdr`.
   Opening the data file directly also works when its header sits beside it,

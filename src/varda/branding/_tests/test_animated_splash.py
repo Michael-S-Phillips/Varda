@@ -1,5 +1,7 @@
 """The splash never holds the main window back by more than a second."""
 
+import time
+
 import pytest
 from PyQt6.QtWidgets import QWidget
 
@@ -81,3 +83,14 @@ def test_static_splash_pixmap_is_hidpi_sized(qtbot):
     assert pixmap.width() == round(640 * ratio) and pixmap.height() == round(
         360 * ratio
     )
+
+
+def test_the_splash_appears_at_once(qtbot):
+    """QSplashScreen.show() waited up to a second for the window system;
+    the splash is the first thing on screen, so it must not."""
+    splash = createSplash()
+    qtbot.addWidget(splash)
+    started = time.perf_counter()
+    splash.show()
+    assert time.perf_counter() - started < 0.3
+    assert splash.isVisible()

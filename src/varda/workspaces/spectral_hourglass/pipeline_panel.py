@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 
 from superqt import QLabeledDoubleRangeSlider
 
+from varda.common.ui import MutedLabel
 from varda.analysis.eigenvalue_plot import EigenvaluePlot
 from varda.analysis.unmixing import Constraint
 from varda.common.parameter import IntParameter
@@ -48,9 +49,8 @@ _MARKS = {StepState.NOT_RUN: "○", StepState.DONE: "✓", StepState.STALE: "⚠
 
 
 def _hint(text: str) -> QLabel:
-    label = QLabel(text)
+    label = MutedLabel(text)
     label.setWordWrap(True)
-    label.setStyleSheet("color: palette(mid);")
     return label
 
 

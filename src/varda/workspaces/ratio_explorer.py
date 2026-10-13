@@ -16,12 +16,11 @@ import numpy as np
 from psygnal import SignalInstance
 from PyQt6.QtCore import QObject, QPointF
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QLabel
 from shapely.geometry import Polygon
 
 from varda.common.entities import Color, ROIMode, VardaRaster
 from varda.common.parameter import IntParameter, ParameterGroup
-from varda.common.ui import ButtonBuilder, SectionBox, VBoxBuilder
+from varda.common.ui import ButtonBuilder, SectionBox, VBoxBuilder, MutedLabel
 from varda.image_loading.crism_geometry import (
     computeColumnLockedTranslation,
     loadColumnGeometry,
@@ -162,11 +161,10 @@ class RatioExplorerController(QObject):
         self._lastMirror = None
 
     def createSidebarSection(self) -> SectionBox:
-        hint = QLabel(
+        hint = MutedLabel(
             "Ctrl/⌘+left-click: numerator · Ctrl/⌘+right-click: denominator · S: save"
         )
         hint.setWordWrap(True)
-        hint.setStyleSheet("color: palette(mid);")
         return SectionBox(
             "Ratio Explorer",
             VBoxBuilder()
