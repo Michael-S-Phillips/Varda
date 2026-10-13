@@ -74,6 +74,13 @@ can alter results.
 - The Hourglass endmember export names its wavelength unit, so it loads back
   as a library.
 
+### Deprecated
+
+- `VardaRaster.raster` (deprecated since 0.0.2) now says so with a
+  `VardaDeprecationWarning` naming its replacements: `getBands()`,
+  `getData()` or `getSpectrum()`. These read only what they need rather than
+  the whole image.
+
 ### Faster
 
 - **Very large images open quickly.** An image that would take more than a

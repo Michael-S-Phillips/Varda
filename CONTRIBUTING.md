@@ -32,6 +32,21 @@ Before opening a pull request:
 - Follow the conventions in [CLAUDE.md](CLAUDE.md): type hints (never
   `Any`), camelCase in Qt subclasses, no lazy imports.
 
+## Retiring an API
+
+Plugins build on Varda's classes, so don't remove a public function or
+property outright. Deprecate it first:
+
+```python
+from varda.common.deprecation import warnDeprecated
+
+warnDeprecated("oldName()", since="0.4.0", instead="newName()")
+```
+
+`since` is the version the deprecation first ships in. List it under
+*Deprecated* in the changelog, and remove it no sooner than the next minor
+release. Varda's own tests fail if Varda calls anything deprecated.
+
 ## License
 
 Varda is licensed under the [GNU GPL v3 or later](LICENSE). By contributing
