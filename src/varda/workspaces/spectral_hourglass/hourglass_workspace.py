@@ -9,6 +9,8 @@ rings its point; picking a library match overlays it on the endmember.
 
 from __future__ import annotations
 
+from collections.abc import MutableSequence
+
 import json
 from pathlib import Path
 
@@ -32,7 +34,6 @@ from PyQt6.QtWidgets import (
 from varda.analysis.linear_algebra import unflatten
 from varda.analysis.spectral_library import LibrarySpectrum, resampleTo
 from varda.branding.loader import RedrawSpinner
-from varda.common.di_types import ProjectImages
 from varda.common.entities import Color, VardaRaster
 from varda.common.ui import VardaDockWidget
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
@@ -64,7 +65,7 @@ class SpectralHourglassWorkspace(QMainWindow):
     def __init__(
         self,
         image: VardaRaster,
-        projectImages: ProjectImages | list[VardaRaster] | None = None,
+        projectImages: MutableSequence[VardaRaster] | None = None,
         *,
         library: list[LibrarySpectrum] | None = None,
         parent=None,

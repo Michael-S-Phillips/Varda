@@ -66,6 +66,21 @@ class ParameterGroup:
         return self.__class__()
 
 
+def copyValues(source: ParameterGroup, target: ParameterGroup) -> None:
+    """Give ``target`` the values of ``source``, a group of the same class
+    (nested groups included). ``target`` announces the change once."""
+    with target.sigParameterChanged.blocked():
+        for name, param in source.params.items():
+            other = target.params[name]
+            if isinstance(param, ParameterGroup):
+                assert isinstance(other, ParameterGroup)
+                copyValues(param, other)
+            else:
+                assert isinstance(other, Parameter)
+                other.copyFrom(param)
+    target.sigParameterChanged.emit(target)
+
+
 class Parameter[T]:
     sigParameterChanged = Signal(object)
 
@@ -84,6 +99,10 @@ class Parameter[T]:
 
     def resetToDefault(self) -> None:
         self.set(self.default)
+
+    def copyFrom(self, source: Parameter[T]) -> None:
+        """Take the value of ``source``, a parameter of the same kind."""
+        self.set(source.get())
 
     def clone(self) -> Parameter[T]:
         """
@@ -190,6 +209,10 @@ class Vec2Parameter(Parameter[Vec2]):
         self.valueNames = valueNames
         self.step = step
         self.decimals = decimals
+
+    def copyFrom(self, source: Parameter[Vec2]) -> None:
+        value = source.get()  # a copy: the widget edits its Vec2 in place
+        self.set(Vec2(value.x, value.y))
 
     def clone(self) -> Vec2Parameter:
         return Vec2Parameter(
@@ -320,6 +343,12 @@ class MultiChoiceParameter(Parameter[list[str]]):
         self.tooltips = dict(tooltips or {})
         self.sigChoicesChanged.emit(list(self.choices))
         self.set(self.choices if selected is None else selected)
+
+    def copyFrom(self, source: Parameter[list[str]]) -> None:
+        if isinstance(source, MultiChoiceParameter):
+            self.setChoices(source.choices, source.get(), source.tooltips)
+        else:
+            self.set(source.get())
 
     def selectAll(self) -> None:
         self.set(self.choices)

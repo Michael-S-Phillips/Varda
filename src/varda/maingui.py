@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING
 from PyQt6 import QtWidgets
 from PyQt6.QtCore import QMimeData, Qt, pyqtSignal
 from PyQt6.QtWidgets import QWidget
-from app_model.backends.qt import QModelMainWindow
+from app_model.backends.qt import QModelMainWindow, QModelMenu
+from PyQt6.QtCore import QPoint
 from varda.branding.title_mark import addTitleMarkBar
 from varda.common.ui import DetachableTabWidget
 from varda.all_images_view_list.imageview_list import ImageListWidget
@@ -27,6 +28,10 @@ def elidedTabTitle(title: str, maxChars: int = MAX_TAB_TITLE_CHARS) -> str:
         return title
     keep = (maxChars - 1) // 2
     return f"{title[:keep]}…{title[-keep:]}"
+
+
+# Right-click menu on a workspace's tab; actions add themselves to it
+WORKSPACE_TAB_MENU_ID = "varda/workspace_tab"
 
 
 class MainGUI(QModelMainWindow):
@@ -59,6 +64,11 @@ class MainGUI(QModelMainWindow):
         self.centralTabs.tabCloseRequested.connect(
             lambda index: self.closeWorkspace(self.centralTabs.widget(index))
         )
+        # Right-clicking a tab makes it current and offers Duplicate / Close
+        tabBar = self.centralTabs.tabBar()
+        if tabBar is not None:
+            tabBar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            tabBar.customContextMenuRequested.connect(self._showTabMenu)
         self.setCentralWidget(self.centralTabs)
         self._updateWorkspaceCount()
 
@@ -79,6 +89,14 @@ class MainGUI(QModelMainWindow):
         index = self.centralTabs.addTab(widget, elidedTabTitle(title))
         self.centralTabs.setTabToolTip(index, title)
         self._updateWorkspaceCount()
+
+    def _showTabMenu(self, pos: QPoint) -> None:
+        tabBar = self.centralTabs.tabBar()
+        index = tabBar.tabAt(pos) if tabBar is not None else -1
+        if tabBar is None or index < 0:
+            return
+        self.centralTabs.setCurrentIndex(index)
+        QModelMenu(WORKSPACE_TAB_MENU_ID, self.app).exec(tabBar.mapToGlobal(pos))
 
     def currentWorkspace(self) -> QWidget | None:
         return self.centralTabs.currentWidget()

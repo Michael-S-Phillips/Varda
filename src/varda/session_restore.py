@@ -12,18 +12,9 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
 from varda.image_loading import ImageLoadingService
-from varda.session import SessionState, WorkspaceState, roisFromJson
-from varda.workspaces.spectral_hourglass.hourglass_workspace import (
-    SpectralHourglassWorkspace,
-)
-from varda.workspaces.dual_image_workspace.dual_image_workspace import (
-    DualImageWorkspace,
-    DualImageWorkspaceConfig,
-)
-from varda.workspaces.general_image_analysis import (
-    GeneralImageAnalysisConfig,
-    GeneralImageAnalysisWorkflow,
-)
+from varda.rois.roi_json import roisFromJson
+from varda.session import SessionState
+from varda.workspaces.workspace_kinds import buildWorkspace
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +84,12 @@ class SessionRestorer(QObject):
             images = [self._byPath(path) for path in workspace.images]
             if any(image is None for image in images):
                 continue
-            widget = self._build(workspace, [image for image in images if image])
+            widget = buildWorkspace(
+                workspace.kind,
+                [image for image in images if image],
+                self._images,
+                workspace.extra,
+            )
             if widget is None:
                 continue
             rois = getattr(widget, "roiCollection", None)
@@ -104,20 +100,3 @@ class SessionRestorer(QObject):
         self.sigFinished.emit(
             RestoreReport(tuple(self._loaded), tuple(self._failed), count)
         )
-
-    def _build(self, workspace: WorkspaceState, images: list[VardaRaster]):
-        if workspace.kind == "general":
-            config = GeneralImageAnalysisConfig(self._images)
-            config.image.set(images[0])
-            return GeneralImageAnalysisWorkflow(config)
-        if workspace.kind == "dual" and len(images) == 2:
-            config = DualImageWorkspaceConfig(self._images)
-            config.image1Param.set(images[0])
-            config.image2Param.set(images[1])
-            return DualImageWorkspace(config)
-        if workspace.kind == "hourglass":
-            widget = SpectralHourglassWorkspace(images[0], self._images)
-            widget.restoreSessionState(workspace.extra)
-            return widget
-        logger.warning("Unknown workspace kind %r in session; skipped", workspace.kind)
-        return None
