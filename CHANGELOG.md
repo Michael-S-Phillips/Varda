@@ -33,6 +33,11 @@ can alter results.
 
 ### Added
 
+- **Band Math** (Processing → Spectral Parameters): expressions such as
+  `R2300 / R2200` (bands nearest 2300 and 2200 nm), `(b10 - b4) / (b10 + b4)`
+  or `where(b3 > 0.2, R2300, 0)`. References are checked before anything is
+  read, the result size is shown, large images are processed in chunks, and
+  expressions can be saved for reuse.
 - Images open in **true colour** when they cover the visible (bands nearest
   640, 550 and 470 nm), otherwise in a false colour spread over their range;
   a file's own default bands still win.

@@ -1,6 +1,7 @@
 """The analyses Varda offers."""
 
 from varda.analysis.analysis import Analysis
+from varda.analysis.band_math import BandMathAnalysis
 from varda.analysis.band_parameters import BandParametersAnalysis
 from varda.analysis.classification import (
     CnnClassificationAnalysis,
@@ -31,6 +32,7 @@ from varda.analysis.transforms import (
 # Menu order: categories appear in first-appearance order, entries in list order.
 ANALYSES: list[type[Analysis]] = [
     BandParametersAnalysis,
+    BandMathAnalysis,
     ContinuumRemovalAnalysis,
     IovfAnalysis,
     PcaAnalysis,
