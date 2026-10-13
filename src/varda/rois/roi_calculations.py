@@ -11,9 +11,6 @@ from __future__ import annotations
 
 import ast
 import math
-import operator
-import re
-import unicodedata
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
@@ -21,6 +18,13 @@ import numpy as np
 from pyproj import CRS
 from shapely.geometry import Polygon
 
+from varda.common.expressions import (
+    ExpressionError as ExpressionError,
+    evaluate,
+    identifier as identifier,
+    parse,
+    words,
+)
 from varda.common.entities import VardaRaster
 from varda.rois.roi_collection import ROICollection
 
@@ -61,17 +65,6 @@ FUNCTIONS: dict[str, Callable[..., float]] = {
     "round": round,
 }
 CONSTANTS = {"pi": math.pi, "e": math.e}
-_OPERATORS: dict[type, Callable] = {
-    ast.Add: operator.add,
-    ast.Sub: operator.sub,
-    ast.Mult: operator.mul,
-    ast.Div: operator.truediv,
-    ast.FloorDiv: operator.floordiv,
-    ast.Mod: operator.mod,
-    ast.Pow: operator.pow,
-    ast.USub: operator.neg,
-    ast.UAdd: operator.pos,
-}
 
 
 @dataclass(frozen=True)
@@ -94,87 +87,24 @@ class Expression:
 Calculation = GeometryMeasure | ZonalStatistic | Expression
 
 
-class ExpressionError(ValueError):
-    pass
-
-
-def _words(text: str) -> str:
-    """Spaces and symbols become ``_``; NFKC-normalised as Python normalises
-    identifiers (e.g. the micro sign µ becomes Greek μ)."""
-    return re.sub(r"\W+", "_", unicodedata.normalize("NFKC", text)).strip("_")
-
-
-def identifier(column: str) -> str:
-    """How a column is named in expressions."""
-    name = _words(column)
-    return f"_{name}" if name[:1].isdigit() else name
-
-
 def expressionVariables(collection: ROICollection) -> dict[str, str]:
     """Expression name -> column, for every user column."""
     return {identifier(c): c for c in collection.userColumns}
 
 
 def parseExpression(text: str, variables: set[str]) -> ast.Expression:
-    """Parse and check an expression; raises ExpressionError with the reason."""
-    try:
-        tree = ast.parse(text.strip(), mode="eval")
-    except SyntaxError as error:
-        raise ExpressionError(f"syntax error: {error.msg}") from error
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            name = node.func.id if isinstance(node.func, ast.Name) else "this call"
-            if name not in FUNCTIONS or node.keywords:
-                raise ExpressionError(f"function {name} is not allowed")
-        elif isinstance(node, ast.Name):
-            if (
-                node.id not in variables
-                and node.id not in FUNCTIONS
-                and node.id not in CONSTANTS
-            ):
-                raise ExpressionError(f"unknown column '{node.id}'")
-        elif isinstance(node, ast.Constant):
-            if not isinstance(node.value, int | float):
-                raise ExpressionError("only numbers are allowed")
-        elif not isinstance(
-            node,
-            ast.Expression
-            | ast.BinOp
-            | ast.UnaryOp
-            | ast.Load
-            | ast.operator
-            | ast.unaryop,
-        ):
-            raise ExpressionError(f"{type(node).__name__} is not allowed")
-        if (
-            isinstance(node, ast.BinOp | ast.UnaryOp)
-            and type(node.op) not in _OPERATORS
-        ):
-            raise ExpressionError(f"{type(node.op).__name__} is not allowed")
-    return tree
+    """Parse and check a column expression; raises ExpressionError with the reason."""
+    return parse(
+        text,
+        variables.__contains__,
+        FUNCTIONS,
+        CONSTANTS,
+        unknownName="unknown column '{}'",
+    )
 
 
-def _evaluate(node: ast.AST, values: dict[str, float]) -> float:
-    if isinstance(node, ast.Expression):
-        return _evaluate(node.body, values)
-    if isinstance(node, ast.Constant):
-        value = node.value
-        assert isinstance(value, int | float)  # parseExpression allows only numbers
-        return float(value)
-    if isinstance(node, ast.Name):
-        return values[node.id] if node.id in values else CONSTANTS[node.id]
-    if isinstance(node, ast.BinOp):
-        return _OPERATORS[type(node.op)](
-            _evaluate(node.left, values), _evaluate(node.right, values)
-        )
-    if isinstance(node, ast.UnaryOp):
-        return _OPERATORS[type(node.op)](_evaluate(node.operand, values))
-    if isinstance(node, ast.Call):
-        assert isinstance(node.func, ast.Name)
-        return float(
-            FUNCTIONS[node.func.id](*[_evaluate(a, values) for a in node.args])
-        )
-    raise ExpressionError(f"{type(node).__name__} is not allowed")
+def _evaluate(tree: ast.AST, values: dict[str, float]) -> float:
+    return float(evaluate(tree, values, FUNCTIONS, CONSTANTS))
 
 
 def _number(value) -> float:
@@ -203,7 +133,7 @@ def suggestName(calculation: Calculation, units: str | None = None) -> str:
             return f"{short}_m2" if calculation.kind == "area_map" else f"{short}_m"
         return short
     if isinstance(calculation, ZonalStatistic):
-        band = _words(str(calculation.image.bandNames[calculation.band])).lower()
+        band = words(str(calculation.image.bandNames[calculation.band])).lower()
         return f"{calculation.statistic}_{band[:20]}"
     return "calc"
 
