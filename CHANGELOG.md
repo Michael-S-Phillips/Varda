@@ -105,6 +105,7 @@ can alter results.
 - Integer ENVI files with a `data ignore value` failed to load.
 - The Spectral Hourglass library preview was blank for µm images.
 - User plugins in `plugins/user_plugins/` never loaded.
+- Closing an image that had been loaded into memory left its file open.
 - Saved plot curves kept their colour but lost its transparency.
 - Settings changed after a dialog or panel closed could still reach its
   widgets.

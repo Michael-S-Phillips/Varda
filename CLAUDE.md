@@ -19,7 +19,7 @@ When using Astral tools (uv, ty, ruff), invoke the relevant /astral:<skill> to e
 - **Run one test file / test:** `uv run pytest src/varda/image_rendering/_tests/test_foo.py` or `... -k "test_name"`. Tests are colocated in `_tests/` folders as `test_*.py`.
 - **Format:** `uv run ruff format` — **Lint:** `uv run ruff check` (add `--fix` to autofix)
 - **Type check:** `uv run ty check`
-- **Build standalone bundle:** `uv run pyinstaller Varda.spec`
+- **Build standalone bundle:** `uv run pyinstaller Varda.spec`; check it with `dist/Varda/Varda --self-test` (`self_test.py`; release builds run it on every platform)
 
 Requires Python 3.13. GUI tests use `pytest-qt`.
 ## Architecture

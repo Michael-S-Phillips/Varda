@@ -85,7 +85,7 @@ class InMemoryDataSource(DelegatingDataSource):
     # --- Lifecycle ---
 
     def close(self) -> None:
-        pass  # Nothing to close for in-memory data
+        self._source.close()  # the file stays open for metadata until now
 
     def __repr__(self) -> str:
         return f"InMemoryDataSource({self.width}x{self.height}x{self.bandCount}, dtype={self.dtype})"
