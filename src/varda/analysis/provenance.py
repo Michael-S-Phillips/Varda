@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from enum import Enum
 
 import numpy as np
-from PyQt6.QtGui import QColor
 
 from varda.analysis.analysis import Analysis
 from varda.common.entities import VardaRaster
@@ -24,7 +23,7 @@ def _plain(value):
         return value.name
     if isinstance(value, VardaRaster):
         return value.name
-    if isinstance(value, QColor):
+    if callable(getattr(value, "name", None)):  # e.g. a QColor: its hex name
         return value.name()
     if isinstance(value, np.ndarray):
         return value.tolist()

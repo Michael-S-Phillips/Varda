@@ -57,6 +57,7 @@ ml = [
 
 [dependency-groups]
 dev = [
+    "import-linter>=2.15",
     "mypy>=1.18.2",
     "pyinstaller>=6.16.0",
     "pytest>=8.4.2",
@@ -79,3 +80,49 @@ pythonpath = ["varda"]
 
 [tool.mypy]
 disable_error_code = ["import-untyped"]
+
+[tool.importlinter]
+root_package = "varda"
+include_external_packages = true
+
+# Logic stays testable without a GUI: these modules may not reach PyQt6,
+# directly or through other modules. External packages are single nodes.
+# ignore_imports is today's allowlist of known exceptions (study item D4);
+# shrink it, never grow it.
+[[tool.importlinter.contracts]]
+name = "Logic modules don't use Qt"
+type = "forbidden"
+source_modules = [
+    "varda.image_loading.data_sources",
+    "varda.analysis",
+    "varda.rois.roi_collection",
+    "varda.rois.roi_calculations",
+    "varda.rois.roi_drawing_state",
+    "varda.points.point_collection",
+    "varda.workspaces.spectral_hourglass.hourglass_model",
+    "varda.common.spectral_axis",
+    "varda.common.expressions",
+    "varda.common.grid",
+    "varda.common.provenance",
+]
+forbidden_modules = ["PyQt6"]
+ignore_imports = [
+    # Color.toQColor / fromQColor in the shared entities
+    "varda.common.entities -> PyQt6",
+    # Parameters are QObjects that build their own widgets (to be split)
+    "varda.common.parameter -> PyQt6",
+    "varda.common.parameter -> varda.common.ui",
+    "varda.common.parameter -> varda.utilities.debug",
+    # Analysis is a ParameterGroup (a QObject) and may offer a preview widget
+    "varda.analysis.analysis -> PyQt6",
+    # The PyTorch runtime finds its folder with QStandardPaths
+    "varda.optional_features.torch_runtime -> PyQt6",
+    # GUI that lives in the analysis package: the run dialog, the runner,
+    # the eigenvalue plot, and createPreviewWidget helpers
+    "varda.analysis.dialog -> **",
+    "varda.analysis.runner -> **",
+    "varda.analysis.eigenvalue_dialog -> **",
+    "varda.analysis.eigenvalue_plot -> **",
+    "varda.analysis.transforms -> PyQt6",
+    "varda.analysis.band_math -> PyQt6",
+]
