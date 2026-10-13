@@ -18,6 +18,7 @@ from pathlib import Path
 from PyQt6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, QTimer
 from PyQt6.QtGui import (
     QBrush,
+    QCursor,
     QColor,
     QGuiApplication,
     QLinearGradient,
@@ -26,6 +27,7 @@ from PyQt6.QtGui import (
     QPaintEvent,
     QPen,
     QPixmap,
+    QScreen,
 )
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QApplication, QWidget
@@ -251,8 +253,14 @@ def paintSplash(
 # --- the splash screen ---------------------------------------------------------------
 
 
+def splashScreen() -> QScreen | None:
+    """The display with the mouse on it, the one being looked at (as
+    QSplashScreen chose); the primary display if that's unknown."""
+    return QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
+
+
 def _devicePixelRatio() -> float:
-    screen = QGuiApplication.primaryScreen()
+    screen = splashScreen()
     return screen.devicePixelRatio() if screen is not None else 1.0
 
 
@@ -289,9 +297,14 @@ class SplashWindow(QWidget):
             | Qt.WindowType.WindowStaysOnTopHint,
         )
         self._pixmap = pixmap
+        # macOS hides splash (tool) windows while their app is in the
+        # background, and an app launched from a terminal stays there until
+        # its main window opens: without this the splash only flashed up then
+        self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow)
         self.setFixedSize(*LOGICAL_SIZE)
-        screen = QGuiApplication.primaryScreen()
+        screen = splashScreen()
         if screen is not None:
+            self.setScreen(screen)
             frame = self.frameGeometry()
             frame.moveCenter(screen.availableGeometry().center())
             self.move(frame.topLeft())
