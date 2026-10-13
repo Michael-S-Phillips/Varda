@@ -6,6 +6,7 @@ import pytest
 from varda.analysis.linear_algebra import (
     fastIca,
     flattenValid,
+    NoiseEstimate,
     noiseCovariance,
     pca,
     mnf,
@@ -101,3 +102,39 @@ def test_fastica_recovers_independent_non_gaussian_sources():
 def test_pca_requires_at_least_as_many_samples_as_components():
     with pytest.raises(ValueError):
         pca(np.zeros((2, 5)), components=5)
+
+
+def _stripedNoise(rows=40, cols=50, bands=5, seed=0):
+    """Noise only along rows: vertical neighbours differ, horizontal don't."""
+    rng = np.random.default_rng(seed)
+    rowNoise = rng.normal(size=(rows, 1, bands))
+    return np.broadcast_to(rowNoise, (rows, cols, bands)).copy(), np.ones(
+        (rows, cols), bool
+    )
+
+
+def test_noise_can_be_estimated_along_any_direction():
+    cube, valid = _stripedNoise()
+    horizontal = noiseCovariance(cube, valid, NoiseEstimate.HORIZONTAL)
+    vertical = noiseCovariance(cube, valid, NoiseEstimate.VERTICAL)
+    diagonal = noiseCovariance(cube, valid, NoiseEstimate.DIAGONAL)
+    averaged = noiseCovariance(cube, valid, NoiseEstimate.AVERAGED)
+    assert np.trace(horizontal) < 1e-12  # rows are constant left to right
+    assert np.trace(vertical) > 0.5 and np.trace(diagonal) > 0.5
+    np.testing.assert_allclose(np.trace(averaged), np.trace(vertical) / 2, rtol=0.05)
+
+
+def test_noise_from_a_homogeneous_region_is_its_covariance():
+    rng = np.random.default_rng(3)
+    cube = rng.normal(size=(20, 20, 4))
+    valid = np.ones((20, 20), bool)
+    region = np.zeros((20, 20), bool)
+    region[5:15, 5:15] = True
+    expected = np.cov(cube[region].T)
+    np.testing.assert_allclose(
+        noiseCovariance(cube, valid, NoiseEstimate.HOMOGENEOUS_REGION, region=region),
+        expected,
+        rtol=0.02,
+    )
+    with pytest.raises(ValueError, match="region"):
+        noiseCovariance(cube, valid, NoiseEstimate.HOMOGENEOUS_REGION)

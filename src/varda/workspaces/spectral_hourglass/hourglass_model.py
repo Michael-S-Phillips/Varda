@@ -133,6 +133,7 @@ class PreparedData:
     wavelengths: np.ndarray | None  # band centres in the image's own unit, or None
     bandIndices: np.ndarray  # indices of the kept bands in the source image
     wavelengthsNm: np.ndarray | None = None  # the same centres in nm (for libraries)
+    fwhmNm: np.ndarray | None = None  # their FWHM in nm, when the header gives it
 
 
 @attrs.frozen
@@ -205,6 +206,11 @@ class HourglassModel:
         return self._require(self.prepared, Step.PREPARE).wavelengths
 
     @property
+    def fwhmNm(self) -> np.ndarray | None:
+        """Kept bands' FWHM in nm, or None."""
+        return self._require(self.prepared, Step.PREPARE).fwhmNm
+
+    @property
     def wavelengthsNm(self) -> np.ndarray | None:
         """Kept band centres in nm, for comparing with spectral libraries."""
         return self._require(self.prepared, Step.PREPARE).wavelengthsNm
@@ -243,6 +249,7 @@ class HourglassModel:
                 wavelengths=None if numeric is None else numeric[indices],
                 bandIndices=indices,
                 wavelengthsNm=None if nm is None else nm[indices],
+                fwhmNm=None if bands.fwhm is None else bands.fwhm[indices],
             )
 
         return task

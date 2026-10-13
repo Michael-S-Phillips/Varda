@@ -1610,7 +1610,7 @@ requires-dist = [
     { name = "rasterio", specifier = ">=1.4.0" },
     { name = "scikit-image", specifier = ">=0.21.0" },
     { name = "scipy", specifier = ">=1.15.1" },
-    { name = "spectral", specifier = ">=0.23.1" },
+    { name = "spectral", specifier = ">=0.24,<0.26" },
     { name = "superqt", specifier = ">=0.8.0" },
     { name = "torch", marker = "extra == 'ml'", specifier = ">=2.4" },
 ]

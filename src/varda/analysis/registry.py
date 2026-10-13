@@ -9,6 +9,12 @@ from varda.analysis.classification import (
     VitClassificationAnalysis,
 )
 from varda.analysis.continuum import ContinuumRemovalAnalysis
+from varda.analysis.detection import (
+    AceAnalysis,
+    LocalRxAnalysis,
+    MatchedFilterAnalysis,
+    RxAnalysis,
+)
 from varda.analysis.derivatives import (
     SpatialGradientAnalysis,
     SpectralDerivativeAnalysis,
@@ -20,6 +26,11 @@ from varda.analysis.mapping import (
     PixelPurityAnalysis,
     SamMappingAnalysis,
     UnmixingAnalysis,
+)
+from varda.analysis.statistical_classifiers import (
+    KMeansAnalysis,
+    MahalanobisAnalysis,
+    MaximumLikelihoodAnalysis,
 )
 from varda.analysis.statistics import SpatialEntropyAnalysis, SpectralEntropyAnalysis
 from varda.analysis.transforms import (
@@ -47,10 +58,17 @@ ANALYSES: list[type[Analysis]] = [
     MlpClassificationAnalysis,
     CnnClassificationAnalysis,
     VitClassificationAnalysis,
+    MaximumLikelihoodAnalysis,
+    MahalanobisAnalysis,
+    KMeansAnalysis,
     PixelPurityAnalysis,
     SamMappingAnalysis,
     UnmixingAnalysis,
     MtmfAnalysis,
+    RxAnalysis,
+    LocalRxAnalysis,
+    AceAnalysis,
+    MatchedFilterAnalysis,
 ]
 
 

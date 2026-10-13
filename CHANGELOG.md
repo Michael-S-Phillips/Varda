@@ -33,6 +33,16 @@ can alter results.
 
 ### Added
 
+- **Target Detection** (new Processing submenu): RX anomaly (global and
+  local window), ACE and matched filter, the last two targeting the mean
+  spectrum of ROI classes.
+- **Classifiers**: Gaussian maximum likelihood and Mahalanobis distance
+  (trained on ROI classes; small classes are handled by reducing to principal
+  components instead of being dropped) and k-means clustering.
+- **MNF noise estimate** can use vertical, diagonal or averaged neighbour
+  differences, or a homogeneous ROI class (horizontal stays the default).
+- Library spectra are resampled through each band's response when the image
+  header gives band widths (FWHM), instead of being sampled at band centres.
 - **Band Math** (Processing → Spectral Parameters): expressions such as
   `R2300 / R2200` (bands nearest 2300 and 2200 nm), `(b10 - b4) / (b10 + b4)`
   or `where(b3 > 0.2, R2300, 0)`. References are checked before anything is

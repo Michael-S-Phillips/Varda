@@ -15,7 +15,7 @@ dependencies = [
     "PyQt6>=6.7.1", # ; sys_platform != 'linux' -- old modification so linux users could use system pyqt6 install. but it's hard to get it to work
     "numpy>=2.1.1",
     "matplotlib>=3.9.2",
-    "spectral>=0.23.1",
+    "spectral>=0.24,<0.26",  # used only through analysis/_spy.py
     "rasterio>=1.4.0",
     "scikit-image>=0.21.0",
     "pyqtgraph>=0.13.7",
