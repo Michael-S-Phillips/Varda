@@ -145,7 +145,7 @@ class MnfAnalysis(_ComponentAnalysis):
     name = "Minimum Noise Fraction (MNF)"
     description = (
         "Like PCA but ordered by signal-to-noise: the noise covariance is "
-        "estimated from differences between neighbouring pixels and whitened "
+        "estimated from differences between neighboring pixels and whitened "
         "away first, so the leading components hold coherent scene structure."
     )
     suffix = "MNF"
@@ -155,7 +155,7 @@ class MnfAnalysis(_ComponentAnalysis):
         NoiseEstimate,
         NoiseEstimate.HORIZONTAL,
         description=(
-            "Neighbour differences along a direction (match the sensor's noise, "
+            "Neighbor differences along a direction (match the sensor's noise, "
             "e.g. vertical for along-track striping), or the spread within a "
             "homogeneous ROI class"
         ),

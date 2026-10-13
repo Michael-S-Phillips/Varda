@@ -19,7 +19,7 @@ class SpectralDerivativeAnalysis(Analysis):
     description = (
         "Derivative of each spectrum with respect to wavelength, band by band "
         "(or the second derivative): highlights absorption edges and band "
-        "centres. Without numeric wavelengths, band index is the x axis."
+        "centers. Without numeric wavelengths, band index is the x axis."
     )
 
     order = IntParameter("Order", 1, range=(1, 2), description="1 = dR/dλ, 2 = d²R/dλ²")

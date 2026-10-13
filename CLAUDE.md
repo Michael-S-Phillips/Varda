@@ -65,6 +65,7 @@ The design goals of Varda are similar to **ENVI Classic**, and **Napari**. Consi
 
 ## Code Style and Conventions
 
+- **American English** in all prose: docs, the changelog, UI text, comments and docstrings (color, center, gray, analyze, normalize, canceled). Data values that must match external tools stay as they are (e.g. PROJ's unit name "metre").
 - **Use type hints** as much as possible. but NEVER USE "Any" as a type. If you cannot provide a type hint for some reason then don't put anything.
 - **Avoid Lazy Importing**, as it worsens readability.
 - **Variable/Function Naming:** When subclassing classes from Qt, use camelCase for variables and functions. Modules that are completely independent of Qt may use snake_case.

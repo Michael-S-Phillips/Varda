@@ -78,7 +78,7 @@ class ArrayDataSource(DataSource):
         self._extraMetadata = extraMetadata if extraMetadata is not None else {}
         self._description = description
 
-        # None given: true/false colour from the wavelengths, else bands 1-3
+        # None given: true/false color from the wavelengths, else bands 1-3
         self._defaultBands = (
             defaultBands
             if defaultBands is not None

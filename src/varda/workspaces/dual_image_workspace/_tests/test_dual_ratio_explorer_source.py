@@ -1,4 +1,4 @@
-"""The Ratio Explorer honours the dual workspace's Spectrum Source like Pixel Select."""
+"""The Ratio Explorer honors the dual workspace's Spectrum Source like Pixel Select."""
 
 import numpy as np
 from PyQt6.QtCore import QPointF, Qt

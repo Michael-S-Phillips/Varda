@@ -243,7 +243,7 @@ class OptionalFeaturesDialog(QDialog):
     def _cancel(self) -> None:
         if self._installer is not None:
             self.cancelButton.setEnabled(False)
-            self.stepLabel.setText("Cancelling…")
+            self.stepLabel.setText("Canceling…")
             self._installer.cancel()
 
     def _onInstalled(self) -> None:
@@ -260,7 +260,7 @@ class OptionalFeaturesDialog(QDialog):
         self._installer = None
         self._setBusy(False)
         if cancelled:
-            self.stepLabel.setText("Install cancelled.")
+            self.stepLabel.setText("Install canceled.")
         else:
             self.stepLabel.setText(f"Install failed: {message.splitlines()[0]}")
             self.detailsButton.setChecked(True)

@@ -40,7 +40,7 @@ class ColorScheme(Enum):
     Qualitative palettes (a handful of distinct entries) are cycled entry by
     entry. Continuous maps are sampled at ``CONTINUOUS_STEPS`` evenly spread
     positions and then cycle, so successive spectra stay clearly distinct
-    instead of taking near-identical neighbouring shades.
+    instead of taking near-identical neighboring shades.
     """
 
     # qualitative

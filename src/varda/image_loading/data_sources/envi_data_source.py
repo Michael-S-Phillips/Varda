@@ -224,7 +224,7 @@ class ENVIDataSource(RasterioDataSource):
             indices = [min(max(idx, 0), maxBand) for idx in indices[:3]]
             return np.array(indices, dtype=np.uint)
 
-        # None named in the header: true/false colour from the wavelengths
+        # None named in the header: true/false color from the wavelengths
         return fallbackDisplayBands(
             self.wavelengths,
             self.wavelengthUnits,

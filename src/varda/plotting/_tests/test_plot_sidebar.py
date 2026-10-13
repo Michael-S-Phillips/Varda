@@ -1,4 +1,4 @@
-"""Layout and behaviour of the spectral plot's settings sidebar."""
+"""Layout and behavior of the spectral plot's settings sidebar."""
 
 import numpy as np
 from PyQt6.QtWidgets import QLabel

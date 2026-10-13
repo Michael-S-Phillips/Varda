@@ -7,7 +7,7 @@
 </p>
 
 Varda is a desktop application for exploring and analyzing hyperspectral and
-multispectral images. Open an image, look at it in true or false colour,
+multispectral images. Open an image, look at it in true or false color,
 click any pixel to see its spectrum, outline regions of interest, and run
 analyses, without writing code. It is developed at the Space Imagery Center
 (Lunar and Planetary Laboratory, University of Arizona) for planetary and
@@ -16,8 +16,8 @@ ENVI Classic and napari.
 
 ## What you can do with it
 
-- **View images:** ENVI, GeoTIFF and HDF5 cubes, shown in true colour, false
-  colour or one band at a time, with adjustable stretches and colour maps.
+- **View images:** ENVI, GeoTIFF and HDF5 cubes, shown in true color, false
+  color or one band at a time, with adjustable stretches and color maps.
   Compare two images side by side in linked views, and overlay one on
   another.
 - **Explore spectra:** plot pixel spectra and the mean spectra of regions of

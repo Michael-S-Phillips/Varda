@@ -30,7 +30,7 @@ def _contrast(a: QColor, b: QColor) -> float:
     return (high + 0.05) / (low + 0.05)
 
 
-# macOS's own colours: "mid" is nearly the window colour in dark mode
+# macOS's own colors: "mid" is nearly the window color in dark mode
 DARK = _palette("#ffffff", "#323232", "#3a3a3a")
 LIGHT = _palette("#000000", "#ececec", "#b8b8b8")
 

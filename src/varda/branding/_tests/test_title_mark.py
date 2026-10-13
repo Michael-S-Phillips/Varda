@@ -62,7 +62,7 @@ def test_the_bar_is_fixed_at_the_top_and_centred(qtbot):
 
 def test_on_macos_the_mark_sits_in_the_title_strip(qtbot):
     """The content extends under the title bar and the bar fills its strip,
-    so the mark is centred in it with no empty title line above."""
+    so the mark is centered in it with no empty title line above."""
     window = QMainWindow()
     qtbot.addWidget(window)
     window.setWindowTitle("Varda")

@@ -15,7 +15,7 @@ import numpy as np
 _CHUNK = 16_384
 _ADMM_ITERATIONS = 2000
 # Up to this many endmembers the fully constrained solution is found exactly
-# by trying every support set (2^m - 1 small solves, vectorised over pixels)
+# by trying every support set (2^m - 1 small solves, vectorized over pixels)
 _EXACT_MAX_ENDMEMBERS = 10
 
 
@@ -134,7 +134,7 @@ def _fullyConstrainedExact(X: np.ndarray, E: np.ndarray) -> np.ndarray:
 
 def _fullyConstrainedAdmm(X: np.ndarray, E: np.ndarray) -> np.ndarray:
     """Least squares over the probability simplex (non-negative, summing to
-    one), by ADMM vectorised across pixels: minimise ½‖Eᵀa - x‖² subject to
+    one), by ADMM vectorized across pixels: minimize ½‖Eᵀa - x‖² subject to
     a = z with z on the simplex (exact Euclidean projection)."""
     m = E.shape[0]
     gram = E @ E.T

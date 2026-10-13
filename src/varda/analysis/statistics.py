@@ -1,4 +1,4 @@
-"""Statistics: Shannon entropy of spectra and of local neighbourhoods."""
+"""Statistics: Shannon entropy of spectra and of local neighborhoods."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ class SpatialEntropyAnalysis(Analysis):
     category = "Statistics"
     description = (
         "Shannon entropy (bits) of one band's values in a square window around "
-        "each pixel, after quantising the band into equal-width bins: textured "
+        "each pixel, after quantizing the band into equal-width bins: textured "
         "areas score high, uniform areas low."
     )
 
@@ -58,7 +58,7 @@ class SpatialEntropyAnalysis(Analysis):
         "Window", 7, range=(3, 99), description="Window size in pixels (odd)"
     )
     bins = IntParameter(
-        "Bins", 64, range=(2, 256), description="Grey levels the band is quantised into"
+        "Bins", 64, range=(2, 256), description="Gray levels the band is quantized into"
     )
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:

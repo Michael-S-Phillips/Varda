@@ -72,13 +72,13 @@ def test_translation_keeps_same_column():
     # template's columns, not the click (6).
     assert abs((src_cx + dx) - 3.0) < 1e-6
     # The shift is a whole number of pixels, so this 2-row template can't be
-    # centred exactly on row 7's centre (7.5); it extends down to cover rows
+    # centered exactly on row 7's center (7.5); it extends down to cover rows
     # 7..8 (centroid 8.0), the same convention as boxPolygonPixels.
     assert abs((src_cy + dy) - 8.0) < 1e-6
 
 
 def _pixelsCovered(polygon: np.ndarray, shape: tuple[int, int]) -> tuple[set, set]:
-    """(rows, cols) of the pixels a (col,row) corner polygon rasterises to."""
+    """(rows, cols) of the pixels a (col,row) corner polygon rasterizes to."""
     import rasterio.features
     from shapely.geometry import Polygon, mapping
 
@@ -113,7 +113,7 @@ def test_locked_copy_of_odd_box_keeps_columns_and_centres_on_clicked_row():
 
     rows, cols = _pixelsCovered(template + np.array([dx, dy]), geom.ir_sample.shape)
     assert cols == {2, 3, 4, 5, 6}
-    assert rows == {5, 6, 7, 8, 9}  # centred on the clicked row 7
+    assert rows == {5, 6, 7, 8, 9}  # centered on the clicked row 7
 
 
 def test_locked_copy_of_even_box_keeps_columns():

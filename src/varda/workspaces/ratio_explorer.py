@@ -268,6 +268,6 @@ def _drawMirroredBox(
 
 
 def _centerPixel(polygon: np.ndarray) -> tuple[int, int]:
-    """The pixel a ``boxPolygonPixels`` box was centred on (inverse of that function)."""
+    """The pixel a ``boxPolygonPixels`` box was centered on (inverse of that function)."""
     width, height = boxSize(polygon)
     return int(polygon[0, 0]) + (width - 1) // 2, int(polygon[0, 1]) + (height - 1) // 2

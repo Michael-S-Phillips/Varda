@@ -320,7 +320,7 @@ class ROICollection:
         return groups
 
     def classColor(self, name: str) -> Color | None:
-        """The colour of the class's first ROI, or None if it has none."""
+        """The color of the class's first ROI, or None if it has none."""
         fids = self.classes().get(name)
         return self.getROI(fids[0]).color if fids else None
 

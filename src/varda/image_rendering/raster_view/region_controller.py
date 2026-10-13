@@ -86,8 +86,8 @@ class RegionController(QObject):
         """Resize the ROI about the cursor anchor to zoom the target viewport.
 
         `scaleFactor` < 1 shrinks the ROI (target shows a smaller region, i.e. zooms
-        in); `anchorFraction` is the cursor's normalised position within the ROI, kept
-        fixed so the zoom stays centred on the cursor.
+        in); `anchorFraction` is the cursor's normalized position within the ROI, kept
+        fixed so the zoom stays centered on the cursor.
         """
         roiPos = self.displayROI.pos()
         roiSize = self.displayROI.size()

@@ -1,7 +1,7 @@
 """The Varda V mark in the main window's title area.
 
 Native title bars only draw text, so the mark sits in a slim, fixed toolbar
-at the top of the window, centred like a title.
+at the top of the window, centered like a title.
 
 On macOS the window's content extends under the title bar (Qt's
 MaximizeUsingFullscreenGeometryHint sets AppKit's full-size content view) and
@@ -31,7 +31,7 @@ MERGED_MARK_HEIGHT = 20  # px, with room around it inside the strip
 
 
 def markPath(palette: QPalette) -> Path:
-    """The V mark made for the palette's window colour."""
+    """The V mark made for the palette's window color."""
     dark = palette.color(QPalette.ColorRole.Window).lightness() < 128
     return ICON_DIR / f"varda-mark-on-{'dark' if dark else 'light'}.svg"
 
@@ -120,7 +120,7 @@ class TitleMarkBar(QToolBar):
 def addTitleMarkBar(
     window: QMainWindow, mergeWithTitleBar: bool = sys.platform == "darwin"
 ) -> TitleMarkBar:
-    """Add the fixed V-mark bar, centred like a title, to the top of ``window``.
+    """Add the fixed V-mark bar, centered like a title, to the top of ``window``.
     Call before the window is first shown."""
     bar = TitleMarkBar(window, merged=mergeWithTitleBar)
     window.addToolBar(Qt.ToolBarArea.TopToolBarArea, bar)

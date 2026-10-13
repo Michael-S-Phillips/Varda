@@ -1,4 +1,4 @@
-"""Saved points stay marked on the image(s) as circles in their colour."""
+"""Saved points stay marked on the image(s) as circles in their color."""
 
 import numpy as np
 from psygnal import Signal

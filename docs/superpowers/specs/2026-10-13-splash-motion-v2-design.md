@@ -36,8 +36,8 @@ The JSON keeps `viewBox`, `logicalSize`, `background`, `strokeWidth`, `gradient`
 ```text
 schema      2
 cut         y of the halfway line (white strokes are clipped to y >= cut)
-lowerColor  colour of the white lower halves
-clipOut     [x, y, w, h] rects excluded when painting colour strokes (keeps their round ends
+lowerColor  color of the white lower halves
+clipOut     [x, y, w, h] rects excluded when painting color strokes (keeps their round ends
             from dipping below the cut)
 strokes     list of {id, kind: "color" | "lower", polyline: [[x, y], ...],
             progress: [[seconds, fraction], ...]}
@@ -205,7 +205,7 @@ def paintSplash(p: QPainter, spec: dict, brandDir: Path, t: float, target: QRect
         p.drawEllipse(QPointF(cx, cy), dots["radius"] * scale, dots["radius"] * scale)
     p.setOpacity(1.0)
     p.setBrush(Qt.BrushStyle.NoBrush)
-    # 3. coloured strokes, with the drip boxes cut out
+    # 3. colored strokes, with the drip boxes cut out
     clip = QPainterPath()
     clip.addRect(QRectF(x, y, w, h))
     for rect in spec["clipOut"]:

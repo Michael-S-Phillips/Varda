@@ -41,7 +41,7 @@ class ExpressionError(ValueError):
 
 
 def words(text: str) -> str:
-    """Spaces and symbols become ``_``; NFKC-normalised as Python normalises
+    """Spaces and symbols become ``_``; NFKC-normalized as Python normalizes
     identifiers (e.g. the micro sign µ becomes Greek μ)."""
     return re.sub(r"\W+", "_", unicodedata.normalize("NFKC", text)).strip("_")
 

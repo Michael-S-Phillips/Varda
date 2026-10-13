@@ -83,7 +83,7 @@ class PixelSelectTool(ViewportTool):
     def _updateCrosshair(self, event: PointerEvent, emitSignal=True):
         """Position the crosshairs at the pointer and optionally emit the pixel."""
         local = event.localPos
-        # Quantize to a pixel, then offset to the pixel's centre for display.
+        # Quantize to a pixel, then offset to the pixel's center for display.
         centeredPos = pg.Point(int(local.x()), int(local.y())) + pg.Point(0.5, 0.5)
         if self._crosshair is not None:
             self._crosshair.setPos(centeredPos)

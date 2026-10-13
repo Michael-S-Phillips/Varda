@@ -1,8 +1,8 @@
 """The scene: the image with the hourglass results laid over it.
 
 Overlays (one at a time, with an opacity slider): an MNF component, the PPI
-counts, or a band of a map result (class maps in the endmember colours).
-Endmember pixels are filled in their class colour, candidate pure pixels can
+counts, or a band of a map result (class maps in the endmember colors).
+Endmember pixels are filled in their class color, candidate pure pixels can
 be ringed, and the pixel hovered in the n-D view is marked.
 """
 
@@ -215,7 +215,7 @@ class SceneView(QWidget):
 
     def compositeImage(self, raster: VardaRaster) -> np.ndarray:
         """(rows, cols, 3) RGB in 0-1: each endmember's abundance (unmixing) or
-        matched-filter score (MTMF), clipped to 0-1, in its colour, added up."""
+        matched-filter score (MTMF), clipped to 0-1, in its color, added up."""
         names = list(raster.extraMetadata.get("classes", []))
         colors = raster.extraMetadata.get("classColors", [])
         bandNames = list(raster.bandNames)
@@ -339,7 +339,7 @@ class SceneView(QWidget):
         return np.column_stack([cols + 0.5, rows + 0.5]).astype(float)
 
     def setEndmemberPixels(self, groups: list[tuple[np.ndarray, str]]) -> None:
-        """(flat pixels, colour) per endmember."""
+        """(flat pixels, color) per endmember."""
         positions, brushes = [], []
         for pixels, color in groups:
             if len(pixels):

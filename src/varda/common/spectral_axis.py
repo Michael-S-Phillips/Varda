@@ -2,7 +2,7 @@
 
 Unit strings are parsed here, once, and every calculation works in
 nanometres. ``BandModel`` carries what a spectral analysis needs about the
-bands: centres in nm (or None when the bands aren't a spectral axis, e.g.
+bands: centers in nm (or None when the bands aren't a spectral axis, e.g.
 band indices, labels or parameter images), FWHM in nm, the bad-band mask
 (ENVI ``bbl``), the reflectance scale factor and the no-data value.
 
@@ -220,7 +220,7 @@ def bandModelFor(
 
     fwhm = bandList(FWHM_KEY)
     if fwhm is not None and unit is SpectralUnit.WAVENUMBER and centers is not None:
-        # a width in cm⁻¹ around a centre, in nm
+        # a width in cm⁻¹ around a center, in nm
         native = np.asarray(values, dtype=np.float64)
         fwhm = np.abs(
             toNanometres(native - fwhm / 2, unit)
@@ -254,7 +254,7 @@ FALSE_COLOUR_FRACTIONS = (0.85, 0.5, 0.15)  # of the band range: long -> red
 
 def displayBands(model: BandModel) -> np.ndarray | None:
     """Default (red, green, blue) band indices for a spectral image: true
-    colour when it covers the visible, otherwise a false colour spread across
+    color when it covers the visible, otherwise a false color spread across
     its range with long wavelengths as red. Bad bands are never chosen. None
     when the bands aren't a spectral axis (the caller keeps its own default)."""
     if model.centers is None:

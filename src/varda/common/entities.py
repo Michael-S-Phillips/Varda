@@ -98,7 +98,7 @@ class VardaRaster:
     # --- Coordinate transformation ---
 
     def pixelToGeo(self, col: int, row: int) -> tuple[float, float]:
-        """CRS coordinates of the centre of pixel (``col``, ``row``)."""
+        """CRS coordinates of the center of pixel (``col``, ``row``)."""
         return self._dataSource.pixelToGeo(col, row)
 
     def geoToPixel(self, x: float, y: float) -> tuple[int, int]:
@@ -198,7 +198,7 @@ class VardaRaster:
 
     @cached_property
     def bandModel(self) -> BandModel:
-        """The spectral axis: centres in nm (None if the bands aren't one),
+        """The spectral axis: centers in nm (None if the bands aren't one),
         FWHM, bad bands, scale factor and no-data. Use it for any calculation
         with wavelengths instead of ``wavelengths`` and ``wavelengthUnits``."""
         return bandModelFor(

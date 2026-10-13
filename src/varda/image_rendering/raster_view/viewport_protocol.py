@@ -85,10 +85,10 @@ class PointOverlayHandle(OverlayHandle, Protocol):
 
 
 class ROIOverlayHandle(OverlayHandle, Protocol):
-    """A display-only ROI polygon (coloured outline + fill) with a highlight state.
+    """A display-only ROI polygon (colored outline + fill) with a highlight state.
 
     Points are in viewport-local coordinates. Unlike `PolygonOverlayHandle`
-    (a transient drawing preview), this carries a per-ROI colour and can be
+    (a transient drawing preview), this carries a per-ROI color and can be
     highlighted, matching how saved ROIs are shown.
     """
 
@@ -171,7 +171,7 @@ class RasterViewport(Protocol):
         ...
 
     def pixelToLocalCoords(self, pixelCoords: np.ndarray) -> np.ndarray:
-        """Vectorised full-image pixel coords -> viewport-local coords."""
+        """Vectorized full-image pixel coords -> viewport-local coords."""
         ...
 
     # --- region display ---

@@ -15,7 +15,7 @@ def test_spy_logs_through_varda_and_shows_no_console_progress():
 
 
 def test_resampling_to_wide_bands_averages_over_the_band_response():
-    """A narrow feature seen by a wide band is diluted, not sampled at its centre."""
+    """A narrow feature seen by a wide band is diluted, not sampled at its center."""
     fine = np.arange(1000.0, 3000.0, 1.0)
     reflectance = np.ones_like(fine)
     reflectance[(fine > 1995) & (fine < 2005)] = 0.0  # 10 nm-wide absorption at 2000

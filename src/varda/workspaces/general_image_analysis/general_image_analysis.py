@@ -281,7 +281,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             self.tripleRasterView.viewport2,
             self.tripleRasterView.viewport3,
         ]
-        # Every plotted pixel spectrum is marked on the image in its colour;
+        # Every plotted pixel spectrum is marked on the image in its color;
         # saved points stay marked as circles
         self.pixelMarkers = PixelMarkerController(
             self.pixelSpectraDocks, viewports, parent=self
@@ -309,7 +309,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         plot.sigSavePointRequested.connect(functools.partial(self._savePoint, plot))
 
     def _savePoint(self, plot: PixelSpectraPlotWidget, curve) -> None:
-        """Save a pixel curve's pixel to the Points Manager, in the curve's colour."""
+        """Save a pixel curve's pixel to the Points Manager, in the curve's color."""
         origin = plot.pixelOrigins.get(curve)
         if origin is not None:
             self.pointCollection.addPixel(

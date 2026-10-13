@@ -14,13 +14,13 @@ def test_patch_is_centred_on_the_pixel_with_bands_as_last_axis():
     patches = extractPatches(_cube(), np.array([2]), np.array([3]), size=3)
 
     assert patches.shape == (1, 3, 3, 2)
-    np.testing.assert_array_equal(patches[0, 1, 1], [2.0, 3.0])  # centre = the pixel
-    np.testing.assert_array_equal(patches[0, 0, 0], [1.0, 2.0])  # up-left neighbour
+    np.testing.assert_array_equal(patches[0, 1, 1], [2.0, 3.0])  # center = the pixel
+    np.testing.assert_array_equal(patches[0, 0, 0], [1.0, 2.0])  # up-left neighbor
 
 
 def test_patches_at_the_border_are_reflect_padded():
     patches = extractPatches(_cube(), np.array([0]), np.array([0]), size=3)
-    # reflect padding mirrors the neighbour row/col (numpy "reflect": ...1,0,1...)
+    # reflect padding mirrors the neighbor row/col (numpy "reflect": ...1,0,1...)
     np.testing.assert_array_equal(patches[0, 0, 0], [1.0, 1.0])
     np.testing.assert_array_equal(patches[0, 1, 1], [0.0, 0.0])
 

@@ -1,4 +1,4 @@
-"""Column lock must use the true footprint centre, whatever the vertex list looks like."""
+"""Column lock must use the true footprint center, whatever the vertex list looks like."""
 
 import numpy as np
 

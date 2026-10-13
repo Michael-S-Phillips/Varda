@@ -90,7 +90,7 @@ class LocalRxAnalysis(Analysis):
     description = (
         "Distance of each pixel from the mean of its surroundings (an outer "
         "window minus an inner guard window), with the scene's covariance: "
-        "finds small targets that differ from their neighbourhood."
+        "finds small targets that differ from their neighborhood."
     )
 
     innerWindow = IntParameter(

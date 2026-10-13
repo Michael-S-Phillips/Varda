@@ -58,7 +58,7 @@ def computeColumnLockedTranslation(
     coordinates (pixel ``c`` spans ``c..c+1``), as ROI geometries are stored.
     ``clickCol`` is intentionally ignored: the horizontal placement is determined
     by the detector-column match, not the clicked column.
-    Returns (dx, dy) so that the template, shifted by it, is centred on the
+    Returns (dx, dy) so that the template, shifted by it, is centered on the
     clicked row and sits on the same detector column within the same strip. The
     destination column is interpolated to sub-pixel precision, so a template
     whose mean IR sample falls between two columns (any even-width box) keeps
@@ -108,12 +108,12 @@ def computeColumnLockedTranslation(
 
     destCol = _interpolateColumn(validXs, rowIr[validXs], srcIrMean)
 
-    # Polygon coordinates are pixel corners, so pixel column c is centred on
+    # Polygon coordinates are pixel corners, so pixel column c is centered on
     # c + 0.5; the same holds for the clicked row. Use the true centroid: a
     # vertex mean is biased when the ring repeats its first vertex to close.
     # The shift is rounded to whole pixels so the copy is an exact pixel-set
     # translate of the template (a fractional shift would leave an even-sized
-    # footprint's edges on pixel centres, where rasterisation is ambiguous).
+    # footprint's edges on pixel centers, where rasterization is ambiguous).
     centroid = poly.centroid
     dx = wholePixels((destCol + 0.5) - centroid.x)
     dy = wholePixels((float(clickRow) + 0.5) - centroid.y)
@@ -121,7 +121,7 @@ def computeColumnLockedTranslation(
 
 
 def wholePixels(shift: float) -> float:
-    """Round a pixel shift half-up, so an even-sized footprint centred between two
+    """Round a pixel shift half-up, so an even-sized footprint centered between two
     pixels extends right/down — the same convention as ``boxPolygonPixels``."""
     return float(math.floor(shift + 0.5))
 
@@ -130,7 +130,7 @@ def _interpolateColumn(cols: np.ndarray, irSamples: np.ndarray, target: float) -
     """Sub-pixel column where the row's IR sample equals ``target``.
 
     Starts from the column whose IR sample is nearest and interpolates linearly
-    towards the neighbour on the far side of ``target`` (IR sample varies
+    towards the neighbor on the far side of ``target`` (IR sample varies
     smoothly along a row). Falls back to the nearest column at the row's ends
     or where the IR sample is flat.
     """

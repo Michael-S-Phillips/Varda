@@ -1,4 +1,4 @@
-"""Pixel selection in the dual workspace: source selection and image labelling."""
+"""Pixel selection in the dual workspace: source selection and image labeling."""
 
 import numpy as np
 import pytest

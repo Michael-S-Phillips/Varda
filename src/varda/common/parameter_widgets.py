@@ -81,7 +81,7 @@ def parameterWidget(param: Parameter, parent: QWidget | None = None) -> QWidget:
 def formWidget(
     params: Iterable[Parameter | ParameterGroup], parent: QWidget | None = None
 ) -> QWidget:
-    """A labelled form editing ``params``; nested groups are flattened in."""
+    """A labeled form editing ``params``; nested groups are flattened in."""
     formLayout = QFormLayout()
     formLayout.setContentsMargins(0, 0, 0, 0)
     formLayout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -106,7 +106,7 @@ def formWidget(
 
 
 def groupWidget(group: ParameterGroup, parent: QWidget | None = None) -> QWidget:
-    """A labelled form editing every parameter in ``group``."""
+    """A labeled form editing every parameter in ``group``."""
     return formWidget(group.params.values(), parent)
 
 

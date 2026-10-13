@@ -105,7 +105,7 @@ def test_pca_requires_at_least_as_many_samples_as_components():
 
 
 def _stripedNoise(rows=40, cols=50, bands=5, seed=0):
-    """Noise only along rows: vertical neighbours differ, horizontal don't."""
+    """Noise only along rows: vertical neighbors differ, horizontal don't."""
     rng = np.random.default_rng(seed)
     rowNoise = rng.normal(size=(rows, 1, bands))
     return np.broadcast_to(rowNoise, (rows, cols, bands)).copy(), np.ones(

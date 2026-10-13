@@ -21,7 +21,7 @@ def matchToReference(
 
     Returns ``(scale, offset)`` such that ``y * scale + offset`` spans the same
     min..max as the reference where both are visible. A curve with fewer than
-    two visible samples falls back to its full extent; a flat curve is centred
+    two visible samples falls back to its full extent; a flat curve is centered
     on the reference rather than scaled.
     """
     reference = _span(referenceX, referenceY, visibleX)

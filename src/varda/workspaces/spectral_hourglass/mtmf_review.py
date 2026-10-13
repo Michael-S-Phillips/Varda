@@ -26,7 +26,7 @@ _MAX_POINTS = 30_000
 
 
 class MtmfReview(QWidget):
-    sigDetectionsChanged = pyqtSignal(object, str)  # (rows, cols) bool mask, colour
+    sigDetectionsChanged = pyqtSignal(object, str)  # (rows, cols) bool mask, color
     sigAddToProject = pyqtSignal(object)  # VardaRaster
 
     def __init__(self, parent: QWidget | None = None) -> None:

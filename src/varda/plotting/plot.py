@@ -255,7 +255,7 @@ class MarkerConfig(ParameterGroup):
 
 
 # Where marker labels sit along the line (fraction of the view height), and how
-# far each one steps down when it would overlap a neighbour.
+# far each one steps down when it would overlap a neighbor.
 MARKER_LABEL_TOP = 0.95
 MARKER_LABEL_STEP = 0.07
 
@@ -436,9 +436,9 @@ class VardaPlotWidget(QWidget):
         self.markerWavelength = QDoubleSpinBox()
         self.markerWavelength.setRange(0.0, 1_000_000.0)
         self.markerWavelength.setDecimals(1)
-        self.markerWavelength.setSpecialValueText("view centre")
+        self.markerWavelength.setSpecialValueText("view center")
         self.markerWavelength.setToolTip(
-            "Wavelength for a new marker; leave at 0 to add it at the centre of "
+            "Wavelength for a new marker; leave at 0 to add it at the center of "
             "the visible range and drag it into place."
         )
         self.markerList = QListWidget()
@@ -619,7 +619,7 @@ class VardaPlotWidget(QWidget):
     # --- Wavelength markers ---
 
     def addMarker(self, wavelength: float | None = None) -> pg.InfiniteLine:
-        """Add a draggable vertical marker at ``wavelength`` (default: the centre
+        """Add a draggable vertical marker at ``wavelength`` (default: the center
         of the visible wavelength range) with a label showing its position."""
         if wavelength is None:
             xMin, xMax = self.viewBox.viewRange()[0]

@@ -1,7 +1,7 @@
 """Mark every plotted pixel spectrum on the image(s) it came from.
 
 Each pixel curve on any of a workspace's pixel-spectra plots gets an "x" at
-its pixel, in the curve's colour, on every viewport (the images are assumed
+its pixel, in the curve's color, on every viewport (the images are assumed
 co-registered); the marks follow Collect/Replace mode and vanish with their
 curves. A full redraw on every change keeps this simple — there are only
 ever a handful of markers.

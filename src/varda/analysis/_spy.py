@@ -67,7 +67,7 @@ def backgroundStats(
 def kmeans(
     X: np.ndarray, clusters: int, iterations: int
 ) -> tuple[np.ndarray, np.ndarray]:
-    """(labels per pixel, cluster centres) for (pixels, bands) ``X``."""
+    """(labels per pixel, cluster centers) for (pixels, bands) ``X``."""
     labels, centers = kmeans_ndarray(
         np.ascontiguousarray(X[:, None, :]),
         nclusters=clusters,

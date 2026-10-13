@@ -1,5 +1,5 @@
 """The kinds of workspace that can be saved in a session, restored from one,
-or duplicated: how to recognise each, rebuild it, and reach its display."""
+or duplicated: how to recognize each, rebuild it, and reach its display."""
 
 from __future__ import annotations
 

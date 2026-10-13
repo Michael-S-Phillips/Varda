@@ -124,7 +124,7 @@ class MaximumLikelihoodAnalysis(_GaussianClassification):
     suffix = "ML classes"
     description = (
         "Gaussian maximum-likelihood classification: each ROI class is "
-        "modelled by its mean and covariance, and every pixel goes to the "
+        "modeled by its mean and covariance, and every pixel goes to the "
         "most likely class."
     )
     rois = _roiChoiceParameter()

@@ -98,7 +98,7 @@ def trainClassifier(
 ) -> list[float]:
     """Train with Adam + cross-entropy on shuffled mini-batches; returns the
     per-epoch mean loss. ``patches`` are (n, size, size, bands), already
-    standardised."""
+    standardized."""
     torch.manual_seed(seed)
     dev = device()
     model.to(dev).train()
@@ -128,7 +128,7 @@ def trainClassifier(
 def predictProbabilities(
     model: nn.Module, patches: np.ndarray, batchSize: int = 1024
 ) -> np.ndarray:
-    """(n, classes) softmax probabilities for standardised patches."""
+    """(n, classes) softmax probabilities for standardized patches."""
     dev = device()
     model.to(dev).eval()
     X = _toTensor(patches)

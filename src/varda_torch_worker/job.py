@@ -1,4 +1,4 @@
-"""Train a patch classifier on labelled pixels, then classify every valid pixel."""
+"""Train a patch classifier on labeled pixels, then classify every valid pixel."""
 
 from __future__ import annotations
 
