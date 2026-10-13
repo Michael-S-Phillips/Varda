@@ -17,6 +17,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import attrs
+from enum import Enum
+
 import numpy as np
 
 _CHUNK_ROWS = 65_536
@@ -152,16 +154,67 @@ def pca(X: np.ndarray, components: int) -> TransformResult:
     )
 
 
-def noiseCovariance(cube, valid: np.ndarray) -> np.ndarray:
-    """Noise covariance estimated from differences between horizontally
-    adjacent valid pixels (Green et al. 1988): the scene is assumed smooth at
-    that scale, so the differences are dominated by noise."""
+class NoiseEstimate(Enum):
+    """How MNF estimates the noise covariance."""
+
+    HORIZONTAL = "horizontal"  # differences between left-right neighbours (default)
+    VERTICAL = "vertical"  # up-down neighbours
+    DIAGONAL = "diagonal"  # each pixel and the one below-right
+    AVERAGED = "averaged"  # horizontal and vertical together
+    HOMOGENEOUS_REGION = "region"  # the spread within a uniform area
+
+
+_NEIGHBOUR_OFFSETS = {
+    NoiseEstimate.HORIZONTAL: (0, 1),
+    NoiseEstimate.VERTICAL: (1, 0),
+    NoiseEstimate.DIAGONAL: (1, 1),
+}
+
+
+def _neighbourDifferences(
+    data: np.ndarray, valid: np.ndarray, dr: int, dc: int
+) -> np.ndarray:
+    rows, cols = valid.shape
+    a = (slice(0, rows - dr), slice(0, cols - dc))
+    b = (slice(dr, rows), slice(dc, cols))
+    pairs = valid[a] & valid[b]
+    return (data[b] - data[a])[pairs] / np.sqrt(2.0)
+
+
+def noiseCovariance(
+    cube,
+    valid: np.ndarray,
+    method: NoiseEstimate = NoiseEstimate.HORIZONTAL,
+    region: np.ndarray | None = None,
+) -> np.ndarray:
+    """The noise covariance for MNF.
+
+    Neighbour methods (Green et al. 1988) difference adjacent valid pixels in
+    one direction (or both, averaged): the scene is assumed smooth at that
+    scale, so differences are mostly noise. Pick the direction along which the
+    sensor's noise varies (e.g. vertical for along-track striping).
+    ``HOMOGENEOUS_REGION`` uses the covariance within ``region`` (a mask of a
+    uniform area, such as a dark or flat ROI), where all variation is noise.
+    """
     data = np.asarray(cube, dtype=np.float64)
-    pairs = valid[:, 1:] & valid[:, :-1]
-    differences = (data[:, 1:, :] - data[:, :-1, :])[pairs] / np.sqrt(2.0)
-    if differences.shape[0] < 2:
-        raise ValueError("Too few adjacent valid pixels to estimate noise")
-    return _covariance(differences, differences.mean(axis=0))
+    if method is NoiseEstimate.HOMOGENEOUS_REGION:
+        if region is None:
+            raise ValueError(
+                "A homogeneous region (mask) is needed for this noise estimate"
+            )
+        samples = data[region & valid]
+    elif method is NoiseEstimate.AVERAGED:
+        samples = np.concatenate(
+            [
+                _neighbourDifferences(data, valid, *_NEIGHBOUR_OFFSETS[m])
+                for m in (NoiseEstimate.HORIZONTAL, NoiseEstimate.VERTICAL)
+            ]
+        )
+    else:
+        samples = _neighbourDifferences(data, valid, *_NEIGHBOUR_OFFSETS[method])
+    if samples.shape[0] < 2:
+        raise ValueError("Too few valid pixels to estimate noise")
+    return _covariance(samples, samples.mean(axis=0))
 
 
 def mnf(X: np.ndarray, noiseCov: np.ndarray, components: int) -> TransformResult:

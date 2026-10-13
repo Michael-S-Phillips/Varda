@@ -1,10 +1,15 @@
 """The PCA / MNF / ICA analyses produce component images over the source footprint."""
 
 import numpy as np
+from shapely.geometry import box
 
+from varda.analysis.analysis import AnalysisContext
+from varda.analysis.linear_algebra import NoiseEstimate
 from varda.analysis.transforms import IcaAnalysis, MnfAnalysis, PcaAnalysis
-from varda.common.entities import VardaRaster
+from varda.common.entities import Color, ROIMode, VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+from varda.rois.roi_collection import ROICollection
+from varda.utilities.debug import generate_random_image
 
 
 def _image(seed=0, bands=8) -> VardaRaster:
@@ -77,3 +82,20 @@ def test_transforms_are_filed_under_transforms():
     for analysis in (PcaAnalysis, MnfAnalysis, IcaAnalysis):
         assert analysis.category == "Transforms"
         assert analysis.isAvailable()
+
+
+def test_mnf_can_take_its_noise_from_a_homogeneous_roi_class():
+    image = generate_random_image((40, 40, 10))
+    rois = ROICollection()
+    rois.addROI(box(5, 5, 20, 20), "flat area", Color(1, 0, 0, 0.5), ROIMode.RECTANGLE)
+    analysis = MnfAnalysis()
+    analysis.setContext(AnalysisContext(rois=rois))
+    analysis.noiseEstimate.set(NoiseEstimate.HOMOGENEOUS_REGION)
+    analysis.prepareFor(image)
+    assert analysis.noiseRoi.choices == ["flat area"]
+    analysis.noiseRoi.set([])
+    assert "ROI class" in analysis.unavailableReason(image)
+    analysis.noiseRoi.set(["flat area"])
+    assert analysis.unavailableReason(image) == ""
+    result = analysis.run(image, lambda p, m: None)
+    assert result.bandCount > 0

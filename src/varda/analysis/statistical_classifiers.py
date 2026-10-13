@@ -62,6 +62,7 @@ def _softmax(scores: np.ndarray) -> np.ndarray:
 
 class _GaussianClassification(_RoiTrainingAnalysis):
     suffix = ""
+    components: IntParameter  # declared here, assigned by each subclass
 
     def _classifier(self, training, minSamples: int):
         raise NotImplementedError

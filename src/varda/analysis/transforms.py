@@ -23,6 +23,7 @@ from varda.analysis.linear_algebra import (
     fastIca,
     flattenValid,
     inverseTransform,
+    NoiseEstimate,
     mnf,
     noiseCovariance,
     pca,
@@ -77,11 +78,13 @@ class _ComponentAnalysis(Analysis):
     units: ClassVar[str] = "components"
     # Declared (not assigned) here: each subclass supplies its own Parameter.
     components: IntParameter
+    _image: VardaRaster | None = None  # the image being run on
 
     def prepareFor(self, image: VardaRaster) -> None:
         self.components.setRange((1, image.bandCount), value=image.bandCount)
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
+        self._image = image  # for transforms that need more than the cube
         reportProgress(0, "reading image")
         cube, _ = readCube(image)  # bad bands filled, unusable pixels NaN
         X, valid = flattenValid(cube, None)
@@ -147,9 +150,54 @@ class MnfAnalysis(_ComponentAnalysis):
     )
     suffix = "MNF"
     components = _componentsParameter()
+    noiseEstimate = EnumParameter(
+        "Noise Estimate",
+        NoiseEstimate,
+        NoiseEstimate.HORIZONTAL,
+        description=(
+            "Neighbour differences along a direction (match the sensor's noise, "
+            "e.g. vertical for along-track striping), or the spread within a "
+            "homogeneous ROI class"
+        ),
+    )
+    noiseRoi = MultiChoiceParameter(
+        "Noise ROI Class",
+        description="For a homogeneous-region estimate: a uniform area (e.g. dark or flat)",
+    )
+
+    def prepareFor(self, image: VardaRaster) -> None:
+        super().prepareFor(image)
+        rois = self.context.rois
+        names = list(rois.classes()) if rois else []
+        kept = [n for n in self.noiseRoi.get() if n in names]
+        self.noiseRoi.setChoices(names, selected=kept or names[:1])
+
+    def unavailableReason(self, image: VardaRaster) -> str:
+        if (
+            self.noiseEstimate.get() is NoiseEstimate.HOMOGENEOUS_REGION
+            and not self._noiseClass()
+        ):
+            return "Draw an ROI over a uniform area and tick it as the noise ROI class."
+        return ""
+
+    def _noiseClass(self) -> str | None:
+        rois = self.context.rois
+        chosen = [
+            n for n in self.noiseRoi.get() if rois is not None and n in rois.classes()
+        ]
+        return chosen[0] if chosen else None
 
     def _transform(self, cube, X, valid, components):
-        return mnf(X, noiseCovariance(cube, valid), components)
+        method = NoiseEstimate(self.noiseEstimate.get())
+        region = None
+        if method is NoiseEstimate.HOMOGENEOUS_REGION:
+            name, rois, image = self._noiseClass(), self.context.rois, self._image
+            if name is None or rois is None or image is None:
+                raise ValueError(
+                    "Pick a noise ROI class for the homogeneous-region estimate."
+                )
+            region = rois.classMask(name, image)
+        return mnf(X, noiseCovariance(cube, valid, method, region), components)
 
     def _bandNames(self, result):
         return [f"MNF {i + 1}" for i in range(result.scores.shape[1])]
