@@ -35,7 +35,8 @@ SHAPES = {
     ROIMode.FREEHAND: ("Freehand", "Press and drag around the area"),
     ROIMode.POLYGON: (
         "Polygon",
-        "Click each corner; double-click or Enter to finish, Backspace to undo a corner",
+        "Click each corner; double-click, right-click or Enter to finish, "
+        "Backspace to undo a corner",
     ),
     ROIMode.RECTANGLE: ("Rectangle", "Drag from corner to corner"),
     ROIMode.ELLIPSE: ("Ellipse", "Drag across the ellipse's bounding box"),

@@ -1,8 +1,7 @@
 """The Draw ROI tool stays armed: shape after shape, in the chosen shape type."""
 
 import pytest
-from PyQt6.QtCore import QPointF, Qt
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QEvent, QPointF, Qt
 
 from varda.common.entities import ROIMode
 from varda.image_rendering.image_renderer import ImageRenderer
@@ -92,16 +91,37 @@ def test_polygons_add_a_vertex_per_click_and_finish_with_enter(tool):
     assert len(shapes[0]["geometry"].exterior.coords) == 4  # 3 vertices + closing
 
 
-def test_double_clicking_finishes_a_polygon(tool, qtbot):
-    tool, shapes = tool
-    tool.setShape(ROIMode.POLYGON)
-    for x, y in [(10, 10), (30, 10), (30, 30)]:
-        qtbot.wait(QApplication.doubleClickInterval() + 50)  # separate clicks
+def _clickCorners(tool, corners):
+    for x, y in corners:
         tool.onPointerEvent(_event(PointerAction.PRESS, x, y))
         tool.onPointerEvent(_event(PointerAction.RELEASE, x, y))
-    tool.onPointerEvent(_event(PointerAction.PRESS, 30, 30))  # second click, fast
+
+
+def test_double_clicking_finishes_a_polygon(tool):
+    """Qt sends a double-click's second click as its own event."""
+    tool, shapes = tool
+    tool.setShape(ROIMode.POLYGON)
+    _clickCorners(tool, [(10, 10), (30, 10), (30, 30)])
+    assert tool.onPointerEvent(_event(PointerAction.DOUBLE_CLICK, 30, 30))
+    tool.onPointerEvent(_event(PointerAction.RELEASE, 30, 30))
     assert len(shapes) == 1
     assert len(shapes[0]["geometry"].exterior.coords) == 4
+
+
+def test_right_clicking_finishes_a_polygon(tool):
+    tool, shapes = tool
+    tool.setShape(ROIMode.POLYGON)
+    _clickCorners(tool, [(10, 10), (30, 10), (30, 30)])
+    assert tool.onPointerEvent(_event(PointerAction.PRESS, 30, 30, RIGHT))
+    assert len(shapes) == 1
+
+
+def test_right_clicking_a_polygon_with_too_few_corners_drops_it(tool):
+    tool, shapes = tool
+    tool.setShape(ROIMode.POLYGON)
+    _clickCorners(tool, [(10, 10), (30, 10)])
+    assert tool.onPointerEvent(_event(PointerAction.PRESS, 30, 30, RIGHT))
+    assert shapes == [] and not tool.isSketching()
 
 
 def test_escape_and_right_click_cancel_a_shape_in_progress_only(tool):
@@ -157,3 +177,37 @@ def test_panning_mid_polygon_keeps_the_polygon(tool):
     tool.onPointerEvent(_event(PointerAction.PRESS, 30, 30))
     _key(tool, Qt.Key.Key_Return)
     assert len(shapes[0]["geometry"].exterior.coords) == 4  # the pan added no vertex
+
+
+class _FakeDoubleClick:
+    """What the view reads from a scene double-click (PyQt can't build one)."""
+
+    def type(self):
+        return QEvent.Type.GraphicsSceneMouseDoubleClick
+
+    def scenePos(self):
+        return QPointF(10, 10)
+
+    def button(self):
+        return LEFT
+
+    def modifiers(self):
+        return Qt.KeyboardModifier.NoModifier
+
+    def accept(self):
+        pass
+
+
+def test_the_view_hands_double_clicks_to_the_tool(qtbot):
+    viewport = ImageViewport(ImageRenderer(image=generate_random_image((50, 50, 10))))
+    qtbot.addWidget(viewport)
+    seen = []
+
+    class _Recorder:
+        def onPointerEvent(self, event):
+            seen.append(event.action)
+            return True
+
+    viewport.installTool(_Recorder())
+    viewport.eventFilter(viewport._imageItem, _FakeDoubleClick())
+    assert seen == [PointerAction.DOUBLE_CLICK]

@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 
 import numpy as np
+from PyQt6.QtWidgets import QMessageBox
 from shapely.geometry import box
 
 from varda.common.entities import Color, ROIMode
@@ -221,3 +222,36 @@ def test_the_manager_offers_the_shape_and_class_for_drawing(qtbot, make_split_im
     qtbot.addWidget(w)
     assert w.findChild(ROIShapePicker).state is state
     assert w.findChild(ROIClassPicker).state is state
+
+
+def test_select_all_and_deselect(qtbot, make_split_image):
+    c = ROICollection()
+    for i in range(3):
+        c.addROI(box(2 + i, 2, 8 + i, 8), f"r{i}", RED, ROIMode.RECTANGLE)
+    w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
+    qtbot.addWidget(w)
+    w.selectAllButton.click()
+    assert w.selectedFids() == c.fids
+    w.deselectButton.click()
+    assert w.selectedFids() == []
+
+
+def test_delete_selected_removes_every_selected_roi_after_asking(
+    qtbot, make_split_image, monkeypatch
+):
+    c = ROICollection()
+    for i in range(3):
+        c.addROI(box(2 + i, 2, 8 + i, 8), f"r{i}", RED, ROIMode.RECTANGLE)
+    w = ROIManagerWidget(c, make_split_image(40, 20, 3, 8.0, 4.0), _FakePlot())
+    qtbot.addWidget(w)
+    w.selectAllButton.click()
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No
+    )
+    w._deleteBtn.click()
+    assert len(c) == 3
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes
+    )
+    w._deleteBtn.click()
+    assert len(c) == 0
