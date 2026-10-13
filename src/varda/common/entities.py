@@ -948,9 +948,12 @@ class Color:
     @classmethod
     def fromHexString(cls, hex):
         """
-        assumes an rgba hex string in the format of "#RRGGBBAA"
+        an rgba hex string in the format of "#RRGGBBAA", or opaque "#RRGGBB"
         """
-        return cls.fromBytes(bytes.fromhex(hex[1:]))
+        digits = hex[1:]
+        return cls.fromBytes(
+            bytes.fromhex(digits if len(digits) == 8 else digits + "ff")
+        )
 
     @classmethod
     def fromBytes(cls, b: bytes):
@@ -978,10 +981,10 @@ class Color:
     def _toBytes(self):
         return bytes(
             (
-                int(self.r * 255),
-                int(self.g * 255),
-                int(self.b * 255),
-                int(self.a * 255),
+                round(self.r * 255),
+                round(self.g * 255),
+                round(self.b * 255),
+                round(self.a * 255),
             )
         )
 

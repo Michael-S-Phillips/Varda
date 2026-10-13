@@ -4,6 +4,7 @@ import pytest
 
 from varda.common.parameter import ImageParameter
 from varda.utilities.debug import generate_random_image
+from varda.common.parameter_widgets import ImageParameterWidget
 
 
 @pytest.fixture
@@ -20,24 +21,24 @@ def param(images):
 
 def test_widget_shows_the_parameters_current_value(qapp, param, images):
     param.set(images[1])
-    widget = param.getWidget()
+    widget = ImageParameterWidget(param)
     assert widget.comboBox.currentIndex() == 1
 
 
 def test_widget_follows_a_value_set_after_creation(qapp, param, images):
-    widget = param.getWidget()
+    widget = ImageParameterWidget(param)
     param.set(images[2])
     assert widget.comboBox.currentIndex() == 2
 
 
 def test_choosing_in_the_widget_sets_the_parameter(qapp, param, images):
-    widget = param.getWidget()
+    widget = ImageParameterWidget(param)
     widget.comboBox.setCurrentIndex(2)
     assert param.get() is images[2]
 
 
 def test_syncing_the_widget_does_not_re_emit_the_parameter(qapp, param, images):
-    widget = param.getWidget()
+    widget = ImageParameterWidget(param)
     changes = []
     param.sigParameterChanged.connect(lambda value: changes.append(value))
     param.set(images[1])

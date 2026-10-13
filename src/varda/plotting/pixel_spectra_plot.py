@@ -24,6 +24,7 @@ from varda.common.parameter import EnumParameter, ParameterGroup
 from varda.common.ui import ButtonBuilder, HBoxBuilder, SectionBox, VBoxBuilder
 from varda.plotting.library_spectra import DEFAULT_LIBRARY_PATH
 from varda.plotting.plot import Curve, VardaPlotWidget
+from varda.common.parameter_widgets import groupWidget
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +150,7 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
             SectionBox(
                 "Pixel Spectra",
                 VBoxBuilder()
-                .withWidget(self.pixelConfig.createWidget())
+                .withWidget(groupWidget(self.pixelConfig))
                 .withWidget(self.activeCheckBox)
                 .withLayout(
                     HBoxBuilder()

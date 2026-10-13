@@ -260,8 +260,8 @@ class InverseTransformAnalysis(Analysis):
     )
     output = EnumParameter("Output", InverseOutput)
 
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
+    def __init__(self) -> None:
+        super().__init__()
         self.components.sigParameterChanged.connect(self._reselectFirst)
 
     def _reselectFirst(self, count) -> None:

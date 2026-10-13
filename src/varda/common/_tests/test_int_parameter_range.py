@@ -1,6 +1,7 @@
 """IntParameter ranges can change at runtime (e.g. once an image's band count is known)."""
 
 from varda.common.parameter import IntParameter
+from varda.common.parameter_widgets import parameterWidget
 
 
 def test_set_range_clamps_the_value_and_notifies():
@@ -23,7 +24,7 @@ def test_set_range_can_pick_the_value_too():
 
 def test_widget_follows_a_range_change(qtbot):
     param = IntParameter("N", 10, range=(1, 1000))
-    widget = param.getWidget()
+    widget = parameterWidget(param)
     qtbot.addWidget(widget)
 
     param.setRange((1, 12), value=12)

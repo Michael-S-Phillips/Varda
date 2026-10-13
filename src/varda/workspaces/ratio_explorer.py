@@ -38,6 +38,7 @@ from varda.plotting.plot import VardaPlotWidget
 from varda.rois.ratio import computeRatioSpectrum
 from varda.rois.region_statistics import boxPolygonPixels, computeRegionStatistics
 from varda.rois.roi_collection import ROICollection
+from varda.common.parameter_widgets import groupWidget
 
 NUMERATOR_ROI_COLOR = Color(0.0, 0.86, 0.0, 0.5)
 DENOMINATOR_ROI_COLOR = Color(1.0, 0.0, 1.0, 0.5)
@@ -169,7 +170,7 @@ class RatioExplorerController(QObject):
         return SectionBox(
             "Ratio Explorer",
             VBoxBuilder()
-            .withWidget(self.config.createWidget())
+            .withWidget(groupWidget(self.config))
             .withWidget(
                 ButtonBuilder("Save Boxes as ROIs").onClick(self.saveCurrentBoxes)
             )

@@ -6,7 +6,6 @@ from collections.abc import Callable
 from typing import ClassVar
 
 import attrs
-from PyQt6.QtCore import QObject
 from PyQt6.QtWidgets import QWidget
 
 from varda.common.entities import VardaRaster
@@ -46,8 +45,8 @@ class Analysis(ParameterGroup):
     # Whether the analysis trains on / uses the workspace's ROIs.
     needsRois: ClassVar[bool] = False
 
-    def __init__(self, parent: QObject | None = None) -> None:
-        super().__init__(parent)
+    def __init__(self) -> None:
+        super().__init__()
         self.context = AnalysisContext()
 
     def setContext(self, context: AnalysisContext) -> None:

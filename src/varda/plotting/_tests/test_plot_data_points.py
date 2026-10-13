@@ -6,6 +6,7 @@ import pyqtgraph as pg
 import pytest
 from PyQt6.QtGui import QColor
 
+from varda.common.entities import Color
 from varda.plotting.plot import VardaPlotWidget
 
 
@@ -44,7 +45,7 @@ def test_show_data_points_marks_every_sample_on_existing_and_new_curves(widget):
 def test_data_points_take_the_curve_colour_and_follow_colour_changes(widget):
     widget.viewConfig.showDataPoints.set(True)
     curve = widget.plot([1.0, 2.0], [0.1, 0.2])
-    curve.config.color.set(QColor("#00ff00"))
+    curve.config.color.set(Color.fromHexString("#00ff00"))
 
     assert _symbolBrushColor(curve).name() == "#00ff00"
 

@@ -1,7 +1,7 @@
 import sys
 from enum import Enum, auto
 
-from PyQt6.QtCore import pyqtSignal, QObject, Qt, QSignalBlocker
+from PyQt6.QtCore import pyqtSignal, QObject, Qt
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -15,7 +15,6 @@ from varda.common.parameter import (
     ParameterGroup,
     EnumParameter,
     FloatParameter,
-    ParameterGroupWidget,
 )
 from varda.common.entities import VardaRaster
 from varda.common.vec2 import Vec2
@@ -24,6 +23,12 @@ from varda.image_rendering.render_parameters import (
     BandParameter,
     ColorMapParameter,
     StretchParameter,
+)
+from varda.common.parameter_widgets import (
+    connectWhileAlive,
+    formWidget,
+    groupWidget,
+    parameterWidget,
 )
 
 
@@ -52,8 +57,8 @@ class RendererSettings(ParameterGroup):
         "Opacity", 1.0, (0.0, 1.0), "%", "Opacity of the rendered image."
     )
 
-    def __init__(self, image: VardaRaster, parent: QObject | None = None):
-        super().__init__(parent)
+    def __init__(self, image: VardaRaster):
+        super().__init__()
         self.image = image
         for bandParam in (self.rgb.red, self.rgb.green, self.rgb.blue, self.mono.band):
             bandParam.setImage(image)
@@ -64,10 +69,10 @@ class RendererSettings(ParameterGroup):
         self.rgb.blue.value = int(defaultBands[2])
         self.mono.band.value = int(defaultBands[0])
 
-    def clone(self, parent: QObject | None = None) -> "RendererSettings":
+    def clone(self) -> "RendererSettings":
         # RendererSettings needs the image at construction, unlike the base ParameterGroup
-        # whose clone() calls self.__class__(parent) with no image.
-        return RendererSettings(self.image, parent)
+        # whose clone() calls self.__class__() with no image.
+        return RendererSettings(self.image)
 
 
 class ImageRenderer(QObject):
@@ -194,7 +199,7 @@ class ImageRenderer(QObject):
         manual = self.settings.stretch.option(StretchParameter.MANUAL_NAME)
         value = Vec2(float(lo), float(hi))
         # batch the param edits into a single refresh
-        with QSignalBlocker(self.settings):
+        with self.settings.sigParameterChanged.blocked():
             manual.config.redStretch.set(value)
             manual.config.greenStretch.set(value)
             manual.config.blueStretch.set(value)
@@ -215,7 +220,7 @@ class ImageRenderer(QObject):
             manual.config.blueStretch,
         ]
         # batch all edits (seed + select + channel set) into a single refresh
-        with QSignalBlocker(self.settings):
+        with self.settings.sigParameterChanged.blocked():
             if stretch.current is not manual:
                 self.render()  # ensure the current stretch has computed its min/max
                 seed = stretch.current.minMaxVals()
@@ -250,25 +255,25 @@ class RendererSettingsPanel(QWidget):
 
         # Mode
         layout.addWidget(QLabel("Mode:"))
-        layout.addWidget(settings.mode.getWidget(self))
+        layout.addWidget(parameterWidget(settings.mode, self))
 
         # Band / colormap area, swapped by the mode parameter
         self.bandStack = QStackedLayout()
         self.bandStack.setAlignment(
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )
-        self._rgbIndex = self.bandStack.addWidget(settings.rgb.createWidget())
-        self._monoIndex = self.bandStack.addWidget(settings.mono.createWidget())
+        self._rgbIndex = self.bandStack.addWidget(groupWidget(settings.rgb))
+        self._monoIndex = self.bandStack.addWidget(groupWidget(settings.mono))
         layout.addLayout(self.bandStack)
         self._syncBandStack()
-        settings.mode.sigParameterChanged.connect(self._syncBandStack)
+        connectWhileAlive(settings.mode.sigParameterChanged, self._syncBandStack, self)
 
         # Stretch (self-contained combo + stacked sub-form)
         layout.addWidget(QLabel("Stretch Algorithm:"))
-        layout.addWidget(settings.stretch.getWidget(self))
+        layout.addWidget(parameterWidget(settings.stretch, self))
 
         # Opacity (labeled form row)
-        layout.addWidget(ParameterGroupWidget([settings.opacity], self))
+        layout.addWidget(formWidget([settings.opacity], self))
 
         self.setLayout(layout)
 

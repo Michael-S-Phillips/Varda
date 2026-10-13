@@ -3,6 +3,7 @@ import numpy as np
 from varda.common.entities import VardaRaster
 from varda.image_loading.data_sources import ArrayDataSource
 from varda.image_rendering.render_parameters import BandParameter
+from varda.common.parameter_widgets import parameterWidget
 
 
 def make_image(bands: int = 5) -> VardaRaster:
@@ -39,7 +40,7 @@ def test_band_parameter_widget_reflects_value(qtbot):
     img = make_image(4)
     p = BandParameter("Band", 0)
     p.setImage(img)
-    w = p.getWidget()
+    w = parameterWidget(p)
     qtbot.addWidget(w)
     p.set(2)
     assert w.comboBox.currentIndex() == 2
@@ -49,7 +50,7 @@ def test_band_parameter_widget_combo_drives_param(qtbot):
     img = make_image(4)
     p = BandParameter("Band", 0)
     p.setImage(img)
-    w = p.getWidget()
+    w = parameterWidget(p)
     qtbot.addWidget(w)
     w.comboBox.setCurrentIndex(3)
     assert p.get() == 3
@@ -81,7 +82,7 @@ def test_colormap_clone(qtbot):
 
 def test_colormap_widget_builds(qtbot):
     p = ColorMapParameter("Color Map")
-    w = p.getWidget()
+    w = parameterWidget(p)
     qtbot.addWidget(w)
     assert w.gradient is not None
 
@@ -130,7 +131,7 @@ def test_stretch_clone_preserves_selection_with_independent_instances(qtbot):
 
 def test_stretch_widget_combo_drives_selection(qtbot):
     p = StretchParameter("Stretch")
-    w = p.getWidget()
+    w = parameterWidget(p)
     qtbot.addWidget(w)
     manual_index = p.optionNames.index("Min-Max (Manual)")
     w.comboBox.setCurrentIndex(manual_index)

@@ -62,7 +62,7 @@ class PixelMarkerController(QObject):
                 origin = plot.pixelOrigins.get(curve)
                 if origin is None:
                     continue
-                color = curve.config.color.value
+                color = curve.config.color.value.toQColor()
                 centre = np.array([[origin.x + 0.5, origin.y + 0.5]], dtype=float)
                 for viewport in self._viewports:
                     (local,) = viewport.pixelToLocalCoords(centre)

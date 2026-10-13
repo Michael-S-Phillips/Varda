@@ -23,6 +23,11 @@ from varda.common.parameter import ImageParameter
 from varda.common.ui import ButtonBuilder, HBoxBuilder, SectionBox, VBoxBuilder
 from varda.image_loading.raster_writer import SAVE_FILE_FILTER, suggestedOutputPath
 from varda.rois.roi_collection import ROICollection
+from varda.common.parameter_widgets import (
+    connectWhileAlive,
+    groupWidget,
+    parameterWidget,
+)
 
 
 class RunAnalysisDialog(QDialog):
@@ -94,7 +99,7 @@ class RunAnalysisDialog(QDialog):
         self.runButton = ButtonBuilder("Run").onClick(self.accept)
 
         form = QFormLayout()
-        form.addRow("Image", self.imageParam.getWidget())
+        form.addRow("Image", parameterWidget(self.imageParam))
         form.addRow("Analysis", self.analysisCombo)
         if analysis is not None:
             form.setRowVisible(self.analysisCombo, False)
@@ -164,18 +169,23 @@ class RunAnalysisDialog(QDialog):
             self.pathEdit.setText(str(Path(path)))
             self.saveCheck.setChecked(True)
 
+    def _onAnalysisChanged(self, _analysis) -> None:
+        self._updateRunState()
+
     def _showSettings(self) -> None:
         analysis = self.selectedAnalysis()
         analysis.setContext(self._context)
         if analysis not in self._watched:
-            analysis.sigParameterChanged.connect(lambda _: self._updateRunState())
+            connectWhileAlive(
+                analysis.sigParameterChanged, self._onAnalysisChanged, self
+            )
             self._watched.add(analysis)
         image = self.selectedImage()
         if image is not None:
             analysis.prepareFor(image)
         self.descriptionLabel.setText(analysis.description)
         if analysis.params:
-            self.settingsBox.setContent(analysis.createWidget())
+            self.settingsBox.setContent(groupWidget(analysis))
         else:
             self.settingsBox.setContent(QLabel("This analysis has no settings."))
         preview = analysis.createPreviewWidget(image) if image is not None else None

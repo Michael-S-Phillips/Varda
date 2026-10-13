@@ -3,7 +3,7 @@
 import numpy as np
 from PyQt6.QtCore import QPointF
 
-from varda.common.parameter import EnumParameter
+from varda.common.parameter_widgets import EnumParameterWidget
 from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
     PixelSelectTool,
 )
@@ -25,9 +25,7 @@ def test_dropdown_set_to_primary_plots_primary_from_a_secondary_click(qtbot):
 
     dropdowns = [
         w
-        for w in workspace.pixelPlotWidget.findChildren(
-            EnumParameter.EnumParameterWidget
-        )
+        for w in workspace.pixelPlotWidget.findChildren(EnumParameterWidget)
         if w.param.name == "Spectrum Source"
     ]
     assert dropdowns, "Spectrum Source dropdown not found in the pixel plot sidebar"

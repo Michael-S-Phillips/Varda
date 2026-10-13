@@ -10,6 +10,7 @@ from varda.common.entities import VardaRaster
 from varda.common.parameter import IntParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.utilities.debug import generate_random_image
+from varda.common.parameter_widgets import groupWidget
 
 
 class DoublingAnalysis(Analysis):
@@ -82,4 +83,4 @@ def test_analysis_settings_are_a_parameter_group():
     analysis = DoublingAnalysis()
     analysis.bands.set(3)
     assert analysis.bands.value == 3
-    assert analysis.createWidget() is not None or pytest.skip("needs QApplication")
+    assert groupWidget(analysis) is not None or pytest.skip("needs QApplication")

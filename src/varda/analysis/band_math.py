@@ -32,6 +32,7 @@ from varda.analysis.rasters import singleBandRaster
 from varda.common.entities import VardaRaster
 from varda.common.expressions import ExpressionError as ExpressionError, evaluate, parse
 from varda.common.parameter import StringParameter
+from varda.common.parameter_widgets import connectWhileAlive
 
 CHUNK_ROWS = 256
 BAND_FUNCTIONS = {
@@ -235,9 +236,14 @@ class BandMathHelp(QWidget):
             lambda text: text and self.analysis.expression.set(text)
         )
         self.saveButton.clicked.connect(self._save)
-        self.analysis.expression.sigParameterChanged.connect(
-            lambda _: self._showReferences()
+        connectWhileAlive(
+            self.analysis.expression.sigParameterChanged,
+            self._onExpressionChanged,
+            self,
         )
+        self._showReferences()
+
+    def _onExpressionChanged(self, _expression: str) -> None:
         self._showReferences()
 
     def _saved(self) -> list[str]:
