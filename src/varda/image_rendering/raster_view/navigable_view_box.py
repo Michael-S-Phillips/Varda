@@ -40,11 +40,11 @@ class NavigableViewBox(pg.ViewBox):
             super().mouseDragEvent(ev, axis)
             return
 
-        # Only left-drag (no modifier) is a navigation gesture; ignore everything else
-        # so it can fall through to other handlers (e.g. context menu).
-        if (
-            ev.button() != Qt.MouseButton.LeftButton
-            or ev.modifiers() != Qt.KeyboardModifier.NoModifier
+        # Left-drag, plain or with Cmd/Ctrl (the pan gesture while drawing ROIs),
+        # is navigation; anything else falls through (e.g. to the context menu).
+        if ev.button() != Qt.MouseButton.LeftButton or ev.modifiers() not in (
+            Qt.KeyboardModifier.NoModifier,
+            Qt.KeyboardModifier.ControlModifier,
         ):
             return
 

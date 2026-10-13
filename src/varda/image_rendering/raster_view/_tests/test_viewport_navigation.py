@@ -195,6 +195,18 @@ class TestRegionController:
 
         assert roi.pos() != posBefore  # the drag moved the ROI on the source
 
+    def test_cmd_drag_pans_too(self, wired):
+        """Cmd-drag pans everywhere, so it works while drawing ROIs."""
+        _controller, _source, target, roi = wired
+        posBefore = QPointF(roi.pos())
+        cmd = Qt.KeyboardModifier.ControlModifier
+        down = QPointF(150, 150)
+        target._vb.mouseDragEvent(_FakeDragEvent(down, down, start=True, modifiers=cmd))
+        target._vb.mouseDragEvent(
+            _FakeDragEvent(QPointF(180, 180), down, modifiers=cmd)
+        )
+        assert roi.pos() != posBefore
+
 
 def _roiWithinRegion(roi, viewport, tol=1e-6) -> bool:
     """Whether `roi` lies fully within `viewport`'s displayed region (local coords)."""

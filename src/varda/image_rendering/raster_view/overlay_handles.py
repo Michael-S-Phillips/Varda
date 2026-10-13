@@ -11,10 +11,10 @@ never affect auto-range — the view stays framed on the image.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import pyqtgraph as pg
-from PyQt6.QtCore import QPointF, QRectF
+from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QPainterPath, QPen, QPolygonF
 from PyQt6.QtWidgets import QGraphicsPolygonItem
 
@@ -169,8 +169,17 @@ class PyqtgraphROIOverlay(pg.GraphicsObject):
 
     _HIGHLIGHT = QColor(255, 255, 0)
 
-    def __init__(self, viewBox: pg.ViewBox, points: Sequence[QPointF], color: QColor):
+    def __init__(
+        self,
+        viewBox: pg.ViewBox,
+        points: Sequence[QPointF],
+        color: QColor,
+        clipTo: Callable[[], QRectF] | None = None,
+    ):
+        """``clipTo``: the area (viewport-local) the ROI may paint in, e.g. the
+        displayed image, so a zoom panel shows no ROI parts outside its region."""
         super().__init__()
+        self._clipTo = clipTo
         self._color = color
         self._highlighted = False
         self._polygon = QPolygonF()
@@ -210,6 +219,8 @@ class PyqtgraphROIOverlay(pg.GraphicsObject):
         return path
 
     def paint(self, painter, option, widget=None) -> None:
+        if self._clipTo is not None:
+            painter.setClipRect(self._clipTo(), Qt.ClipOperation.IntersectClip)
         painter.setPen(self._pen)
         painter.setBrush(self._brush)
         painter.drawPolygon(self._polygon)
