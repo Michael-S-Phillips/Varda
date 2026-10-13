@@ -40,7 +40,7 @@ property outright. Deprecate it first:
 ```python
 from varda.common.deprecation import warnDeprecated
 
-warnDeprecated("VardaRaster.raster", since="0.3.1", instead="getData()")
+warnDeprecated("oldName()", since="0.4.0", instead="newName()")
 ```
 
 `since` is the version the deprecation first ships in. List it under
