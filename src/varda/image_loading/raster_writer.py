@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 import rasterio
 
+from varda.common.provenance import provenanceText
 from varda.common.spectral_axis import BAND_METADATA_KEYS
 from varda.common.entities import VardaRaster
 from varda.utilities.proj_lock import PROJ_LOCK
@@ -78,7 +79,7 @@ def writeRaster(image: VardaRaster, path: str | Path) -> Path:
             tags = {
                 "band_names": _enviList(names),
                 "default_bands": _enviList(displayBands),
-                "description": image.dataSource.description,
+                "description": _describe(image),
             }
             if writeAxis:
                 tags["wavelength"] = _enviList(wavelengths)
@@ -94,7 +95,7 @@ def writeRaster(image: VardaRaster, path: str | Path) -> Path:
                     )
             dst.update_tags(ns="ENVI", **tags)
         else:
-            tags = {"description": image.dataSource.description}
+            tags = {"description": _describe(image)}
             if writeAxis:
                 tags["wavelength"] = ", ".join(wavelengths)
                 tags["wavelength_units"] = image.wavelengthUnits
@@ -106,3 +107,10 @@ def writeRaster(image: VardaRaster, path: str | Path) -> Path:
 
 def _enviList(items: list[str]) -> str:
     return "{" + ", ".join(items) + "}"
+
+
+def _describe(image: VardaRaster) -> str:
+    """The image's description, with how it was made (if Varda made it)."""
+    parts = [image.dataSource.description, provenanceText(image)]
+    # ENVI lists use braces, so keep them out of the text
+    return ". ".join(p for p in parts if p).replace("{", "(").replace("}", ")")

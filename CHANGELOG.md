@@ -33,6 +33,13 @@ can alter results.
 
 ### Added
 
+- **File → Save Session (Self-Contained)** writes one `.varda.zip` holding
+  the session and every result that exists only in memory (as ENVI files);
+  **Open Session** reopens it from anywhere. Paths inside a session folder
+  are now stored relative to the session file.
+- **Provenance**: every analysis result records the analysis, its settings,
+  its input, the Varda version and the time; exported files carry the same
+  record in their description.
 - **Target Detection** (new Processing submenu): RX anomaly (global and
   local window), ACE and matched filter, the last two targeting the mean
   spectrum of ROI classes.

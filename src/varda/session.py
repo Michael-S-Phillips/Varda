@@ -9,12 +9,16 @@ and are reported back to the caller instead.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterable, Sequence
+import tempfile
+import zipfile
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 
 import attrs
 from shapely.geometry import mapping, shape
 
+from varda.common.expressions import words
+from varda.image_loading.raster_writer import writeRaster
 from varda.common.entities import Color, ROIMode, VardaRaster
 from varda.rois.roi_collection import ROICollection
 from varda.workspaces.dual_image_workspace.dual_image_workspace import (
@@ -99,15 +103,19 @@ def roisFromJson(data: dict, collection: ROICollection) -> None:
 
 
 def captureSession(
-    images: Sequence[VardaRaster], workspaces: Iterable[object]
+    images: Sequence[VardaRaster],
+    workspaces: Iterable[object],
+    writtenPaths: Mapping[int, str] | None = None,
 ) -> SessionCapture:
     """Describe the project: every file-backed image and every workspace whose
-    images are all file-backed."""
+    images are all file-backed. ``writtenPaths`` (id(image) -> path) gives
+    files just written for images that existed only in memory."""
     pathOf: dict[int, str] = {}
     unsaved = []
     for image in images:
-        if image.filePath:
-            pathOf[id(image)] = image.filePath
+        path = image.filePath or (writtenPaths or {}).get(id(image))
+        if path:
+            pathOf[id(image)] = path
         else:
             unsaved.append(image.name)
 
@@ -144,16 +152,39 @@ def _describe(workspace: object) -> tuple[str, list[VardaRaster]] | None:
     return None
 
 
-def writeSession(state: SessionState, path: str | Path) -> Path:
-    """Write the session as JSON; the ``.varda`` suffix is added if missing."""
+def writeSession(
+    state: SessionState, path: str | Path, relativeTo: str | Path | None = None
+) -> Path:
+    """Write the session as JSON; the ``.varda`` suffix is added if missing.
+    Image paths inside ``relativeTo`` are stored relative to the session file,
+    so the folder (or bundle) can be moved."""
     target = Path(path)
     if target.suffix != SESSION_SUFFIX:
         target = target.with_suffix(SESSION_SUFFIX)
+
+    def stored(imagePath: str) -> str:
+        if relativeTo is None:
+            return imagePath
+        try:
+            return (
+                Path(imagePath)
+                .resolve()
+                .relative_to(Path(target).resolve().parent)
+                .as_posix()
+            )
+        except ValueError:
+            return imagePath  # outside: keep it absolute
+
+    workspaces = []
+    for workspace in state.workspaces:
+        entry = attrs.asdict(workspace)
+        entry["images"] = [stored(p) for p in workspace.images]
+        workspaces.append(entry)
     document = {
         "format": _FORMAT,
         "version": _VERSION,
-        "images": list(state.images),
-        "workspaces": [attrs.asdict(workspace) for workspace in state.workspaces],
+        "images": [stored(p) for p in state.images],
+        "workspaces": workspaces,
     }
     target.write_text(json.dumps(document, indent=2))
     return target
@@ -164,12 +195,18 @@ def readSession(path: str | Path) -> SessionState:
     if not isinstance(document, dict) or document.get("format") != _FORMAT:
         raise ValueError(f"{path} is not a Varda session file.")
     document = _upgrade(document, path)
+    folder = Path(path).resolve().parent
+
+    def resolved(imagePath: str) -> str:
+        """Relative paths are relative to the session file."""
+        return imagePath if Path(imagePath).is_absolute() else str(folder / imagePath)
+
     return SessionState(
-        tuple(document["images"]),
+        tuple(resolved(p) for p in document["images"]),
         tuple(
             WorkspaceState(
                 entry["kind"],
-                tuple(entry["images"]),
+                tuple(resolved(p) for p in entry["images"]),
                 entry.get("rois", {}),
                 entry.get("extra", {}),
             )
@@ -191,3 +228,51 @@ def _upgrade(document: dict, path: str | Path) -> dict:
         document = MIGRATIONS[version](document)
         version += 1
     return document
+
+
+BUNDLE_SUFFIX = ".varda.zip"
+BUNDLE_SESSION_NAME = "session.varda"
+BUNDLE_DATA_FOLDER = "data"
+
+
+def saveSessionBundle(
+    images: Sequence[VardaRaster], workspaces: Iterable[object], path: str | Path
+) -> Path:
+    """A self-contained session: one zip holding the session and, as ENVI
+    files, every image that existed only in memory (analysis results).
+    Images opened from files stay referenced where they are."""
+    target = Path(path)
+    if not target.name.endswith(BUNDLE_SUFFIX):
+        target = target.with_name(
+            target.name.removesuffix(SESSION_SUFFIX) + BUNDLE_SUFFIX
+        )
+    with tempfile.TemporaryDirectory() as folder:
+        root = Path(folder)
+        data = root / BUNDLE_DATA_FOLDER
+        data.mkdir()
+        written: dict[int, str] = {}
+        for index, image in enumerate(images):
+            if not image.filePath:
+                stem = words(image.name) or f"image_{index + 1}"
+                written[id(image)] = str(
+                    writeRaster(image, data / f"{index + 1:02d}_{stem}.img")
+                )
+        capture = captureSession(images, workspaces, written)
+        writeSession(capture.state, root / BUNDLE_SESSION_NAME, relativeTo=root)
+        with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
+            for file in sorted(root.rglob("*")):
+                if file.is_file():
+                    archive.write(file, file.relative_to(root).as_posix())
+    return target
+
+
+def openSessionBundle(bundle: str | Path, folder: str | Path) -> Path:
+    """Extract a bundle into ``folder``; returns the session file to restore."""
+    target = Path(folder)
+    target.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(bundle) as archive:
+        for name in archive.namelist():  # refuse paths that would escape the folder
+            if Path(name).is_absolute() or ".." in Path(name).parts:
+                raise ValueError(f"{Path(bundle).name} contains an unsafe path: {name}")
+        archive.extractall(target)
+    return target / BUNDLE_SESSION_NAME

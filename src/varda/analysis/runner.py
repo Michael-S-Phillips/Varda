@@ -8,6 +8,7 @@ from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox, QWidget
 
 from varda.analysis.analysis import Analysis
+from varda.analysis.provenance import recordProvenance
 from varda.branding.loader import BusyDialog
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
@@ -35,6 +36,7 @@ class _AnalysisJob(QRunnable):
     def run(self) -> None:
         try:
             result = self.analysis.run(self.image, self.signals.progress.emit)
+            recordProvenance(result, self.analysis, self.image)
             if self.outputPath is not None:
                 self.signals.progress.emit(100, f"saving to {self.outputPath}")
                 writeRaster(result, self.outputPath)

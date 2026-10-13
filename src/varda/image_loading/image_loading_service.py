@@ -53,7 +53,7 @@ def physicalMemoryBytes() -> int:
     if sys.platform == "win32":
         status = _MemoryStatus()
         status.dwLength = ctypes.sizeof(_MemoryStatus)
-        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):  # ty: ignore[unresolved-attribute]
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
             return int(status.ullTotalPhys)
     return 8 * 1024**3
 
