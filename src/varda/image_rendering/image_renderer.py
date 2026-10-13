@@ -89,6 +89,8 @@ class ImageRenderer(QObject):
         self.cachedRender = None
         self._stretchedData = None  # latest render post-stretch but pre-colormap
         self._rawBandData = None  # extracted band data with no processing applied
+        # Overlays leave no-data pixels see-through instead of opaque black
+        self.transparentNoData = False
         self.settings.sigParameterChanged.connect(self._onSettingsChanged)
 
     def _onSettingsChanged(self, *args) -> None:
@@ -126,6 +128,7 @@ class ImageRenderer(QObject):
 
         data = self.settings.stretch.current.apply(data)
         self._stretchedData = data
+        noData = np.isnan(data).all(axis=2)
         data[np.isnan(data)] = 0
 
         if mode == RenderMode.MONO:
@@ -142,6 +145,8 @@ class ImageRenderer(QObject):
             int(self.settings.opacity.get() * 255),
             dtype=np.uint8,
         )
+        if self.transparentNoData:
+            alpha[noData] = 0
         rgba = np.concatenate((data, alpha), axis=2)
         self.cachedRender = rgba
         return rgba

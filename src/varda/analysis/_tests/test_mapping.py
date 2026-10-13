@@ -96,7 +96,7 @@ def test_mapping_needs_two_rois():
     analysis = _with(SamMappingAnalysis())
     analysis.prepareFor(image)
     analysis.rois.set(["A"])
-    with pytest.raises(ValueError, match="at least two ROIs"):
+    with pytest.raises(ValueError, match="at least two ROI classes"):
         analysis.run(image, lambda p, m: None)
 
 

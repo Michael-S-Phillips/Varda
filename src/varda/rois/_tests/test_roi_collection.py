@@ -526,3 +526,29 @@ class TestNodataHandling:
         np.testing.assert_array_almost_equal(mean, [0.1, 0.2, 0.1])
         assert float(np.nanmax(mean)) < 1.0  # no nodata-driven outlier
         assert float(np.nanmax(std)) < 1.0  # std not inflated by nodata
+
+
+class TestClasses:
+    """ROIs that share a name are one class (e.g. three polygons of "basalt")."""
+
+    def test_classes_group_rois_by_name_in_first_drawn_order(self) -> None:
+        rois = ROICollection()
+        a = rois.addROI(box(0, 0, 2, 2), "basalt", RED, ROIMode.RECTANGLE)
+        b = rois.addROI(box(5, 5, 7, 7), "dust", GREEN, ROIMode.RECTANGLE)
+        c = rois.addROI(box(8, 0, 9, 1), "basalt", RED, ROIMode.RECTANGLE)
+        assert rois.classes() == {"basalt": [a, c], "dust": [b]}
+
+    def test_a_class_mask_is_the_union_of_its_rois(self) -> None:
+        rois = ROICollection()
+        rois.addROI(box(0, 0, 2, 2), "basalt", RED, ROIMode.RECTANGLE)
+        rois.addROI(box(5, 5, 7, 7), "basalt", RED, ROIMode.RECTANGLE)
+        rois.addROI(box(10, 10, 12, 12), "dust", GREEN, ROIMode.RECTANGLE)
+        image = _make_fake_image(20, 20)
+        mask = rois.classMask("basalt", image)
+        assert mask[1, 1] and mask[6, 6] and not mask[11, 11]
+
+    def test_a_class_colour_is_its_first_rois(self) -> None:
+        rois = ROICollection()
+        rois.addROI(box(0, 0, 2, 2), "basalt", RED, ROIMode.RECTANGLE)
+        assert rois.classColor("basalt") == RED
+        assert rois.classColor("missing") is None

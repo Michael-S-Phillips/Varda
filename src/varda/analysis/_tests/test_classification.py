@@ -65,7 +65,7 @@ def test_class_names_are_recorded_in_the_metadata():
 def test_requires_at_least_two_rois():
     rois = ROICollection()
     rois.addROI(box(2, 2, 8, 8), "only", RED, ROIMode.RECTANGLE)
-    with pytest.raises(ValueError, match="two ROIs"):
+    with pytest.raises(ValueError, match="two ROI classes"):
         _analysis(rois).run(_twoRegionImage(), lambda p, m: None)
 
 

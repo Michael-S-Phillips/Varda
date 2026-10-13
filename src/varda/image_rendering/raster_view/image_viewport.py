@@ -56,6 +56,9 @@ _POINTER_ACTIONS = {
 }
 
 
+IMAGE_Z = -2
+OVERLAY_IMAGE_Z = -1
+
 class _PixelReadoutOverlay(QLabel):
     """A floating HUD pinned to the bottom-left of its parent viewport.
 
@@ -132,6 +135,9 @@ class ImageViewport(QWidget):
         self._overlayImageItem: VardaImageItem | None = None
 
         self._vb = NavigableViewBox(lockAspect=True, invertY=True)
+        # Images sit under everything drawn on them (ROIs, markers, previews),
+        # with an overlay image between the base image and those
+        self._imageItem.setZValue(IMAGE_Z)
         self._vb.addItem(self._imageItem)
         self._gv = pg.GraphicsView()
         self._gv.setCentralItem(self._vb)
@@ -173,9 +179,15 @@ class ImageViewport(QWidget):
             log.info("An image is already overlayed. Replacing it with the new one.")
             self.removeOverlayImage()
         self._overlayImageItem = VardaImageItem(overlayImageRenderer)
+        if self._imageItem.isShowingRegion:
+            self._overlayImageItem.setROI(self._imageItem.roi)
+        self._overlayImageItem.setZValue(OVERLAY_IMAGE_Z)
         self._vb.addItem(self._overlayImageItem)
 
         overlayImageRenderer.sigShouldRefresh.connect(self.autoRefresh)
+
+    def hasOverlayImage(self) -> bool:
+        return self._overlayImageItem is not None
 
     def removeOverlayImage(self):
         """Remove the overlay image."""
@@ -264,12 +276,16 @@ class ImageViewport(QWidget):
     # --- Region display ---
 
     def showRegion(self, roi):
-        """Display only the given ROI's region of the full image."""
+        """Display only the given ROI's region of the full image (and of any overlay)."""
         self._imageItem.setROI(roi)
+        if self._overlayImageItem is not None:
+            self._overlayImageItem.setROI(roi)
 
     def clearRegion(self):
         """Show the full image instead of a region."""
         self._imageItem.clearROI()
+        if self._overlayImageItem is not None:
+            self._overlayImageItem.clearROI()
 
     @property
     def isShowingRegion(self) -> bool:

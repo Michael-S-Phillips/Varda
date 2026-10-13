@@ -13,12 +13,7 @@ from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
 from varda.image_rendering.raster_view.viewport_tools.ratio_explorer_tool import (
     RatioExplorerTool,
 )
-from varda.image_rendering.raster_view.viewport_tools.roi_tools import (
-    FreehandROITool,
-    RectangleROITool,
-    EllipseROITool,
-    PolygonROITool,
-)
+from varda.image_rendering.raster_view.viewport_tools.roi_tools import ROIDrawTool
 
 
 class ToolRegistry:
@@ -121,8 +116,5 @@ class ToolRegistry:
         self.registerTool(PixelSelectTool)
         self.registerTool(RatioExplorerTool)
 
-        # ROI drawing tools
-        self.registerTool(FreehandROITool)
-        self.registerTool(RectangleROITool)
-        self.registerTool(EllipseROITool)
-        self.registerTool(PolygonROITool)
+        # ROI drawing: one toggle; the shape is picked in the ROI manager
+        self.registerTool(ROIDrawTool)

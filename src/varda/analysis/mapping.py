@@ -11,10 +11,9 @@ from __future__ import annotations
 from enum import Enum
 
 import numpy as np
-from PyQt6.QtGui import QColor
 
 from varda.analysis.analysis import Analysis, ProgressCallback
-from varda.analysis.classification import _RoiTrainingAnalysis, _requireRois, roiLabels
+from varda.analysis.classification import _RoiTrainingAnalysis, _requireRois
 from varda.analysis.endmembers import pixelPurityIndex
 from varda.analysis.linear_algebra import flattenValid, mnf, noiseCovariance
 from varda.analysis.rasters import readCube, singleBandRaster
@@ -24,7 +23,7 @@ from varda.analysis.unmixing import (
     mixtureTunedMatchedFilter,
     spectralAngles,
 )
-from varda.common.entities import Color, VardaRaster
+from varda.common.entities import VardaRaster
 from varda.common.parameter import (
     EnumParameter,
     FloatParameter,
@@ -175,15 +174,10 @@ class PixelPurityAnalysis(Analysis):
         )
 
 
-def _hexColor(color: Color | QColor) -> str:
-    qcolor = color if isinstance(color, QColor) else color.toQColor()
-    return qcolor.name()
-
-
 def _roiEndmemberParameter() -> MultiChoiceParameter:
     return MultiChoiceParameter(
-        "ROIs (one endmember each)",
-        description="Each ticked ROI's mean spectrum is one endmember.",
+        "ROI classes (one endmember each)",
+        description="Each ticked class's mean spectrum (over all its ROIs) is one endmember.",
     )
 
 
@@ -195,22 +189,21 @@ class _RoiEndmemberMapping(_RoiTrainingAnalysis):
 
     def _endmembers(self, image: VardaRaster, cube: np.ndarray, valid: np.ndarray):
         rois = _requireRois(self)
-        fids = self._chosenFids(rois)
-        if len(fids) < 2:
-            raise ValueError("Mapping needs at least two ROIs (one endmember each).")
-        labels = dict(roiLabels(rois))
-        names, colors, spectra, masks = [], [], [], []
-        for fid in fids:
-            mask = rois.getMask(fid, image) & valid
+        names = self._chosenClasses(rois)
+        if len(names) < 2:
+            raise ValueError(
+                "Mapping needs at least two ROI classes (one endmember each)."
+            )
+        spectra, masks = [], []
+        for name in names:
+            mask = rois.classMask(name, image) & valid
             if not mask.any():
                 raise ValueError(
-                    f"ROI {labels[fid]} has no valid pixels in {image.name}."
+                    f"ROI class {name} has no valid pixels in {image.name}."
                 )
-            names.append(labels[fid])
-            colors.append(_hexColor(rois.getROI(fid).color))
             spectra.append(cube[mask].mean(axis=0))
             masks.append(mask)
-        return names, colors, np.stack(spectra), masks
+        return names, self._classColors(rois, names), np.stack(spectra), masks
 
     def _mapKwargs(self) -> dict:
         return {}

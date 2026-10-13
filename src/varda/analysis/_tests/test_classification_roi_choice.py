@@ -1,4 +1,4 @@
-"""Classifiers train on the ROIs the user ticks, one class each."""
+"""Classifiers train on the ROI classes the user ticks; ROIs sharing a name are one class."""
 
 import numpy as np
 import pytest
@@ -48,13 +48,34 @@ def test_preparing_offers_the_workspace_rois_all_selected(analysisClass):
     assert analysis.rois.get() == ["dark", "mid", "bright"]
 
 
-def test_rois_with_the_same_name_are_told_apart():
+def test_rois_with_the_same_name_are_one_class():
     analysis = MlpClassificationAnalysis()
     analysis.setContext(AnalysisContext(rois=_rois(("rock", "rock", "soil"))))
 
     analysis.prepareFor(_threeRegionImage())
 
-    assert analysis.rois.choices == ["rock (ROI 0)", "rock (ROI 1)", "soil"]
+    assert analysis.rois.choices == ["rock", "soil"]
+
+
+def test_a_class_trains_on_all_of_its_rois_and_keeps_its_colour():
+    image = _threeRegionImage()
+    rois = ROICollection()
+    blue = Color(0.0, 0.0, 1.0, 0.5)
+    rois.addROI(box(2, 2, 8, 8), "dark", RED, ROIMode.RECTANGLE)
+    rois.addROI(box(10, 12, 16, 18), "dark", RED, ROIMode.RECTANGLE)
+    rois.addROI(box(42, 2, 48, 8), "bright", blue, ROIMode.RECTANGLE)
+    analysis = MlpClassificationAnalysis()
+    analysis.setContext(AnalysisContext(rois=rois))
+    analysis.prepareFor(image)
+    analysis.epochs.set(150)
+
+    result = analysis.run(image, lambda p, m: None)
+
+    assert result.extraMetadata["classes"] == ["dark", "bright"]
+    assert result.extraMetadata["classColors"] == ["#ff0000", "#0000ff"]
+    classes = result.getData()[:, :, 0]
+    assert np.mean(classes[:, :18] == 0) > 0.9
+    assert np.mean(classes[:, 42:] == 1) > 0.9
 
 
 def test_fewer_than_two_selected_rois_is_refused_with_a_reason():

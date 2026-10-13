@@ -9,6 +9,9 @@ import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
+    QFormLayout,
+    QGroupBox,
+    QLabel,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -28,6 +31,8 @@ from varda.image_loading.crism_geometry import (
 )
 from varda.plotting.plot import VardaPlotWidget
 from varda.rois.roi_collection import ROICollection
+from varda.rois.roi_drawing_state import ROIDrawingState
+from varda.rois.roi_drawing_widgets import ROIClassPicker, ROIShapePicker
 from varda.rois.roi_table_model import ROITableModel
 from varda.rois.roi_table_view import ROITableView
 
@@ -55,6 +60,7 @@ class ROIManagerWidget(QWidget):
         image: VardaRaster,
         plotWidget: VardaPlotWidget,
         parent: QWidget | None = None,
+        drawingState: ROIDrawingState | None = None,
     ) -> None:
         super().__init__(parent)
         self._collection = collection
@@ -103,6 +109,8 @@ class ROIManagerWidget(QWidget):
         btnRow.addStretch()
 
         layout = QVBoxLayout(self)
+        if drawingState is not None:
+            layout.addWidget(self._drawingBox(drawingState))
         layout.addLayout(btnRow)
         layout.addWidget(self._table)
 
@@ -123,6 +131,20 @@ class ROIManagerWidget(QWidget):
 
         # Keep denominator state consistent if its ROI is deleted
         collection.sigROIRemoved.connect(self._onROIRemoved)
+
+    @staticmethod
+    def _drawingBox(state: ROIDrawingState) -> QGroupBox:
+        box = QGroupBox("Draw")
+        hint = QLabel(
+            "Turn on <b>Draw ROI</b> under a view and draw. Shapes join the "
+            "selected class until you start a new one."
+        )
+        hint.setWordWrap(True)
+        form = QFormLayout(box)
+        form.addRow(hint)
+        form.addRow("Shape:", ROIShapePicker(state))
+        form.addRow(ROIClassPicker(state))
+        return box
 
     @property
     def table(self) -> ROITableView:

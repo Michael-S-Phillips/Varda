@@ -1,8 +1,9 @@
 """Classification: train a classifier on the workspace's ROIs, classify the image.
 
-One class per ROI. Every classifier produces the same result image: a Class
-band (0-based ROI index) plus one probability band per class, with the class
-names in the metadata.
+One class per ROI class: ROIs sharing a name train the same class. Every
+classifier produces the same result image: a Class band (0-based class index)
+plus one probability band per class, with the class names and colours in the
+metadata.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import numpy as np
 from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.mlp import MlpClassifier
 from varda.analysis.rasters import readCube
-from varda.common.entities import VardaRaster
+from varda.common.entities import Color, VardaRaster
 from varda.common.parameter import FloatParameter, IntParameter, MultiChoiceParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.optional_features.torch_runtime import TorchRuntime, defaultRuntime
@@ -43,34 +44,27 @@ def torchRuntime() -> TorchRuntime:
 _PREDICT_CHUNK = 65_536
 
 
-def roiLabels(rois: ROICollection) -> list[tuple[int, str]]:
-    """(fid, label) for every ROI; ROIs sharing a name are told apart by id."""
-    names = [rois.getROI(fid).name for fid in rois.fids]
-    return [
-        (fid, f"{name} (ROI {fid})" if names.count(name) > 1 else name)
-        for fid, name in zip(rois.fids, names)
-    ]
+def _hexColor(color: Color | None) -> str:
+    return color.toQColor().name() if color is not None else "#808080"
 
 
 def _trainingSet(
-    rois: ROICollection, image: VardaRaster, valid: np.ndarray, fids: Sequence[int]
+    rois: ROICollection, image: VardaRaster, valid: np.ndarray, classes: Sequence[str]
 ) -> tuple[list[str], np.ndarray, np.ndarray, np.ndarray]:
     """Class names and the (rows, cols, labels) of valid pixels inside each of
-    the chosen ROIs."""
-    if len(fids) < 2:
-        raise ValueError("Training needs at least two ROIs (one per class).")
-    names, rows, cols, labels = [], [], [], []
-    for label, fid in enumerate(fids):
-        names.append(rois.getROI(fid).name)
-        mask = rois.getMask(fid, image) & valid
-        r, c = np.nonzero(mask)
+    the chosen classes' ROIs."""
+    if len(classes) < 2:
+        raise ValueError("Training needs at least two ROI classes.")
+    rows, cols, labels = [], [], []
+    for label, name in enumerate(classes):
+        r, c = np.nonzero(rois.classMask(name, image) & valid)
         rows.append(r)
         cols.append(c)
         labels.append(np.full(r.size, label))
     y = np.concatenate(labels)
     if len(np.unique(y)) < 2:
-        raise ValueError("At least two ROIs must contain valid pixels.")
-    return names, np.concatenate(rows), np.concatenate(cols), y
+        raise ValueError("At least two ROI classes must contain valid pixels.")
+    return list(classes), np.concatenate(rows), np.concatenate(cols), y
 
 
 def _requireRois(analysis: Analysis) -> ROICollection:
@@ -87,14 +81,17 @@ def _roiChoiceParameter() -> MultiChoiceParameter:
     # Each analysis declares its own copy: ParameterGroup only picks up
     # Parameters defined directly on the class.
     return MultiChoiceParameter(
-        "ROIs (one class each)",
-        description="Which of the workspace's ROIs to train on; all of them by default.",
+        "ROI classes",
+        description=(
+            "Which of the workspace's ROI classes to train on (ROIs sharing a "
+            "name are one class); all of them by default."
+        ),
     )
 
 
 class _RoiTrainingAnalysis(Analysis):
     """Shared plumbing for classifiers trained on the workspace's ROIs: the
-    user ticks which ROIs become classes."""
+    user ticks which ROI classes to use."""
 
     category = "Classification"
     needsRois = True
@@ -102,7 +99,7 @@ class _RoiTrainingAnalysis(Analysis):
 
     def prepareFor(self, image: VardaRaster) -> None:
         collection = self.context.rois
-        labels = [label for _, label in roiLabels(collection)] if collection else []
+        labels = list(collection.classes()) if collection else []
         # Keep the user's selection when the same ROIs are offered again
         kept = [label for label in self.rois.get() if label in labels]
         self.rois.setChoices(labels, selected=kept if kept else None)
@@ -112,15 +109,18 @@ class _RoiTrainingAnalysis(Analysis):
         if collection is None or len(collection) < 2:
             return ""  # the dialog already explains missing ROIs
         if self.rois.choices and len(self.rois.get()) < 2:
-            return "Tick at least two ROIs (one class each)."
+            return "Tick at least two ROI classes."
         return ""
 
-    def _chosenFids(self, collection: ROICollection) -> list[int]:
-        labels = roiLabels(collection)
-        if not self.rois.choices:  # never prepared for an image: every ROI
-            return [fid for fid, _ in labels]
+    def _chosenClasses(self, collection: ROICollection) -> list[str]:
+        classes = list(collection.classes())
+        if not self.rois.choices:  # never prepared for an image: every class
+            return classes
         chosen = set(self.rois.get())
-        return [fid for fid, label in labels if label in chosen]
+        return [name for name in classes if name in chosen]
+
+    def _classColors(self, collection: ROICollection, names: list[str]) -> list[str]:
+        return [_hexColor(collection.classColor(name)) for name in names]
 
 
 def _classificationRaster(
@@ -129,6 +129,7 @@ def _classificationRaster(
     probabilities: np.ndarray,
     names: list[str],
     *,
+    colors: list[str],
     suffix: str,
     metadata: dict,
 ) -> VardaRaster:
@@ -143,8 +144,8 @@ def _classificationRaster(
         bandNames=bandNames,
         transform=image.transform,
         crs=image.crs,
-        description=f"{suffix} of {image.name} trained on {len(names)} ROIs",
-        extraMetadata={"classes": names, **metadata},
+        description=f"{suffix} of {image.name} trained on {len(names)} ROI classes",
+        extraMetadata={"classes": names, "classColors": colors, **metadata},
     )
     return VardaRaster(source, name=f"{image.name} {suffix}")
 
@@ -154,7 +155,7 @@ class MlpClassificationAnalysis(_RoiTrainingAnalysis):
     name = "Train MLP on ROIs"
     description = (
         "Trains a multi-layer perceptron on the spectra inside the chosen ROIs "
-        "of the current workspace (one class per ROI) and classifies every "
+        "of the current workspace (ROIs sharing a name are one class) and classifies every "
         "pixel. The result has a Class band (0-based class index) and one "
         "probability band per class."
     )
@@ -178,7 +179,9 @@ class MlpClassificationAnalysis(_RoiTrainingAnalysis):
         cube, valid = readCube(image)
 
         reportProgress(5, "collecting training spectra")
-        names, rows, cols, y = _trainingSet(rois, image, valid, self._chosenFids(rois))
+        names, rows, cols, y = _trainingSet(
+            rois, image, valid, self._chosenClasses(rois)
+        )
         X = cube[rows, cols]
 
         model = MlpClassifier(
@@ -210,6 +213,7 @@ class MlpClassificationAnalysis(_RoiTrainingAnalysis):
             probabilities,
             names,
             suffix="MLP classes",
+            colors=self._classColors(rois, names),
             metadata={"layerSizes": model.layerSizes, "finalLoss": losses[-1]},
         )
 
@@ -287,7 +291,9 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
         cube[~valid] = cube[valid].mean(axis=0)
 
         reportProgress(5, "collecting training patches")
-        names, rows, cols, y = _trainingSet(rois, image, valid, self._chosenFids(rois))
+        names, rows, cols, y = _trainingSet(
+            rois, image, valid, self._chosenClasses(rois)
+        )
 
         def onProgress(fraction: float, message: str) -> None:
             reportProgress(5 + round(95 * fraction), message)
@@ -310,6 +316,7 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
             probabilities,
             names,
             suffix=self.suffix,
+            colors=self._classColors(rois, names),
             metadata={"patchSize": spec["patchSize"], "finalLoss": finalLoss},
         )
 

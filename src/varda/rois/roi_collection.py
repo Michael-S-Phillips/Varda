@@ -275,6 +275,27 @@ class ROICollection:
         )
         return mask.astype(bool)
 
+    # --- Classes: ROIs that share a name ---
+
+    def classes(self) -> dict[str, list[int]]:
+        """Class name -> its ROIs' fids, classes in the order first drawn."""
+        groups: dict[str, list[int]] = {}
+        for fid, name in self._gdf["name"].items():
+            groups.setdefault(str(name), []).append(int(fid))
+        return groups
+
+    def classColor(self, name: str) -> Color | None:
+        """The colour of the class's first ROI, or None if it has none."""
+        fids = self.classes().get(name)
+        return self.getROI(fids[0]).color if fids else None
+
+    def classMask(self, name: str, image: VardaRaster) -> np.ndarray:
+        """The union of the class's ROI masks."""
+        mask = np.zeros((image.height, image.width), dtype=bool)
+        for fid in self.classes().get(name, []):
+            mask |= self.getMask(fid, image)
+        return mask
+
     # --- Spectral statistics ---
 
     def getMeanSpectrum(self, fid: int, image: VardaRaster) -> Spectrum:
@@ -325,28 +346,6 @@ class ROICollection:
             numpy arrays except pixel_count (int). See ``computeRegionStatistics``.
         """
         return computeRegionStatistics(self.getPixelCoordinates(fid), image)
-
-    # --- Convenience ---
-
-    _DEFAULT_COLORS = [
-        Color(1.0, 0.0, 0.0, 0.5),
-        Color(0.0, 1.0, 0.0, 0.5),
-        Color(0.0, 0.0, 1.0, 0.5),
-        Color(1.0, 1.0, 0.0, 0.5),
-        Color(1.0, 0.0, 1.0, 0.5),
-        Color(0.0, 1.0, 1.0, 0.5),
-    ]
-
-    def addROIFromDrawing(
-        self,
-        geometry: BaseGeometry,
-        roiType: ROIMode,
-    ) -> int:
-        """Add an ROI from a drawing tool result, auto-generating name and color."""
-        idx = len(self) % len(self._DEFAULT_COLORS)
-        color = self._DEFAULT_COLORS[idx]
-        name = f"ROI {self._nextFid + 1}"
-        return self.addROI(geometry=geometry, name=name, color=color, roiType=roiType)
 
     # --- File I/O ---
 

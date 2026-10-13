@@ -15,6 +15,7 @@ from varda.workspaces.spectral_hourglass.hourglass_model import (
 from varda.workspaces.spectral_hourglass.hourglass_workspace import (
     SpectralHourglassWorkspace,
 )
+from varda.image_rendering.raster_view.viewport_tools.roi_tools import ROIDrawTool
 from varda.workspaces.spectral_hourglass.scene_view import Overlay
 
 
@@ -285,3 +286,8 @@ def test_a_workflow_for_another_image_is_refused(workspace, qtbot, tmp_path):
     qtbot.addWidget(fresh)
     with pytest.raises(ValueError, match="different image"):
         fresh.openWorkflow(path)
+
+
+def test_the_scene_toolbar_has_no_roi_drawing(workspace):
+    actions = workspace.scene.toolManager.getToolbar().actions()
+    assert not any(a.data() is ROIDrawTool for a in actions)

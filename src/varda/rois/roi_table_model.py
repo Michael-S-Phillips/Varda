@@ -10,14 +10,15 @@ from varda.rois.roi_collection import ROICollection
 
 
 # Fixed columns shown for every collection
-_FIXED_COLUMNS = ["FID", "Name", "Color", "Type"]
+# "Class" is the ROI name: ROIs that share one form a class
+_FIXED_COLUMNS = ["FID", "Class", "Color", "Type"]
 
 
 class ROITableModel(QAbstractTableModel):
     """Table model exposing ROIs from an ROICollection.
 
-    Fixed columns: FID (read-only), Name (editable), Color (editable via delegate),
-    Type (read-only). Additional dynamic columns come from user-added metadata.
+    Fixed columns: FID (read-only), Class (the name, editable), Color (editable
+    via delegate, applies to the whole class), Type (read-only). Additional dynamic columns come from user-added metadata.
     """
 
     def __init__(self, collection: ROICollection, parent=None) -> None:
@@ -137,7 +138,7 @@ class ROITableModel(QAbstractTableModel):
         if not index.isValid():
             return base
         col = index.column()
-        # Name and Color are editable; dynamic columns are editable
+        # Class and Color are editable; dynamic columns are editable
         if col == 1 or col == 2 or col >= len(_FIXED_COLUMNS):
             return base | Qt.ItemFlag.ItemIsEditable
         return base
@@ -154,10 +155,17 @@ class ROITableModel(QAbstractTableModel):
         roi = self._roiCache[row]
         col = index.column()
 
-        if col == 1:  # Name
-            self._collection.updateROI(roi.fid, name=value)
-        elif col == 2 and isinstance(value, QColor):  # Color
-            self._collection.updateROI(roi.fid, color=Color.fromQColor(value))
+        if col == 1:  # Class: an existing class's ROIs share its colour
+            name = str(value)
+            classColor = self._collection.classColor(name)
+            if classColor is not None and name != roi.name:
+                self._collection.updateROI(roi.fid, name=name, color=classColor)
+            else:
+                self._collection.updateROI(roi.fid, name=name)
+        elif col == 2 and isinstance(value, QColor):  # Color, for the whole class
+            color = Color.fromQColor(value)
+            for fid in self._collection.classes().get(roi.name, [roi.fid]):
+                self._collection.updateROI(fid, color=color)
         elif col >= len(_FIXED_COLUMNS):
             dyn_col = self._dynamicColumns()
             key = dyn_col[col - len(_FIXED_COLUMNS)]

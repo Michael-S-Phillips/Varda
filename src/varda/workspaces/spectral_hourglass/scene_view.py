@@ -29,6 +29,7 @@ from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
     PixelSelectTool,
 )
+from varda.image_rendering.raster_view.viewport_tools.roi_tools import ROIDrawTool
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 
 
@@ -76,7 +77,10 @@ class SceneView(QWidget):
         if image.bandCount >= 3:
             self.renderer.settings.mode.set(RenderMode.RGB)
         self.viewport = ImageViewport(self.renderer, self)
-        self.toolManager = ToolManager(self.viewport, self)
+        # No ROIs in this workspace: endmembers are picked in the n-D view
+        self.toolManager = ToolManager(
+            self.viewport, self, excludeCategories=(ROIDrawTool.toolCategory,)
+        )
         self.viewport.addToolBar(self.toolManager.getToolbar())
         self.toolManager.sigToolActivated.connect(self._onToolActivated)
 
