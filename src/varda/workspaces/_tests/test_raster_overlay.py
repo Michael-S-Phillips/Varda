@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 from affine import Affine
+from PyQt6.QtCore import Qt
 
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
@@ -116,10 +117,13 @@ def test_choosing_an_image_overlays_it_on_every_view(bar):
     widget.setOverlay(images[1])
     assert widget.layerBox.currentText() == CLASSES
     assert all(v.hasOverlayImage() for v in viewports)
-    assert widget.legend.isVisibleTo(widget)
-    assert "dark" in widget.legend.text() and "bright" in widget.legend.text()
+    # the class key sits on the main view, not in the toolbar
+    legend = viewports[0].legendText()
+    assert "dark" in legend and "bright" in legend
+    assert viewports[1].legendText() == ""
     widget.setOverlay(None)
     assert not any(v.hasOverlayImage() for v in viewports)
+    assert viewports[0].legendText() == ""
 
 
 def test_opacity_and_layer_changes_apply(bar):
@@ -129,7 +133,7 @@ def test_opacity_and_layer_changes_apply(bar):
     assert widget.renderer is not None
     assert widget.renderer.settings.opacity.get() == pytest.approx(0.3)
     widget.layerBox.setCurrentText("P(dark)")
-    assert not widget.legend.isVisibleTo(widget)
+    assert viewports[0].legendText() == ""  # no key for a probability layer
     assert widget.renderer.settings.opacity.get() == pytest.approx(0.3)
 
 
@@ -150,3 +154,42 @@ def test_the_overlay_sits_between_the_image_and_what_is_drawn_on_it(bar):
     outline = viewport.addPolygonOverlay()
     assert viewport._imageItem.zValue() < viewport._overlayImageItem.zValue()
     assert viewport._overlayImageItem.zValue() < outline._item.zValue()
+
+
+def test_the_legend_can_be_hidden(bar):
+    widget, viewports, images = bar
+    widget.setOverlay(images[1])
+    assert widget.legendButton.isVisibleTo(widget)
+    widget.legendButton.setChecked(False)
+    assert viewports[0].legendText() == ""
+    widget.legendButton.setChecked(True)
+    assert "dark" in viewports[0].legendText()
+
+
+def test_the_layer_picker_shows_only_when_there_is_a_choice(qtbot, bar):
+    widget, viewports, images = bar
+    widget.setOverlay(images[1])  # classes plus probabilities
+    assert widget.layerBox.isVisibleTo(widget)
+    base = images[0]
+    single = _raster(np.zeros(base.shape[:2] + (1,), np.float32), "one band")
+    images.append(single)
+    widget._refreshImages()
+    widget.setOverlay(single)
+    assert not widget.layerBox.isVisibleTo(widget)
+
+
+def test_a_long_overlay_name_does_not_widen_the_toolbar(qtbot):
+    base = _base()
+    classes = _classification(base)
+    widths = []
+    for name in ("short", "frt00004185_07_if165j_mtr3.img CNN classes " * 3):
+        overlay = VardaRaster(classes.dataSource, name=name)
+        widget = OverlayBar(
+            [base, overlay], base, [ImageViewport(ImageRenderer(image=base))]
+        )
+        qtbot.addWidget(widget)
+        widget.setOverlay(overlay)
+        widths.append(widget.sizeHint().width())
+        index = widget.imageBox.currentIndex()
+        assert widget.imageBox.itemData(index, Qt.ItemDataRole.ToolTipRole) == name
+    assert widths[1] == widths[0]  # the name is elided, not given more room

@@ -101,6 +101,30 @@ class _PixelReadoutOverlay(QLabel):
         self.move(self._MARGIN, parent.height() - self.height() - self._MARGIN)
 
 
+class _LegendOverlay(QLabel):
+    """A key (rich text) pinned to the top-right of the image area, e.g. the
+    classes of an overlaid classification. Like the readout it ignores the
+    mouse, so it never blocks navigation."""
+
+    _MARGIN = 8
+
+    def __init__(self, parent: QWidget, area: QWidget):
+        super().__init__(parent)
+        self._area = area
+        self.setTextFormat(Qt.TextFormat.RichText)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setStyleSheet(
+            "background-color: rgba(0, 0, 0, 160); color: #eeeeee;"
+            "padding: 4px 8px; border-radius: 4px;"
+        )
+        self.hide()
+
+    def reposition(self) -> None:
+        self.adjustSize()
+        area = self._area.geometry()
+        self.move(area.right() - self.width() - self._MARGIN, area.top() + self._MARGIN)
+
+
 class ImageViewport(QWidget):
     """
     Generic image viewer: holds a single Viewbox with an ImageRegionItem, and helper methods.
@@ -168,6 +192,7 @@ class ImageViewport(QWidget):
         # exits the view, so the final hide comes from the widget-level Leave event. A
         # QGraphicsView routes enter/leave to its viewport() child, so we filter that.
         self._readoutOverlay = _PixelReadoutOverlay(self)
+        self._legendOverlay = _LegendOverlay(self, self._gv)
         self._gv.scene().sigMouseMoved.connect(self._onHover)
         self._gv.viewport().installEventFilter(self)
 
@@ -438,6 +463,7 @@ class ImageViewport(QWidget):
     def resizeEvent(self, a0):
         super().resizeEvent(a0)
         self._readoutOverlay.reposition()
+        self._legendOverlay.reposition()
 
     def _onHover(self, scenePos: QPointF) -> None:
         """Update the bottom-left readout for the pixel under the cursor."""
@@ -489,6 +515,19 @@ class ImageViewport(QWidget):
                 shown = f"{float(value):.4g}"
             parts.append(f"{label} {shown}")
         return "  ".join(parts)
+
+    def setLegend(self, html: str) -> None:
+        """Show a key over the top-right of the image ("" hides it)."""
+        self._legendOverlay.setText(html)
+        self._legendOverlay.setVisible(bool(html))
+        if html:
+            self._legendOverlay.reposition()
+            self._legendOverlay.raise_()
+
+    def legendText(self) -> str:
+        return (
+            self._legendOverlay.text() if self._legendOverlay.isVisibleTo(self) else ""
+        )
 
     def addToolBar(self, toolbar):
         """Add a toolbar to the viewport."""
