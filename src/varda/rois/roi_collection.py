@@ -38,6 +38,7 @@ class ROICollection:
         sigROIRemoved(int): emitted with fid after an ROI is removed.
         sigROIUpdated(int): emitted with fid after an ROI is updated.
         sigColumnsChanged(): emitted after a user column is added/removed/renamed.
+        sigVisibilityChanged(int): emitted with fid after an ROI is hidden or shown.
         sigCollectionChanged(): emitted on any structural change.
     """
 
@@ -45,6 +46,7 @@ class ROICollection:
     sigROIRemoved = Signal(int)
     sigROIUpdated = Signal(int)
     sigColumnsChanged = Signal()
+    sigVisibilityChanged = Signal(int)
     sigCollectionChanged = Signal()
 
     def __init__(
@@ -60,6 +62,9 @@ class ROICollection:
             geometry="geometry",
         )
         self._gdf.index.name = "fid"
+        # Hidden ROIs are display state: kept apart from the ROIs' data, so
+        # they are never exported as a column
+        self._hidden: set[int] = set()
         if crs is not None:
             self._gdf = self._gdf.set_crs(crs)
 
@@ -106,6 +111,7 @@ class ROICollection:
         if fid not in self._gdf.index:
             raise KeyError(f"No ROI with fid={fid}")
         self._gdf = self._gdf.drop(index=fid)
+        self._hidden.discard(fid)
 
         self.sigROIRemoved.emit(fid)
         self.sigCollectionChanged.emit()
@@ -135,6 +141,35 @@ class ROICollection:
 
         self.sigROIUpdated.emit(fid)
         self.sigCollectionChanged.emit()
+
+    # --- Visibility ---
+
+    def isVisible(self, fid: int) -> bool:
+        return fid not in self._hidden
+
+    def hiddenFids(self) -> set[int]:
+        return set(self._hidden)
+
+    def setVisible(self, fid: int, visible: bool) -> None:
+        """Show or hide an ROI on the image; it stays in the collection."""
+        if fid not in self._gdf.index:
+            raise KeyError(f"No ROI with fid={fid}")
+        if visible == self.isVisible(fid):
+            return
+        if visible:
+            self._hidden.discard(fid)
+        else:
+            self._hidden.add(fid)
+        self.sigVisibilityChanged.emit(fid)
+
+    def setAllVisible(self, visible: bool) -> None:
+        for fid in self.fids:
+            self.setVisible(fid, visible)
+
+    def showOnly(self, fid: int) -> None:
+        """Show ``fid`` and hide every other ROI."""
+        for other in self.fids:
+            self.setVisible(other, other == fid)
 
     def __len__(self) -> int:
         return len(self._gdf)

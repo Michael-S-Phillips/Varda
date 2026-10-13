@@ -69,6 +69,16 @@ class ROITableView(QTableView):
         menu.addAction(ratioAction)
 
         menu.addSeparator()
+        collection = self._roiModel.collection
+        onlyAction = QAction("Show Only This ROI", menu)
+        onlyAction.triggered.connect(lambda: collection.showOnly(fid))
+        menu.addAction(onlyAction)
+        allAction = QAction("Show All ROIs", menu)
+        allAction.triggered.connect(lambda: collection.setAllVisible(True))
+        allAction.setEnabled(bool(collection.hiddenFids()))
+        menu.addAction(allAction)
+
+        menu.addSeparator()
 
         setDenomAction = QAction("Set as Denominator", menu)
         setDenomAction.setEnabled(fid != self._roiModel.denominatorFid)

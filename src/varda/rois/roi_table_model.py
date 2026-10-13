@@ -50,6 +50,7 @@ class ROITableModel(QAbstractTableModel):
         collection.sigROIRemoved.connect(self._onChanged)
         collection.sigROIUpdated.connect(self._onChanged)
         collection.sigColumnsChanged.connect(self._onChanged)
+        collection.sigVisibilityChanged.connect(self._onVisibilityChanged)
 
     @property
     def collection(self) -> ROICollection:
@@ -121,6 +122,11 @@ class ROITableModel(QAbstractTableModel):
                 key = dyn_col[col - len(_FIXED_COLUMNS)]
                 return _formatValue(roi.properties.get(key, ""))
 
+        # The FID column carries a checkbox: is the ROI shown on the image?
+        if role == Qt.ItemDataRole.CheckStateRole and col == 0:
+            visible = self._collection.isVisible(roi.fid)
+            return Qt.CheckState.Checked if visible else Qt.CheckState.Unchecked
+
         if role == Qt.ItemDataRole.DecorationRole and col == 2:
             return roi.color.toQColor()
 
@@ -146,6 +152,8 @@ class ROITableModel(QAbstractTableModel):
             if section < len(all_cols):
                 if role == Qt.ItemDataRole.DisplayRole:
                     return all_cols[section]
+                if role == Qt.ItemDataRole.ToolTipRole and section == 0:
+                    return "Untick an ROI to hide it on the image"
                 if role == Qt.ItemDataRole.ToolTipRole and self._calculated:
                     formula = self._calculated.describe(all_cols[section])
                     if formula is not None:
@@ -157,6 +165,8 @@ class ROITableModel(QAbstractTableModel):
         if not index.isValid():
             return base
         col = index.column()
+        if col == 0:
+            return base | Qt.ItemFlag.ItemIsUserCheckable
         # Class and Color are editable, and user columns unless calculated
         if col == 1 or col == 2:
             return base | Qt.ItemFlag.ItemIsEditable
@@ -178,6 +188,10 @@ class ROITableModel(QAbstractTableModel):
         roi = self._roiCache[row]
         col = index.column()
 
+        if col == 0 and role == Qt.ItemDataRole.CheckStateRole:
+            checked = Qt.CheckState(value) == Qt.CheckState.Checked
+            self._collection.setVisible(roi.fid, checked)
+            return True
         if col == 1:  # Class: an existing class's ROIs share its colour
             name = str(value)
             classColor = self._collection.classColor(name)
@@ -222,6 +236,13 @@ class ROITableModel(QAbstractTableModel):
 
     def _refreshCache(self) -> None:
         self._roiCache = self._collection.getAllROIs()
+
+    def _onVisibilityChanged(self, fid: int) -> None:
+        """Repaint just that ROI's checkbox (a reset would lose the selection)."""
+        for row, roi in enumerate(self._roiCache):
+            if roi.fid == fid:
+                index = self.index(row, 0)
+                self.dataChanged.emit(index, index, [Qt.ItemDataRole.CheckStateRole])
 
     def _onChanged(self, *args) -> None:
         self.beginResetModel()
