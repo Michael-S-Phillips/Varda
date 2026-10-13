@@ -1,7 +1,12 @@
+import ctypes
 import logging
+import os
+import sys
 import traceback
 from enum import Enum
 from pathlib import Path
+
+import numpy as np
 
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThreadPool, QRunnable, QTimer
 from PyQt6.QtWidgets import (
@@ -11,6 +16,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .data_sources import DataSource, RasterioDataSource, InMemoryDataSource
+from .data_sources.cached_data_source import CachedDataSource
 from .data_sources.registry import datasource_registry, get_image_type_filter
 from varda.branding.loader import BusyDialog
 from varda.common.entities import VardaRaster
@@ -36,6 +42,64 @@ def openDataSource(filePath: str) -> DataSource:
     # Default: try RasterioDataSource (supports any GDAL format)
 
     return RasterioDataSource(filePath)
+
+
+def physicalMemoryBytes() -> int:
+    """Installed RAM, or 8 GiB if it can't be read."""
+    try:
+        return int(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES"))
+    except (AttributeError, ValueError, OSError):
+        pass
+    if sys.platform == "win32":
+        status = _MemoryStatus()
+        status.dwLength = ctypes.sizeof(_MemoryStatus)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):  # ty: ignore[unresolved-attribute]
+            return int(status.ullTotalPhys)
+    return 8 * 1024**3
+
+
+class _MemoryStatus(ctypes.Structure):
+    _fields_ = [
+        ("dwLength", ctypes.c_ulong),
+        ("dwMemoryLoad", ctypes.c_ulong),
+        ("ullTotalPhys", ctypes.c_ulonglong),
+        ("ullAvailPhys", ctypes.c_ulonglong),
+        ("ullTotalPageFile", ctypes.c_ulonglong),
+        ("ullAvailPageFile", ctypes.c_ulonglong),
+        ("ullTotalVirtual", ctypes.c_ulonglong),
+        ("ullAvailVirtual", ctypes.c_ulonglong),
+        ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+    ]
+
+
+IN_MEMORY_SHARE = 0.25  # of installed RAM: images larger than this read on demand
+
+
+def wrapForReading(source: DataSource, limitBytes: int | None = None) -> DataSource:
+    """Load ``source`` into memory if it fits within ``limitBytes`` (a quarter
+    of RAM by default; float32 once no-data is filled), otherwise read it on
+    demand through a small cache, so opening a very large cube is quick and
+    doesn't exhaust memory."""
+    limit = (
+        int(physicalMemoryBytes() * IN_MEMORY_SHARE)
+        if limitBytes is None
+        else limitBytes
+    )
+    size = (
+        source.width
+        * source.height
+        * source.bandCount
+        * max(np.dtype(source.dtype).itemsize, 4)
+    )
+    if size <= limit:
+        return InMemoryDataSource(source)
+    logger.info(
+        "Reading %s on demand (%.1f GB is more than %.1f GB)",
+        source.filePath or "image",
+        size / 1e9,
+        limit / 1e9,
+    )
+    return CachedDataSource(source)
 
 
 class ImageLoadingService:
@@ -321,12 +385,8 @@ class ImageLoadingService:
                 # get handler for file
                 ds = openDataSource(self.filePath)
 
-                # Wrap in InMemoryDataSource, so that it is just as fast as it was before
-                # later we'll want the user to be able to choose whether to do this.
-                memDs = InMemoryDataSource(ds)
-
-                # Create VardaRaster
-                self.result = VardaRaster.fromDataSource(memDs)
+                # In memory when it fits comfortably, else read on demand
+                self.result = VardaRaster.fromDataSource(wrapForReading(ds))
 
                 self.status = ImageLoadingService.LoadStatus.SUCCESS
                 logger.info(f"Image loading success: {self.filePath}")
