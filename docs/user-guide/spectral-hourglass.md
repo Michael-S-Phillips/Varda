@@ -17,8 +17,13 @@ re-running" when you change an earlier choice:
    candidates through the kept MNF dimensions. Drag a lasso around a corner
    of the cloud to add it to the active endmember (Shift-drag removes);
    **Suggest** proposes one group per corner; **Collapse classes** hides the
-   corners you already have so the next stands out. Lassoed pixels are filled
-   in the scene and their mean spectrum is plotted. Ctrl+Z undoes any edit.
+   corners you already have so the next stands out. You can also pick pixels
+   on the image: turn on **Draw on Image** in the scene's toolbar, choose a
+   shape, and draw; each shape adds the valid pixels inside it to the active
+   endmember (Shift while finishing removes them). This works from Prepare
+   on, before Pixel Purity, so a region you already know can seed a class.
+   Chosen pixels are filled in the scene and their mean spectrum is plotted.
+   Ctrl+Z undoes any edit.
 5. **Identify** — rank a spectral library against the active endmember by
    spectral angle, absorption shape and binary encoding; double-click a match
    to overlay it, then **Use as Name**. Two libraries are bundled: the CRISM

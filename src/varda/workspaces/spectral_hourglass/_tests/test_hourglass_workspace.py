@@ -16,7 +16,10 @@ from varda.workspaces.spectral_hourglass.hourglass_workspace import (
     SpectralHourglassWorkspace,
 )
 from varda.image_rendering.raster_view.viewport_tools.roi_tools import ROIDrawTool
+from varda.workspaces.spectral_hourglass import scene_view
 from varda.workspaces.spectral_hourglass.scene_view import Overlay
+from varda.common.entities import ROIMode
+from shapely.geometry import Polygon
 
 
 @pytest.fixture
@@ -288,6 +291,70 @@ def test_a_workflow_for_another_image_is_refused(workspace, qtbot, tmp_path):
         fresh.openWorkflow(path)
 
 
-def test_the_scene_toolbar_has_no_roi_drawing(workspace):
+def _drawAction(workspace):
     actions = workspace.scene.toolManager.getToolbar().actions()
-    assert not any(a.data() is ROIDrawTool for a in actions)
+    return next(a for a in actions if a.data() is ROIDrawTool)
+
+
+def _draw(workspace, corners, *, remove=False, monkeypatch=None):
+    """Draw a shape on the scene with the Draw on Image tool, in pixel
+    coordinates (the synthetic scene isn't georeferenced)."""
+    if monkeypatch is not None:
+        monkeypatch.setattr(scene_view, "_removing", lambda: remove)
+    if not isinstance(workspace.scene.toolManager.activeTool, ROIDrawTool):
+        _drawAction(workspace).trigger()  # the tool stays on between shapes
+    tool = workspace.scene.toolManager.activeTool
+    assert isinstance(tool, ROIDrawTool)
+    tool.sigROIDrawingComplete.emit(
+        {"geometry": Polygon(corners), "roiType": ROIMode.RECTANGLE}
+    )
+
+
+def test_the_scene_toolbar_offers_drawing_endmember_pixels(workspace):
+    action = _drawAction(workspace)
+    assert action.text() == "Draw on Image"
+    assert "endmember" in action.toolTip()
+
+
+def test_drawing_adds_the_valid_pixels_inside_to_the_active_endmember(workspace):
+    workspace.pipeline.preparePage.runButton.click()
+    _draw(workspace, [(0, 0), (3, 0), (3, 3), (0, 3)])
+    model = workspace.model
+    assert len(model.endmembers) == 1  # a new endmember, as none was active
+    width = workspace.scene.image.width
+    expected = {r * width + c for r in range(3) for c in range(3)} - {
+        0
+    }  # (0, 0) is nodata
+    assert set(model.endmembers[0].pixels.tolist()) == expected
+    assert len(workspace.spectraPlot.plots) == 1
+
+
+def test_drawing_with_shift_removes_pixels(workspace, monkeypatch):
+    workspace.pipeline.preparePage.runButton.click()
+    _draw(workspace, [(0, 0), (3, 0), (3, 3), (0, 3)], monkeypatch=monkeypatch)
+    _draw(
+        workspace,
+        [(0, 0), (3, 0), (3, 1), (0, 1)],
+        remove=True,
+        monkeypatch=monkeypatch,
+    )
+    width = workspace.scene.image.width
+    assert set(workspace.model.endmembers[0].pixels.tolist()) == {
+        r * width + c for r in (1, 2) for c in range(3)
+    }
+
+
+def test_drawing_before_prepare_changes_nothing(workspace):
+    _draw(workspace, [(0, 0), (3, 0), (3, 3), (0, 3)])
+    assert workspace.model.endmembers == []
+
+
+def test_the_shape_picker_shows_with_the_draw_tool(workspace):
+    scene = workspace.scene
+    assert scene.shapeBox.isHidden()
+    _drawAction(workspace).trigger()
+    assert not scene.shapeBox.isHidden()
+    scene.shapeBox.setCurrentIndex(scene.shapeBox.findData(ROIMode.POLYGON))
+    assert scene.toolManager.activeTool.shape is ROIMode.POLYGON
+    _drawAction(workspace).trigger()  # off again
+    assert scene.shapeBox.isHidden()

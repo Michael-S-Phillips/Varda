@@ -3,7 +3,10 @@
 Overlays (one at a time, with an opacity slider): an MNF component, the PPI
 counts, or a band of a map result (class maps in the endmember colors).
 Endmember pixels are filled in their class color, candidate pure pixels can
-be ringed, and the pixel hovered in the n-D view is marked.
+be ringed, and the pixel hovered in the n-D view is marked. Draw on Image
+(the Draw ROI tool, relabeled) sends the pixels inside each shape drawn to
+the workspace, to add to the active endmember (Shift removes them); the shape
+itself isn't kept.
 """
 
 from __future__ import annotations
@@ -11,6 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import QPointF, Qt, pyqtSignal
+from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -22,7 +26,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from varda.common.entities import VardaRaster
+from varda.common.entities import ROIMode, VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.image_rendering.image_renderer import ImageRenderer, RenderMode
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
@@ -31,6 +35,7 @@ from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
 )
 from varda.image_rendering.raster_view.viewport_tools.roi_tools import ROIDrawTool
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
+from varda.rois.region_statistics import rasterizeFootprint
 
 
 class Overlay:
@@ -67,8 +72,27 @@ def classColorImage(classes: np.ndarray, colors: list[str]) -> np.ndarray:
     return rgb
 
 
+DRAW_TEXT = "Draw on Image"
+DRAW_TIP = (
+    "Draw on the image to add the pixels inside to the active endmember (or a "
+    "new one); Shift while finishing a shape removes them"
+)
+SHAPES = (
+    ("Freehand", ROIMode.FREEHAND),
+    ("Polygon", ROIMode.POLYGON),
+    ("Rectangle", ROIMode.RECTANGLE),
+    ("Ellipse", ROIMode.ELLIPSE),
+)
+
+
+def _removing() -> bool:
+    """Shift held as a shape is finished: remove its pixels instead."""
+    return bool(QGuiApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier)
+
+
 class SceneView(QWidget):
     sigPixelClicked = pyqtSignal(int)  # flat pixel index
+    sigPixelsDrawn = pyqtSignal(object, bool)  # flat pixel indices, add (else remove)
 
     def __init__(self, image: VardaRaster, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -77,12 +101,16 @@ class SceneView(QWidget):
         if image.bandCount >= 3:
             self.renderer.settings.mode.set(RenderMode.RGB)
         self.viewport = ImageViewport(self.renderer, self)
-        # No ROIs in this workspace: endmembers are picked in the n-D view
-        self.toolManager = ToolManager(
-            self.viewport, self, excludeCategories=(ROIDrawTool.toolCategory,)
-        )
-        self.viewport.addToolBar(self.toolManager.getToolbar())
+        self.toolManager = ToolManager(self.viewport, self)
+        toolbar = self.toolManager.getToolbar()
+        # Drawing here picks endmember pixels; it makes no ROIs
+        for action in toolbar.actions():
+            if action.data() is ROIDrawTool:
+                action.setText(DRAW_TEXT)
+                action.setToolTip(DRAW_TIP)
+        self.viewport.addToolBar(toolbar)
         self.toolManager.sigToolActivated.connect(self._onToolActivated)
+        self.toolManager.sigToolDeactivated.connect(self._onToolDeactivated)
 
         self._sources: dict[str, np.ndarray | None] = {}
         self._maps: dict[str, VardaRaster] = {}  # overlay label -> map result
@@ -129,7 +157,18 @@ class SceneView(QWidget):
         self.candidatesBox.toggled.connect(self.candidateItem.setVisible)
         self.candidateItem.setVisible(False)
 
+        self.shapeBox = QComboBox()
+        self.shapeBox.setToolTip("The shape Draw on Image draws")
+        for label, shape in SHAPES:
+            self.shapeBox.addItem(label, shape)
+        self.shapeBox.currentIndexChanged.connect(lambda _: self._applyShape())
+        self.shapeLabel = QLabel("Shape")
+        for widget in (self.shapeLabel, self.shapeBox):
+            widget.hide()  # only while drawing
+
         controls = QHBoxLayout()
+        controls.addWidget(self.shapeLabel)
+        controls.addWidget(self.shapeBox)
         controls.addWidget(QLabel("Overlay"))
         controls.addWidget(self.overlayBox)
         controls.addWidget(self.componentSpin)
@@ -367,6 +406,33 @@ class SceneView(QWidget):
     def _onToolActivated(self, tool) -> None:
         if isinstance(tool, PixelSelectTool):
             tool.sigPixelSelected.connect(self._onPixelSelected)
+        elif isinstance(tool, ROIDrawTool):
+            tool.sigROIDrawingComplete.connect(self._onShapeDrawn)
+            self._applyShape()
+            self.shapeLabel.show()
+            self.shapeBox.show()
+            tool.showText(
+                "Draw on Image: each shape adds its pixels to the active "
+                "endmember; Shift removes them. Esc cancels a shape.",
+                timeout=6000,
+            )
+
+    def _onToolDeactivated(self, tool) -> None:
+        if isinstance(tool, ROIDrawTool):
+            self.shapeLabel.hide()
+            self.shapeBox.hide()
+
+    def _applyShape(self) -> None:
+        tool = self.toolManager.activeTool
+        if isinstance(tool, ROIDrawTool):
+            tool.setShape(self.shapeBox.currentData())
+
+    def _onShapeDrawn(self, drawn: dict) -> None:
+        corners = np.asarray(drawn["geometry"].exterior.coords)[:, :2]
+        if self.image.hasGeospatialData:
+            corners = self.image.geoToImage(corners)
+        mask = rasterizeFootprint(corners, (self.image.height, self.image.width))
+        self.sigPixelsDrawn.emit(np.flatnonzero(mask.ravel()), not _removing())
 
     def _onPixelSelected(self, pos: QPointF) -> None:
         col, row = int(pos.x()), int(pos.y())

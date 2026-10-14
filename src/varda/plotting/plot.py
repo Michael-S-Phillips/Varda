@@ -701,6 +701,15 @@ class VardaPlotWidget(QWidget):
         for marker in self.markers:
             self.markerList.addItem(f"{marker.value():.1f}")
 
+    def _curvesChanged(self) -> None:
+        """After curves are added, removed or moved: new view limits, and an
+        auto-ranged axis refits now. pyqtgraph would refit only at the next
+        repaint, and a visible-only Y (Fit Y To X Range) not even then, so a
+        spectrum taller than the view (a hovered pixel, say) stayed cut off."""
+        self._updateViewLimits()
+        if self.plots and self.viewConfig.rangeMode.value is not RangeMode.MANUAL:
+            self.viewBox.updateAutoRange()
+
     def _updateViewLimits(self) -> None:
         # Constrain panning and zooming so the view never extends past the
         # bounds of the plotted data.
@@ -723,10 +732,15 @@ class VardaPlotWidget(QWidget):
             yScaled = (
                 np.asarray(y) * curve.config.scale.value + curve.config.offset.value
             )
-            xMin = min(xMin, float(np.min(x)))
-            xMax = max(xMax, float(np.max(x)))
-            yMin = min(yMin, float(np.min(yScaled)))
-            yMax = max(yMax, float(np.max(yScaled)))
+            finite = np.isfinite(x) & np.isfinite(yScaled)
+            if not finite.any():
+                continue
+            # Only finite values: one NaN band would make the limits NaN, and
+            # pyqtgraph then refuses every new range (the view freezes)
+            xMin = min(xMin, float(np.min(x[finite])))
+            xMax = max(xMax, float(np.max(x[finite])))
+            yMin = min(yMin, float(np.min(yScaled[finite])))
+            yMax = max(yMax, float(np.max(yScaled[finite])))
         if not np.isfinite(xMin) or xMax <= xMin or yMax <= yMin:
             return
 
@@ -768,7 +782,7 @@ class VardaPlotWidget(QWidget):
         curve.setDataPoints(self._dataPointSize())
         self.plots.append(curve)
         self.plotItem.addItem(curve.plotDataItem)
-        self._updateViewLimits()
+        self._curvesChanged()
 
     def _dataPointSize(self) -> int | None:
         if not self.viewConfig.showDataPoints.value:
@@ -856,7 +870,7 @@ class VardaPlotWidget(QWidget):
         self._removeCurveItems(curve)
         if self.selectedCurve is curve:
             self.deselectPlot()
-        self._updateViewLimits()
+        self._curvesChanged()
 
     def onCurveDrop(self, event) -> None:
         data = json.loads(bytes(event.mimeData().data(CURVE_MIME_TYPE)).decode("utf-8"))
@@ -925,7 +939,7 @@ class VardaPlotWidget(QWidget):
         for curve in self.plots:
             self._removeCurveItems(curve)
         self.plots.clear()
-        self._updateViewLimits()
+        self._curvesChanged()
 
     def _removeCurveItems(self, curve: Curve) -> None:
         self.plotItem.removeItem(curve.plotDataItem)

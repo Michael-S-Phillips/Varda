@@ -88,3 +88,27 @@ def test_user_pan_in_auto_mode_switches_to_manual(widget):
     widget.viewBox.setXRange(45.0, 55.0, padding=0)
     widget._onUserViewChange()
     assert widget.viewConfig.rangeMode.value is RangeMode.MANUAL
+
+
+@pytest.mark.parametrize("badBands", [False, True])
+@pytest.mark.parametrize("mode", [RangeMode.AUTO, RangeMode.FIT_Y_TO_X_RANGE])
+def test_y_follows_spectra_redrawn_without_a_repaint(qtbot, widget, mode, badBands):
+    """Like hovering in the Spectral Hourglass: the curves are cleared and
+    replotted with a taller spectrum, and Y must follow straight away (not
+    only after a repaint that re-runs auto-range, as _settle forces)."""
+    x = np.linspace(400.0, 2500.0, 50)
+    base = 0.3 + np.linspace(0.0, 0.05, 50)
+    widget.plot(x, base, name="mean")
+    widget.viewConfig.rangeMode.set(mode)
+    widget.show()
+    qtbot.waitExposed(widget)
+
+    widget.clearPlots()
+    widget.plot(x, base, name="mean")
+    hovered = np.linspace(0.1, 2.0, 50)
+    if badBands:
+        hovered[[5, 30]] = np.nan  # as real pixels have; NaN view limits froze it
+    widget.plot(x, hovered, name="pixel")
+
+    _yMin, yMax = widget.viewBox.viewRange()[1]
+    assert yMax >= 2.0
