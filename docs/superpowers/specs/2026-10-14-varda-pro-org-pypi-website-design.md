@@ -42,6 +42,8 @@ The import package stays `varda`, and the command stays `varda`. Only the distri
 
 ## Phase 0 — Demo screenshots and video (doesn't wait for the organization)
 
+**Update 2026-10-14:** Michael captured screenshots from the running app (`~/Documents/Software/varda-demo-data/media/`); three are in the README from `docs/assets/screenshots/`. `scripts/capture_demo_media.py` remains for regenerating automated captures.
+
 Real imagery only: CRISM FRT000047A3 (`frt000047a3_07_if166j_mtr3`, Nili Fossae), downloaded from the PDS to `~/Documents/Software/varda-demo-data/` (outside the repo).
 
 - Capture from the running app (offscreen Qt, `widget.grab()`), at 2x for sharpness, and save under `docs/assets/demo/`.

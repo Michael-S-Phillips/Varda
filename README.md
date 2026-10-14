@@ -17,16 +17,17 @@ ENVI Classic and napari.
 ## See it in action
 
 <p align="center">
-  <img src="docs/assets/demo/varda-demo.gif" alt="Clicking pixels in a CRISM scene of Nili Fossae adds their spectra to the plot" width="900">
+  <img src="docs/assets/screenshots/dual-workspace-classification.jpg" alt="A dual-image workspace: a Spectral Angle Mapper classification overlaid on a false-color CRISM scene, beside a band-parameter composite" width="900">
 </p>
+
+<p align="center"><sub>A dual-image workspace: a Spectral Angle Mapper classification over false color (left), beside OLINDEX3 / BD2355 / BDCARB band parameters (right)</sub></p>
 
 | | |
 |---|---|
-| ![ROIs on olivine-rich and clay-bearing terrain with their mean spectra](docs/assets/demo/workspace-rois-spectra.png) | ![A Spectral Angle Mapper classification from those ROIs, laid over the scene with its legend](docs/assets/demo/classification-overlay.png) |
-| ROIs where HyPyRameter's olivine and clay parameters peak, with their mean spectra | A Spectral Angle Mapper map from those ROIs, overlaid with its legend |
+| ![Pixel spectra collected by clicking across the scene](docs/assets/screenshots/pixel-spectra.jpg) | ![The Ratio Explorer comparing a ratio spectrum with a library calcite spectrum](docs/assets/screenshots/ratio-explorer-library.jpg) |
+| Click pixels to collect and compare their spectra | The Ratio Explorer: a ratio spectrum against a library calcite spectrum around the 2.3–2.5 µm carbonate bands |
 
-<sub>CRISM FRT000047A3 (Nili Fossae, Mars), from NASA's Planetary Data System.
-Regenerate these with `scripts/capture_demo_media.py`.</sub>
+<sub>CRISM FRT000047A3 (Nili Fossae, Mars), from NASA's Planetary Data System.</sub>
 
 ## What you can do with it
 
