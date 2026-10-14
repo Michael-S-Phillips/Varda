@@ -4,6 +4,14 @@ Notable changes to Varda. Release notes on GitHub are generated from pull
 requests; this file records what users need to know, especially changes that
 can alter results.
 
+## 0.5.2 (2026-10-14)
+
+### Fixed
+
+- **macOS: double-clicking the disk image showed nothing.** The 0.5.1 image
+  mounted without opening a window. The image now opens a window with
+  **Varda** and the **Applications** shortcut, like other apps' disk images.
+
 ## 0.5.1 (2026-10-14)
 
 ### Fixed

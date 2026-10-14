@@ -89,13 +89,19 @@ jobs:
         # A disk image holding Varda.app and an Applications shortcut to drag
         # it onto. The app must be one signed bundle: macOS then asks the user
         # to approve it once, instead of blocking each library inside it.
+        # HFS+ with an open folder set, so Finder shows the volume's window
+        # when the image is double-clicked (APFS images just mount silently).
         if: runner.os == 'macOS'
         run: |
           /usr/bin/codesign --verify --deep --strict dist/Varda.app
-          mkdir dmg
+          mkdir dmg rw-mount
           cp -R dist/Varda.app dmg/
           ln -s /Applications dmg/Applications
-          hdiutil create -volname Varda -srcfolder dmg -ov -format UDZO Varda-${{ matrix.name }}.dmg
+          hdiutil create -volname Varda -srcfolder dmg -fs HFS+ -format UDRW -ov rw.dmg
+          hdiutil attach -nobrowse -noautoopen -mountpoint rw-mount rw.dmg
+          python3 packaging/macos/set_open_folder.py rw-mount
+          hdiutil detach rw-mount || hdiutil detach -force rw-mount
+          hdiutil convert rw.dmg -format UDZO -o Varda-${{ matrix.name }}.dmg
 
       - name: Self-test the download (macOS)
         if: runner.os == 'macOS'
@@ -103,6 +109,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           hdiutil attach -nobrowse -mountpoint mounted Varda-${{ matrix.name }}.dmg
+          python3 packaging/macos/set_open_folder.py --check mounted
           mounted/Varda.app/Contents/MacOS/Varda --self-test
           # The image can stay busy for a moment after Varda exits
           sleep 3
