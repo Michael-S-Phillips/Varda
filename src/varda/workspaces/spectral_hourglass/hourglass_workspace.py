@@ -2,8 +2,9 @@
 
 Pipeline steps on the left, the scene in the middle, the n-D visualizer and
 the endmember table on the right, spectra underneath. Everything is linked:
-lassoing points in the n-D view colors those pixels in the scene and plots
-the class mean spectrum; hovering a point marks its pixel; clicking a pixel
+lassoing points in the n-D view, or drawing on the scene, colors those pixels
+in the scene and plots the class mean spectrum; hovering a point marks its
+pixel; clicking a pixel
 rings its point; picking a library match overlays it on the endmember.
 """
 
@@ -205,7 +206,8 @@ class SpectralHourglassWorkspace(QMainWindow):
         self.runner.sigBusyChanged.connect(self._onBusy)
         self.runner.sigProgress.connect(self._onProgress)
         self.runner.sigFailed.connect(self._onFailed)
-        self.nd.sigLassoSelected.connect(self._onLasso)
+        self.nd.sigLassoSelected.connect(self._assignPixels)
+        self.scene.sigPixelsDrawn.connect(self._onPixelsDrawn)
         self.nd.sigPointHovered.connect(self._onPixelHovered)
         self.nd.collapseBox.toggled.connect(lambda _: self._applyCollapse())
         self.scene.sigPixelClicked.connect(self._onPixelClicked)
@@ -391,7 +393,18 @@ class SpectralHourglassWorkspace(QMainWindow):
             return endmember.id
         return active
 
-    def _onLasso(self, pixels, add: bool) -> None:
+    def _onPixelsDrawn(self, pixels: np.ndarray, add: bool) -> None:
+        """Pixels inside a shape drawn on the scene: the valid ones join (or
+        leave) the active endmember, as a lasso in the n-D view does."""
+        if self.model.prepared is None:
+            self.status.showMessage(
+                "Run Prepare first: endmember pixels come from the prepared image."
+            )
+            return
+        valid = self.model.valid.ravel()
+        self._assignPixels(pixels[valid[pixels]], add)
+
+    def _assignPixels(self, pixels, add: bool) -> None:
         if not len(pixels):
             return
         if add:
@@ -430,7 +443,8 @@ class SpectralHourglassWorkspace(QMainWindow):
         self.nd.setHint(
             f"{count:,} candidate pixels. <b>Rotate</b> (R): drag to turn the cloud. "
             f"<b>Lasso</b> (L): drag around points to add them to <b>{target}</b>, "
-            "Shift-drag removes. Right-drag pans, the wheel zooms."
+            "Shift-drag removes (or use Draw on Image on the scene). Right-drag "
+            "pans, the wheel zooms."
         )
 
     # --- spectra ------------------------------------------------------------------------

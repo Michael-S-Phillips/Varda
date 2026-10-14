@@ -12,6 +12,9 @@ can alter results.
   a newer version is out, and offers to open its release page (or skip that
   version). **Help → Check for Updates…** checks at any time, and the check
   at startup can be turned off.
+- **Spectral Hourglass: Draw on Image.** Draw shapes on the scene to add the
+  pixels inside to the active endmember (Shift removes them), alongside the
+  n-D lasso.
 
 ### Fixed
 
@@ -19,6 +22,10 @@ can alter results.
   List**, which is checked while the list is showing.
 - **Manage Plugins has a Close button** (on macOS it had no way to close
   except Escape).
+- **Spectral plots follow a spectrum taller than the view.** Hovering a point
+  in the Spectral Hourglass n-D view didn't grow Y for a pixel brighter than
+  the plotted spectra, in Auto or Fit Y To X Range; a pixel with bad (NaN)
+  bands froze the range entirely.
 
 ## 0.5.2 (2026-10-14)
 
