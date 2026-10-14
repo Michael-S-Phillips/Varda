@@ -9,6 +9,7 @@ from PyQt6.QtCore import QObject, QPoint
 from varda.all_images_view_list.image_list_actions import (
     IMAGE_LIST_CONTEXT_MENU_ID,
     OPEN_GENERAL_ANALYSIS_ID,
+    REMOVE_IMAGES_ID,
     ImageListClickContext,
     setCurrentClickContext,
 )
@@ -27,6 +28,17 @@ class ImageListMenuController(QObject):
         try:
             # .result() surfaces any exception raised inside the command callback
             self._app.commands.execute_command(OPEN_GENERAL_ANALYSIS_ID).result()
+        finally:
+            setCurrentClickContext(None)
+
+    def onRemoveRequested(self, images: list[VardaRaster]) -> None:
+        """Delete/Backspace in the image list: the same command as the menu's
+        Remove from Project."""
+        if not images:
+            return
+        setCurrentClickContext(ImageListClickContext(images))
+        try:
+            self._app.commands.execute_command(REMOVE_IMAGES_ID).result()
         finally:
             setCurrentClickContext(None)
 

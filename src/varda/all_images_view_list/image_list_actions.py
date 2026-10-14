@@ -7,8 +7,12 @@ run directly), supplied to callbacks via the app's injection store.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
+from typing import Protocol
+
 import attrs
 from app_model.types import Action, MenuRule
+from PyQt6.QtWidgets import QMessageBox
 
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
@@ -19,6 +23,7 @@ from varda.workspaces.general_image_analysis import (
     GeneralImageAnalysisConfig,
     GeneralImageAnalysisWorkflow,
 )
+from varda.workspaces.workspace_kinds import describeWorkspace
 
 IMAGE_LIST_CONTEXT_MENU_ID = "varda/image_list/context"
 OPEN_GENERAL_ANALYSIS_ID = "varda.image_list.open_general_analysis"
@@ -75,6 +80,77 @@ def _exportImage(
 
 
 EXPORT_IMAGE_ID = "varda.image_list.export_image"
+REMOVE_IMAGES_ID = "varda.image_list.remove_images"
+
+
+def _askToConfirm(text: str) -> bool:
+    answer = QMessageBox.question(
+        None,
+        "Remove from Project",
+        text,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+        QMessageBox.StandardButton.Cancel,
+    )
+    return answer == QMessageBox.StandardButton.Yes
+
+
+class _Workspaces(Protocol):
+    """What removing images needs from the main window."""
+
+    @property
+    def childWindows(self) -> Sequence[object]: ...
+
+    def closeWorkspace(self, widget) -> None: ...
+
+
+def removeImages(
+    toRemove: Sequence[VardaRaster],
+    images: ProjectImages,
+    mainGui: _Workspaces,
+    confirm: Callable[[str], bool] = _askToConfirm,
+) -> bool:
+    """Remove images from the project, closing the workspaces that show them
+    and releasing their files. Asks first only if something would be lost:
+    open workspaces, or results never saved to disk. Returns whether they
+    were removed."""
+    removing = [image for image in toRemove if image in images]
+    if not removing:
+        return False
+    affected = [
+        workspace
+        for workspace in list(mainGui.childWindows)
+        if (described := describeWorkspace(workspace)) is not None
+        and any(shown in removing for shown in described[1])
+    ]
+    unsaved = [image.name for image in removing if not image.filePath]
+    warnings = []
+    if affected:
+        count = len(affected)
+        warnings.append(
+            f"{count} workspace{'s' if count != 1 else ''} showing "
+            f"{'them' if len(removing) > 1 else 'it'} will close."
+        )
+    if unsaved:
+        warnings.append(
+            "Not saved to disk, and lost once removed: " + ", ".join(unsaved) + "."
+        )
+    if warnings:
+        names = ", ".join(image.name for image in removing)
+        if not confirm(f"Remove {names} from the project?\n\n" + "\n".join(warnings)):
+            return False
+    for workspace in affected:
+        mainGui.closeWorkspace(workspace)
+    for image in removing:
+        images.remove(image)  # overlays elsewhere drop it as the list changes
+        image.close()
+    return True
+
+
+def _removeImages(
+    ctx: ImageListClickContext, images: ProjectImages, mainGui: MainGUI
+) -> None:
+    removeImages(ctx.images, images, mainGui)
+
 
 IMAGE_LIST_ACTIONS: list[Action] = [
     Action(
@@ -88,6 +164,12 @@ IMAGE_LIST_ACTIONS: list[Action] = [
         title="Open in New General Analysis Workspace",
         callback=_openInGeneralAnalysis,
         menus=[MenuRule(id=IMAGE_LIST_CONTEXT_MENU_ID, order=1)],
+    ),
+    Action(
+        id=REMOVE_IMAGES_ID,
+        title="Remove from Project…",
+        callback=_removeImages,
+        menus=[MenuRule(id=IMAGE_LIST_CONTEXT_MENU_ID, group="9_remove", order=1)],
     ),
     Action(
         id=OPEN_DUAL_IMAGE_ID,

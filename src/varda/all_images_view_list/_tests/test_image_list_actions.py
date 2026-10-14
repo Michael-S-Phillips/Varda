@@ -40,6 +40,7 @@ def test_actions_registered_for_image_list_menu():
         ila.OPEN_GENERAL_ANALYSIS_ID,
         ila.OPEN_DUAL_IMAGE_ID,
         ila.EXPORT_IMAGE_ID,
+        ila.REMOVE_IMAGES_ID,
     }
     for a in ila.IMAGE_LIST_ACTIONS:
         assert any(rule.id == ila.IMAGE_LIST_CONTEXT_MENU_ID for rule in a.menus)

@@ -20,7 +20,6 @@ def createVarda(q_app: QApplication) -> VardaApplication:
     varda.log._initializeFullLogging()
     q_app.processEvents()
 
-
     app = VardaApplication()
     app.pluginManager.hook.onLoad(app=app)
     q_app.processEvents()
@@ -34,6 +33,9 @@ def createVarda(q_app: QApplication) -> VardaApplication:
     )
     app.maingui.imageList.sigContextMenuRequested.connect(
         imageListController.onContextMenuRequested
+    )
+    app.maingui.imageList.sigRemoveRequested.connect(
+        imageListController.onRemoveRequested
     )
     # Files dragged onto the window import like File > Import Image(s)
     app.maingui.sigFilesDropped.connect(

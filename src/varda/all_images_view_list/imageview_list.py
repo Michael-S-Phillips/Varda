@@ -29,10 +29,13 @@ class ImageListWidget(QListWidget):
     - ``sigImagesActivated(list[VardaRaster])`` on double-click.
     - ``sigContextMenuRequested(list[VardaRaster], QPoint)`` on right-click over an
       item; the clicked image comes first, followed by any other selected images.
+    - ``sigRemoveRequested(list[VardaRaster])`` on Delete or Backspace, with the
+      selected images.
     """
 
     sigImagesActivated = pyqtSignal(list)
     sigContextMenuRequested = pyqtSignal(list, QPoint)
+    sigRemoveRequested = pyqtSignal(list)
 
     def __init__(self, imageList: ObservableList, parent=None):
         super().__init__(parent)
@@ -50,6 +53,16 @@ class ImageListWidget(QListWidget):
         self.imageList.sigDataChanged.connect(self._updateItems)
         self.itemDoubleClicked.connect(self._onItemDoubleClicked)
         self.customContextMenuRequested.connect(self._onContextMenuRequested)
+
+    def keyPressEvent(self, e) -> None:
+        if e is not None and e.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+            selected = [
+                item.data(Qt.ItemDataRole.UserRole) for item in self.selectedItems()
+            ]
+            if selected:
+                self.sigRemoveRequested.emit(selected)
+                return
+        super().keyPressEvent(e)
 
     def _onItemDoubleClicked(self, item: QListWidgetItem) -> None:
         self.sigImagesActivated.emit([item.data(Qt.ItemDataRole.UserRole)])
