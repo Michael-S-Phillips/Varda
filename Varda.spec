@@ -1,9 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import shutil
+import sys
+import tomllib
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
+
+VERSION = tomllib.loads(Path('pyproject.toml').read_text())['project']['version']
+MACOS = sys.platform == 'darwin'
 
 # The USGS library folders also hold photos and web pages (~95 MB); Varda reads
 # only the spectra and wavelength .txt files (~4 MB)
@@ -60,7 +65,9 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
+    # Windows keeps its console so the release self-test can print; on macOS the
+    # app bundle (below) is a normal windowed app
+    console=not MACOS,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -77,3 +84,24 @@ coll = COLLECT(
     upx_exclude=[],
     name='Varda',
 )
+
+# macOS: a real Varda.app. Gatekeeper judges a downloaded bundle as one unit,
+# so the user approves it once; a bare folder of libraries gets every library
+# blocked separately ("library load disallowed by system policy").
+if MACOS:
+    app = BUNDLE(
+        coll,
+        name='Varda.app',
+        icon='resources/logo.icns',
+        bundle_identifier='io.github.varda-pro.varda',
+        version=VERSION,
+        info_plist={
+            'CFBundleName': 'Varda',
+            'CFBundleDisplayName': 'Varda',
+            'CFBundleShortVersionString': VERSION,
+            'NSHighResolutionCapable': True,
+            'NSRequiresAquaSystemAppearance': False,  # follow light/dark mode
+            'LSMinimumSystemVersion': '12.0',
+        },
+    )
+

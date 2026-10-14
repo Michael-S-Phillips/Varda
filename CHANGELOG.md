@@ -4,6 +4,16 @@ Notable changes to Varda. Release notes on GitHub are generated from pull
 requests; this file records what users need to know, especially changes that
 can alter results.
 
+## Unreleased
+
+### Fixed
+
+- **macOS: the download didn't open.** macOS blocked each library inside the
+  downloaded folder ("library load disallowed by system policy"), and
+  right-click → Open couldn't help. The macOS download is now a disk image
+  with **Varda.app**: drag it to Applications and approve it once (see the
+  install guide).
+
 ## 0.5.0 (2026-10-14)
 
 ### Changed

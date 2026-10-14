@@ -55,6 +55,8 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then
             ./dist/Varda/Varda.exe --self-test
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            ./dist/Varda.app/Contents/MacOS/Varda --self-test
           else
             ./dist/Varda/Varda --self-test
           fi
@@ -63,16 +65,28 @@ jobs:
         if: runner.os == 'Windows'
         run: Compress-Archive -Path dist/Varda/* -DestinationPath Varda-${{ matrix.name }}.zip
 
-      - name: Package build (Unix)
-        if: runner.os != 'Windows'
+      - name: Package build (Linux)
+        if: runner.os == 'Linux'
         working-directory: dist/Varda
         run: zip -r ../../Varda-${{ matrix.name }}.zip .
+
+      - name: Package build (macOS)
+        # A disk image holding Varda.app and an Applications shortcut to drag
+        # it onto. The app must be one signed bundle: macOS then asks the user
+        # to approve it once, instead of blocking each library inside it.
+        if: runner.os == 'macOS'
+        run: |
+          /usr/bin/codesign --verify --deep --strict dist/Varda.app
+          mkdir dmg
+          cp -R dist/Varda.app dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname Varda -srcfolder dmg -ov -format UDZO Varda-${{ matrix.name }}.dmg
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: Varda-${{ matrix.name }}
-          path: Varda-${{ matrix.name }}.zip
+          path: Varda-${{ matrix.name }}.*
           if-no-files-found: error
 
   release:
@@ -92,5 +106,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*.zip
+          files: |
+            artifacts/*.zip
+            artifacts/*.dmg
           generate_release_notes: true
