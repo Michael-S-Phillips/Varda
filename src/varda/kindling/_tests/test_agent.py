@@ -4,7 +4,7 @@ import pytest
 from varda.api import ArrayDataSource, VardaRaster
 from varda.kindling.agent import MAX_TURNS, Kindler, describeImage
 from varda.kindling.checks import CheckReport
-from varda.kindling.providers import Reply
+from varda.kindling.providers import ProviderError, Reply
 from varda.kindling.tools import TOOL_SPECS, KindlingTools, PluginFolder
 
 from .fakes import ScriptedProvider, call, replaying, tools
@@ -75,10 +75,46 @@ def test_stops_after_the_turn_limit(tmp_path):
     assert not outcome.finished and outcome.turns == MAX_TURNS
 
 
-def test_stops_when_canceled(tmp_path):
+def test_stop_ends_the_round(tmp_path):
     kindler, _ = _kindler(tmp_path, lambda i: tools(call("list_files")))
-    kindler.cancelled.set()
-    assert kindler.kindle("x", None).stopReason == "Canceled."
+    kindler.onProgress = lambda message: kindler.cancelled.set()  # Stop, mid-build
+    assert kindler.kindle("x", None).stopReason == "Stopped."
+
+
+def test_calls_cut_off_by_a_stop_get_results_when_continuing(tmp_path):
+    def script(index):
+        if index == 0:
+            return tools(
+                call("read_file", "a", path="x"), call("list_files", "b"), tokens=2000
+            )
+        return BUILD[min(index - 1, 2)]
+
+    kindler, provider = _kindler(tmp_path, script, budget=1000)
+    stopped = kindler.kindle("x", None)
+    assert not stopped.finished and "token limit" in stopped.stopReason
+    finished = kindler.revise("continue")  # a fresh limit for this round
+    assert finished.finished
+    text, results = provider.conversation.received[1]
+    assert "continue" in text
+    assert [(r.callId, r.isError) for r in results] == [("a", True), ("b", True)]
+    assert results[0].content.startswith("Not run: Stopped at the token limit")
+
+
+def test_a_failed_request_keeps_its_results_for_the_retry(tmp_path):
+    attempts = []
+
+    def script(index):
+        attempts.append(index)
+        if index == 1:
+            raise ProviderError("network down")
+        return BUILD[0] if index == 0 else BUILD[min(index - 1, 2)]
+
+    kindler, provider = _kindler(tmp_path, script)
+    with pytest.raises(ProviderError):
+        kindler.kindle("x", None)
+    assert kindler.revise("continue").finished
+    retried = provider.conversation.received[2][1]
+    assert [r.callId for r in retried] == ["write_file-id"]
 
 
 def _image() -> VardaRaster:

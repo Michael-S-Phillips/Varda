@@ -17,9 +17,10 @@ Kindle a Feature uses your own Anthropic account, so you need an API key.
    Settings → Workspaces), or create the key inside a workspace.
 3. Choose a **model**. The most capable model builds the most reliable
    plugins; the cheaper ones suit simple features.
-4. Set the **limit per feature**: Varda stops building when a feature has
-   used this many tokens, and shows how many each feature used. Anthropic
-   bills your account for the tokens used.
+4. Set the **limit per feature**: Varda stops building when a feature (or
+   a round of changes) has used this many tokens, and shows the count as it
+   goes. Text Anthropic has cached counts a tenth, as it's billed. Anthropic
+   bills your account for what's used.
 
 The key is stored in your system's keychain (Keychain on macOS, Credential
 Manager on Windows, the Secret Service on Linux), never in a file or a
@@ -38,7 +39,9 @@ session. **Remove Key** deletes it.
 
 Varda shows the AI's progress as it reads the plugin documentation, writes
 the plugin and its tests, and runs the checks. It fixes what fails and checks
-again until everything passes. **Stop** ends it after the current step.
+again until everything passes. **Stop** ends it after the current step. If it
+stops before finishing (at the token limit, say), write "continue" and click
+**Ask for Changes** to pick up where it left off.
 
 ## Review it
 

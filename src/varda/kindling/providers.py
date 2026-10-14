@@ -58,7 +58,7 @@ class ToolResult:
 class Reply:
     text: str
     toolCalls: tuple[ToolCall, ...] = field(factory=tuple)
-    tokens: int = 0  # everything this request cost, input and output
+    tokens: int = 0  # what the request cost: input and output (cached reads a tenth)
 
 
 class Conversation(Protocol):
@@ -160,6 +160,7 @@ class AnthropicConversation:
             for t in tools
         ]
         self.messages: list[MessageParam] = []
+        self._cached: ToolResultBlockParam | TextBlockParam | None = None
 
     def send(self, text: str = "", results: Sequence[ToolResult] = ()) -> Reply:
         content: list[ToolResultBlockParam | TextBlockParam] = [
@@ -171,19 +172,30 @@ class AnthropicConversation:
             }
             for r in results
         ]
-        if text:
-            content.append({"type": "text", "text": text})
+        if text or not content:
+            content.append({"type": "text", "text": text or "Continue."})
+        # Cache the conversation up to here, so the next turn re-reads it at a
+        # tenth of the price (one moving breakpoint, plus the system prompt's)
+        if self._cached is not None:
+            del self._cached["cache_control"]
+        self._cached = content[-1]
+        self._cached["cache_control"] = {"type": "ephemeral"}
         self.messages.append({"role": "user", "content": content})
-        message = self.provider._create(
-            self.system, self.messages, MAX_TOKENS_PER_REPLY, self.tools
-        )
+        try:
+            message = self.provider._create(
+                self.system, self.messages, MAX_TOKENS_PER_REPLY, self.tools
+            )
+        except ProviderError:
+            self.messages.pop()  # unsent: the conversation stays valid for a retry
+            raise
         self.messages.append({"role": "assistant", "content": message.content})
         usage = message.usage
+        # Cached reads count a tenth, as Anthropic bills them
         tokens = (
             usage.input_tokens
             + usage.output_tokens
             + (usage.cache_creation_input_tokens or 0)
-            + (usage.cache_read_input_tokens or 0)
+            + (usage.cache_read_input_tokens or 0) // 10
         )
         calls = tuple(
             ToolCall(block.id, block.name, dict(block.input))

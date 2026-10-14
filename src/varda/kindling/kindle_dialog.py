@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import shutil
 from datetime import datetime
+from html import escape
 from pathlib import Path
 
 from PyQt6.QtGui import QFontDatabase
@@ -150,6 +151,7 @@ class KindleDialog(QDialog):
     def _reviewPage(self) -> QWidget:
         page = QWidget()
         self.headline = QLabel()
+        self.headline.setWordWrap(True)
         self.summary = QLabel()
         self.summary.setWordWrap(True)
         self.location = QLabel()
@@ -247,14 +249,18 @@ class KindleDialog(QDialog):
         self.buildStatus.setText("Stopping after this step…")
 
     def _failed(self, error: Exception) -> None:
+        """A request failed (the network, say): show what there is, so the
+        user can continue with Ask for Changes or discard it."""
         self.building = False
         if self.closeWhenDone:
             self._discard()
             return
-        self.buildStatus.setText("Stopped.")
-        self.stopButton.setEnabled(False)
         self.log.appendPlainText(f"\n{error}")
-        QMessageBox.warning(self, "Kindle a Feature", str(error))
+        if self.kindler is None:
+            QMessageBox.warning(self, "Kindle a Feature", str(error))
+            return
+        kindler = self.kindler
+        self._showReview(Outcome(False, "", str(error), kindler.tokens, kindler.turns))
 
     def _built(self, outcome: Outcome) -> None:
         self.building = False
@@ -273,7 +279,9 @@ class KindleDialog(QDialog):
             self.headline.setText("<h3>Your feature is ready to review</h3>")
         else:
             self.headline.setText(
-                f"<h3>The plugin isn't finished</h3>{outcome.stopReason}"
+                f"<h3>The plugin isn't finished</h3>{escape(outcome.stopReason)} "
+                "To keep going, write “continue” (or what to change) and click "
+                "Ask for Changes."
             )
         self.summary.setText(outcome.summary)
         self.summary.setVisible(bool(outcome.summary))

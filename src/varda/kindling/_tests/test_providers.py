@@ -20,6 +20,12 @@ class FakeMessages:
     def __init__(self, error: Exception | None = None):
         self.calls: list[dict] = []
         self.error = error
+        self.usage = SimpleNamespace(
+            input_tokens=10,
+            output_tokens=5,
+            cache_creation_input_tokens=100,
+            cache_read_input_tokens=None,
+        )
 
     def create(self, **kwargs):
         if self.error is not None:
@@ -30,12 +36,7 @@ class FakeMessages:
                 TextBlock(type="text", text="Checking."),
                 ToolUseBlock(type="tool_use", id="t1", name="run_checks", input={}),
             ],
-            usage=SimpleNamespace(
-                input_tokens=10,
-                output_tokens=5,
-                cache_creation_input_tokens=100,
-                cache_read_input_tokens=None,
-            ),
+            usage=self.usage,
         )
 
 
@@ -52,12 +53,14 @@ def test_a_conversation_sends_tools_and_caches_the_system_prompt():
     assert request["model"] == "claude-test"
     assert request["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert request["tools"][0]["name"] == "run_checks"
-    assert request["messages"][0] == {
-        "role": "user",
-        "content": [{"type": "text", "text": "build it"}],
+    cached = {
+        "type": "text",
+        "text": "build it",
+        "cache_control": {"type": "ephemeral"},
     }
+    assert request["messages"][0] == {"role": "user", "content": [cached]}
     assert reply.text == "Checking." and reply.toolCalls[0].name == "run_checks"
-    assert reply.tokens == 115
+    assert reply.tokens == 115  # cache writes count in full
 
 
 def test_tool_results_come_first_then_text():
@@ -65,15 +68,44 @@ def test_tool_results_come_first_then_text():
     conversation = provider.start("docs", [SPEC])
     conversation.send("build it")
     conversation.send("and also", [ToolResult("t1", "PASSED")])
-    content = messages.calls[1]["messages"][2]["content"]
-    assert content[0] == {
+    sent = messages.calls[1]["messages"]
+    assert sent[1]["role"] == "assistant"
+    assert sent[2]["content"][0] == {
         "type": "tool_result",
         "tool_use_id": "t1",
         "content": "PASSED",
         "is_error": False,
     }
-    assert content[1] == {"type": "text", "text": "and also"}
-    assert messages.calls[1]["messages"][1]["role"] == "assistant"
+    # The cache breakpoint moves to the newest message
+    assert sent[2]["content"][1] == {
+        "type": "text",
+        "text": "and also",
+        "cache_control": {"type": "ephemeral"},
+    }
+    assert "cache_control" not in sent[0]["content"][0]
+
+
+def test_cached_reads_count_a_tenth():
+    provider, messages = _provider()
+    messages.usage = SimpleNamespace(
+        input_tokens=10,
+        output_tokens=5,
+        cache_creation_input_tokens=None,
+        cache_read_input_tokens=1000,
+    )
+    assert provider.start("docs", [SPEC]).send("go").tokens == 115
+
+
+def test_a_failed_request_leaves_the_conversation_as_it_was():
+    provider, messages = _provider()
+    conversation = provider.start("docs", [SPEC])
+    conversation.send("build it")
+    messages.error = anthropic.APIConnectionError(
+        request=httpx.Request("POST", "https://x")
+    )
+    with pytest.raises(ProviderError):
+        conversation.send("", [ToolResult("t1", "PASSED")])
+    assert len(conversation.messages) == 2  # the user message and the reply
 
 
 def _response(status: int) -> httpx.Response:

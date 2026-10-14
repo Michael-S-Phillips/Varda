@@ -72,8 +72,9 @@ class AISettingsDialog(QDialog):
         form.addRow("Model:", self.model)
         form.addRow("Limit per feature:", self.budget)
         budgetNote = MutedLabel(
-            "Varda stops building a feature when it has used this many tokens. "
-            "Anthropic bills your account for the tokens used."
+            "Varda stops building when a feature (or each round of changes) has "
+            "used this many tokens; text Anthropic has cached counts a tenth, as "
+            "it's billed. Anthropic bills your account for what's used."
         )
         budgetNote.setWordWrap(True)
         form.addRow("", budgetNote)

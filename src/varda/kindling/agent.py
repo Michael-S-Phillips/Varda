@@ -32,6 +32,8 @@ Rules:
 - Import only from varda.api, numpy, scipy and the Python standard library. \
 Never import other varda modules.
 - No network access, no subprocesses, no files written outside what the user asks for.
+- Write only the plugin's own files (plugin.toml, the entry module, tests, \
+README.md): no notes or scratch files, as everything in the folder is installed.
 - Work in nanometers through image.bandModel.centers; keep no-data as NaN; \
 raise ValueError with a sentence the user can act on.
 - Give the plugin a unique, descriptive name (lowercase, digits, - and _), \
@@ -92,8 +94,8 @@ class Kindler:
         self.tokens = 0
         self.turns = 0
         self._conversation: Conversation = provider.start(SYSTEM_PROMPT, TOOL_SPECS)
-        # Results not sent yet (finish's, when the loop ends on it): they go
-        # with the next message, as every tool call needs its result
+        # Results not sent yet (finish's, or "not run" for calls cut off by a
+        # stop): they go with the next message, as every call needs its result
         self._unsent: list[ToolResult] = []
 
     def kindle(self, description: str, image: VardaRaster | None) -> Outcome:
@@ -110,20 +112,22 @@ class Kindler:
         )
 
     def _loop(self, message: str) -> Outcome:
+        # Each round (the build, then each Ask for Changes) gets the full limits
+        self.cancelled.clear()
+        startTokens, startTurns = self.tokens, self.turns
         reply = self._send(message)
         while True:
             if reply.text:
                 self.onProgress(reply.text)
-            if self.cancelled.is_set():
-                return self._outcome(False, "Canceled.")
-            if self.turns >= MAX_TURNS:
-                return self._outcome(
-                    False, f"Stopped after {MAX_TURNS} rounds without finishing."
-                )
-            if self.tokens >= self.tokenBudget:
-                return self._outcome(
-                    False, f"Stopped at the token limit ({self.tokenBudget:,} tokens)."
-                )
+            stop = self._stopReason(startTokens, startTurns)
+            if stop:
+                # These calls won't run, but each still needs a result, which
+                # goes with the next message if the user asks to continue
+                self._unsent += [
+                    ToolResult(c.id, f"Not run: {stop}", isError=True)
+                    for c in reply.toolCalls
+                ]
+                return self._outcome(False, stop)
             if not reply.toolCalls:
                 reply = self._send(
                     "Continue: use the tools, and call finish once run_checks passes."
@@ -136,9 +140,22 @@ class Kindler:
                 return self._outcome(True, "")
             reply = self._send()
 
+    def _stopReason(self, startTokens: int, startTurns: int) -> str:
+        if self.cancelled.is_set():
+            return "Stopped."
+        if self.turns - startTurns >= MAX_TURNS:
+            return f"Stopped after {MAX_TURNS} rounds without finishing."
+        if self.tokens - startTokens >= self.tokenBudget:
+            return f"Stopped at the token limit ({self.tokenBudget:,} tokens)."
+        return ""
+
     def _send(self, text: str = "") -> Reply:
         results, self._unsent = self._unsent, []
-        reply = self._conversation.send(text, results)
+        try:
+            reply = self._conversation.send(text, results)
+        except Exception:
+            self._unsent = results + self._unsent  # they go with the next try
+            raise
         self.turns += 1
         self.tokens += reply.tokens
         return reply
