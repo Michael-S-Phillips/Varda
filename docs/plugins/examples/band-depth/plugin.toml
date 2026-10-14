@@ -1,0 +1,7 @@
+[plugin]
+name = "band-depth"
+version = "0.1.0"
+description = "Band depth at a chosen wavelength, against a straight-line continuum between two shoulders"
+author = "Varda developers"
+api = "1"
+entry = "plugin.py"

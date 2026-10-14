@@ -57,3 +57,5 @@ def recordProvenance(
         "vardaVersion": vardaVersion(),
         "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
+    if analysis.plugin:  # added by a plugin: say which, and which version
+        result.extraMetadata[PROVENANCE_KEY]["plugin"] = analysis.plugin

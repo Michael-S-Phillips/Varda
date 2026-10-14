@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Varda is a PyQt6 desktop application for visualizing and analyzing hyperspectral and multispectral image data. Users can load images, examine ROIs (regions of interest), view pixel spectra, and adjust band parameters. The app is designed to be very modular and extendible.
 
-Right now, there are some systems that are in an incomplete state and should generally be ignored for now. This includes the plugin system, and image processing system.
+Right now, the image processing system (`image_processing/`) is incomplete and should generally be ignored for now; analyses live in `analysis/`.
 
 ## Dev Tools
 uv used for package management. ruff for formatting. ty for static type checking. pytest for unit testing.
@@ -42,14 +42,14 @@ We also try to do as much wiring as possible at this initialization stage, to re
 - **`common/`** — Shared code that is used in many places: `entities.py` (important domain objects such as VardaRaster), `parameter.py` (typed settings as plain psygnal state, no Qt) and `parameter_widgets.py` (the widgets that edit them: `parameterWidget`, `groupWidget`; register new parameter widgets with `@widgetFor`), `ui.py` (useful widgets and builders).
 - **`workspaces/`** — Workspace views: `dual_image_workspace/` (side-by-side comparison), `general_image_analysis/` (standard analysis view).
 - **`utilities/`** — Helpers: background work, signal utils, debug tools, etc. Run anything slow through `background.runInBackground` (results and failures come back on the GUI thread; wrap progress callbacks with `onMainThread`), never a hand-made QRunnable or QThread.
+- **`plugins/`** + **`api.py`** — Plugin system (pluggy). Plugins are folders with `plugin.toml` installed into the app-data `plugins` folder (Plugins menu: Manage, Install from Folder/Zip); they import only `varda.api` (the stable, versioned plugin API) and add analyses (`registerAnalyses`) or file formats (`registerDataSources`). `plugin_manager.py` loads/enables/removes them; `app_sink.py` puts their contributions into the menus. Guide: `docs/plugins/authoring.md`. Design incl. AI-built plugins (Kindle a Feature): `docs/superpowers/specs/2026-10-14-ai-plugins-design.md`.
 - **`maingui.py`** — `MainGUI` (QMainWindow): tabbed workspaces, child window management, docking.
 
 ## Incomplete/On-Hold
 
 - **`image_processing/`** — Processing algorithms (decorrelation stretch, normalization). `ImageProcessRegistry` registers available algorithms. `process_controls/` provides UI controls.
     - image processing is on-hold for now, but will be important later.
-- **`plugins/`** — Plugin system using `pluggy`. Hooks defined in `_hooks.py` (`onLoad`, `onUnload`). User plugins live in `plugins/user_plugins/` or register via entry points.
-    - The plugin system is on-hold until the core application is more established.
+
 
 ## Key Patterns
 

@@ -18,6 +18,8 @@ from varda.image_rendering.raster_view.viewport_actions import (
     getCurrentClickContext,
 )
 from varda.plugins import VardaPluginManager
+from varda.plugins.app_sink import AppContributionSink
+from varda.plugins.plugin_manager import defaultPluginsFolder
 
 # if TYPE_CHECKING:
 from varda.maingui import MainGUI
@@ -34,7 +36,7 @@ class VardaApplication(Application):
 
     def __init__(self) -> None:
         super().__init__("varda")
-        self.pluginManager = VardaPluginManager()
+        self.pluginManager = VardaPluginManager(defaultPluginsFolder())
         self.maingui: MainGUI | None = None
         self.autosaver: SessionAutosaver | None = None  # set up in startup.createVarda
         self.images = ProjectImages()
@@ -42,6 +44,9 @@ class VardaApplication(Application):
         # the lambdas defer resolution till later, since self.maingui isn't assigned right away
         self.injection_store.register_provider(lambda: self.images, ProjectImages)
         self.injection_store.register_provider(lambda: self.maingui, MainGUI)
+        self.injection_store.register_provider(
+            lambda: self.pluginManager, VardaPluginManager
+        )
 
         self.context[IMAGE_COUNT] = 0
         self.images.sigDataChanged.connect(self._onImagesChanged)
@@ -58,6 +63,8 @@ class VardaApplication(Application):
         self.injection_store.register_provider(
             getImageListClickContext, ImageListClickContext
         )
+        # Last, once the menus they join exist
+        self.pluginManager.loadInstalled(AppContributionSink(self))
 
     def _onImagesChanged(self, items: list) -> None:
         count = len(items)

@@ -36,7 +36,9 @@ a = Analysis(
     + [('CITATION.cff', '.'), ('LICENSE', '.')],
     # HyPyRameter's optional denoiser (iovf_generic) needs packages Varda does not ship
     hiddenimports=collect_submodules('rasterio')
-    + collect_submodules('hypyrameter', filter=lambda name: 'iovf' not in name),
+    + collect_submodules('hypyrameter', filter=lambda name: 'iovf' not in name)
+    # Only plugins import the plugin API, so PyInstaller can't see it's needed
+    + ['varda.api'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

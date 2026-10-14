@@ -5,6 +5,7 @@ class MenuId(StrEnum):
     FILE = "varda/file"
     WORKSPACE = "varda/workspace"
     PROCESSING = "varda/processing"
+    PLUGINS = "varda/plugins"
     DEBUG = "varda/debug"
     HELP = "varda/help"
 
@@ -15,6 +16,8 @@ class MenuGroup(StrEnum):
     FILE_EXIT = "9_exit"
     WORKSPACE_NEW = "1_new"
     WORKSPACE_MANAGE = "2_manage"
+    PLUGINS_MANAGE = "1_manage"
+    PLUGINS_INSTALL = "2_install"
     DEBUG_TESTING = "1_testing"
     HELP_LINKS = "1_links"
     HELP_INFO = "2_info"
@@ -25,6 +28,7 @@ MENUBAR: list[tuple[str, str]] = [
     (MenuId.FILE, "File"),
     (MenuId.WORKSPACE, "Workspace"),
     (MenuId.PROCESSING, "Processing"),
+    (MenuId.PLUGINS, "Plugins"),
     (MenuId.DEBUG, "Debug"),
     (MenuId.HELP, "Help"),
 ]

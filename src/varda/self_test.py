@@ -7,6 +7,7 @@ lean on optional libraries. Prints one line per check and returns the exit
 code (0 when everything passed).
 """
 
+import importlib
 import tempfile
 import time
 import traceback
@@ -52,6 +53,7 @@ def runSelfTest(app: VardaApplication) -> int:
             ("rendering", lambda: _render(image)),
             ("PCA (SPy)", lambda: _pca(image)),
             ("band parameters (HyPyRameter)", lambda: _bandParameters(image)),
+            ("plugin API", _pluginApi),
         ]
         failures = sum(not _report(name, check) for name, check in checks)
     print(f"Self-test: {len(checks) - failures} of {len(checks)} checks passed")
@@ -144,6 +146,15 @@ def _pca(image: VardaRaster) -> str:
     result = PcaAnalysis().run(image, lambda _percent, _message: None)
     assert result.bandCount > 0
     return f"{result.bandCount} components"
+
+
+def _pluginApi() -> str:
+    """Plugins import varda.api, which nothing in Varda imports itself, so a
+    bundle can silently leave it out."""
+    api = importlib.import_module("varda.api")
+    missing = [name for name in api.__all__ if not hasattr(api, name)]
+    assert not missing, f"varda.api lacks {missing}"
+    return f"API {api.API_VERSION}, {len(api.__all__)} names"
 
 
 def _bandParameters(image: VardaRaster) -> str:

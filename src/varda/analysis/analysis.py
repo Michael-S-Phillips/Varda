@@ -44,6 +44,9 @@ class Analysis(ParameterGroup):
     installable: ClassVar[bool] = False
     # Whether the analysis trains on / uses the workspace's ROIs.
     needsRois: ClassVar[bool] = False
+    # "<name> <version>" of the plugin that added it ("" for Varda's own);
+    # recorded in results' provenance.
+    plugin: ClassVar[str] = ""
 
     def __init__(self) -> None:
         super().__init__()
