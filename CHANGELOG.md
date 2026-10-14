@@ -8,6 +8,11 @@ can alter results.
 
 ### Added
 
+- **Plugins work.** A new **Plugins** menu installs plugins from a folder or zip
+  and manages them (enable, disable, reload, remove, and see why one didn't
+  load), in the downloadable app as well as from source. Plugins add
+  analyses to the Processing menu or new file formats, using the stable
+  `varda.api`. See `docs/plugins/authoring.md` and the band depth example.
 - **Remove images from the project:** right-click in the Image List →
   **Remove from Project…**, or press Delete. Workspaces showing them close,
   and Varda asks first when that, or losing an unsaved result, would happen.

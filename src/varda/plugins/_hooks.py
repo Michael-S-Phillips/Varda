@@ -23,6 +23,18 @@ def onUnload(app):
     """Hook called on plugin unload."""
 
 
+@hookspec
+def registerAnalyses():
+    """Return ``Analysis`` subclasses. Each appears in the Processing menu under
+    its ``category``, with a settings dialog generated from its Parameters."""
+
+
+@hookspec
+def registerDataSources():
+    """Return ``(formatName, fileExtensions, DataSourceClass)`` tuples: file
+    formats Varda can open, offered in File → Import Image(s)."""
+
+
 @hookimpl(wrapper=True)
 def onLoad(app):
     try:
