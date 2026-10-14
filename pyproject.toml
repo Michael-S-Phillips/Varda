@@ -15,7 +15,7 @@ dependencies = [
     "PyQt6>=6.7.1", # ; sys_platform != 'linux' -- old modification so linux users could use system pyqt6 install. but it's hard to get it to work
     "numpy>=2.1.1",
     "matplotlib>=3.9.2",
-    "spectral>=0.24,<0.26",  # used only through analysis/_spy.py
+    "spectral>=0.24,<0.26", # used only through analysis/_spy.py
     "rasterio>=1.4.0",
     "scikit-image>=0.21.0",
     "pyqtgraph>=0.13.7",
@@ -38,6 +38,8 @@ dependencies = [
     "superqt>=0.8.0",
     "pyconify>=0.2.1",
     "pyyaml>=6.0.3",
+    "certifi>=2024.2.2",
+    "packaging>=24.0",
 ]
 
 [project.optional-dependencies]
@@ -115,6 +117,7 @@ source_modules = [
     "varda.common.grid",
     "varda.common.provenance",
     "varda.common.parameter",
+    "varda.updates",
 ]
 forbidden_modules = ["PyQt6"]
 ignore_imports = [

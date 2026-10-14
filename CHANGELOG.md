@@ -4,6 +4,15 @@ Notable changes to Varda. Release notes on GitHub are generated from pull
 requests; this file records what users need to know, especially changes that
 can alter results.
 
+## Unreleased
+
+### Added
+
+- **Update check.** A few seconds after starting, Varda asks GitHub whether
+  a newer version is out, and offers to open its release page (or skip that
+  version). **Help → Check for Updates…** checks at any time, and the check
+  at startup can be turned off.
+
 ## 0.5.2 (2026-10-14)
 
 ### Fixed

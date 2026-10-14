@@ -42,6 +42,18 @@ The downloads include HyPyRameter band parameters. The PyTorch CNN/ViT
 classifiers download PyTorch the first time you use them (see
 [Optional features](optional-features.md)).
 
+### Updating
+
+A few seconds after it starts, Varda asks GitHub whether a newer version has
+been released, and if so, offers to open its release page. Install the new
+version the same way as the first (on macOS, drag it to Applications and
+choose **Replace**). **Help → Check for Updates…** checks at any time.
+
+The check sends GitHub only a request for the latest release, with Varda's
+version. To turn it off, uncheck **Check for updates when Varda starts** in
+the window that announces an update, or in the one **Check for Updates…**
+shows.
+
 ### Varda 0.5.0 and earlier on macOS
 
 Those releases shipped as a zip with a plain folder, which macOS blocks
