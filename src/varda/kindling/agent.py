@@ -6,7 +6,7 @@ worker thread; reports progress through a callback. No Qt."""
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from attrs import frozen
 
@@ -37,7 +37,14 @@ README.md): no notes or scratch files, as everything in the folder is installed.
 - Work in nanometers through image.bandModel.centers; keep no-data as NaN; \
 raise ValueError with a sentence the user can act on.
 - Give the plugin a unique, descriptive name (lowercase, digits, - and _), \
-version 0.1.0, api "1", and a category that fits the Processing menu.
+version 0.1.0 and api "1".
+- An Analysis's category is the Processing submenu it appears in. Use one of \
+the existing categories listed in the request, spelled exactly, whenever one \
+fits (a smoothing filter goes in an existing filtering menu, not a new \
+"Filters"); create a new category only if none fits. The checks reject a new \
+category that duplicates an existing one.
+- An Analysis's name is its menu title: short, in title case, without a \
+trailing ellipsis (Varda adds one).
 - Tests must build small synthetic images with ArrayDataSource, plant something \
 with a known answer, and check the result, like the example's tests.
 - If the request is ambiguous, choose sensible defaults and expose them as \
@@ -98,9 +105,21 @@ class Kindler:
         # stop): they go with the next message, as every call needs its result
         self._unsent: list[ToolResult] = []
 
-    def kindle(self, description: str, image: VardaRaster | None) -> Outcome:
+    def kindle(
+        self,
+        description: str,
+        image: VardaRaster | None,
+        categories: Sequence[str] = (),
+    ) -> Outcome:
+        """Build a plugin for ``description``; ``categories`` are the
+        Processing menu's existing submenus."""
+        menus = (
+            "Existing Processing menu categories: " + ", ".join(categories) + "."
+            if categories
+            else ""
+        )
         return self._loop(
-            f"The user asks for:\n{description}\n\n{describeImage(image)}"
+            f"The user asks for:\n{description}\n\n{describeImage(image)}\n\n{menus}".rstrip()
         )
 
     def revise(self, feedback: str) -> Outcome:

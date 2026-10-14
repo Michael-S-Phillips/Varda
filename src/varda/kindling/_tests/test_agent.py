@@ -36,11 +36,16 @@ def test_kindling_builds_checks_and_finishes(tmp_path):
     assert "varda.api" in provider.system
 
 
-def test_the_first_message_has_the_request_and_metadata_only(tmp_path):
+def test_the_first_message_has_the_request_metadata_and_menus(tmp_path):
     kindler, provider = _kindler(tmp_path, replaying(BUILD))
-    kindler.kindle("band depth at 1.9 µm", _image())
+    kindler.kindle(
+        "band depth at 1.9 µm", _image(), ["Spectral Parameters", "Filtering"]
+    )
     first = provider.conversation.received[0][0]
     assert "band depth at 1.9 µm" in first and "1000.0 to 2500.0 nm" in first
+    assert (
+        "Existing Processing menu categories: Spectral Parameters, Filtering." in first
+    )
 
 
 def test_every_tool_call_gets_its_result_even_finish(tmp_path):

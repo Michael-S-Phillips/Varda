@@ -1,6 +1,6 @@
 """Puts plugins' contributions into the running app: analyses as Processing
-menu items (with a submenu for any new category) and file formats in the
-data source registry. Everything added can be taken away again, so plugins
+menu items (with a submenu for any new category), listed in the Plugins menu
+too, and file formats in the data source registry. Everything added can be taken away again, so plugins
 can be disabled, reloaded or removed while Varda runs."""
 
 from __future__ import annotations
@@ -8,9 +8,9 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from app_model import Application
-from app_model.types import SubmenuItem
+from app_model.types import MenuRule, SubmenuItem
 
-from varda._actions._menu_ids import MenuId
+from varda._actions._menu_ids import MenuGroup, MenuId
 from varda._actions._processing_actions import (
     _menuCallback,
     _slug,
@@ -47,6 +47,12 @@ class AppContributionSink:
                 analyses,
                 _menuCallback,
             )
+            # Also under Plugins, where people look for what a plugin added
+            inPlugins = MenuRule(id=MenuId.PLUGINS, group=MenuGroup.PLUGINS_FEATURES)
+            actions = [
+                a.model_copy(update={"menus": [*(a.menus or []), inPlugins]})
+                for a in actions
+            ]
             removers.append(self._app.register_actions(actions))
         for formatName, extensions, cls in contributions.dataSources:
             entry = RegisteredDataSource(formatName, extensions, cls)

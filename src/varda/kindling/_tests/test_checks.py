@@ -117,3 +117,21 @@ def test_the_check_flag_matches_main():
     from varda import main  # noqa: PLC0415 (main imports the splash)
 
     assert main.CHECK_PLUGIN_FLAG == checks.CHECK_FLAG
+
+
+def test_a_category_duplicating_an_existing_menu_fails():
+    report = CheckReport(
+        analyses=(
+            checks.AnalysisResult(
+                "Spectral Smoothing",
+                "smooth",
+                "Filters",
+                (checks.RunResult("synthetic", True),),
+            ),
+        )
+    )
+    assert report.passed
+    checked = report.withCategoriesChecked(["Spectral Parameters", "Filtering"])
+    assert not checked.passed
+    assert "set category = 'Filtering'" in checked.describe()
+    assert report.withCategoriesChecked(["Filters"]).passed  # exactly an existing one

@@ -52,7 +52,7 @@ def test_the_table_shows_status_and_contributions(qtbot, tmp_path):
     qtbot.addWidget(dialog)
     row = _row(dialog, "tripler")
     texts = [_text(dialog, row, c) for c in range(dialog.table.columnCount())]
-    assert texts[:4] == ["tripler", "1.2", "Enabled", "Tripler"]
+    assert texts[:4] == ["tripler", "1.2", "Enabled", "Tripler (Processing → General)"]
 
 
 def test_a_broken_plugin_shows_why(qtbot, tmp_path):

@@ -38,7 +38,11 @@ def describeContributions(record: PluginRecord) -> str:
     formats = record.contributions.dataSources
     parts = []
     if analyses:
-        parts.append(", ".join(a.name for a in analyses))
+        parts.append(
+            ", ".join(
+                f"{a.name.rstrip(' .…')} (Processing → {a.category})" for a in analyses
+            )
+        )
     if formats:
         parts.append(", ".join(f"{name} files" for name, _exts, _cls in formats))
     return "; ".join(parts)
@@ -83,7 +87,8 @@ def installPlugin(
         QMessageBox.information(
             parent,
             "Install Plugin",
-            f"Installed {record.name} {record.version}.\nAdds: {adds}",
+            f"Installed {record.name} {record.version}.\nAdds: {adds}\n\n"
+            "Plugin features are also listed at the bottom of the Plugins menu.",
         )
     return record
 

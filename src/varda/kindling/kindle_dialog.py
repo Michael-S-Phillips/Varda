@@ -30,6 +30,7 @@ from varda.common.entities import VardaRaster
 from varda.common.ui import MutedLabel
 from varda.kindling.agent import Kindler, Outcome
 from varda.kindling.ai_settings import AISettings
+from varda.kindling.categories import menuCategories
 from varda.kindling.checks import runChecks, scanForWarnings
 from varda.kindling.providers import ProviderError
 from varda.kindling.tools import KindlingTools, PluginFolder
@@ -204,8 +205,10 @@ class KindleDialog(QDialog):
             QMessageBox.warning(self, "Kindle a Feature", str(error))
             return
         image = self.imageChoice.currentData()
+        categories = menuCategories(self.manager)
         self.tools = KindlingTools(
-            PluginFolder(self.folder), lambda folder: runChecks(folder, image)
+            PluginFolder(self.folder),
+            lambda folder: runChecks(folder, image, categories),
         )
         self.kindler = Kindler(
             provider,
@@ -214,7 +217,7 @@ class KindleDialog(QDialog):
             onMainThread(self._progress),
         )
         kindler = self.kindler
-        self._build(lambda: kindler.kindle(description, image))
+        self._build(lambda: kindler.kindle(description, image, categories))
 
     def _revise(self) -> None:
         feedback = self.feedback.toPlainText().strip()

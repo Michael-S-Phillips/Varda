@@ -114,7 +114,9 @@ def processingActions(
     actions = []
     for analysis in analyses:
         available = analysis.isAvailable()
-        title = f"{analysis.name}…"
+        title = (
+            f"{analysis.name.rstrip(' .…')}…"  # one ellipsis, even if the name has one
+        )
         tooltip = analysis.description
         if analysis.installable:
             tooltip += f" Varda downloads {analysis.requirement} the first time."

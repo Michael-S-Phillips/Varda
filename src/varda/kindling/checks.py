@@ -15,10 +15,14 @@ import sys
 import tempfile
 from pathlib import Path
 
+from collections.abc import Sequence
+
+import attrs
 import numpy as np
 from attrs import frozen
 
 from varda.common.entities import VardaRaster
+from varda.kindling.categories import duplicateOf
 
 CHECK_FLAG = "--check-plugin"
 TIMEOUT_SECONDS = 180
@@ -60,14 +64,33 @@ class CheckReport:
     testsRan: bool = False
     testsOk: bool = False
     testsOutput: str = ""
+    categoryProblems: tuple[str, ...] = ()  # menus that duplicate an existing one
 
     @property
     def passed(self) -> bool:
         runsOk = all(run.ok for a in self.analyses for run in a.runs)
         added = bool(self.analyses or self.dataSources)
+        testsOk = self.testsOk or not self.testsRan
         return (
-            not self.error and added and runsOk and (self.testsOk or not self.testsRan)
+            not self.error
+            and added
+            and runsOk
+            and testsOk
+            and not self.categoryProblems
         )
+
+    def withCategoriesChecked(self, categories: Sequence[str]) -> CheckReport:
+        """Reject an analysis category that duplicates an existing Processing
+        submenu ("Filters" beside "Filtering")."""
+        problems = []
+        for analysis in self.analyses:
+            duplicate = duplicateOf(analysis.category, categories)
+            if duplicate:
+                problems.append(
+                    f"{analysis.name}'s category {analysis.category!r} duplicates "
+                    f"the existing {duplicate!r} menu: set category = {duplicate!r}."
+                )
+        return attrs.evolve(self, categoryProblems=tuple(dict.fromkeys(problems)))
 
     @classmethod
     def fromJson(cls, data: dict) -> CheckReport:
@@ -110,6 +133,7 @@ class CheckReport:
                     )
                 else:
                     lines.append(f"  {run.image}: FAILED\n{_indent(run.error)}")
+        lines += [f"Menu: {problem}" for problem in self.categoryProblems]
         for name in self.dataSources:
             lines.append(f"File format: {name} (registered; not run)")
         if self.testsRan:
@@ -200,8 +224,13 @@ def checkCommand(folder: Path, sample: Path, report: Path) -> list[str]:
 
 
 def runChecks(
-    folder: Path, image: VardaRaster | None, timeout: float = TIMEOUT_SECONDS
+    folder: Path,
+    image: VardaRaster | None,
+    categories: Sequence[str] = (),
+    timeout: float = TIMEOUT_SECONDS,
 ) -> CheckReport:
+    """Check the plugin in ``folder`` in a separate process; ``categories``
+    are the Processing menu's existing submenus."""
     with tempfile.TemporaryDirectory(prefix="varda-check-") as scratch:
         sample, report = Path(scratch) / "sample.npz", Path(scratch) / "report.json"
         writeSample(image, sample)
@@ -222,7 +251,8 @@ def runChecks(
             return CheckReport(
                 error=f"The check process exited with code {completed.returncode}:\n{output[-3000:]}"
             )
-        return CheckReport.fromJson(json.loads(report.read_text(encoding="utf-8")))
+        result = CheckReport.fromJson(json.loads(report.read_text(encoding="utf-8")))
+        return result.withCategoriesChecked(categories)
 
 
 # --- static scan ----------------------------------------------------------------
