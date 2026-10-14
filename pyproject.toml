@@ -70,6 +70,14 @@ dev = [
 requires = ["setuptools>=77"]  # SPDX license expressions (PEP 639)
 build-backend = "setuptools.build_meta"
 
+[project.urls]
+Homepage = "https://github.com/varda-pro/Varda"
+Documentation = "https://github.com/varda-pro/Varda/blob/main/docs/user-guide/README.md"
+Source = "https://github.com/varda-pro/Varda"
+Issues = "https://github.com/varda-pro/Varda/issues"
+Releases = "https://github.com/varda-pro/Varda/releases"
+Changelog = "https://github.com/varda-pro/Varda/blob/main/CHANGELOG.md"
+
 [project.gui-scripts]
 varda = "varda.main:main"
 

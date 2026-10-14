@@ -2,7 +2,7 @@
 
 ## Download a release (no Python needed)
 
-Each release on the [Releases page](https://github.com/Michael-S-Phillips/Varda/releases)
+Each release on the [Releases page](https://github.com/varda-pro/Varda/releases)
 ships a zip per platform (`Varda-windows-x64.zip`, `Varda-macos-arm64.zip`,
 `Varda-linux-x64.zip`). Unzip it and run the `Varda` executable inside.
 
