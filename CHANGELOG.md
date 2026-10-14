@@ -13,6 +13,13 @@ can alter results.
   version). **Help → Check for Updates…** checks at any time, and the check
   at startup can be turned off.
 
+### Fixed
+
+- **A closed image list can be reopened**, from the new **View → Image
+  List**, which is checked while the list is showing.
+- **Manage Plugins has a Close button** (on macOS it had no way to close
+  except Escape).
+
 ## 0.5.2 (2026-10-14)
 
 ### Fixed
