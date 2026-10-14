@@ -12,9 +12,10 @@ from varda.all_images_view_list.image_list_menu_controller import (
 from varda.app import VardaApplication
 from varda.maingui import MainGUI
 from varda.session_autosave import SessionAutosaver
+from varda.update_check import checkForUpdatesLater
 
 
-def createVarda(q_app: QApplication) -> VardaApplication:
+def createVarda(q_app: QApplication, checkForUpdates: bool = True) -> VardaApplication:
     """Build the application and show its main window. The splash animates
     while this runs on the GUI thread, so it repaints between stages."""
     varda.log._initializeFullLogging()
@@ -48,6 +49,8 @@ def createVarda(q_app: QApplication) -> VardaApplication:
     app.autosaver = SessionAutosaver(app.images, app.maingui, parent=app.maingui)
     app.maingui.showMaximized()
     q_app.processEvents()
+    if checkForUpdates:
+        checkForUpdatesLater(app.maingui)
 
     varda.log.info("Varda initialized successfully!")
     return app

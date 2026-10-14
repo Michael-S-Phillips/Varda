@@ -96,7 +96,8 @@ def main():
     # Imported here, not at the top, so the splash is up while they load
     from varda.startup import createVarda
 
-    app = createVarda(q_app)
+    # The self-test stays offline: no update check
+    app = createVarda(q_app, checkForUpdates=SELF_TEST_FLAG not in sys.argv)
     if SELF_TEST_FLAG in sys.argv:
         from varda.self_test import runSelfTest
 

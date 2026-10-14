@@ -2,18 +2,20 @@
 
 Runs the real application, then exercises what a frozen bundle most often
 breaks: package metadata, bundled resources, PROJ data, reading and writing
-files in background threads, numba-compiled rendering, and the analyses that
-lean on optional libraries. Prints one line per check and returns the exit
+files in background threads, numba-compiled rendering, the analyses that
+lean on optional libraries, and the certificates the update check needs. Prints one line per check and returns the exit
 code (0 when everything passed).
 """
 
 import importlib
+import ssl
 import tempfile
 import time
 import traceback
 from collections.abc import Callable
 from pathlib import Path
 
+import certifi
 import numpy as np
 from affine import Affine
 from pyproj import Transformer
@@ -54,6 +56,7 @@ def runSelfTest(app: VardaApplication) -> int:
             ("PCA (SPy)", lambda: _pca(image)),
             ("band parameters (HyPyRameter)", lambda: _bandParameters(image)),
             ("plugin API", _pluginApi),
+            ("update check certificates", _updateCertificates),
         ]
         failures = sum(not _report(name, check) for name, check in checks)
     print(f"Self-test: {len(checks) - failures} of {len(checks)} checks passed")
@@ -155,6 +158,15 @@ def _pluginApi() -> str:
     missing = [name for name in api.__all__ if not hasattr(api, name)]
     assert not missing, f"varda.api lacks {missing}"
     return f"API {api.API_VERSION}, {len(api.__all__)} names"
+
+
+def _updateCertificates() -> str:
+    """The HTTPS certificates the update check uses are bundled. Offline: the
+    self-test never contacts GitHub."""
+    context = ssl.create_default_context(cafile=certifi.where())
+    count = len(context.get_ca_certs())
+    assert count, f"no certificates in {certifi.where()}"
+    return f"{count} certificates"
 
 
 def _bandParameters(image: VardaRaster) -> str:

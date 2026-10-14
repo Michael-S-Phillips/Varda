@@ -1,5 +1,5 @@
 """The Help menu: about Varda, how to cite it, system info for bug reports,
-the documentation and the issue tracker."""
+the documentation, the issue tracker and checking for updates."""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from varda.help_info import (
     systemInfo,
 )
 from varda.maingui import MainGUI
+from varda.update_check import checkForUpdatesNow
 from varda.version import vardaVersion
 
 
@@ -123,6 +124,13 @@ HELP_ACTIONS: list[Action] = [
         title="Cite Varda…",
         callback=showCitation,
         menus=_inHelp(MenuGroup.HELP_INFO, 2),
+    ),
+    Action(
+        id="varda.help.check_for_updates",
+        title="Check for Updates…",
+        tooltip="See whether a newer Varda has been released",
+        callback=lambda mainGui: checkForUpdatesNow(mainGui),
+        menus=_inHelp(MenuGroup.HELP_ABOUT, 0),
     ),
     Action(
         id="varda.help.about",
