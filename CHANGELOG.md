@@ -4,7 +4,13 @@ Notable changes to Varda. Release notes on GitHub are generated from pull
 requests; this file records what users need to know, especially changes that
 can alter results.
 
-## Unreleased
+## 0.5.0 (2026-10-14)
+
+### Changed
+
+- Varda's home is now **github.com/varda-pro/Varda** (the old address
+  redirects), and the Help menu links there.
+- On-screen text uses American spelling throughout.
 
 ### Added
 
