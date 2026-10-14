@@ -4,6 +4,20 @@ Notable changes to Varda. Release notes on GitHub are generated from pull
 requests; this file records what users need to know, especially changes that
 can alter results.
 
+## Unreleased
+
+### Added
+
+- **Remove images from the project:** right-click in the Image List →
+  **Remove from Project…**, or press Delete. Workspaces showing them close,
+  and Varda asks first when that, or losing an unsaved result, would happen.
+
+### Fixed
+
+- The large view now follows the overview's region box to its final
+  position; it lagged one change behind.
+- Fit Y To X Range now fits ROI spectra that have their ±1σ shading.
+
 ## 0.4.0 (2026-10-13)
 
 ### Changed: results may differ from earlier versions
