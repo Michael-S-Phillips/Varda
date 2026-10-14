@@ -104,7 +104,9 @@ jobs:
         run: |
           hdiutil attach -nobrowse -mountpoint mounted Varda-${{ matrix.name }}.dmg
           mounted/Varda.app/Contents/MacOS/Varda --self-test
-          hdiutil detach mounted
+          # The image can stay busy for a moment after Varda exits
+          sleep 3
+          hdiutil detach mounted || hdiutil detach -force mounted
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
