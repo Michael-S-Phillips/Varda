@@ -45,8 +45,14 @@ def test_the_settings_dialog_saves(qtbot, settings):
     dialog.key.setText("  sk-ant-new  ")
     dialog.model.setCurrentText("claude-sonnet-5-5")
     dialog.budget.setValue(250_000)
+    dialog.workspace.setText(" wrkspc_123 ")
     dialog._save()
     assert settings.apiKey() == "sk-ant-new"
+    assert settings.workspaceId == "wrkspc_123"
+    assert (
+        settings.createProvider().client.default_headers["anthropic-workspace-id"]
+        == "wrkspc_123"
+    )
     assert (settings.model, settings.tokenBudget) == ("claude-sonnet-5-5", 250_000)
     reopened = AISettingsDialog(settings)
     qtbot.addWidget(reopened)

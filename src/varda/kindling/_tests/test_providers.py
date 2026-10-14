@@ -103,3 +103,37 @@ def test_errors_become_messages_for_the_user(error, message):
     provider, _ = _provider(error)
     with pytest.raises(ProviderError, match=message):
         provider.test()
+
+
+def test_a_workspace_id_is_sent_with_every_request():
+    provider = AnthropicProvider("key", "claude-test", "wrkspc_123")
+    assert provider.client.default_headers["anthropic-workspace-id"] == "wrkspc_123"
+    assert (
+        "anthropic-workspace-id"
+        not in AnthropicProvider("key", "m").client.default_headers
+    )
+
+
+def _badRequest(message: str) -> anthropic.BadRequestError:
+    body = {
+        "type": "error",
+        "error": {"type": "invalid_request_error", "message": message},
+    }
+    return anthropic.BadRequestError(str(body), response=_response(400), body=body)
+
+
+def test_a_key_without_a_workspace_says_what_to_do():
+    message = (
+        "This API key is not scoped to a workspace, so this request must include "
+        "the anthropic-workspace-id header with the ID of the workspace to use."
+    )
+    provider, _ = _provider(_badRequest(message))
+    with pytest.raises(ProviderError, match="Enter your workspace ID"):
+        provider.test()
+
+
+def test_other_errors_show_anthropics_own_sentence():
+    provider, _ = _provider(_badRequest("max_tokens is too large"))
+    with pytest.raises(ProviderError) as raised:
+        provider.test()
+    assert str(raised.value) == "Anthropic returned an error: max_tokens is too large"

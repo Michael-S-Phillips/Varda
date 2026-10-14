@@ -24,6 +24,13 @@ ANTHROPIC = "anthropic"
 # Most capable first; the cheaper ones suit simple features
 ANTHROPIC_MODELS = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5-20251001")
 MAX_TOKENS_PER_REPLY = 16000
+WORKSPACE_HEADER = "anthropic-workspace-id"
+NEEDS_WORKSPACE = (
+    "This API key isn't tied to a workspace, so Anthropic needs to know which "
+    "workspace to use. Enter your workspace ID in Plugins → AI Assistant "
+    "Settings (console.anthropic.com → Settings → Workspaces), or create a key "
+    "inside a workspace."
+)
 
 
 @frozen
@@ -77,11 +84,19 @@ class ProviderError(Exception):
 
 class AnthropicProvider:
     def __init__(
-        self, apiKey: str, model: str, client: anthropic.Anthropic | None = None
+        self,
+        apiKey: str,
+        model: str,
+        workspaceId: str = "",
+        client: anthropic.Anthropic | None = None,
     ):
         self.model = model
+        # A key that isn't tied to a workspace must name one on every request
+        headers = {WORKSPACE_HEADER: workspaceId} if workspaceId else None
         self.client = (
-            client if client is not None else anthropic.Anthropic(api_key=apiKey)
+            client
+            if client is not None
+            else anthropic.Anthropic(api_key=apiKey, default_headers=headers)
         )
 
     def start(self, system: str, tools: Sequence[ToolSpec]) -> AnthropicConversation:
@@ -125,9 +140,10 @@ class AnthropicProvider:
                 "Anthropic couldn't be reached; check your internet connection."
             ) from error
         except anthropic.APIStatusError as error:
-            raise ProviderError(
-                f"Anthropic returned an error: {error.message}"
-            ) from error
+            message = _errorMessage(error)
+            if "not scoped to a workspace" in message:
+                raise ProviderError(NEEDS_WORKSPACE) from error
+            raise ProviderError(f"Anthropic returned an error: {message}") from error
 
 
 class AnthropicConversation:
@@ -175,6 +191,15 @@ class AnthropicConversation:
             if isinstance(block, ToolUseBlock)
         )
         return Reply(_text(message.content), calls, tokens)
+
+
+def _errorMessage(error: anthropic.APIStatusError) -> str:
+    """Anthropic's own sentence from the error body, not the whole reply."""
+    match error.body:
+        case {"error": {"message": str(message)}} if message:
+            return message
+        case _:
+            return error.message
 
 
 def _text(blocks: Sequence[ContentBlock]) -> str:

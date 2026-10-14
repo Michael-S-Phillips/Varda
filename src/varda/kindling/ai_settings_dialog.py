@@ -43,6 +43,10 @@ class AISettingsDialog(QDialog):
         keyRow = QHBoxLayout()
         keyRow.addWidget(self.key, 1)
         keyRow.addWidget(self.removeKey)
+        self.workspace = QLineEdit(self.settings.workspaceId)
+        self.workspace.setPlaceholderText(
+            "Only for a key that isn't tied to a workspace"
+        )
         self.model = QComboBox()
         self.model.setEditable(True)
         self.model.addItems(ANTHROPIC_MODELS)
@@ -64,6 +68,7 @@ class AISettingsDialog(QDialog):
         keyHelp.setOpenExternalLinks(True)
         keyHelp.setWordWrap(True)
         form.addRow("", keyHelp)
+        form.addRow("Workspace ID:", self.workspace)
         form.addRow("Model:", self.model)
         form.addRow("Limit per feature:", self.budget)
         budgetNote = MutedLabel(
@@ -114,7 +119,9 @@ class AISettingsDialog(QDialog):
             self.status.setText("Enter an API key first.")
             return
         self.status.setText("Testing…")
-        provider = AnthropicProvider(key, self.model.currentText().strip())
+        provider = AnthropicProvider(
+            key, self.model.currentText().strip(), self.workspace.text().strip()
+        )
         runInBackground(
             provider.test,
             self.status.setText,
@@ -138,5 +145,6 @@ class AISettingsDialog(QDialog):
             self.status.setText(str(error))
             return
         self.settings.model = self.model.currentText().strip()
+        self.settings.workspaceId = self.workspace.text().strip()
         self.settings.tokenBudget = self.budget.value()
         self.accept()

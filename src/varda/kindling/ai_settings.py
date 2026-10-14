@@ -18,6 +18,7 @@ from varda.kindling.providers import (
 KEYRING_SERVICE = "Varda AI Assistant"
 MODEL_KEY = "ai/model"
 TOKEN_BUDGET_KEY = "ai/tokenBudget"
+WORKSPACE_KEY = "ai/workspaceId"
 DEFAULT_TOKEN_BUDGET = 400_000
 
 
@@ -44,6 +45,15 @@ class AISettings:
     @tokenBudget.setter
     def tokenBudget(self, tokens: int) -> None:
         self.settings.setValue(TOKEN_BUDGET_KEY, tokens)
+
+    @property
+    def workspaceId(self) -> str:
+        """Only for an API key that isn't tied to a workspace (not a secret)."""
+        return str(self.settings.value(WORKSPACE_KEY, ""))
+
+    @workspaceId.setter
+    def workspaceId(self, workspaceId: str) -> None:
+        self.settings.setValue(WORKSPACE_KEY, workspaceId)
 
     def apiKey(self) -> str:
         """The saved key, or "" if there's none. Raises ProviderError when the
@@ -75,4 +85,4 @@ class AISettings:
             raise ProviderError(
                 "Add an API key in Plugins → AI Assistant Settings first."
             )
-        return AnthropicProvider(key, self.model)
+        return AnthropicProvider(key, self.model, self.workspaceId)

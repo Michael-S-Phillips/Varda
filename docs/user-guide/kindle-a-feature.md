@@ -12,7 +12,9 @@ Kindle a Feature uses your own Anthropic account, so you need an API key.
 
 1. Create a key at [console.anthropic.com](https://console.anthropic.com/settings/keys).
 2. In Varda, open **Plugins → AI Assistant Settings…**, paste the key, and
-   click **Test Connection**.
+   click **Test Connection**. If Anthropic says the key isn't tied to a
+   workspace, also enter your **Workspace ID** (console.anthropic.com →
+   Settings → Workspaces), or create the key inside a workspace.
 3. Choose a **model**. The most capable model builds the most reliable
    plugins; the cheaper ones suit simple features.
 4. Set the **limit per feature**: Varda stops building when a feature has
