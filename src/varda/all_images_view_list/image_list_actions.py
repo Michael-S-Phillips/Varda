@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import QMessageBox
 
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
+from varda.common.ui import openOwnedDialog
 from varda.image_loading.export_image_dialog import ExportImageDialog
 from varda.maingui import MainGUI
 from varda.workspaces.dual_image_workspace import NewDualImageWorkspaceDialog
@@ -68,9 +69,11 @@ def _openInDualImage(
     # With exactly two images selected, fill both slots; otherwise the user picks
     # the secondary image in the dialog.
     secondary = ctx.images[1] if len(ctx.images) == 2 else None
-    NewDualImageWorkspaceDialog(
-        images, primary=ctx.images[0], secondary=secondary
-    ).connectOnAccept(mainGui.addTab).open()
+    openOwnedDialog(
+        NewDualImageWorkspaceDialog(
+            images, parent=mainGui, primary=ctx.images[0], secondary=secondary
+        ).connectOnAccept(mainGui.addTab)
+    )
 
 
 def _exportImage(
