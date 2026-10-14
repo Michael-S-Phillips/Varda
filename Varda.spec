@@ -65,9 +65,9 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    # Windows keeps its console so the release self-test can print; on macOS the
-    # app bundle (below) is a normal windowed app
-    console=not MACOS,
+    # A normal windowed app everywhere (no console window behind Varda on
+    # Windows); the self-test writes a report file when there's no console
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

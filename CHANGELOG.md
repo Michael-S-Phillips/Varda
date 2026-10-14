@@ -13,6 +13,12 @@ can alter results.
   right-click → Open couldn't help. The macOS download is now a disk image
   with **Varda.app**: drag it to Applications and approve it once (see the
   install guide).
+- **Windows: no more console window** behind Varda; it's a normal windowed
+  app now.
+- **Linux:** the download is a `.tar.gz` (it keeps file permissions), with
+  an `install.sh` that adds Varda to your applications menu.
+- Every release build now unpacks each platform's actual download and
+  self-tests that copy before publishing.
 
 ## 0.5.0 (2026-10-14)
 

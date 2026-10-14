@@ -27,7 +27,16 @@ shows "Windows protected your PC", choose **More info → Run anyway**.
 
 ### Linux
 
-Download `Varda-linux-x64.zip`, unzip it, and run `Varda`.
+Download `Varda-linux-x64.tar.gz`, unpack it, and run `Varda` in the
+`Varda` folder:
+
+```bash
+tar -xzf Varda-linux-x64.tar.gz
+./Varda/Varda
+```
+
+To add Varda to your applications menu (with its icon), run `./Varda/install.sh`
+once. If you move the folder later, run it again from the new place.
 
 The downloads include HyPyRameter band parameters. The PyTorch CNN/ViT
 classifiers download PyTorch the first time you use them (see
