@@ -3,11 +3,13 @@
 Runs the real application, then exercises what a frozen bundle most often
 breaks: package metadata, bundled resources, PROJ data, reading and writing
 files in background threads, numba-compiled rendering, the analyses that
-lean on optional libraries, and the certificates the update check needs. Prints one line per check and returns the exit
+lean on optional libraries, the certificates the update check needs, and
+Kindle a Feature's plugin check (Varda running itself in check mode). Prints one line per check and returns the exit
 code (0 when everything passed).
 """
 
 import importlib
+import shutil
 import ssl
 import tempfile
 import time
@@ -15,7 +17,9 @@ import traceback
 from collections.abc import Callable
 from pathlib import Path
 
+import anthropic
 import certifi
+import keyring
 import numpy as np
 from affine import Affine
 from pyproj import Transformer
@@ -32,6 +36,8 @@ from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.image_loading.image_loading_service import ImageLoadingService
 from varda.image_loading.raster_writer import writeRaster
 from varda.image_rendering.image_renderer import ImageRenderer
+from varda.kindling.checks import runChecks
+from varda.kindling.docs import EXAMPLES, apiReference
 from varda.version import vardaVersion
 
 LOAD_TIMEOUT_S = 60
@@ -57,6 +63,11 @@ def runSelfTest(app: VardaApplication) -> int:
             ("band parameters (HyPyRameter)", lambda: _bandParameters(image)),
             ("plugin API", _pluginApi),
             ("update check certificates", _updateCertificates),
+            ("AI libraries", _aiLibraries),
+            (
+                "plugin check (Kindle a Feature)",
+                lambda: _pluginCheck(Path(folder), image),
+            ),
         ]
         failures = sum(not _report(name, check) for name, check in checks)
     print(f"Self-test: {len(checks) - failures} of {len(checks)} checks passed")
@@ -167,6 +178,24 @@ def _updateCertificates() -> str:
     count = len(context.get_ca_certs())
     assert count, f"no certificates in {certifi.where()}"
     return f"{count} certificates"
+
+
+def _aiLibraries() -> str:
+    """The Anthropic SDK imports and keyring has a backend (on Linux without
+    a keychain service that's keyring's fail backend, which is reported)."""
+    return f"anthropic {anthropic.__version__}, keyring {type(keyring.get_keyring()).__module__}"
+
+
+def _pluginCheck(folder: Path, image: VardaRaster) -> str:
+    """Check the bundled example plugin the way Kindle a Feature checks a new
+    one: in a separate Varda process, on a crop of an image."""
+    assert "class Analysis" in apiReference()
+    plugin = folder / "band-depth"
+    shutil.copytree(EXAMPLES / "band-depth", plugin)
+    report = runChecks(plugin, image)
+    assert report.passed, report.describe()
+    runs = report.analyses[0].runs
+    return f"{report.analyses[0].name}: {', '.join(run.image for run in runs)}"
 
 
 def _bandParameters(image: VardaRaster) -> str:

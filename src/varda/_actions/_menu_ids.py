@@ -17,6 +17,7 @@ class MenuGroup(StrEnum):
     FILE_EXIT = "9_exit"
     WORKSPACE_NEW = "1_new"
     WORKSPACE_MANAGE = "2_manage"
+    PLUGINS_KINDLE = "0_kindle"
     PLUGINS_MANAGE = "1_manage"
     PLUGINS_INSTALL = "2_install"
     DEBUG_TESTING = "1_testing"

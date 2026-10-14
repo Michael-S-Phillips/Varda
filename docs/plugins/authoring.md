@@ -9,6 +9,9 @@ can add:
 
 This guide walks through [`examples/band-depth`](examples/band-depth/), a
 complete plugin that adds **Processing → Spectral Parameters → Band Depth**.
+You can also describe a feature and have your AI write the plugin with
+**Plugins → Kindle a Feature…** (see
+[the user guide](../user-guide/kindle-a-feature.md)); the AI reads this guide.
 
 ## What a plugin looks like
 

@@ -8,5 +8,6 @@ Detailed guides to Varda's features. For an overview, see the
 - [PCA, MNF and ICA](transforms.md): choosing how many components to keep, inverse transforms
 - [Spectral Hourglass](spectral-hourglass.md): finding, identifying and mapping endmembers, preparing a spectral library
 - [Optional features](optional-features.md): HyPyRameter band parameters, PyTorch classifiers
+- [Kindle a Feature](kindle-a-feature.md): describe a feature and have your AI build it as a plugin
 
 Something missing or unclear? [Open an issue](https://github.com/varda-pro/Varda/issues/new/choose).
