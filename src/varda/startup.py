@@ -1,7 +1,6 @@
 """Builds the application behind the splash: logging, plugins, the main
 window and its wiring. ``varda.main`` imports this once the splash is up."""
 
-import pyqtgraph as pg
 from PyQt6.QtWidgets import QApplication
 
 import varda
@@ -21,8 +20,6 @@ def createVarda(q_app: QApplication) -> VardaApplication:
     varda.log._initializeFullLogging()
     q_app.processEvents()
 
-    pg.setConfigOptions(imageAxisOrder="row-major")
-    varda.log.debug("Configurations set")
 
     app = VardaApplication()
     app.pluginManager.hook.onLoad(app=app)
