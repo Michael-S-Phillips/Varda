@@ -20,7 +20,7 @@ from varda.utilities.resources import resource_path
 from varda.version import vardaVersion
 
 CITATION_PATH = Path(resource_path("CITATION.cff"))
-REPOSITORY_URL = "https://github.com/Michael-S-Phillips/Varda"
+REPOSITORY_URL = "https://github.com/varda-pro/Varda"
 DOCUMENTATION_URL = f"{REPOSITORY_URL}/blob/main/docs/user-guide/README.md"
 ISSUES_URL = f"{REPOSITORY_URL}/issues/new/choose"
 

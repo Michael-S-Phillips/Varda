@@ -5,7 +5,7 @@ Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Reporting a bug or asking for a feature
 
-Open an [issue](https://github.com/Michael-S-Phillips/Varda/issues) using
+Open an [issue](https://github.com/varda-pro/Varda/issues) using
 the bug or feature template. For a bug, **Help → Copy System Info** in Varda
 copies the version and platform details the template asks for.
 

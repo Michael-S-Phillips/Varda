@@ -53,19 +53,19 @@ ENVI Classic and napari.
 
 Varda is under active development, so expect rough edges and frequent
 changes. Bug reports and feature requests are welcome on the
-[issue tracker](https://github.com/Michael-S-Phillips/Varda/issues/new/choose).
+[issue tracker](https://github.com/varda-pro/Varda/issues/new/choose).
 
 ## Getting Varda
 
 **Download:** each release on the
-[Releases page](https://github.com/Michael-S-Phillips/Varda/releases) has a
+[Releases page](https://github.com/varda-pro/Varda/releases) has a
 ready-to-run build for Windows, macOS (Apple silicon) and Linux; no Python
 needed.
 
 **From source:** with Python 3.13 and [uv](https://docs.astral.sh/uv/):
 
 ```bash
-git clone https://github.com/Michael-S-Phillips/Varda.git
+git clone https://github.com/varda-pro/Varda.git
 cd Varda
 uv sync --extra hypyrameter
 uv run varda

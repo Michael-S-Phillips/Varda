@@ -9,4 +9,4 @@ Detailed guides to Varda's features. For an overview, see the
 - [Spectral Hourglass](spectral-hourglass.md): finding, identifying and mapping endmembers, preparing a spectral library
 - [Optional features](optional-features.md): HyPyRameter band parameters, PyTorch classifiers
 
-Something missing or unclear? [Open an issue](https://github.com/Michael-S-Phillips/Varda/issues/new/choose).
+Something missing or unclear? [Open an issue](https://github.com/varda-pro/Varda/issues/new/choose).
