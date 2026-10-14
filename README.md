@@ -14,6 +14,20 @@ analyses, without writing code. It is developed at the Space Imagery Center
 Earth remote sensing work such as CRISM, and its design follows tools like
 ENVI Classic and napari.
 
+## See it in action
+
+<p align="center">
+  <img src="docs/assets/demo/varda-demo.gif" alt="Clicking pixels in a CRISM scene of Nili Fossae adds their spectra to the plot" width="900">
+</p>
+
+| | |
+|---|---|
+| ![ROIs on olivine-rich and clay-bearing terrain with their mean spectra](docs/assets/demo/workspace-rois-spectra.png) | ![A Spectral Angle Mapper classification from those ROIs, laid over the scene with its legend](docs/assets/demo/classification-overlay.png) |
+| ROIs where HyPyRameter's olivine and clay parameters peak, with their mean spectra | A Spectral Angle Mapper map from those ROIs, overlaid with its legend |
+
+<sub>CRISM FRT000047A3 (Nili Fossae, Mars), from NASA's Planetary Data System.
+Regenerate these with `scripts/capture_demo_media.py`.</sub>
+
 ## What you can do with it
 
 - **View images:** ENVI, GeoTIFF and HDF5 cubes, shown in true color, false
