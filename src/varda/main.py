@@ -28,6 +28,9 @@ if sys.platform == "win32":
 
 ICON_PATH = resource_path("resources/logo.svg")
 SELF_TEST_FLAG = "--self-test"
+# Kindle a Feature checks a plugin by running Varda in this mode (no window);
+# the same as varda.kindling.checks.CHECK_FLAG
+CHECK_PLUGIN_FLAG = "--check-plugin"
 # Where the self-test writes its report when the app has no console (the
 # windowed Windows app); the release build reads it from here
 SELF_TEST_REPORT_ENV = "VARDA_SELF_TEST_REPORT"
@@ -82,6 +85,11 @@ def _consoleForSelfTest() -> None:
 
 
 def main():
+    if CHECK_PLUGIN_FLAG in sys.argv:
+        # Imported only in this mode: an ordinary start shouldn't wait for it
+        from varda.kindling.check_worker import main as checkPlugin
+
+        sys.exit(checkPlugin(sys.argv[sys.argv.index(CHECK_PLUGIN_FLAG) + 1 :]))
     _consoleForSelfTest()
     q_app = QApplication(sys.argv)
     q_app.setApplicationName("Varda")

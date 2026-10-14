@@ -17,8 +17,10 @@ class MenuGroup(StrEnum):
     FILE_EXIT = "9_exit"
     WORKSPACE_NEW = "1_new"
     WORKSPACE_MANAGE = "2_manage"
+    PLUGINS_KINDLE = "0_kindle"
     PLUGINS_MANAGE = "1_manage"
     PLUGINS_INSTALL = "2_install"
+    PLUGINS_FEATURES = "3_features"  # what installed plugins add, also listed here
     DEBUG_TESTING = "1_testing"
     HELP_LINKS = "1_links"
     HELP_INFO = "2_info"

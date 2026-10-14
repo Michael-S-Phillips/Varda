@@ -1,11 +1,17 @@
-"""The Plugins menu: manage installed plugins and install new ones."""
+"""The Plugins menu: kindle a feature with your AI, manage installed plugins
+and install new ones."""
 
 from __future__ import annotations
 
 from app_model.types import Action, MenuRule
 
 from varda._actions._menu_ids import MenuGroup, MenuId
+from varda.common.di_types import ProjectImages
 from varda.common.ui import openOwnedDialog
+from varda.kindling.ai_settings import AISettings
+from varda.kindling.ai_settings_dialog import AISettingsDialog
+from varda.kindling.kindle_dialog import KindleDialog
+from varda.kindling.providers import ProviderError
 from varda.maingui import MainGUI
 from varda.plugins.plugin_manager import VardaPluginManager
 from varda.plugins.plugins_dialog import (
@@ -14,6 +20,31 @@ from varda.plugins.plugins_dialog import (
     chooseZip,
     installPlugin,
 )
+
+
+def kindleFeature(
+    manager: VardaPluginManager, images: ProjectImages, mainGui: MainGUI
+) -> None:
+    """Open Kindle a Feature; without an API key, the AI settings first."""
+    settings = AISettings()
+
+    def kindle() -> None:
+        openOwnedDialog(KindleDialog(manager, list(images), settings, parent=mainGui))
+
+    try:
+        hasKey = bool(settings.apiKey())
+    except ProviderError:
+        hasKey = False
+    if hasKey:
+        kindle()
+        return
+    dialog = AISettingsDialog(settings, parent=mainGui)
+    dialog.accepted.connect(lambda: kindle() if settings.apiKey() else None)
+    openOwnedDialog(dialog)
+
+
+def aiSettings(mainGui: MainGUI) -> None:
+    openOwnedDialog(AISettingsDialog(parent=mainGui))
 
 
 def managePlugins(manager: VardaPluginManager, mainGui: MainGUI) -> None:
@@ -33,6 +64,20 @@ def installFromZip(manager: VardaPluginManager, mainGui: MainGUI) -> None:
 
 
 PLUGIN_ACTIONS: list[Action] = [
+    Action(
+        id="varda.plugins.kindle",
+        title="Kindle a Feature…",
+        tooltip="Describe a feature and have your AI build it as a plugin",
+        callback=kindleFeature,
+        menus=[MenuRule(id=MenuId.PLUGINS, group=MenuGroup.PLUGINS_KINDLE, order=1)],
+    ),
+    Action(
+        id="varda.plugins.ai_settings",
+        title="AI Assistant Settings…",
+        tooltip="The AI provider, API key and model Kindle a Feature uses",
+        callback=aiSettings,
+        menus=[MenuRule(id=MenuId.PLUGINS, group=MenuGroup.PLUGINS_KINDLE, order=2)],
+    ),
     Action(
         id="varda.plugins.manage",
         title="Manage Plugins…",

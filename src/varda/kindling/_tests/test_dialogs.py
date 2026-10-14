@@ -1,0 +1,134 @@
+import pytest
+from PyQt6.QtCore import QSettings
+from PyQt6.QtWidgets import QMessageBox
+
+from varda.kindling import kindle_dialog
+from varda.kindling.ai_settings import KEYRING_SERVICE, AISettings
+from varda.kindling.ai_settings_dialog import AISettingsDialog
+from varda.kindling.docs import EXAMPLES
+from varda.kindling.kindle_dialog import KindleDialog
+from varda.kindling.providers import ProviderError
+from varda.plugins.plugin_manager import VardaPluginManager
+
+from .fakes import ScriptedProvider, call, replaying, tools
+
+
+@pytest.fixture
+def settings(tmp_path) -> AISettings:
+    return AISettings(
+        QSettings(str(tmp_path / "varda.ini"), QSettings.Format.IniFormat)
+    )
+
+
+def test_the_key_lives_in_the_keychain(settings, memoryKeyring, tmp_path):
+    assert settings.apiKey() == ""
+    settings.setApiKey("sk-ant-test")
+    assert memoryKeyring.passwords[(KEYRING_SERVICE, "anthropic")] == "sk-ant-test"
+    assert (
+        "sk-ant-test" not in (tmp_path / "varda.ini").read_text()
+        if (tmp_path / "varda.ini").exists()
+        else True
+    )
+    settings.removeApiKey()
+    settings.removeApiKey()  # removing twice is fine
+    assert settings.apiKey() == ""
+
+
+def test_kindling_needs_a_key(settings):
+    with pytest.raises(ProviderError, match="Add an API key"):
+        settings.createProvider()
+
+
+def test_the_settings_dialog_saves(qtbot, settings):
+    dialog = AISettingsDialog(settings)
+    qtbot.addWidget(dialog)
+    dialog.key.setText("  sk-ant-new  ")
+    dialog.model.setCurrentText("claude-sonnet-5-5")
+    dialog.budget.setValue(250_000)
+    dialog.workspace.setText(" wrkspc_123 ")
+    dialog._save()
+    assert settings.apiKey() == "sk-ant-new"
+    assert settings.workspaceId == "wrkspc_123"
+    assert (
+        settings.createProvider().client.default_headers["anthropic-workspace-id"]
+        == "wrkspc_123"
+    )
+    assert (settings.model, settings.tokenBudget) == ("claude-sonnet-5-5", 250_000)
+    reopened = AISettingsDialog(settings)
+    qtbot.addWidget(reopened)
+    assert (
+        reopened.key.text() == ""
+        and reopened.key.placeholderText() == "Saved in your keychain"
+    )
+
+
+def _exampleScript():
+    files = {
+        "plugin.toml": (EXAMPLES / "band-depth" / "plugin.toml")
+        .read_text()
+        .replace('name = "band-depth"', 'name = "kindled-depth"'),
+        "plugin.py": (EXAMPLES / "band-depth" / "plugin.py").read_text(),
+        "tests/test_plugin.py": (
+            EXAMPLES / "band-depth" / "tests" / "test_plugin.py"
+        ).read_text(),
+    }
+    writes = [
+        call("write_file", f"w{i}", path=p, content=c)
+        for i, (p, c) in enumerate(files.items())
+    ]
+    return [
+        tools(*writes, text="Writing the plugin."),
+        tools(call("run_checks")),
+        tools(call("finish", summary="Maps band depth at 1.93 µm.")),
+    ]
+
+
+@pytest.fixture
+def dialog(qtbot, tmp_path, settings, monkeypatch):
+    monkeypatch.setattr(
+        settings,
+        "createProvider",
+        lambda: ScriptedProvider(replaying(_exampleScript())),
+    )
+    manager = VardaPluginManager(pluginsFolder=tmp_path / "plugins")
+    manager.loadInstalled()
+    widget = KindleDialog(manager, [], settings, folder=tmp_path / "draft")
+    qtbot.addWidget(widget)
+    widget.show()
+    return widget
+
+
+def test_kindle_build_review_and_enable(qtbot, dialog, tmp_path, monkeypatch):
+    monkeypatch.setattr(kindle_dialog.QMessageBox, "information", lambda *a: None)
+    dialog.description.setPlainText("band depth at 1.93 µm")
+    dialog.startButton.click()
+    qtbot.waitUntil(lambda: dialog.pages.currentIndex() == 2, timeout=60_000)
+    assert "ready to review" in dialog.headline.text()
+    assert "Processing → Spectral Parameters → Band Depth" in dialog.location.text()
+    assert dialog.enableButton.isEnabled()
+    tabs = [dialog.details.tabText(i) for i in range(dialog.details.count())]
+    assert tabs[0] == "Checks ✓" and "plugin.py" in tabs and tabs[-1] == "Log"
+    dialog.enableButton.click()
+    assert dialog.manager.record("kindled-depth").loaded
+    assert not (tmp_path / "draft").exists()
+
+
+def test_discarding_asks_then_removes_the_draft(qtbot, dialog, tmp_path, monkeypatch):
+    dialog.description.setPlainText("band depth")
+    dialog.startButton.click()
+    qtbot.waitUntil(lambda: dialog.pages.currentIndex() == 2, timeout=60_000)
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *a: QMessageBox.StandardButton.No
+    )
+    dialog.reject()
+    assert (tmp_path / "draft").exists()
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *a: QMessageBox.StandardButton.Yes
+    )
+    dialog.reject()
+    assert not (tmp_path / "draft").exists()
+
+
+def test_without_a_description_nothing_starts(dialog):
+    dialog.startButton.click()
+    assert dialog.pages.currentIndex() == 0

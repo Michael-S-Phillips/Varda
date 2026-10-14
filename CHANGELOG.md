@@ -15,6 +15,13 @@ can alter results.
 - **Spectral Hourglass: Draw on Image.** Draw shapes on the scene to add the
   pixels inside to the active endmember (Shift removes them), alongside the
   n-D lasso.
+- **Kindle a Feature.** Describe a feature in plain language and your own AI
+  (Anthropic, with your API key in the system keychain) builds it as a
+  plugin. Varda checks it on a synthetic image and a crop of yours in a
+  separate process, then shows a summary, where it appears, warnings, the
+  checks and the code to Enable, Ask for Changes or Discard. Only the
+  description, the plugin docs and the image's metadata are sent, never its
+  pixels. Plugins → Kindle a Feature… and AI Assistant Settings….
 
 ### Fixed
 

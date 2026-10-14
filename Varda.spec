@@ -25,6 +25,13 @@ TORCH_WORKER = [
     for f in Path('src/varda_torch_worker').glob('*.py')
 ]
 
+# Kindle a Feature gives the AI the plugin authoring guide and the examples
+PLUGIN_DOCS = [
+    (str(f), str(f.parent))
+    for f in Path('docs/plugins').rglob('*')
+    if f.is_file() and '__pycache__' not in f.parts
+]
+
 a = Analysis(
     ['src/varda/main.py'],
     pathex=[],
@@ -36,6 +43,9 @@ a = Analysis(
     + [('resources', 'resources')]
     + LIBRARY_SPECTRA
     + TORCH_WORKER
+    + PLUGIN_DOCS
+    # keyring finds its keychain backends through package metadata
+    + copy_metadata('keyring')
     # Help > About reads the version from package metadata; Cite reads CITATION.cff
     + copy_metadata('varda')
     + [('CITATION.cff', '.'), ('LICENSE', '.')],
@@ -43,7 +53,8 @@ a = Analysis(
     hiddenimports=collect_submodules('rasterio')
     + collect_submodules('hypyrameter', filter=lambda name: 'iovf' not in name)
     # Only plugins import the plugin API, so PyInstaller can't see it's needed
-    + ['varda.api'],
+    + ['varda.api']
+    + collect_submodules('keyring.backends'),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

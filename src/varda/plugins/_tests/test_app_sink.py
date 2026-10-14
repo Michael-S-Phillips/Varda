@@ -4,7 +4,7 @@ import pytest
 from app_model import Application
 
 from varda._actions._menu_ids import MenuId
-from varda._actions._processing_actions import categoryMenuId
+from varda._actions._processing_actions import categoryMenuId, processingActions
 from varda.api import Analysis
 from varda.image_loading.data_sources.registry import datasource_registry
 from varda.plugins.app_sink import AppContributionSink
@@ -85,3 +85,30 @@ def test_file_formats_join_the_registry_and_leave_it(app):
     assert datasource_registry[-1].formatName == "Test Format"
     remove()
     assert len(datasource_registry) == before
+
+
+def _commandIds(app, menuId) -> list[str]:
+    return [i.command.id for i in _menuItems(app, menuId) if hasattr(i, "command")]
+
+
+def test_plugin_analyses_are_listed_in_the_plugins_menu_too(app):
+    sink = AppContributionSink(app)
+    remove = sink.add("my-plugin", Contributions(analyses=(_NewCategory,)))
+    action = "varda.plugin.my_plugin.sink_test"
+    submenu = categoryMenuId(MenuId.PROCESSING, "My Plugin Tools")
+    assert action in _commandIds(app, submenu)
+    assert action in _commandIds(app, MenuId.PLUGINS)
+    remove()
+    assert action not in _commandIds(app, MenuId.PLUGINS)
+
+
+class _Ellipsis(Analysis):
+    analysisId = "ellipsis"
+    name = "Spectral Smoothing..."
+
+
+def test_a_name_ending_in_an_ellipsis_gets_only_one():
+    (action,) = processingActions(
+        MenuId.PROCESSING, "x", [_Ellipsis], lambda a: lambda: None
+    )
+    assert action.title == "Spectral Smoothing…"
