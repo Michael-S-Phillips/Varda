@@ -5,6 +5,7 @@ from __future__ import annotations
 from app_model.types import Action, MenuRule
 
 from varda._actions._menu_ids import MenuGroup, MenuId
+from varda.common.ui import openOwnedDialog
 from varda.maingui import MainGUI
 from varda.plugins.plugin_manager import VardaPluginManager
 from varda.plugins.plugins_dialog import (
@@ -16,7 +17,7 @@ from varda.plugins.plugins_dialog import (
 
 
 def managePlugins(manager: VardaPluginManager, mainGui: MainGUI) -> None:
-    ManagePluginsDialog(manager, parent=mainGui).open()
+    openOwnedDialog(ManagePluginsDialog(manager, parent=mainGui))
 
 
 def installFromFolder(manager: VardaPluginManager, mainGui: MainGUI) -> None:

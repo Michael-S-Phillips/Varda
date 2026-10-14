@@ -3,7 +3,7 @@ buttons enable, disable and remove installed plugins."""
 
 import textwrap
 
-from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtWidgets import QMessageBox, QPushButton
 
 from varda.plugins.plugin_manager import VardaPluginManager
 from varda.plugins.plugins_dialog import ManagePluginsDialog
@@ -77,3 +77,12 @@ def test_buttons_disable_and_remove(qtbot, tmp_path, monkeypatch):
     )
     dialog.removeButton.click()
     assert all(r.name != "tripler" for r in manager.records)
+
+
+def test_close_button_closes_the_window(qtbot, tmp_path):
+    dialog = ManagePluginsDialog(VardaPluginManager(pluginsFolder=tmp_path / "plugins"))
+    qtbot.addWidget(dialog)
+    dialog.show()
+    close = next(b for b in dialog.findChildren(QPushButton) if b.text() == "Close")
+    close.click()
+    assert not dialog.isVisible()

@@ -10,6 +10,7 @@ from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
@@ -143,11 +144,14 @@ class ManagePluginsDialog(QDialog):
         buttons.addWidget(installZip)
         note = MutedLabel(TRUST_NOTE)
         note.setWordWrap(True)
+        close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        close.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.table)
         layout.addLayout(buttons)
         layout.addWidget(note)
+        layout.addWidget(close)
         self.refresh()
 
     def refresh(self) -> None:
