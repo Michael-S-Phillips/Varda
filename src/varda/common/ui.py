@@ -577,3 +577,13 @@ class MutedLabel(QLabel):
         if palette.color(QPalette.ColorRole.WindowText) != color:  # no loop
             palette.setColor(QPalette.ColorRole.WindowText, color)
             self.setPalette(palette)
+
+
+def openOwnedDialog(dialog: QDialog) -> QDialog:
+    """Open a window-modal dialog that cleans up after itself. The dialog must
+    have a parent: with none, nothing keeps it alive, and garbage collection
+    closes it a moment after it appears."""
+    assert dialog.parent() is not None, "give the dialog a parent window"
+    dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+    dialog.open()
+    return dialog

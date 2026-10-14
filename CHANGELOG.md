@@ -19,6 +19,8 @@ can alter results.
 
 ### Fixed
 
+- The New Dual Image Workspace and New General Analysis Workspace dialogs
+  could vanish a moment after opening.
 - The large view now follows the overview's region box to its final
   position; it lagged one change behind.
 - Fit Y To X Range now fits ROI spectra that have their ±1σ shading.

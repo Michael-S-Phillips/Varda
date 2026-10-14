@@ -3,6 +3,7 @@ from app_model.types import Action, MenuRule, StandardKeyBinding
 from varda._actions._menu_ids import MenuGroup, MenuId
 from varda.context_keys import EXPR_HAS_IMAGES, EXPR_HAS_WORKSPACE
 from varda.common.di_types import ProjectImages
+from varda.common.ui import openOwnedDialog
 from varda.maingui import WORKSPACE_TAB_MENU_ID, MainGUI
 from varda.workspaces.dual_image_workspace import NewDualImageWorkspaceDialog
 from varda.workspaces.general_image_analysis import (
@@ -15,13 +16,19 @@ from varda.workspaces.workspace_kinds import duplicateWorkspace
 
 
 def newDualImageWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
-    NewDualImageWorkspaceDialog(images).connectOnAccept(mainGui.addTab).open()
+    openOwnedDialog(
+        NewDualImageWorkspaceDialog(images, parent=mainGui).connectOnAccept(
+            mainGui.addTab
+        )
+    )
 
 
 def newGeneralAnalysisWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
-    NewGeneralImageAnalysisWorkspaceDialog(images).connectOnAccept(
-        mainGui.addTab
-    ).open()
+    openOwnedDialog(
+        NewGeneralImageAnalysisWorkspaceDialog(images, parent=mainGui).connectOnAccept(
+            mainGui.addTab
+        )
+    )
 
 
 def newSpectralHourglassWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
