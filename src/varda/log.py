@@ -69,10 +69,9 @@ def _initializeFullLogging(logFolder: Path | None = None):
     # Varda's own messages in detail; every other library only its warnings
     # (the root logger), both to the log file and the console.
     formatter = logging.Formatter(LOG_FORMAT)
-    handlers: list[logging.Handler] = [
-        logging.FileHandler(logName),
-        logging.StreamHandler(sys.stdout),
-    ]
+    handlers: list[logging.Handler] = [logging.FileHandler(logName)]
+    if sys.stdout is not None:  # a windowed Windows app has no console
+        handlers.append(logging.StreamHandler(sys.stdout))
     for handler in handlers:
         handler.setFormatter(formatter)
     logging.basicConfig(level=logging.WARNING, handlers=handlers, force=True)

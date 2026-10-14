@@ -8,6 +8,7 @@ imports the rest once the splash is on screen.
 
 import ctypes
 import importlib
+import os
 import sys
 import threading
 
@@ -27,6 +28,10 @@ if sys.platform == "win32":
 
 ICON_PATH = resource_path("resources/logo.svg")
 SELF_TEST_FLAG = "--self-test"
+# Where the self-test writes its report when the app has no console (the
+# windowed Windows app); the release build reads it from here
+SELF_TEST_REPORT_ENV = "VARDA_SELF_TEST_REPORT"
+SELF_TEST_REPORT_DEFAULT = "varda-self-test.txt"
 FRAME_SECONDS = 0.016
 
 # Libraries without Qt that most of the import time goes to. They load on a
@@ -64,7 +69,20 @@ def _preload(q_app: QApplication) -> None:
         worker.join(FRAME_SECONDS)
 
 
+def _consoleForSelfTest() -> None:
+    """A windowed Windows app has no stdout or stderr, so the self-test's
+    report would vanish; send it to a file instead."""
+    if SELF_TEST_FLAG in sys.argv and sys.stdout is None:
+        report = open(  # noqa: SIM115 (open for the life of the process)
+            os.environ.get(SELF_TEST_REPORT_ENV, SELF_TEST_REPORT_DEFAULT),
+            "w",
+            encoding="utf-8",
+        )
+        sys.stdout = sys.stderr = report
+
+
 def main():
+    _consoleForSelfTest()
     q_app = QApplication(sys.argv)
     q_app.setApplicationName("Varda")
     appIcon = QIcon()

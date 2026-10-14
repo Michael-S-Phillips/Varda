@@ -46,33 +46,73 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libegl1
 
-      - name: Self-test the bundle
-        # Runs the built app headless; a bundle that can't start, read and
-        # write images, render, or run its analyses is never released
-        shell: bash
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            ./dist/Varda/Varda.exe --self-test
-          else
-            ./dist/Varda/Varda --self-test
-          fi
+      # Package each platform's download, then unpack that download and
+      # self-test the copy: a build that can't start, read and write images,
+      # render, run its analyses or load plugins from what users actually get
+      # is never released.
 
-      - name: Package build (Windows)
+      - name: Package (Windows)
         if: runner.os == 'Windows'
         run: Compress-Archive -Path dist/Varda/* -DestinationPath Varda-${{ matrix.name }}.zip
 
-      - name: Package build (Unix)
-        if: runner.os != 'Windows'
-        working-directory: dist/Varda
-        run: zip -r ../../Varda-${{ matrix.name }}.zip .
+      - name: Self-test the download (Windows)
+        # A windowed app has no console, so the self-test writes a report file
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          VARDA_SELF_TEST_REPORT: ${{ github.workspace }}\self-test.txt
+        run: |
+          Expand-Archive Varda-${{ matrix.name }}.zip -DestinationPath unpacked
+          $p = Start-Process -FilePath unpacked\Varda.exe -ArgumentList '--self-test' -Wait -PassThru
+          Get-Content $env:VARDA_SELF_TEST_REPORT
+          exit $p.ExitCode
+
+      - name: Package (Linux)
+        # A tarball keeps file permissions; install.sh adds Varda to the
+        # applications menu
+        if: runner.os == 'Linux'
+        run: |
+          cp packaging/linux/install.sh dist/Varda/
+          tar -czf Varda-${{ matrix.name }}.tar.gz -C dist Varda
+
+      - name: Self-test the download (Linux)
+        if: runner.os == 'Linux'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          mkdir unpacked
+          tar -xzf Varda-${{ matrix.name }}.tar.gz -C unpacked
+          unpacked/Varda/Varda --self-test
+
+      - name: Package (macOS)
+        # A disk image holding Varda.app and an Applications shortcut to drag
+        # it onto. The app must be one signed bundle: macOS then asks the user
+        # to approve it once, instead of blocking each library inside it.
+        if: runner.os == 'macOS'
+        run: |
+          /usr/bin/codesign --verify --deep --strict dist/Varda.app
+          mkdir dmg
+          cp -R dist/Varda.app dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname Varda -srcfolder dmg -ov -format UDZO Varda-${{ matrix.name }}.dmg
+
+      - name: Self-test the download (macOS)
+        if: runner.os == 'macOS'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          hdiutil attach -nobrowse -mountpoint mounted Varda-${{ matrix.name }}.dmg
+          mounted/Varda.app/Contents/MacOS/Varda --self-test
+          # The image can stay busy for a moment after Varda exits
+          sleep 3
+          hdiutil detach mounted || hdiutil detach -force mounted
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: Varda-${{ matrix.name }}
-          path: Varda-${{ matrix.name }}.zip
+          path: Varda-${{ matrix.name }}.*
           if-no-files-found: error
 
   release:
@@ -92,5 +132,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*.zip
+          files: |
+            artifacts/*.zip
+            artifacts/*.dmg
+            artifacts/*.tar.gz
           generate_release_notes: true
