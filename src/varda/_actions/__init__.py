@@ -7,11 +7,13 @@ from varda._actions._processing_actions import (
     PROCESSING_ACTIONS,
     PROCESSING_SUBMENUS as PROCESSING_SUBMENUS,
 )
+from varda._actions._view_actions import VIEW_ACTIONS
 from varda._actions._workspace_actions import WORKSPACE_ACTIONS
 
 ALL_ACTIONS = [
     *FILE_ACTIONS,
     *WORKSPACE_ACTIONS,
+    *VIEW_ACTIONS,
     *PROCESSING_ACTIONS,
     *PLUGIN_ACTIONS,
     *DEBUG_ACTIONS,

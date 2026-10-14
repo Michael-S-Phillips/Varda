@@ -11,7 +11,7 @@ from PyQt6.QtCore import QPoint
 from varda.branding.title_mark import addTitleMarkBar
 from varda.common.ui import DetachableTabWidget
 from varda.all_images_view_list.imageview_list import ImageListWidget
-from varda.context_keys import WORKSPACE_COUNT
+from varda.context_keys import IMAGE_LIST_VISIBLE, WORKSPACE_COUNT
 
 if TYPE_CHECKING:
     from varda.app import VardaApplication
@@ -58,7 +58,14 @@ class MainGUI(QModelMainWindow):
         )
 
         self.imageList = ImageListWidget(self.app.images, self)
-        self.newDock("Image List", self.imageList, Qt.DockWidgetArea.LeftDockWidgetArea)
+        self.imageListDock = self.newDock(
+            "Image List", self.imageList, Qt.DockWidgetArea.LeftDockWidgetArea
+        )
+        # View > Image List shows it checked while the dock is open
+        showing = self.imageListDock.toggleViewAction()
+        assert showing is not None
+        showing.toggled.connect(self._updateImageListVisible)
+        self._updateImageListVisible(showing.isChecked())
 
         self.centralTabs = DetachableTabWidget(self)
         self.centralTabs.tabCloseRequested.connect(
@@ -111,6 +118,16 @@ class MainGUI(QModelMainWindow):
         widget.close()
         widget.deleteLater()
         self._updateWorkspaceCount()
+
+    def toggleImageList(self) -> None:
+        """Close the image list, or bring it back where it was."""
+        dock = self.imageListDock
+        dock.setVisible(dock.isHidden())
+        if dock.isVisible():
+            dock.raise_()
+
+    def _updateImageListVisible(self, visible: bool) -> None:
+        self.app.context[IMAGE_LIST_VISIBLE] = visible
 
     def _updateWorkspaceCount(self) -> None:
         # drives enablement of workspace actions such as "Close Workspace"

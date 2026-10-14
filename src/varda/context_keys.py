@@ -8,8 +8,10 @@ from app_model.expressions import parse_expression
 
 IMAGE_COUNT = "image_count"
 WORKSPACE_COUNT = "workspace_count"
+IMAGE_LIST_VISIBLE = "image_list_visible"
 
 EXPR_HAS_IMAGES = parse_expression(f"{IMAGE_COUNT} > 0")
 EXPR_HAS_WORKSPACE = parse_expression(f"{WORKSPACE_COUNT} > 0")
+EXPR_IMAGE_LIST_VISIBLE = parse_expression(IMAGE_LIST_VISIBLE)
 # For actions that should be listed but never enabled (missing optional dependency)
 EXPR_NEVER = parse_expression("False")
