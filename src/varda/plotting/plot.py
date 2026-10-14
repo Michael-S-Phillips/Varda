@@ -877,8 +877,11 @@ class VardaPlotWidget(QWidget):
         upperCurve = pg.PlotDataItem(x, yUpper, pen=pg.mkPen(None))
         lowerCurve = pg.PlotDataItem(x, yLower, pen=pg.mkPen(None))
         fill = pg.FillBetweenItem(lowerCurve, upperCurve, brush=fillBrush)
-        for item in (upperCurve, lowerCurve, fill):
+        for item in (upperCurve, lowerCurve):
             self.plotItem.addItem(item)
+        # The fill always reports its full Y extent, so Fit Y To X Range could
+        # never shrink to the window; the band's own curves bound it instead
+        self.plotItem.addItem(fill, ignoreBounds=True)
         curve.bandItems = [upperCurve, lowerCurve, fill]
         curve.onConfigChanged()  # apply the curve's transform to the band
         return curve

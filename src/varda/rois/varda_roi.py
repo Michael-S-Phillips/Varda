@@ -170,9 +170,11 @@ class VardaROIItem(pg.ROI):
 
     def stateChanged(self, finish=True):
         """Called when ROI state changes (position, size, etc.)"""
-        super().stateChanged(finish)
-        # Update the entity's points when the ROI is moved/scaled
+        # Update the entity's points first: the base class emits
+        # sigRegionChanged, and listeners read these points (a region box's
+        # view lagged one change behind, losing a drag's final position)
         self.updateEntityPoints()
+        super().stateChanged(finish)
 
     def updateEntityPoints(self):
         """Update the entity's points based on current ROI state"""

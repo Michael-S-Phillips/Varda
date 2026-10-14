@@ -90,26 +90,10 @@ def grab(widget: QWidget, path: Path) -> None:
 
 
 def focusPlot(plot: VardaPlotWidget) -> None:
-    """Show PLOT_NM with Y fitted to the spectra inside it (Manual range)."""
-    lows, highs = [], []
-    for curve in plot.plots:
-        x, y = curve.plotDataItem.getData()
-        if x is None or y is None:
-            continue
-        inside = (np.asarray(x) >= PLOT_NM[0]) & (np.asarray(x) <= PLOT_NM[1])
-        values = np.asarray(y, dtype=float)[inside]
-        values = values[np.isfinite(values)]
-        if values.size:
-            lows.append(values.min())
-            highs.append(values.max())
-    if not lows:
-        return
-    low, high = min(lows), max(highs)
-    pad = 0.08 * (high - low)
+    """Show PLOT_NM, with Y fitted to the spectra inside it."""
     # the mode first: leaving Auto copies the current view into the range boxes
-    plot.viewConfig.rangeMode.set(RangeMode.MANUAL)
+    plot.viewConfig.rangeMode.set(RangeMode.FIT_Y_TO_X_RANGE)
     plot.rangeConfig.viewRangeX.set(Vec2(*PLOT_NM))
-    plot.rangeConfig.viewRangeY.set(Vec2(low - pad, high + pad))
 
 
 def runAnalysis(analysis, image: VardaRaster) -> VardaRaster:
