@@ -134,3 +134,43 @@ def test_a_second_install_of_the_same_name_needs_replace(tmp_path):
         manager.install(_source(tmp_path / "again"))
     manager.install(_source(tmp_path / "again2"), replace=True)
     assert manager.record("doubler").loaded
+
+
+CATALOG_PLUGIN = textwrap.dedent(
+    """
+    from varda.api import Catalog, Collection, SearchPage, hookimpl
+
+    class Moons(Catalog):
+        catalogId = "moons"
+        name = "Moons"
+
+        def collections(self):
+            return [Collection("europa_images", "Europa images", "Europa")]
+
+        def search(self, query, progress):
+            return SearchPage(())
+
+        def files(self, product):
+            return []
+
+    @hookimpl
+    def registerCatalogs():
+        return [Moons]
+    """
+)
+
+
+def test_a_plugin_can_add_a_catalog(tmp_path):
+    manager, sink = _manager(tmp_path)
+    record = manager.install(_source(tmp_path, name="moons", code=CATALOG_PLUGIN))
+    assert record.loaded, record.error
+    (catalog,) = sink.active["moons"].catalogs
+    assert catalog.name == "Moons" and catalog.plugin == "moons 0.1.0"
+    assert catalog().collections()[0].body == "Europa"
+
+
+def test_a_catalog_hook_must_return_catalogs(tmp_path):
+    manager, _ = _manager(tmp_path)
+    code = "from varda.api import hookimpl\n\n@hookimpl\ndef registerCatalogs():\n    return [object]\n"
+    record = manager.install(_source(tmp_path, name="wrong", code=code))
+    assert not record.loaded and "not a Catalog" in record.error

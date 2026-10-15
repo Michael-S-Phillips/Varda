@@ -19,6 +19,16 @@ A plugin module implements one or more hooks::
 
 from varda.analysis.analysis import Analysis, AnalysisContext, ProgressCallback
 from varda.analysis.rasters import readCube, sameBandsRaster, singleBandRaster
+from varda.catalogs.catalog import (
+    Catalog,
+    CatalogError,
+    CatalogProgress,
+    Collection,
+    Product,
+    RemoteFile,
+    SearchPage,
+    SearchQuery,
+)
 from varda.common.entities import VardaRaster
 from varda.common.parameter import (
     BoolParameter,
@@ -42,12 +52,20 @@ __all__ = [
     "ArrayDataSource",
     "BandModel",
     "BoolParameter",
+    "Catalog",
+    "CatalogError",
+    "CatalogProgress",
+    "Collection",
     "DataSource",
     "EnumParameter",
     "FloatParameter",
     "IntParameter",
     "MultiChoiceParameter",
+    "Product",
     "ProgressCallback",
+    "RemoteFile",
+    "SearchPage",
+    "SearchQuery",
     "StringParameter",
     "VardaRaster",
     "Vec2Parameter",

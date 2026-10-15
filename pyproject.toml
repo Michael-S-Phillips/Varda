@@ -123,6 +123,7 @@ source_modules = [
     "varda.common.parameter",
     "varda.updates",
     "varda.mosaicking",
+    "varda.catalogs",
 ]
 forbidden_modules = ["PyQt6"]
 ignore_imports = [

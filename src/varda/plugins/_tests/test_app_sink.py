@@ -3,6 +3,8 @@
 import pytest
 from app_model import Application
 
+from varda.catalogs.catalog import Catalog
+from varda.catalogs.registry import availableCatalogs
 from varda._actions._menu_ids import MenuId
 from varda._actions._processing_actions import categoryMenuId, processingActions
 from varda.api import Analysis
@@ -153,3 +155,14 @@ def test_a_plugin_s_new_nested_menus_are_added_and_removed(app):
     remove()
     assert mosaics not in _submenuIds(app, MenuId.PROCESSING)
     assert seams not in _submenuIds(app, mosaics)
+
+
+def test_catalogs_join_the_registry_and_leave_it(app):
+    class _Catalog(Catalog):
+        catalogId = "test"
+
+    sink = AppContributionSink(app)
+    remove = sink.add("p", Contributions(catalogs=(_Catalog,)))
+    assert _Catalog in availableCatalogs()
+    remove()
+    assert _Catalog not in availableCatalogs()

@@ -37,6 +37,7 @@ from PyQt6.QtCore import QStandardPaths
 
 import varda
 from varda.analysis.analysis import Analysis
+from varda.catalogs.catalog import Catalog
 from varda.plugins.manifest import (
     MANIFEST_NAME,
     PluginError,
@@ -60,9 +61,10 @@ class Contributions:
     analyses: tuple[type[Analysis], ...] = ()
     # (format name, file extensions, DataSource class)
     dataSources: tuple[tuple[str, tuple[str, ...], type], ...] = ()
+    catalogs: tuple[type[Catalog], ...] = ()
 
     def __bool__(self) -> bool:
-        return bool(self.analyses or self.dataSources)
+        return bool(self.analyses or self.dataSources or self.catalogs)
 
 
 class ContributionSink(Protocol):
@@ -354,7 +356,15 @@ class VardaPluginManager:
             formatName, extensions, cls = entry
             exts = (extensions,) if isinstance(extensions, str) else extensions
             dataSources.append((str(formatName), tuple(exts), cls))
-        return Contributions(tuple(analyses), tuple(dataSources))
+        catalogs: list[type[Catalog]] = []
+        for catalog in self._returned(record, "registerCatalogs"):
+            if not (isinstance(catalog, type) and issubclass(catalog, Catalog)):
+                raise PluginError(
+                    f"registerCatalogs returned {catalog!r}, not a Catalog."
+                )
+            catalog.plugin = f"{record.name} {record.version}".strip()
+            catalogs.append(catalog)
+        return Contributions(tuple(analyses), tuple(dataSources), tuple(catalogs))
 
     def _returned(self, record: PluginRecord, hookName: str) -> list:
         """Everything ``record``'s implementation of a registration hook
