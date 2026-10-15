@@ -27,6 +27,17 @@ ENVI Classic and napari.
 | ![Pixel spectra collected by clicking across the scene](docs/assets/screenshots/pixel-spectra.jpg) | ![The Ratio Explorer comparing a ratio spectrum with a library calcite spectrum](docs/assets/screenshots/ratio-explorer-library.jpg) |
 | Click pixels to collect and compare their spectra | The Ratio Explorer: a ratio spectrum against a library calcite spectrum around the 2.3–2.5 µm carbonate bands |
 
+**Spectral Hourglass:** find endmembers with MNF, pixel purity and the n-D
+visualizer, identify them against a spectral library, and map them across the
+scene (sped up).
+
+https://github.com/user-attachments/assets/2a312f4f-7084-455a-bf0b-c88e766c7d6e
+
+**Classification:** train a small neural network (CNN) on ROI classes and
+classify the scene (sped up).
+
+https://github.com/user-attachments/assets/58862020-51f0-4161-bc46-391e288d789b
+
 <sub>CRISM FRT000047A3 (Nili Fossae, Mars), from NASA's Planetary Data System.</sub>
 
 ## What you can do with it
