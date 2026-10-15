@@ -171,17 +171,16 @@ def downloadProduct(
 
 
 def exportList(
-    entries: Iterable[tuple[Product, list[RemoteFile]]],
+    entries: Iterable[tuple[str, Product, list[RemoteFile]]],
     path: Path,
     root: Path,
-    catalogId: str = "catalog",
 ) -> None:
     """Write a download list: a CSV (product, file, URL, size, checksum,
     target) or, for a ``.sh`` path, a shell script of resumable curl
     commands."""
     rows = [
         (product, file, productFolder(root, catalogId, product) / file.name)
-        for product, files in entries
+        for catalogId, product, files in entries
         for file in files
     ]
     if path.suffix == ".sh":

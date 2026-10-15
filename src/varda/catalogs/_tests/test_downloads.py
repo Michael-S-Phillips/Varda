@@ -125,8 +125,8 @@ def test_products_get_their_own_folders(server, tmp_path):
 def test_a_download_list_exports_as_csv_and_a_script(tmp_path):
     product = Product("p1", "P1", "c", shapely.box(0, 0, 1, 1))
     files = [RemoteFile("a.img", "https://example.org/a.img", 1000, "md5:abc")]
-    exportList([(product, files)], tmp_path / "list.csv", tmp_path / "downloads")
+    exportList([("ode", product, files)], tmp_path / "list.csv", tmp_path / "downloads")
     assert "https://example.org/a.img" in (tmp_path / "list.csv").read_text()
-    exportList([(product, files)], tmp_path / "get.sh", tmp_path / "downloads")
+    exportList([("ode", product, files)], tmp_path / "get.sh", tmp_path / "downloads")
     script = (tmp_path / "get.sh").read_text()
     assert script.startswith("#!/bin/sh") and "curl" in script and "-C -" in script

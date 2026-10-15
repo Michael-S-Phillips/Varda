@@ -1,5 +1,5 @@
 """Find Data: search a catalog for observations of a place, see their
-footprints on a map, and pick what to download. Varda knows no missions:
+footprints on a map, and download them. Varda knows no missions:
 the catalogs (``varda.catalogs``, and plugins' ``registerCatalogs``) do."""
 
 from __future__ import annotations
@@ -32,15 +32,31 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.catalogs.bodies import toLongitudeLatitude
-from varda.catalogs.catalog import Catalog, Collection, Product, SearchPage, SearchQuery
+from varda.catalogs.catalog import (
+    Catalog,
+    CatalogError,
+    Collection,
+    Product,
+    SearchPage,
+    SearchQuery,
+)
+from varda.catalogs.credentials import hasCredentials, loadCredentials
 from varda.catalogs.footprints import FootprintFileCatalog
 from varda.catalogs.http import fetchBytes
 from varda.catalogs.registry import availableCatalogs
+from varda.catalogs.stac import StacCatalog
 from varda.common.entities import VardaRaster
 from varda.common.parameter_widgets import groupWidget
 from varda.common.ui import MutedLabel, VardaDockWidget
+from varda.image_loading.image_loading_service import ImageLoadingService
 from varda.utilities.background import runInBackground
 from varda.workspaces.find_data.basemap import basemap, imageBody, imageBounds
+from varda.workspaces.find_data.catalog_dialogs import (
+    CredentialsDialog,
+    StacApisDialog,
+    applySavedStacApis,
+)
+from varda.workspaces.find_data.downloads_panel import DownloadsPanel
 from varda.workspaces.find_data.map_view import FootprintMap
 from varda.workspaces.find_data.results_model import SORT_ROLE, ResultsModel
 
@@ -60,6 +76,7 @@ class FindDataWorkspace(QMainWindow):
         self._catalogs: dict[str, Catalog] = {}  # one each, so filters persist
         self._collections: list[Collection] = []
         self._query: SearchQuery | None = None
+        self._resultsCatalog: Catalog | None = None  # the catalog that found them
         self._nextPage: object | None = None
         self.overlayPaths: list[str] = []
 
@@ -81,9 +98,13 @@ class FindDataWorkspace(QMainWindow):
         selection.selectionChanged.connect(lambda *_: self._onSelection())
         self.table.doubleClicked.connect(lambda _: self._zoomToSelection())
 
+        applySavedStacApis()
         self._buildSearchPanel()
         self._buildMapBar()
         self._buildPreview()
+        self._buildResultsPanel()
+        self.downloads = DownloadsPanel()
+        self.downloads.sigOpen.connect(self.openImages)
         self.status = QStatusBar()
         self.setStatusBar(self.status)
         self._buildDocks()
@@ -98,6 +119,11 @@ class FindDataWorkspace(QMainWindow):
         self.catalogBox.currentIndexChanged.connect(lambda _: self._onCatalog())
         self.catalogAbout = MutedLabel("")
         self.catalogAbout.setWordWrap(True)
+        self.loginButton = QPushButton("Log In…")
+        self.loginButton.clicked.connect(lambda: self.logIn(self.catalog()))
+        self.stacApisButton = QPushButton("STAC APIs…")
+        self.stacApisButton.setToolTip("Add, remove or edit the STAC APIs searched")
+        self.stacApisButton.clicked.connect(self._editStacApis)
         self.collectionBox = QComboBox()
         self.collectionBox.currentIndexChanged.connect(lambda _: self._onCollection())
         self.addFileButton = QPushButton("Add Footprint File…")
@@ -137,6 +163,11 @@ class FindDataWorkspace(QMainWindow):
         form = QFormLayout()
         form.addRow("Catalog:", self.catalogBox)
         form.addRow("", self.catalogAbout)
+        catalogButtons = QHBoxLayout()
+        catalogButtons.addWidget(self.loginButton)
+        catalogButtons.addWidget(self.stacApisButton)
+        catalogButtons.addStretch()
+        form.addRow("", catalogButtons)
         form.addRow("Collection:", self.collectionBox)
         form.addRow("", self.addFileButton)
         form.addRow("Area:", self.areaBox)
@@ -203,6 +234,30 @@ class FindDataWorkspace(QMainWindow):
         layout.addWidget(self.thumbnail)
         layout.addWidget(self.details, 1)
 
+    def _buildResultsPanel(self) -> None:
+        add = QPushButton("Add to Downloads")
+        add.setToolTip(
+            "The checked products (or, with none checked, the selected ones)"
+        )
+        add.clicked.connect(self.addToDownloads)
+        checkAll = QPushButton("Check All")
+        checkAll.clicked.connect(
+            lambda: self.results.setChecked([p.id for p in self.results.products])
+        )
+        checkNone = QPushButton("Check None")
+        checkNone.clicked.connect(
+            lambda: self.results.setChecked(list(self.results.checked), False)
+        )
+        bar = QHBoxLayout()
+        for button in (add, checkAll, checkNone):
+            bar.addWidget(button)
+        bar.addStretch()
+        self.resultsPanel = QWidget()
+        layout = QVBoxLayout(self.resultsPanel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.table, 1)
+        layout.addLayout(bar)
+
     def _buildDocks(self) -> None:
         self.dockManager = ads.CDockManager(self)
         mapDock = VardaDockWidget("Map").withWidget(self.mapPanel)
@@ -218,11 +273,15 @@ class FindDataWorkspace(QMainWindow):
             VardaDockWidget("Preview").withWidget(self.previewPanel),
             mapDock.dockAreaWidget(),
         )
-        self.resultsDock = VardaDockWidget("Results").withWidget(self.table)
-        manager.addDockWidget(
+        self.resultsDock = VardaDockWidget("Results").withWidget(self.resultsPanel)
+        resultsArea = manager.addDockWidget(
             ads.DockWidgetArea.BottomDockWidgetArea,
             self.resultsDock,
             mapDock.dockAreaWidget(),
+        )
+        self.downloadsDock = VardaDockWidget("Downloads").withWidget(self.downloads)
+        manager.addDockWidget(
+            ads.DockWidgetArea.RightDockWidgetArea, self.downloadsDock, resultsArea
         )
 
     # --- catalogs and collections ----------------------------------------------------------
@@ -232,6 +291,11 @@ class FindDataWorkspace(QMainWindow):
         if catalogId not in self._catalogs:
             cls = next(c for c in availableCatalogs() if c.catalogId == catalogId)
             catalog = self._catalogs[catalogId] = cls()
+            if catalog.credentialFields:
+                try:
+                    loadCredentials(catalog)
+                except CatalogError as error:
+                    self.status.showMessage(str(error))
             if isinstance(catalog, FootprintFileCatalog):
                 # the body the user picks changes the collections' map
                 catalog.body.sigParameterChanged.connect(
@@ -254,6 +318,8 @@ class FindDataWorkspace(QMainWindow):
             return
         catalog = self.catalog()
         self.catalogAbout.setText(catalog.description)
+        self.loginButton.setVisible(bool(catalog.credentialFields))
+        self.stacApisButton.setVisible(isinstance(catalog, StacCatalog))
         self.addFileButton.setVisible(isinstance(catalog, FootprintFileCatalog))
         layout = self.filters.layout()
         while layout.count():
@@ -365,10 +431,26 @@ class FindDataWorkspace(QMainWindow):
             self.limit.value(),
         )
 
+    def logIn(self, catalog: Catalog) -> bool:
+        """Ask for the catalog's login; whether it now has one."""
+        CredentialsDialog(catalog, self).exec()
+        return hasCredentials(catalog)
+
+    def _loggedIn(self, catalog: Catalog) -> bool:
+        return hasCredentials(catalog) or self.logIn(catalog)
+
+    def _editStacApis(self) -> None:
+        if StacApisDialog(self).exec():
+            self._catalogs.pop(StacCatalog.catalogId, None)  # it caches collections
+            self._onCatalog()
+
     def search(self) -> None:
         query = self.query()
         if query is None:
             self.searchStatus.setText("Choose a collection first.")
+            return
+        if not self._loggedIn(self.catalog()):
+            self.searchStatus.setText("This catalog needs a login.")
             return
         self._query = query
         self.results.setProducts([])
@@ -394,7 +476,7 @@ class FindDataWorkspace(QMainWindow):
         self.searchStatus.setText("Searching…")
         runInBackground(
             lambda: catalog.search(query, lambda fraction, message: None),
-            lambda page: self._showPage(page, append),
+            lambda page: self._showPage(catalog, page, append),
             self._searchFailed,
             description=f"Searching {catalog.name}",
         )
@@ -404,7 +486,8 @@ class FindDataWorkspace(QMainWindow):
         self.moreButton.setEnabled(self._nextPage is not None)
         self.searchStatus.setText(str(error))
 
-    def _showPage(self, page: SearchPage, append: bool) -> None:
+    def _showPage(self, catalog: Catalog, page: SearchPage, append: bool) -> None:
+        self._resultsCatalog = catalog
         products = (self.results.products if append else []) + list(page.products)
         self.results.setProducts(products)
         self._nextPage = page.nextPage
@@ -420,6 +503,26 @@ class FindDataWorkspace(QMainWindow):
             self.map.zoomTo(
                 tuple(shapely.union_all([p.footprint for p in products]).bounds)
             )
+
+    # --- downloads ----------------------------------------------------------------------
+
+    def addToDownloads(self) -> None:
+        products = self.results.checkedProducts() or self.selectedProducts()
+        catalog = self._resultsCatalog
+        if not products or catalog is None:
+            self.status.showMessage("Check or select products in the results first.")
+            return
+        if not self._loggedIn(catalog):
+            return
+        self.downloads.add(catalog, products)
+        self.downloadsDock.toggleView(True)
+        self.downloadsDock.raise_()
+
+    def openImages(self, paths: list) -> None:
+        ImageLoadingService.load_images(
+            file_paths=[str(p) for p in paths],
+            on_success_callback=self.projectImages.append,
+        )
 
     # --- selection and preview --------------------------------------------------------------
 

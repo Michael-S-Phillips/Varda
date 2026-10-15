@@ -166,3 +166,27 @@ def test_the_workspace_comes_back_from_a_session(workspace, qtbot, tmp_path):
     qtbot.waitUntil(lambda: reopened.collectionBox.count() == 1, timeout=5000)
     assert reopened.areaBox.currentText() == AREA_BOX
     assert reopened.map.areaBounds() == pytest.approx((77.0, 18.0, 78.0, 19.0))
+
+
+def test_checked_products_go_to_the_downloads(workspace, qtbot):
+    _search(workspace, qtbot)
+    workspace.results.setChecked(["obs_a"])
+    workspace.addToDownloads()
+    assert [q.product.id for q in workspace.downloads.queue] == ["obs_a"]
+    assert workspace.downloads.queue[0].catalog is workspace.catalog()
+
+
+def test_a_catalog_that_needs_a_login_asks_before_searching(workspace, monkeypatch):
+    FakeCatalog.credentialFields = ("token",)
+    asked = []
+    monkeypatch.setattr(
+        "varda.workspaces.find_data.find_data_workspace.CredentialsDialog.exec",
+        lambda dialog: asked.append(dialog.catalog) or 0,
+    )
+    try:
+        workspace.search()
+    finally:
+        FakeCatalog.credentialFields = ()
+    assert asked == [workspace.catalog()]
+    assert workspace.searchStatus.text() == "This catalog needs a login."
+    assert FakeCatalog.queries == []

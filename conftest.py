@@ -1,7 +1,7 @@
 """Repository-wide pytest fixtures.
 
 The per-package ``_tests/conftest.py`` files put Qt in offscreen mode; this one
-keeps the GUI tests from segfaulting.
+keeps the GUI tests from segfaulting and away from the real keychain.
 """
 
 import gc
@@ -9,8 +9,40 @@ import gc
 # Before any test module imports rasterio or pyproj: varda drops a foreign
 # PROJ_DATA/GDAL_DATA (e.g. from an active conda base), as the app does at launch.
 import varda  # noqa: F401
+import keyring
+import keyring.errors
 import pytest
+from keyring.backend import KeyringBackend
 from PyQt6.QtWidgets import QApplication
+
+
+class MemoryKeyring(KeyringBackend):
+    """Keeps passwords in a dict, so tests never touch the real keychain."""
+
+    priority = 1  # type: ignore[assignment]
+
+    def __init__(self):
+        super().__init__()
+        self.passwords: dict[tuple[str, str], str] = {}
+
+    def get_password(self, service, username):
+        return self.passwords.get((service, username))
+
+    def set_password(self, service, username, password):
+        self.passwords[(service, username)] = password
+
+    def delete_password(self, service, username):
+        if self.passwords.pop((service, username), None) is None:
+            raise keyring.errors.PasswordDeleteError(username)
+
+
+@pytest.fixture(autouse=True)
+def memoryKeyring():
+    previous = keyring.get_keyring()
+    backend = MemoryKeyring()
+    keyring.set_keyring(backend)
+    yield backend
+    keyring.set_keyring(previous)
 
 
 @pytest.fixture(autouse=True, scope="session")
