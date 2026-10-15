@@ -163,6 +163,7 @@ class DownloadsPanel(QWidget):
                     queued, f"{FAILED}: {error}"
                 ),
                 description="Listing a product's files",
+                owner=self,
             )
 
     def _listed(self, queued: Queued, files: list[RemoteFile]) -> None:
@@ -328,7 +329,11 @@ class DownloadsPanel(QWidget):
             return done
 
         runInBackground(
-            task, self._allDone, self._failed, description="Downloading data"
+            task,
+            self._allDone,
+            self._failed,
+            description="Downloading data",
+            owner=self,
         )
 
     def _progress(

@@ -385,6 +385,7 @@ class FindDataWorkspace(QMainWindow):
             lambda collections: self._showCollections(catalog, collections, select),
             lambda error: self.searchStatus.setText(str(error)),
             description="Listing a catalog's collections",
+            owner=self,
         )
 
     def _showCollections(
@@ -551,6 +552,7 @@ class FindDataWorkspace(QMainWindow):
             lambda page: self._showPage(catalog, page, append),
             self._searchFailed,
             description=f"Searching {catalog.name}",
+            owner=self,
         )
 
     def _searchFailed(self, error: Exception) -> None:
@@ -668,6 +670,7 @@ class FindDataWorkspace(QMainWindow):
                 lambda data: self._showThumbnail(product, data),
                 lambda error: self.thumbnail.setText("No thumbnail."),
                 description="Fetching a thumbnail",
+                owner=self,
             )
 
     def _showThumbnail(self, product: Product, data: bytes) -> None:
@@ -713,6 +716,7 @@ class FindDataWorkspace(QMainWindow):
                 f"The basemap couldn't be drawn: {error}", 8000
             ),
             description="Drawing a basemap",
+            owner=self,
         )
 
     def _showBasemap(self, projector, rgba, bounds) -> None:

@@ -2,6 +2,9 @@
 
 import threading
 
+from PyQt6 import sip
+from PyQt6.QtWidgets import QWidget
+
 from varda.utilities.background import onMainThread, runInBackground
 
 
@@ -51,3 +54,26 @@ def test_progress_reaches_the_gui_thread_in_order_before_the_result(qtbot):
     assert [e[0] for e in events[:-1]] == [10, 50, 90]
     assert all(e[2] is threading.main_thread() for e in events[:-1])
     assert events[-1] == "done"
+
+
+def test_a_result_for_a_deleted_owner_is_dropped(qtbot):
+    owner = QWidget()
+    release = threading.Event()
+    arrived, finished = [], threading.Event()
+
+    def task() -> int:
+        release.wait(5)
+        return 1
+
+    worker = runInBackground(
+        task,
+        arrived.append,
+        lambda error: arrived.append(error),
+        owner=owner,
+    )
+    worker.finished.connect(finished.set)
+    sip.delete(owner)  # its workspace was closed while the task ran
+    release.set()
+    qtbot.waitUntil(finished.is_set, timeout=5000)
+    qtbot.wait(50)
+    assert arrived == []
