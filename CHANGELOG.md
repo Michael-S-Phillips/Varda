@@ -48,6 +48,13 @@ can alter results.
     Shift-drag adds every footprint a box touches. **Show only selected**
     narrows the results table to the selection.
 
+### Fixed
+
+- **Find Data basemaps** were drawn mirrored across their diagonal (in the
+  right place, but transposed); they are now north up as in the image.
+- Images loaded after a Find Data workspace opened (a finished download, for
+  instance) now appear in its Basemap and Area image lists.
+
 ## 0.8.0 (2026-10-15)
 
 ### Added
