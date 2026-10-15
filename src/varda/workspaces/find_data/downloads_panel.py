@@ -11,14 +11,17 @@ from pathlib import Path
 from attrs import define, field
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMenu,
     QProgressBar,
     QPushButton,
+    QToolButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -32,6 +35,13 @@ from varda.utilities.background import onMainThread, runInBackground
 
 FOLDER_KEY = "catalogs/downloadFolder"
 ROLE_ORDER = ("data", "label", "auxiliary", "browse")
+ROLE_NAMES = {
+    "data": "Data files",
+    "label": "Labels",
+    "auxiliary": "Auxiliary files",
+    "browse": "Browse images",
+}
+NAME_WIDTH = 360  # the file column's starting width (it can be dragged wider)
 WAITING, LISTING, DOWNLOADING, DONE, FAILED = (
     "Waiting",
     "Listing files…",
@@ -93,10 +103,12 @@ class DownloadsPanel(QWidget):
         self.tree.setHeaderLabels(["Product / file", "Size", "Status"])
         header = self.tree.header()
         assert header is not None
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for column in (1, 2):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        # every column can be dragged wider; long names scroll sideways
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
+        header.resizeSection(0, NAME_WIDTH)
         self.tree.setTextElideMode(Qt.TextElideMode.ElideMiddle)  # keep the suffix
+        self.tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.tree.itemChanged.connect(self._onItemChanged)
         self.total = QLabel()
         self.folder = QLineEdit(str(defaultFolder()))
@@ -108,10 +120,50 @@ class DownloadsPanel(QWidget):
         self.openWhenDone = QCheckBox("Open in Varda when done")
         self.openWhenDone.setChecked(True)
         self.downloadButton = QPushButton("Download")
+        self.downloadButton.setToolTip(
+            "Download the selected products, or every one not downloaded yet"
+        )
         self.downloadButton.clicked.connect(self.download)
         self.cancelButton = QPushButton("Cancel")
         self.cancelButton.clicked.connect(self.cancel)
         self.cancelButton.setEnabled(False)
+        checkButton = QToolButton()
+        checkButton.setText("Check")
+        checkButton.setToolTip(
+            "Check files in the selected products (or in all of them): all, the "
+            "essential ones, none, or every file of a type"
+        )
+        checkButton.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        checkMenu = QMenu(checkButton)
+        checkMenu.addAction("All Files", lambda: self.checkFiles(lambda f: True))
+        checkMenu.addAction(
+            "Essential Files Only", lambda: self.checkFiles(lambda f: f.essential)
+        )
+        checkMenu.addAction("None", lambda: self.checkFiles(lambda f: False))
+        checkMenu.addSection("Add every file of a type")
+        for role, name in ROLE_NAMES.items():
+            checkMenu.addAction(
+                name,
+                lambda role=role: self.checkFiles(lambda f: f.role == role, add=True),
+            )
+        checkButton.setMenu(checkMenu)
+        selectButton = QToolButton()
+        selectButton.setText("Select")
+        selectButton.setToolTip("Select products, e.g. the failed ones to retry")
+        selectButton.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        selectMenu = QMenu(selectButton)
+        selectMenu.addAction(
+            "All Products", lambda: self.selectProducts(lambda s: True)
+        )
+        selectMenu.addSection("By status")
+        for status in (WAITING, DONE, FAILED):
+            selectMenu.addAction(
+                status,
+                lambda status=status: self.selectProducts(
+                    lambda s: s.startswith(status)
+                ),
+            )
+        selectButton.setMenu(selectMenu)
         remove = QPushButton("Remove")
         remove.setToolTip("Take the selected products off the list")
         remove.clicked.connect(self._removeSelected)
@@ -130,7 +182,14 @@ class DownloadsPanel(QWidget):
         folderRow.addWidget(self.folder, 1)
         folderRow.addWidget(browse)
         buttons = QHBoxLayout()
-        for button in (self.downloadButton, self.cancelButton, remove, export):
+        for button in (
+            self.downloadButton,
+            self.cancelButton,
+            checkButton,
+            selectButton,
+            remove,
+            export,
+        ):
             buttons.addWidget(button)
         buttons.addStretch()
         totalRow = QHBoxLayout()
@@ -194,6 +253,45 @@ class DownloadsPanel(QWidget):
             child.setToolTip(0, file.name)
         self.tree.blockSignals(False)
         self._setStatus(queued, WAITING)
+
+    def _scope(self) -> list[Queued]:
+        """The selected products (a selected file counts for its product), or
+        all of them."""
+        tops = {
+            id(item if item.parent() is None else item.parent())
+            for item in self.tree.selectedItems()
+        }
+        chosen = [q for q in self.queue if id(q.item) in tops]
+        return chosen or list(self.queue)
+
+    def checkFiles(self, which, add: bool = False) -> None:
+        """Check the files ``which`` accepts in the selected products (or
+        all); with ``add``, the others keep their checks."""
+        for queued in self._scope():
+            if queued.status.startswith(DOWNLOADING) or queued.item is None:
+                continue
+            picked = {f.name for f in queued.files if which(f)}
+            queued.chosen = queued.chosen | picked if add else picked
+            self.tree.blockSignals(True)
+            for row in range(queued.item.childCount()):
+                child = queued.item.child(row)
+                if child is not None:
+                    name = child.data(0, Qt.ItemDataRole.UserRole)
+                    child.setCheckState(
+                        0,
+                        Qt.CheckState.Checked
+                        if name in queued.chosen
+                        else Qt.CheckState.Unchecked,
+                    )
+            self.tree.blockSignals(False)
+            self._setStatus(queued, queued.status)
+
+    def selectProducts(self, which) -> None:
+        """Select the products whose status ``which`` accepts."""
+        self.tree.clearSelection()
+        for queued in self.queue:
+            if queued.item is not None and which(queued.status):
+                queued.item.setSelected(True)
 
     def _size(self, file: RemoteFile) -> str:
         if file.size is None:
@@ -283,9 +381,10 @@ class DownloadsPanel(QWidget):
     # --- downloading -------------------------------------------------------------------------
 
     def download(self) -> None:
+        """The selected products, or every one still to download."""
         todo = [
             (q, self.chosenFiles(q))
-            for q in self.queue
+            for q in self._scope()
             if q.chosen and (q.status == WAITING or q.status.startswith(FAILED))
         ]
         if not todo:
