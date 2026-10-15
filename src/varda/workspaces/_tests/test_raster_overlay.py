@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from affine import Affine
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
@@ -193,3 +194,52 @@ def test_a_long_overlay_name_does_not_widen_the_toolbar(qtbot):
         index = widget.imageBox.currentIndex()
         assert widget.imageBox.itemData(index, Qt.ItemDataRole.ToolTipRole) == name
     assert widths[1] == widths[0]  # the name is elided, not given more room
+
+
+def test_a_band_overlay_takes_the_chosen_color_map_reversed(bar):
+    widget, viewports, images = bar
+    widget.setOverlay(images[1])
+    assert not widget.colorsButton.isVisibleTo(widget)  # classes keep their colors
+    widget.layerBox.setCurrentText("P(dark)")
+    assert widget.colorsButton.isVisibleTo(widget)
+    widget.setColors(colorMap="Gray")
+    lut = widget.renderer.settings.mono.colorMap.get().getLookupTable(0, 1, 2)
+    assert tuple(lut[0][:3]) < tuple(lut[-1][:3])  # dark to light
+    widget.reverseAction.trigger()
+    lut = widget.renderer.settings.mono.colorMap.get().getLookupTable(0, 1, 2)
+    assert tuple(lut[0][:3]) > tuple(lut[-1][:3])
+
+
+def test_a_percentile_stretch_leaves_outliers_out(qtbot):
+    base = _base()
+    values = np.linspace(0, 1, 48).reshape(6, 8)
+    values[0, 0] = 100.0  # one outlier
+    result = _raster(values, "index", bandNames=["Index"])
+    viewport = ImageViewport(ImageRenderer(image=base))
+    qtbot.addWidget(viewport)
+    widget = OverlayBar([base, result], base, [viewport])
+    qtbot.addWidget(widget)
+    widget.setOverlay(result)
+    assert np.ravel(widget.renderer.getMinMaxValues()[1])[0] == pytest.approx(100)
+    widget.setColors(stretch="5-95 %")  # 1 of 48 pixels is over 2 %
+    assert np.ravel(widget.renderer.getMinMaxValues()[1])[0] < 2
+
+
+def test_clicking_a_swatch_recolors_the_class_in_every_view(bar, qtbot, monkeypatch):
+    widget, viewports, images = bar
+    other = OverlayBar(
+        images, images[0], [ImageViewport(ImageRenderer(image=images[0]))]
+    )
+    qtbot.addWidget(other)
+    widget.setOverlay(images[1])
+    other.setOverlay(images[1])
+    assert 'href="class:1"' in viewports[0].legendText()
+    monkeypatch.setattr(
+        "varda.workspaces.raster_overlay.QColorDialog.getColor",
+        lambda *a: QColor("#00ff00"),
+    )
+    viewports[0].sigLegendLink.emit("class:1")
+    assert images[1].extraMetadata["classColors"] == ["#ff0000", "#00ff00"]
+    assert "#00ff00" in viewports[0].legendText()
+    rgb = other.renderer.image.getData()
+    assert tuple(rgb[0, 7]) == (0.0, 1.0, 0.0)  # the other workspace follows
