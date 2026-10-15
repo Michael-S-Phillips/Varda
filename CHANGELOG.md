@@ -8,6 +8,12 @@ can alter results.
 
 ### Added
 
+- **Kindle a Feature checks before it builds.** If Varda already does what
+  you describe (a menu item, an installed plugin, a file format or catalog),
+  the AI says what and where instead of building; **Build Anyway** builds it
+  regardless. Requests a plugin can't do (changing the interface or built-in
+  features, reworking the app, reaching the network or other programs) are
+  declined with the reason and the closest thing it could build.
 - **Find and Fetch Data** (Workspace → Find and Fetch Data…): search catalogs
   for observations of a place and see their footprints on a map, over a
   loaded image and vector overlays (a rover traverse, a geologic map), with

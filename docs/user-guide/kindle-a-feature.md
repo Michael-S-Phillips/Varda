@@ -63,6 +63,23 @@ a file or a session. **Remove Key** deletes the chosen provider's key.
    left open becomes a setting you can change when you run it.
 3. Choose the image to build it for, and click **Kindle**.
 
+Before building, the AI checks two things:
+
+- **Whether Varda already does it.** It compares your description with
+  everything in Varda's menus, including installed plugins, and the file
+  formats and catalogs Varda supports. If something already does what you
+  asked, perhaps under another name, it tells you what and where (for a band
+  ratio: Processing → Spectral Parameters → Band Math, with the expression to
+  type) and stops. Click **Build Anyway** if that isn't what you need, or say
+  what's different and click **Ask for Changes**. A feature that is only
+  related doesn't stop the build; the summary mentions it.
+- **Whether a plugin can do it.** A kindled plugin adds an analysis or a file
+  format; it can't change Varda's interface, menus or built-in features,
+  rework the app, or reach other files, the network or other programs. For
+  those, the AI explains why and suggests the closest thing it could build.
+  If only part of a request fits, it builds that part and says what it left
+  out.
+
 Varda shows the AI's progress as it reads the plugin documentation, writes
 the plugin and its tests, and runs the checks. It fixes what fails and checks
 again until everything passes. **Stop** ends it after the current step. If it
@@ -95,8 +112,9 @@ disable, reload or remove them like any other plugin.
 ## Privacy and safety
 
 - **Sent to your AI provider** (or your own server, for a local model): your
-  description, Varda's plugin documentation, and the image's size,
-  wavelengths and no-data value.
+  description, Varda's plugin documentation, the list of Varda's features
+  (its menu items with their descriptions, file formats and catalogs), and
+  the image's size, wavelengths and no-data value.
 - **Never sent:** the image's pixels, file paths or ROIs. The checks that run
   the plugin on a crop of your image happen on your computer.
 - **Running the code:** while it's being built, the plugin only runs in a

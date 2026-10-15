@@ -191,3 +191,61 @@ def test_the_kindle_dialog_says_where_the_description_goes(qtbot, settings, tmp_
     qtbot.addWidget(dialog)
     texts = [label.text() for label in dialog.findChildren(QLabel)]
     assert any(t.startswith("Sent to OpenAI:") for t in texts)
+
+
+def _dialogWith(script, qtbot, tmp_path, settings, monkeypatch):
+    monkeypatch.setattr(
+        settings, "createProvider", lambda: ScriptedProvider(replaying(script))
+    )
+    manager = VardaPluginManager(pluginsFolder=tmp_path / "plugins")
+    manager.loadInstalled()
+    widget = KindleDialog(manager, [], settings, folder=tmp_path / "draft")
+    qtbot.addWidget(widget)
+    widget.show()
+    return widget
+
+
+def test_an_existing_feature_is_shown_and_can_be_built_anyway(
+    qtbot, tmp_path, settings, monkeypatch
+):
+    existing = tools(
+        call(
+            "point_to_existing",
+            feature="Band Math",
+            location="Processing → Spectral Parameters → Band Math",
+            explanation="Write R2300 / R2200.",
+        )
+    )
+    dialog = _dialogWith(
+        [existing, *_exampleScript()], qtbot, tmp_path, settings, monkeypatch
+    )
+    dialog.description.setPlainText("a band ratio")
+    dialog.startButton.click()
+    qtbot.waitUntil(lambda: dialog.pages.currentIndex() == 2, timeout=60_000)
+    assert "already do this" in dialog.headline.text()
+    assert "Band Math" in dialog.summary.text()
+    assert dialog.buildAnywayButton.isVisible() and not dialog.enableButton.isEnabled()
+    dialog.buildAnywayButton.click()
+    qtbot.waitUntil(lambda: "ready to review" in dialog.headline.text(), timeout=60_000)
+    assert not dialog.buildAnywayButton.isVisible() and dialog.enableButton.isEnabled()
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *a: QMessageBox.StandardButton.Yes
+    )
+    dialog.reject()
+
+
+def test_a_declined_request_closes_without_asking(
+    qtbot, tmp_path, settings, monkeypatch
+):
+    script = [tools(call("decline", reason="Plugins can't redesign Varda."))]
+    dialog = _dialogWith(script, qtbot, tmp_path, settings, monkeypatch)
+    dialog.description.setPlainText("redesign the whole app")
+    dialog.startButton.click()
+    qtbot.waitUntil(lambda: dialog.pages.currentIndex() == 2, timeout=60_000)
+    assert "beyond what a plugin can do" in dialog.headline.text()
+    assert "Plugins can't redesign Varda." in dialog.summary.text()
+    asked = []
+    monkeypatch.setattr(QMessageBox, "question", lambda *a: asked.append(a))
+    dialog.reject()
+    assert asked == []  # nothing was written, so nothing to discard
+    assert not dialog.isVisible()

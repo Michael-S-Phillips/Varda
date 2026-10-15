@@ -1,7 +1,9 @@
-"""The kindling loop: give the model the user's description and the image's
-metadata, carry out its tool calls, and stop when it finishes with passing
-checks, or at the turn or token limit, or when the user cancels. Runs on a
-worker thread; reports progress through a callback. No Qt."""
+"""The kindling loop: give the model the user's description, the image's
+metadata and Varda's existing features, carry out its tool calls, and stop
+when it finishes with passing checks, declines a request a plugin can't do,
+or points to a feature that already does it; or at the turn or token limit,
+or when the user cancels. Runs on a worker thread; reports progress through
+a callback. No Qt."""
 
 from __future__ import annotations
 
@@ -12,7 +14,7 @@ from attrs import frozen
 
 from varda.common.entities import VardaRaster
 from varda.kindling.providers import Conversation, Provider, Reply, ToolResult
-from varda.kindling.tools import TOOL_SPECS, KindlingTools
+from varda.kindling.tools import TOOL_SPECS, Existing, KindlingTools
 
 MAX_TURNS = 40
 # Replies in a row without a tool call before giving up: the model isn't
@@ -22,6 +24,21 @@ SYSTEM_PROMPT = """\
 You build plugins for Varda, a desktop app for hyperspectral and multispectral \
 images used by planetary and Earth scientists. A user has described a feature \
 in plain language; build it as a Varda plugin.
+
+Before building, check two things, in this order:
+- Scope. The plugins you build add analyses (one image in, a new image out) \
+or file formats through varda.api, and nothing else. If the request needs \
+what such a plugin can't do (changing Varda's interface, its code or how its \
+built-in features behave; redesigning or refactoring the app; reaching other \
+files, the network or other programs; or anything harmful), call decline: say why in a sentence or two of plain language, and \
+suggest the closest feature a plugin could add, if there is one. If only part \
+of the request fits, build that part and say in your summary what you left \
+out and why.
+- Whether Varda already does it. Compare the request with Varda's features, \
+listed in the request. If one already does what the user asks (perhaps under \
+another name, or with a setting), call point_to_existing instead of building. \
+A feature that is only related doesn't count: build, and mention the related \
+feature in your summary.
 
 How to work:
 1. Read the authoring guide and the API reference (read_docs), and the example \
@@ -63,6 +80,8 @@ class Outcome:
     stopReason: str  # why it stopped, when it didn't finish
     tokens: int
     turns: int
+    declined: str = ""  # why a plugin can't do what was asked
+    existing: Existing | None = None  # a feature that already does it
 
 
 def describeImage(image: VardaRaster | None) -> str:
@@ -114,24 +133,47 @@ class Kindler:
         description: str,
         image: VardaRaster | None,
         categories: Sequence[str] = (),
+        features: str = "",
     ) -> Outcome:
         """Build a plugin for ``description``; ``categories`` are the
-        Processing menu's existing submenus."""
+        Processing menu's existing submenus, ``features`` what Varda can
+        already do (``features.featureInventory``)."""
         menus = (
             "Existing Processing menu categories: " + ", ".join(categories) + "."
             if categories
             else ""
         )
+        existing = (
+            f"Varda's features (menu → item: what it does):\n{features}"
+            if features
+            else ""
+        )
+        parts = [
+            f"The user asks for:\n{description}",
+            describeImage(image),
+            menus,
+            existing,
+        ]
+        return self._loop("\n\n".join(p for p in parts if p))
+
+    def buildAnyway(self) -> Outcome:
+        """Build after all, once the user has seen the existing feature."""
+        assert self.tools.existing is not None
+        feature = self.tools.existing.feature
+        self.tools.reset()
         return self._loop(
-            f"The user asks for:\n{description}\n\n{describeImage(image)}\n\n{menus}".rstrip()
+            f"The user has seen {feature} and wants their feature built anyway. "
+            "Build it as a plugin now."
         )
 
     def revise(self, feedback: str) -> Outcome:
         """Another round on the same plugin, with the user's feedback."""
-        self.tools.summary = None
+        self.tools.reset()
         return self._loop(
-            f"The user reviewed the plugin and asks for changes:\n{feedback}\n\n"
-            "Update the plugin, run the checks again, and finish with a new summary."
+            f"The user reviewed your work and replies:\n{feedback}\n\n"
+            "Act on it: update or build the plugin, run the checks again, and "
+            "finish with a new summary (or decline, or point to an existing "
+            "feature, if that's the answer)."
         )
 
     def _loop(self, message: str) -> Outcome:
@@ -167,8 +209,8 @@ class Kindler:
             for call in reply.toolCalls:
                 self.onProgress(_describeCall(call.name, call.arguments))
                 self._unsent.append(self.tools.call(call))
-            if self.tools.summary is not None:
-                return self._outcome(True, "")
+            if self.tools.stopped:
+                return self._outcome(self.tools.summary is not None, "")
             reply = self._send()
 
     def _stopReason(self, startTokens: int, startTurns: int) -> str:
@@ -193,7 +235,13 @@ class Kindler:
 
     def _outcome(self, finished: bool, stopReason: str) -> Outcome:
         return Outcome(
-            finished, self.tools.summary or "", stopReason, self.tokens, self.turns
+            finished,
+            self.tools.summary or "",
+            stopReason,
+            self.tokens,
+            self.turns,
+            self.tools.declined,
+            self.tools.existing,
         )
 
 
@@ -207,7 +255,7 @@ def _describeCall(name: str, arguments: dict) -> str:
             return f"Writing {arguments.get('path', 'a file')}…"
         case "run_checks":
             return "Running the checks…"
-        case "finish":
+        case "finish" | "decline" | "point_to_existing":
             return "Finishing…"
         case _:
             return f"{name.replace('_', ' ').capitalize()}…"
