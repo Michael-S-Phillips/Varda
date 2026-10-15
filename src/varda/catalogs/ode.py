@@ -33,6 +33,29 @@ from varda.common.parameter import FloatParameter, StringParameter
 ODE_URL = "https://oderest.rsl.wustl.edu/live2/"
 # ODE's meta-databases, by the body Varda shows them on
 DATABASES = {"Mars": "mars", "Moon": "moon", "Mercury": "mercury", "Venus": "venus"}
+# ODE's mission abbreviations (IHID), spelled out so a search for the
+# mission's name finds its collections
+MISSIONS = {
+    "EM16TGO": "ExoMars Trace Gas Orbiter",
+    "MEX": "Mars Express",
+    "MGS": "Mars Global Surveyor",
+    "MRO": "Mars Reconnaissance Orbiter",
+    "ODY": "Mars Odyssey",
+    "VO": "Viking Orbiter",
+    "MESSENGER": "MESSENGER",
+    "ARCB-NRAO": "Arecibo and NRAO radar",
+    "CE": "Chang'e",
+    "CH1-ORB": "Chandrayaan-1",
+    "CLEM": "Clementine",
+    "GRAIL": "GRAIL",
+    "KPLO": "Korea Pathfinder Lunar Orbiter (Danuri)",
+    "LO": "Lunar Orbiter",
+    "LP": "Lunar Prospector",
+    "LRO": "Lunar Reconnaissance Orbiter",
+    "SLN": "SELENE (Kaguya)",
+    "MGN": "Magellan",
+    "VEX": "Venus Express",
+}
 FILE_ROLES = {"Browse": "browse", "Derived": "auxiliary", "Referenced": "auxiliary"}
 LABELS = (".lbl", ".xml")
 # ODE metadata shown (and sortable) in the results: (ODE name, Varda label)
@@ -118,7 +141,15 @@ class OdeCatalog(Catalog):
                             key,
                             f"{s['IHID']} {s['IID']} {s['PTName']}",
                             body,
-                            s.get("IName", ""),
+                            ", ".join(
+                                n
+                                for n in (
+                                    MISSIONS.get(s["IHID"], ""),
+                                    s.get("IName", ""),
+                                )
+                                if n
+                            ),
+                            f"{s['IHID']} {s['IID']}",
                         ),
                     )
             self._collections = sorted(found.values(), key=lambda c: (c.body, c.title))

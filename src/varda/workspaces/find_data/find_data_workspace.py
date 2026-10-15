@@ -58,6 +58,7 @@ from varda.workspaces.find_data.catalog_dialogs import (
     StacApisDialog,
     applySavedStacApis,
 )
+from varda.workspaces.find_data.collection_picker import CollectionCombo
 from varda.workspaces.find_data.downloads_panel import DownloadsPanel
 from varda.workspaces.find_data.map_view import ADD, REMOVE, FootprintMap
 from varda.workspaces.find_data.projection import MapProjection
@@ -153,7 +154,11 @@ class FindDataWorkspace(QMainWindow):
         self.stacApisButton = QPushButton("STAC APIs…")
         self.stacApisButton.setToolTip("Add, remove or edit the STAC APIs searched")
         self.stacApisButton.clicked.connect(self._editStacApis)
-        self.collectionBox = QComboBox()
+        # drops down a search field over the collections, by body and mission
+        self.collectionBox = CollectionCombo()
+        self.collectionBox.setToolTip(
+            "Click to search collections by body, mission or instrument"
+        )
         # wide enough to tell collections apart; the full name is its tooltip
         self.collectionBox.setSizeAdjustPolicy(
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
@@ -377,7 +382,7 @@ class FindDataWorkspace(QMainWindow):
             layout.addWidget(groupWidget(catalog))
         else:
             layout.addWidget(MutedLabel("This catalog has no filters."))
-        self.collectionBox.clear()
+        self.collectionBox.setCollections([])
         self._collections = []
         self.searchStatus.setText("Loading collections…")
         runInBackground(
@@ -394,18 +399,7 @@ class FindDataWorkspace(QMainWindow):
         if catalog is not self.catalog():
             return  # the user moved on
         self._collections = list(collections)
-        self.collectionBox.blockSignals(True)
-        self.collectionBox.clear()
-        for c in self._collections:
-            self.collectionBox.addItem(f"{c.body}: {c.title}", c.id)
-            self.collectionBox.setItemData(
-                self.collectionBox.count() - 1,
-                c.description,
-                Qt.ItemDataRole.ToolTipRole,
-            )
-        index = self.collectionBox.findData(select) if select else -1
-        self.collectionBox.setCurrentIndex(max(index, 0))
-        self.collectionBox.blockSignals(False)
+        self.collectionBox.setCollections(self._collections, select)
         self.searchStatus.setText(
             f"{len(collections)} collections."
             if collections

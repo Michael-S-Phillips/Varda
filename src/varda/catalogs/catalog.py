@@ -37,6 +37,9 @@ class Collection:
     title: str
     body: str  # "Mars", "Moon", "Europa", "Earth", … (picks the map)
     description: str = ""
+    # What the collection picker groups it under within its body, e.g. the
+    # mission and instrument ("MRO CRISM"); "" lists it on its own
+    group: str = ""
 
 
 @frozen
