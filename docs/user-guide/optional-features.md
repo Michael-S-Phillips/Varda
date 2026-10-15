@@ -13,7 +13,11 @@ uv sync --extra hypyrameter
 # or, with pip:  pip install "varda[hypyrameter]"
 ```
 
-## CNN and ViT classifiers (PyTorch)
+## CNN and ViT classifiers, and learned matchers (PyTorch)
+
+The same environment also runs the Mosaic workspace's LoFTR and SIFT
+matchers (Auto Align): it includes kornia and OpenCV for them.
+
 **Processing → Classification → Train CNN on ROIs / Train ViT on ROIs** train
 small neural networks on spatial-spectral patches around your ROI pixels. They
 need PyTorch, which is too large to ship in every download. (The MLP

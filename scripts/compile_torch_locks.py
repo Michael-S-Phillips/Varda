@@ -1,4 +1,5 @@
-"""Compile the pinned, hashed PyTorch lock files the Optional Features dialog installs.
+"""Compile the pinned, hashed PyTorch lock files the Optional Features dialog installs
+(PyTorch for the classifiers, plus kornia and OpenCV for the mosaic's matchers).
 
 One lock per platform and backend, in resources/optional_features/torch/, plus
 sizes.json: the exact download size of each lock's wheels, for the dialog.
@@ -21,6 +22,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LOCK_DIR = PROJECT_ROOT / "resources" / "optional_features" / "torch"
 
 TORCH = "torch==2.14.*"
+# The mosaic's optional matchers run in the same environment: kornia's LoFTR
+# and OpenCV's SIFT (the headless build: no GUI libraries)
+MATCHERS = ("kornia>=0.8", "opencv-python-headless>=4.10")
 MACOS_TARGET = "14.0"  # recent torch wheels need macOS 14; uv assumes 12 otherwise
 
 # name: (uv --python-platform, uv --torch-backend or None for the PyPI default)
@@ -124,7 +128,7 @@ def main() -> None:
     LOCK_DIR.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         requirements = Path(tmp) / "torch.in"
-        requirements.write_text(f"{args.torch}\nnumpy\n")
+        requirements.write_text("\n".join([args.torch, "numpy", *MATCHERS]) + "\n")
         sizes: dict[str, int] = {}
         for name, (platform, backend) in TARGETS.items():
             out = LOCK_DIR / f"{name}.txt"

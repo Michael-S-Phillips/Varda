@@ -264,7 +264,12 @@ class TorchRuntime:
             for k, v in os.environ.items()
             if k not in {"PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"}
         }
-        env.update(PYTHONPATH=str(self.workerDir), PYTHONNOUSERSITE="1")
+        env.update(
+            PYTHONPATH=str(self.workerDir),
+            PYTHONNOUSERSITE="1",
+            # Pretrained weights (LoFTR's) download once, into this folder
+            TORCH_HOME=str(self.root / "hub"),
+        )
         return env
 
     def probeCommand(self) -> list[str]:
@@ -296,32 +301,51 @@ class TorchRuntime:
                 classes=classes,
                 spec=spec,
             )
-            errorLog = Path(jobDir) / "stderr.txt"
-            error = None
-            with errorLog.open("w") as stderr:
-                process = subprocess.Popen(
-                    [str(self.pythonPath()), "-m", "varda_torch_worker", jobDir],
-                    stdout=subprocess.PIPE,
-                    stderr=stderr,  # a file, so a chatty worker can't block
-                    text=True,
-                    env=self.workerEnv(),
-                    creationflags=_NO_WINDOW,
-                )
-                assert process.stdout is not None
-                for line in process.stdout:
-                    try:
-                        message = json.loads(line)
-                    except ValueError:
-                        continue  # stray print from a library
-                    if "progress" in message:
-                        progress(message["progress"], message.get("message", ""))
-                    elif "error" in message:
-                        error = message["error"]
-                returnCode = process.wait()
-            if returnCode != 0:
-                detail = error or errorLog.read_text().strip()[-2000:]
-                raise RuntimeError(f"The PyTorch worker failed: {detail}")
+            self._runWorker(Path(jobDir), progress)
             return protocol.readResult(Path(jobDir))
+
+    def runMatch(
+        self,
+        reference: np.ndarray,
+        moving: np.ndarray,
+        method: str,
+        progress: Callable[[float, str], None] = lambda fraction, message: None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Match two images in the worker (``"loftr"`` or ``"sift"``): points
+        in each, in pixels, and each match's confidence."""
+        with tempfile.TemporaryDirectory(prefix="varda-match-") as jobDir:
+            protocol.writeMatchJob(Path(jobDir), reference, moving, method)
+            self._runWorker(Path(jobDir), progress)
+            matches = protocol.readMatches(Path(jobDir))
+        return matches[:, 0:2], matches[:, 2:4], matches[:, 4]
+
+    def _runWorker(self, jobDir: Path, progress: Callable[[float, str], None]) -> None:
+        """Run the worker on a job folder, relaying its progress."""
+        errorLog = Path(jobDir) / "stderr.txt"
+        error = None
+        with errorLog.open("w") as stderr:
+            process = subprocess.Popen(
+                [str(self.pythonPath()), "-m", "varda_torch_worker", jobDir],
+                stdout=subprocess.PIPE,
+                stderr=stderr,  # a file, so a chatty worker can't block
+                text=True,
+                env=self.workerEnv(),
+                creationflags=_NO_WINDOW,
+            )
+            assert process.stdout is not None
+            for line in process.stdout:
+                try:
+                    message = json.loads(line)
+                except ValueError:
+                    continue  # stray print from a library
+                if "progress" in message:
+                    progress(message["progress"], message.get("message", ""))
+                elif "error" in message:
+                    error = message["error"]
+            returnCode = process.wait()
+        if returnCode != 0:
+            detail = error or errorLog.read_text().strip()[-2000:]
+            raise RuntimeError(f"The PyTorch worker failed: {detail}")
 
 
 class Installer:

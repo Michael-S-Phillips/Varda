@@ -139,3 +139,49 @@ def test_images_that_do_not_overlap_are_reported():
     project.nudge(1, 10000.0, 0.0)
     result = autoAlign(project, 1, [0], MatchSettings())
     assert result.added == 0 and "overlap" in result.message.lower()
+
+
+def _plantedMatcher(shift):
+    """A stand-in for the PyTorch worker's matchers: a grid of points, each
+    found ``shift`` pixels off in the moving image."""
+    calls = []
+
+    def match(reference, moving, method):
+        calls.append((reference.shape, method))
+        ys, xs = np.mgrid[
+            10 : reference.shape[0] - 10 : 15, 10 : reference.shape[1] - 10 : 15
+        ]
+        first = np.column_stack([xs.ravel(), ys.ravel()]).astype(float) + 0.5
+        return first, first + shift, np.full(len(first), 0.9)
+
+    return match, calls
+
+
+@pytest.mark.parametrize("method", [MatchMethod.LOFTR, MatchMethod.SIFT])
+def test_external_matchers_are_pooled_over_the_bands(method):
+    project = _project(_scene())
+    matcher, calls = _plantedMatcher(np.array([2.0, -1.0]))
+    result = autoAlign(
+        project,
+        1,
+        [0],
+        MatchSettings(method=method, bandCount=2, externalMatcher=matcher),
+    )
+    assert result.method is method
+    assert [m for _, m in calls] == [
+        {MatchMethod.LOFTR: "loftr", MatchMethod.SIFT: "sift"}[method]
+    ] * 2
+    assert result.added > 20 and {p.band for p in project.tiePoints} == set(
+        result.bands
+    )
+    assert all(p.quality == pytest.approx(0.9) for p in project.tiePoints)
+    project.fit(1)
+    # 2 px east, 1 px north in the moving image: the correction undoes it
+    assert np.allclose(
+        project.input(1).correction[:2, 2], (-2 * PIXEL, -1 * PIXEL), atol=1e-6
+    )
+
+
+def test_external_matchers_need_the_runtime():
+    with pytest.raises(RuntimeError, match="PyTorch"):
+        autoAlign(_project(_scene()), 1, [0], MatchSettings(method=MatchMethod.LOFTR))

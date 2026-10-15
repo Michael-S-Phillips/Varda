@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
 from varda.common.ui import MutedLabel
 from varda.mosaicking.bands import DEFAULT_BAND_COUNT
 from varda.optional_features.asp_section import currentAsp
+from varda.optional_features.torch_runtime import defaultRuntime
 from varda.mosaicking.matching import (
     DEFAULT_TILE,
     AutoAlignResult,
@@ -37,6 +38,12 @@ from varda.mosaicking.matching import (
 from varda.mosaicking.model import DEFAULT_INLIER_PX, BandFit, MosaicProject
 
 ALL_OVERLAPPING = -1
+METHOD_NAMES = {
+    MatchMethod.FEATURES: "features",
+    MatchMethod.ASP: "the Ames Stereo Pipeline",
+    MatchMethod.LOFTR: "LoFTR",
+    MatchMethod.SIFT: "SIFT",
+}
 TILE_SIZES = (32, 64, 128)
 BAND_COLUMNS = ["Band", "Wavelength", "SNR", "Points", "Kept", "RMS (px)", "Use"]
 
@@ -78,6 +85,22 @@ class AutoAlignDialog(QDialog):
             )
         else:
             aspItem.setToolTip(f"ASP {self.asp.version} ({self.asp.source})")
+        self.runtime = defaultRuntime()
+        ready = self.runtime.isInstalled() and not self.runtime.updateAvailable()
+        for method in (MatchMethod.LOFTR, MatchMethod.SIFT):
+            item = model.item(self.method.findData(method))
+            assert item is not None
+            item.setEnabled(ready)
+            item.setToolTip(
+                "Runs in the PyTorch environment (Optional Features)"
+                if ready
+                else (
+                    "Update PyTorch in Processing → Optional Features: the newer "
+                    "environment includes the matchers"
+                    if self.runtime.isInstalled()
+                    else "Install PyTorch in Processing → Optional Features"
+                )
+            )
         self.bandCount = QSpinBox()
         self.bandCount.setRange(1, max(1, moving.image.bandCount))
         self.bandCount.setValue(min(DEFAULT_BAND_COUNT, moving.image.bandCount))
@@ -177,6 +200,7 @@ class AutoAlignDialog(QDialog):
             refine=self.refine.isChecked(),
             method=self.method.currentData(),
             asp=self.asp,
+            externalMatcher=self.runtime.runMatch,
         )
 
     def referenceKeys(self) -> list[int]:
@@ -211,9 +235,7 @@ class AutoAlignDialog(QDialog):
         self.alignment = result
         self.runButton.setEnabled(True)
         self.progress.setVisible(False)
-        method = (
-            "features" if result.method is MatchMethod.FEATURES else "phase correlation"
-        )
+        method = METHOD_NAMES.get(result.method, "phase correlation")
         lines = [f"{result.added} tie points by {method}. {fitMessage}"]
         if result.message:
             lines.append(result.message)
