@@ -3,7 +3,9 @@
 ``runInBackground`` runs a function on Qt's global thread pool, then calls
 ``onDone`` with its result, or ``onFailed`` with the exception, on the GUI
 thread. A task that reports progress is given a callback wrapped with
-``onMainThread``, which is safe to call from the worker.
+``onMainThread``, which is safe to call from the worker. With an ``owner``
+(the widget the result is for), a result that arrives after Qt deleted the
+owner (its workspace was closed, say) is dropped.
 
 Workers may read images while the display does: data sources keep reads
 thread-safe (see ``RasterioDataSource`` and ``CachedDataSource``).
@@ -12,6 +14,8 @@ thread-safe (see ``RasterioDataSource`` and ``CachedDataSource``).
 import logging
 from collections.abc import Callable
 
+from PyQt6 import sip
+from PyQt6.QtCore import QObject
 from superqt.utils import FunctionWorker, create_worker, ensure_main_thread
 
 logger = logging.getLogger(__name__)
@@ -23,16 +27,26 @@ def runInBackground[R](
     onFailed: Callable[[Exception], None],
     *,
     description: str = "Background task",
+    owner: QObject | None = None,
 ) -> FunctionWorker[R]:
     """Run ``task`` on a worker thread; its outcome comes back on the GUI thread.
-    A failure is logged as "<description> failed" before ``onFailed`` runs."""
+    A failure is logged as "<description> failed" before ``onFailed`` runs.
+    Neither runs once ``owner`` (if given) has been deleted."""
+
+    def gone() -> bool:
+        return owner is not None and sip.isdeleted(owner)
+
+    def done(result: R) -> None:
+        if not gone():
+            onDone(result)
 
     def failed(error: Exception) -> None:
         logger.error("%s failed", description, exc_info=error)
-        onFailed(error)
+        if not gone():
+            onFailed(error)
 
     worker = create_worker(
-        task, _start_thread=False, _connect={"returned": onDone, "errored": failed}
+        task, _start_thread=False, _connect={"returned": done, "errored": failed}
     )
     worker.start()
     return worker

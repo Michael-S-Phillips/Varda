@@ -50,6 +50,9 @@ can alter results.
 
 ### Fixed
 
+- Closing a Find Data workspace while it was drawing a basemap, listing
+  collections, searching or downloading could raise an error when the work
+  finished; such results are now dropped.
 - **Find Data basemaps** were drawn mirrored across their diagonal (in the
   right place, but transposed); they are now north up as in the image.
 - Images loaded after a Find Data workspace opened (a finished download, for
