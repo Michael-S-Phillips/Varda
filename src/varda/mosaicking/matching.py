@@ -21,8 +21,10 @@ the moving image.
 from __future__ import annotations
 
 import math
+import tempfile
 import warnings
 from collections.abc import Callable, Sequence
+from pathlib import Path
 
 import numpy as np
 from affine import Affine
@@ -32,10 +34,12 @@ from skimage.feature import ORB, match_descriptors
 from skimage.registration import phase_cross_correlation
 
 from varda.common.parameter import LabeledEnum
+from varda.mosaicking.backends.asp import AspError, AspInstall, imageAlign
 from varda.mosaicking.bands import DEFAULT_BAND_COUNT, bandSnr, chooseBands
 from varda.mosaicking.grid import TargetGrid, overlapGrid
 from varda.mosaicking.model import MosaicInput, MosaicProject
 from varda.mosaicking.render import readCube, sampleOnGrid
+from varda.mosaicking.transforms import TransformModel
 
 UPSAMPLE = 100
 DEFAULT_TILE = 64
@@ -166,6 +170,7 @@ class MatchMethod(LabeledEnum):
     AUTO = "Automatic (phase correlation, features if that fails)"
     PHASE = "Phase correlation (shifts, small warps)"
     FEATURES = "Features (ORB; rotation and scale)"
+    ASP = "Ames Stereo Pipeline (image_align)"
 
 
 @frozen
@@ -175,6 +180,7 @@ class MatchSettings:
     tileSize: int = DEFAULT_TILE
     refine: bool = True  # the phase-plane fit after phase correlation
     method: MatchMethod = MatchMethod.AUTO
+    asp: AspInstall | None = None  # for MatchMethod.ASP
 
 
 @frozen
@@ -193,6 +199,15 @@ class DisplacementField:
 
 
 MatchedPoint = tuple[tuple[float, float], tuple[float, float], float, int]
+# The image's transform, as image_align names it (warps are screened with a
+# homography; Varda fits them)
+ASP_MODELS = {
+    TransformModel.TRANSLATION: "translation",
+    TransformModel.RIGID: "rigid",
+    TransformModel.SIMILARITY: "similarity",
+    TransformModel.AFFINE: "affine",
+    TransformModel.PROJECTIVE: "projective",
+}
 
 
 @frozen
@@ -331,6 +346,21 @@ def matchPair(
     points: list[MatchedPoint] = []
     displacement = None
     method = settings.method
+    if settings.method is MatchMethod.ASP:
+        if settings.asp is None:
+            raise AspError("The Ames Stereo Pipeline isn't set up (Optional Features).")
+        transform = ASP_MODELS.get(moving.model, "projective")
+        with tempfile.TemporaryDirectory(prefix="varda-asp-") as folder:
+            for i, (band, (a, b)) in enumerate(zip(bands, overlaps, strict=True)):
+                progress(i / len(bands), f"image_align on band {band + 1}")
+                first, second = imageAlign(
+                    settings.asp, a, b, transform, Path(folder) / f"band{band}"
+                )
+                points += [
+                    _tiePoint(reference, moving, grid, p, q, float("nan"), band)
+                    for p, q in zip(first, second, strict=True)
+                ]
+        return points, None, MatchMethod.ASP
     if settings.method is not MatchMethod.FEATURES:
         shifts = []
         for i, (band, (a, b)) in enumerate(zip(bands, overlaps, strict=True)):

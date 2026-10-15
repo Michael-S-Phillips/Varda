@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import numpy as np
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -26,6 +27,7 @@ from PyQt6.QtWidgets import (
 
 from varda.common.ui import MutedLabel
 from varda.mosaicking.bands import DEFAULT_BAND_COUNT
+from varda.optional_features.asp_section import currentAsp
 from varda.mosaicking.matching import (
     DEFAULT_TILE,
     AutoAlignResult,
@@ -64,6 +66,18 @@ class AutoAlignDialog(QDialog):
         self.method = QComboBox()
         for method in MatchMethod:
             self.method.addItem(method.value, method)
+        self.asp = currentAsp()
+        model = self.method.model()
+        assert isinstance(model, QStandardItemModel)  # a combo box's default model
+        aspItem = model.item(self.method.findData(MatchMethod.ASP))
+        assert aspItem is not None
+        if self.asp is None:
+            aspItem.setEnabled(False)
+            aspItem.setToolTip(
+                "Set up the Ames Stereo Pipeline in Processing → Optional Features"
+            )
+        else:
+            aspItem.setToolTip(f"ASP {self.asp.version} ({self.asp.source})")
         self.bandCount = QSpinBox()
         self.bandCount.setRange(1, max(1, moving.image.bandCount))
         self.bandCount.setValue(min(DEFAULT_BAND_COUNT, moving.image.bandCount))
@@ -162,6 +176,7 @@ class AutoAlignDialog(QDialog):
             tileSize=int(self.tileSize.currentData()),
             refine=self.refine.isChecked(),
             method=self.method.currentData(),
+            asp=self.asp,
         )
 
     def referenceKeys(self) -> list[int]:

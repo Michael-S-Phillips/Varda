@@ -23,6 +23,25 @@ can alter results.
   distortion varies across them (2nd or 3rd order polynomials, and a
   thin-plate spline for local warps), fitted robustly like the other
   transforms and saved with the session.
+- **Radiometric balancing in the Mosaic workspace** (the Radiometry tab), per
+  band, from the overlaps: linear to held images (robust regression), a
+  global least-squares solve like ISIS equalizer (which refuses images not
+  connected to a held one), or histogram matching (labeled visual). None
+  remains the default, keeping every spectrum exact.
+- **Seams in the Mosaic workspace** (the Seams and Blending tab): split each
+  overlap down its middle (Voronoi) or along the path where the images
+  differ least, instead of letting the top image win. Seams are outlined on
+  the mosaic, can be edited by dragging, are kept in map coordinates and
+  saved with the session; spectra stay exact.
+- **Blending for visual mosaics:** feathering over a chosen width, or
+  multi-band (pyramid) blending, across the seams. Blended mosaics are
+  labeled visual; hard seams remain the default.
+- **The Ames Stereo Pipeline in Auto Align.** Optional Features finds an ASP
+  you already have (PATH, a conda environment named asp,
+  ~/StereoPipeline-*) or downloads ASP 3.7.0, verified against its
+  published checksum (macOS and Linux). Auto Align can then match each
+  chosen band with ASP's image_align and fit the pooled matches like its
+  own.
 - **Mosaic workspace.** **Workspace → New Mosaic Workspace…** joins
   overlapping images (spectral cubes or grayscale) with the same bands and
   projection. Order the images (the top one wins where they overlap), align

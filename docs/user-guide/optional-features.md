@@ -41,3 +41,23 @@ uv sync --extra ml
 Training runs on CUDA or Apple MPS when available, otherwise on the CPU.
 Maintainers: `scripts/compile_torch_locks.py` regenerates the pinned locks in
 `resources/optional_features/torch/`.
+
+## Ames Stereo Pipeline (mosaicking)
+
+Auto Align in the [Mosaic workspace](mosaicking.md) can match images with the
+Ames Stereo Pipeline's `image_align` instead of Varda's own matchers. It's
+optional: Varda's tools cover everything Auto Align needs.
+
+**Processing → Optional Features…** shows whether Varda found ASP and where.
+It looks, in order, in a folder you choose (**Choose Folder…**), on your
+PATH, in conda environments named `asp` (or holding ASP) under miniforge,
+miniconda, anaconda and mambaforge, in `~/StereoPipeline-*`, and in its own
+download. **Re-detect** looks again.
+
+If you don't have ASP, **Download ASP 3.7.0** fetches the official release
+for your computer (260–650 MB) from GitHub into Varda's data folder, checks
+it against its published SHA-256 checksum and unpacks it. **Remove** deletes
+that copy (Varda never removes an ASP it didn't download).
+
+ASP has no Windows version (it runs in WSL), so the download isn't offered
+there.

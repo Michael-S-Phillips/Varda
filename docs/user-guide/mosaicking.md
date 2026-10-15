@@ -41,7 +41,9 @@ it overlaps, and fits them:
    behind COSI-Corr, re-implemented from the paper.
 4. **Features:** when phase correlation finds too few matches (a large
    rotation or scale difference, say), ORB features are matched instead.
-   Choose **Features** to use them directly.
+   Choose **Features** to use them directly, or **Ames Stereo Pipeline**
+   to have ASP's `image_align` match each chosen band (set it up in
+   [Optional Features](optional-features.md#ames-stereo-pipeline-mosaicking)).
 5. **Fit:** the tie points from every band are fitted together with the
    image's transform, robustly (RANSAC): points farther off than the
    **outlier threshold** (1 px by default) are left out and shown in red.

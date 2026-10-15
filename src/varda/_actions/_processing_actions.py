@@ -275,7 +275,10 @@ PROCESSING_ACTIONS = processingActions(
     Action(
         id=OPTIONAL_FEATURES_ACTION_ID,
         title="Optional Features…",
-        tooltip="Install, update or remove PyTorch for the CNN and ViT classifiers",
+        tooltip=(
+            "Install, update or remove PyTorch for the CNN and ViT classifiers, "
+            "and set up the Ames Stereo Pipeline for mosaicking"
+        ),
         callback=openOptionalFeaturesDialog,
         menus=[MenuRule(id=MenuId.PROCESSING, group="9_setup")],
     ),
