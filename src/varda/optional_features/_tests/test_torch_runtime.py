@@ -6,9 +6,12 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from scipy import ndimage
 import pytest
 
 from varda.optional_features import torch_runtime
+import varda_torch_worker
+from varda_torch_worker import protocol
 from varda.optional_features.torch_runtime import (
     BACKENDS,
     InstallCancelled,
@@ -225,3 +228,56 @@ def test_a_job_runs_in_the_worker_process(tmp_path):
 def test_the_default_runtime_lives_in_the_app_data_folder():
     runtime = torch_runtime.defaultRuntime()
     assert runtime.root.parts[-2:] == ("runtimes", "torch")
+
+
+def test_match_jobs_round_trip(tmp_path):
+    reference = np.arange(12, dtype=np.float32).reshape(3, 4)
+    protocol.writeMatchJob(tmp_path, reference, reference + 1, "loftr")
+    assert protocol.jobTask(tmp_path)["task"] == "match"
+    loaded, moving, method = protocol.readMatchJob(tmp_path)
+    assert method == "loftr" and np.array_equal(loaded, reference)
+    protocol.writeMatches(tmp_path, np.ones((2, 5)))
+    assert protocol.readMatches(tmp_path).shape == (2, 5)
+
+
+def test_a_match_runs_in_the_worker_and_relays_progress(tmp_path):
+    """runMatch's plumbing, with a stand-in interpreter for the worker."""
+    fake = tmp_path / "python"
+    fake.write_text(
+        f"""#!{sys.executable}
+import json, sys
+import numpy as np
+job = sys.argv[-1]
+print(json.dumps({{"progress": 0.5, "message": "matching"}}), flush=True)
+np.save(job + "/matches.npy", np.array([[1, 2, 6, 0, 0.9]], np.float32))
+"""
+    )
+    fake.chmod(0o755)
+    runtime = _runtime(tmp_path, python=str(fake))
+    seen = []
+    first, second, confidence = runtime.runMatch(
+        np.zeros((4, 4)), np.zeros((4, 4)), "sift", lambda f, m: seen.append(m)
+    )
+    assert seen == ["matching"]
+    assert np.allclose(second - first, [[5, -2]]) and np.allclose(confidence, 0.9)
+    assert runtime.workerEnv()["TORCH_HOME"] == str(runtime.root / "hub")
+
+
+def test_sift_matches_a_shift_in_the_worker(tmp_path):
+    pytest.importorskip("torch")
+    pytest.importorskip("kornia")
+    pytest.importorskip("cv2")
+    runtime = _runtime(
+        tmp_path,
+        python=sys.executable,
+        workerDir=Path(varda_torch_worker.__file__).parents[1],
+    )
+    rng = np.random.default_rng(0)
+    texture = ndimage.gaussian_filter(rng.normal(size=(300, 300)), 2.0).astype(
+        np.float32
+    )
+    first, second, _ = runtime.runMatch(
+        texture[20:220, 20:220], texture[23:223, 15:215], "sift"
+    )
+    assert len(first) > 10
+    assert np.allclose(np.median(second - first, axis=0), [5, -3], atol=0.5)

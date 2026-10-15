@@ -1,4 +1,6 @@
-"""``python -m varda_torch_worker JOBDIR`` or ``--probe``; see ``protocol``."""
+"""``python -m varda_torch_worker JOBDIR`` or ``--probe``; see ``protocol``.
+A job is a classifier (``job``) or, with ``"task": "match"``, a matcher
+(``matching``)."""
 
 from __future__ import annotations
 
@@ -25,6 +27,15 @@ def main(argv: list[str]) -> int:
 
         from varda_torch_worker import job, protocol
 
+        def progress(fraction: float, message: str) -> None:
+            _say({"progress": round(fraction, 4), "message": message})
+
+        if protocol.jobTask(argv[0]).get("task") == "match":
+            from varda_torch_worker.matching import METHODS
+
+            reference, moving, method = protocol.readMatchJob(argv[0])
+            protocol.writeMatches(argv[0], METHODS[method](reference, moving, progress))
+            return 0
         arrays, classes, spec = protocol.readJob(argv[0])
         probabilities, finalLoss = job.trainAndClassify(
             arrays["cube"],
@@ -34,9 +45,7 @@ def main(argv: list[str]) -> int:
             arrays["labels"],
             classes,
             spec,
-            lambda fraction, message: _say(
-                {"progress": round(fraction, 4), "message": message}
-            ),
+            progress,
         )
         protocol.writeResult(
             argv[0],

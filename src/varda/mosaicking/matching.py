@@ -171,6 +171,16 @@ class MatchMethod(LabeledEnum):
     PHASE = "Phase correlation (shifts, small warps)"
     FEATURES = "Features (ORB; rotation and scale)"
     ASP = "Ames Stereo Pipeline (image_align)"
+    LOFTR = "Learned features (LoFTR; needs PyTorch)"
+    SIFT = "SIFT features (OpenCV; needs PyTorch)"
+
+
+# A matcher run outside Varda's process (the PyTorch runtime's worker): two
+# images in, points in each (pixels) and each match's confidence out
+ExternalMatcher = Callable[
+    [np.ndarray, np.ndarray, str], tuple[np.ndarray, np.ndarray, np.ndarray]
+]
+EXTERNAL = {MatchMethod.LOFTR: "loftr", MatchMethod.SIFT: "sift"}
 
 
 @frozen
@@ -181,6 +191,7 @@ class MatchSettings:
     refine: bool = True  # the phase-plane fit after phase correlation
     method: MatchMethod = MatchMethod.AUTO
     asp: AspInstall | None = None  # for MatchMethod.ASP
+    externalMatcher: ExternalMatcher | None = None  # for LOFTR and SIFT
 
 
 @frozen
@@ -361,6 +372,19 @@ def matchPair(
                     for p, q in zip(first, second, strict=True)
                 ]
         return points, None, MatchMethod.ASP
+    if settings.method in EXTERNAL:
+        if settings.externalMatcher is None:
+            raise RuntimeError("These matchers need PyTorch (Optional Features).")
+        for i, (band, (a, b)) in enumerate(zip(bands, overlaps, strict=True)):
+            progress(i / len(bands), f"matching band {band + 1}")
+            first, second, confidence = settings.externalMatcher(
+                a, b, EXTERNAL[settings.method]
+            )
+            points += [
+                _tiePoint(reference, moving, grid, p, q, float(c), band)
+                for p, q, c in zip(first, second, confidence, strict=True)
+            ]
+        return points, None, settings.method
     if settings.method is not MatchMethod.FEATURES:
         shifts = []
         for i, (band, (a, b)) in enumerate(zip(bands, overlaps, strict=True)):

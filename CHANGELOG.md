@@ -47,6 +47,10 @@ can alter results.
   neighbor by default), and the Radiometry tab can compare its balance with
   ISIS equalizer's and use it. Varda finds ISIS through ISISROOT or a conda
   environment, and never downloads it.
+- **LoFTR and SIFT matchers in Auto Align**, run in the PyTorch environment
+  (Optional Features): LoFTR is a learned matcher that finds matches where
+  hand-crafted features struggle. The PyTorch environment now includes
+  kornia and OpenCV for them; an existing install offers an Update.
 - **Mosaic workspace.** **Workspace → New Mosaic Workspace…** joins
   overlapping images (spectral cubes or grayscale) with the same bands and
   projection. Order the images (the top one wins where they overlap), align
