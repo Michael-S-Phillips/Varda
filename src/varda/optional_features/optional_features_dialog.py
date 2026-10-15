@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 
 from varda.branding.loader import RedrawSpinner
 from varda.optional_features.asp_section import AspSection
+from varda.optional_features.isis_section import IsisSection
 from varda.utilities.background import onMainThread, runInBackground
 from varda.optional_features.torch_runtime import (
     Backend,
@@ -164,10 +165,17 @@ class OptionalFeaturesDialog(QDialog):
         layout.addWidget(separator)
         self.aspSection = AspSection()
         layout.addWidget(self.aspSection)
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(separator)
+        layout.addWidget(IsisSection())
         layout.addWidget(buttons)
+
         self.setMinimumWidth(480)
         self._setBusy(False)  # after the layout, which shows the buttons it adds
         self._refresh()
+        # Open tall enough for the wrapped text (the minimum size ignores it)
+        self.resize(self.sizeHint())
 
     # --- state ---------------------------------------------------------------
 

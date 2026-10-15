@@ -42,6 +42,11 @@ can alter results.
   published checksum (macOS and Linux). Auto Align can then match each
   chosen band with ASP's image_align and fit the pooled matches like its
   own.
+- **ISIS, when installed:** Processing → Geometry → Map-Project with ISIS
+  (cam2map) projects raw camera cubes so they can be mosaicked (nearest
+  neighbor by default), and the Radiometry tab can compare its balance with
+  ISIS equalizer's and use it. Varda finds ISIS through ISISROOT or a conda
+  environment, and never downloads it.
 - **Mosaic workspace.** **Workspace → New Mosaic Workspace…** joins
   overlapping images (spectral cubes or grayscale) with the same bands and
   projection. Order the images (the top one wins where they overlap), align

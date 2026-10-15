@@ -18,7 +18,9 @@ The workspace has three panels:
 
 ## Aligning an image
 
-Images start where their georeferencing puts them. To correct one, select it
+Images need to be map-projected (raw camera cubes can be projected with
+ISIS cam2map: see [Optional Features](optional-features.md#isis-mosaicking)).
+They start where their georeferencing puts them. To correct one, select it
 in the Images list, then align it automatically, nudge it, or place tie
 points by hand.
 
@@ -112,6 +114,9 @@ by band, without changing the images themselves:
 
 **Fit** chooses gain and offset, gain only or offset only for the linear
 methods. **Held** images keep their values (the top image, by default).
+With [ISIS](optional-features.md#isis-mosaicking) installed, **Compare with
+ISIS equalizer** solves the same balance with ISIS and shows its gains and
+offsets beside Varda's (and **Use ISIS's Corrections** applies them).
 Statistics come from a subsample of each overlap. The table shows each
 image's mean gain and offset; hover for every band. The corrections are
 saved with the session and recorded in the exported mosaic's metadata.

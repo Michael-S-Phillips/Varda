@@ -61,3 +61,25 @@ that copy (Varda never removes an ASP it didn't download).
 
 ASP has no Windows version (it runs in WSL), so the download isn't offered
 there.
+
+## ISIS (mosaicking)
+
+If you have [ISIS](https://github.com/DOI-USGS/ISIS3) installed, Varda finds
+it through `ISISROOT`, or as a conda environment named `isis` (or one holding
+ISIS, as ASP's environment often does). Varda never downloads ISIS: its
+mission data runs to tens of gigabytes. **Optional Features** shows what was
+found, and whether `ISISDATA` is set.
+
+With ISIS, Varda can:
+
+- **Map-project raw camera cubes:** **Processing → Geometry → Map-Project with
+  ISIS (cam2map)…** projects a spiceinit-ed level 1 cube (to ISIS's default
+  sinusoidal projection, to match a map-projected cube, or with a map
+  template) so it can be mosaicked. Varda uses nearest-neighbor
+  interpolation by default so the projected spectra are measured ones; the
+  result opens in Varda. cam2map needs `ISISDATA` and the mission's SPICE
+  kernels.
+- **Cross-check mosaic radiometry:** in the Mosaic workspace's Radiometry
+  tab, **Compare with ISIS equalizer** solves the same balance with ISIS
+  equalizer (same held images and fit) and shows its gains and offsets beside
+  Varda's; **Use ISIS's Corrections** applies them.
