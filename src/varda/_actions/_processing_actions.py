@@ -19,6 +19,8 @@ from varda._actions._menu_ids import MenuId
 from varda.analysis.analysis import SUBMENU, Analysis, categoryLevels
 from varda.analysis.dialog import RunAnalysisDialog
 from varda.analysis.eigenvalue_dialog import EigenvaluePlotDialog
+from varda.analysis.fatt_dialog import FattDialog
+from varda.analysis.fatt_map import FattMapAnalysis
 from varda.analysis.registry import ANALYSES
 from varda.analysis.runner import AnalysisRunner
 from varda.analysis.transforms import TRANSFORM_METADATA_KEY, InverseTransformAnalysis
@@ -193,6 +195,35 @@ def openInverseTransformDialog(
     dialog.connectOnRun(runner.run).open()
 
 
+def openFatt(images: ProjectImages, mainGui: MainGUI) -> None:
+    """The FATT window; non-modal so the image can be inspected alongside.
+    ROI classes of the current workspace can be the spectra to analyze."""
+    rois = getattr(mainGui.currentWorkspace(), "roiCollection", None)
+    dialog = FattDialog(list(images), rois=rois, parent=mainGui)
+    dialog.sigMapRequested.connect(
+        lambda image, analysis: openFattMapDialog(images, mainGui, image, analysis)
+    )
+    dialog.show()
+
+
+def openFattMapDialog(
+    images: ProjectImages,
+    mainGui: MainGUI,
+    image: VardaRaster,
+    analysis: FattMapAnalysis,
+) -> None:
+    """The run dialog for a FATT detection map set up in the FATT window."""
+    runner = AnalysisRunner(images, parent=mainGui)
+    RunAnalysisDialog(
+        list(images),
+        [FattMapAnalysis],
+        image=image,
+        analysis=FattMapAnalysis,
+        instance=analysis,
+        parent=mainGui,
+    ).connectOnRun(runner.run).open()
+
+
 def openSpectralHourglass(images: ProjectImages, mainGui: MainGUI) -> None:
     NewSpectralHourglassDialog(images, parent=mainGui).connectOnAccept(
         mainGui.addTab
@@ -201,6 +232,7 @@ def openSpectralHourglass(images: ProjectImages, mainGui: MainGUI) -> None:
 
 EIGENVALUE_PLOT_ACTION_ID = "varda.processing.eigenvalue_plot"
 SPECTRAL_HOURGLASS_ACTION_ID = "varda.processing.spectral_hourglass"
+FATT_ACTION_ID = "varda.processing.fatt"
 OPTIONAL_FEATURES_ACTION_ID = "varda.processing.optional_features"
 
 PROCESSING_SUBMENUS = processingSubmenus(MenuId.PROCESSING, ANALYSES)
@@ -228,6 +260,17 @@ PROCESSING_ACTIONS = processingActions(
         callback=openSpectralHourglass,
         enablement=EXPR_HAS_IMAGES,
         menus=[MenuRule(id=categoryMenuId(MenuId.PROCESSING, "Endmembers"), order=0)],
+    ),
+    Action(
+        id=FATT_ACTION_ID,
+        title="Factor Analysis Target Transformation…",
+        tooltip=(
+            "Which library spectra the image's factor space reproduces (FATT), "
+            "and where they fit (DAFA/TT)"
+        ),
+        callback=openFatt,
+        enablement=EXPR_HAS_IMAGES,
+        menus=[MenuRule(id=categoryMenuId(MenuId.PROCESSING, "Endmembers"), order=1)],
     ),
     Action(
         id=OPTIONAL_FEATURES_ACTION_ID,

@@ -8,13 +8,10 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QMenu,
     QCheckBox,
-    QComboBox,
     QDoubleSpinBox,
-    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -22,22 +19,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from varda.analysis.spectral_library import (
-    LIBRARY_FORMAT_HELP,
-    MICA_LIBRARY_NAME,
-    USGS_LIBRARY_NAME,
-    LibraryMatch,
-    LibrarySpectrum,
-    loadBundledLibraries,
-    loadLibrary,
-    rankLibrary,
-)
+from varda.analysis.library_picker import LibraryPicker
+from varda.analysis.spectral_library import LibraryMatch, LibrarySpectrum, rankLibrary
 from varda.workspaces.spectral_hourglass.hourglass_model import HourglassModel
 
 _COLUMNS = ["#", "Library spectrum", "Score", "Angle", "Fit RMS"]
 _FLAG_COLORS = {"best": "#2e7d32", "close": "#9e9d24", "far": "#00000000"}
-# CRISM product IDs start with the observation type (FRT, HRL, HRS, FRS, ATO, ...)
-_CRISM_PREFIXES = ("frt", "hrl", "hrs", "frs", "ato", "ats", "msp", "hsp", "fft")
 
 
 class IdentifyPanel(QWidget):
@@ -51,32 +38,17 @@ class IdentifyPanel(QWidget):
     ) -> None:
         super().__init__(parent)
         self.model = model
-        self._libraries: dict[str, list[LibrarySpectrum]] = {}
         self._endmemberId: int | None = None
         self._matches: list[LibraryMatch] = []
         self._excluded: set[str] = set()  # library spectra left out of matching
 
-        self.libraryBox = QComboBox()
-        self.libraryBox.currentIndexChanged.connect(lambda _: self.refresh())
-        if library is not None:
-            self._addLibrary("Library", library)
-        else:
-            for name, spectra in loadBundledLibraries().items():
-                self._addLibrary(name, spectra)
-        loadButton = QPushButton("Load Library…")
-        loadButton.setToolTip(
-            "An ENVI spectral library (.sli), a CSV, or a folder of USGS spectra"
-        )
-        loadButton.clicked.connect(self._loadLibrary)
+        self.picker = LibraryPicker(library)
+        self.picker.sigLibraryChanged.connect(self.refresh)
         self.excludedButton = QPushButton("Excluded (0)")
         self.excludedButton.setToolTip(
             "Library spectra left out of matching; right-click a match to exclude it"
         )
         self.excludedButton.clicked.connect(self._showExcludedMenu)
-        self.helpButton = QPushButton("?")
-        self.helpButton.setFixedWidth(28)
-        self.helpButton.setToolTip("How to prepare a spectral library to load")
-        self.helpButton.clicked.connect(self._showLibraryHelp)
 
         self.windowBox = QCheckBox("Only")
         self.windowBox.setToolTip("Compare only within this wavelength window")
@@ -116,10 +88,8 @@ class IdentifyPanel(QWidget):
         self.titleLabel = QLabel()
 
         libraryRow = QHBoxLayout()
-        libraryRow.addWidget(self.libraryBox, stretch=1)
-        libraryRow.addWidget(loadButton)
+        libraryRow.addWidget(self.picker, stretch=1)
         libraryRow.addWidget(self.excludedButton)
-        libraryRow.addWidget(self.helpButton)
         window = QHBoxLayout()
         window.addWidget(self.windowBox)
         window.addWidget(self.windowLow)
@@ -141,55 +111,13 @@ class IdentifyPanel(QWidget):
 
         model.sigEndmembersChanged.connect(self.refresh)
         if library is None:
-            self._selectDefaultLibrary()
+            self.picker.selectDefaultFor(model.image.name)
 
     # --- libraries --------------------------------------------------------------------
 
-    def _addLibrary(self, name: str, spectra: list[LibrarySpectrum]) -> None:
-        """Add a library and make it current (without refreshing)."""
-        self._libraries[name] = spectra
-        with QSignalBlocker(self.libraryBox):
-            self.libraryBox.addItem(f"{name} ({len(spectra)})", name)
-            self.libraryBox.setCurrentIndex(self.libraryBox.count() - 1)
-
-    def _selectDefaultLibrary(self) -> None:
-        """MICA for CRISM products (by their product-ID prefix), USGS otherwise."""
-        isCrism = self.model.image.name.lower().startswith(_CRISM_PREFIXES)
-        wanted = MICA_LIBRARY_NAME if isCrism else USGS_LIBRARY_NAME
-        index = self.libraryBox.findData(wanted)
-        if index >= 0:
-            self.libraryBox.setCurrentIndex(index)
-
-    def _showLibraryHelp(self) -> None:
-        box = QMessageBox(self)
-        box.setWindowTitle("Preparing a spectral library")
-        box.setTextFormat(Qt.TextFormat.RichText)
-        box.setText(LIBRARY_FORMAT_HELP)
-        box.open()
-
-    def _loadLibrary(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Load Spectral Library",
-            "",
-            "Spectral libraries (*.sli *.hdr *.csv *.txt)",
-        )
-        if not path:
-            return
-        try:
-            spectra = loadLibrary(path)
-        except (OSError, ValueError, KeyError) as error:
-            QMessageBox.warning(
-                self, "Load Library", f"Could not read {path}:\n{error}"
-            )
-            return
-        self._addLibrary(path.rsplit("/", 1)[-1], spectra)
-        self.refresh()
-
     def library(self) -> list[LibrarySpectrum]:
         """The current library minus the excluded spectra."""
-        spectra = self._libraries.get(self.libraryBox.currentData(), [])
-        return [s for s in spectra if s.name not in self._excluded]
+        return [s for s in self.picker.library() if s.name not in self._excluded]
 
     # --- exclusions -------------------------------------------------------------------
 

@@ -68,21 +68,21 @@ def test_bundled_libraries_are_offered_and_crism_images_start_with_mica(qtbot):
     model.image._name = "frt00011a2e_07_if164j_trr3"
     widget = IdentifyPanel(model)
     qtbot.addWidget(widget)
-    names = [widget.libraryBox.itemData(i) for i in range(widget.libraryBox.count())]
+    names = [widget.picker.box.itemData(i) for i in range(widget.picker.box.count())]
     assert names == [MICA_LIBRARY_NAME, USGS_LIBRARY_NAME]
-    assert widget.libraryBox.currentData() == MICA_LIBRARY_NAME
+    assert widget.picker.box.currentData() == MICA_LIBRARY_NAME
 
 
 def test_other_images_start_with_the_usgs_library(qtbot):
     widget = IdentifyPanel(modelWithEndmembers())
     qtbot.addWidget(widget)
-    assert widget.libraryBox.currentData() == USGS_LIBRARY_NAME
+    assert widget.picker.box.currentData() == USGS_LIBRARY_NAME
 
 
 def test_library_help_explains_the_formats(panel):
     for word in ("CSV", "ENVI", "USGS", "wavelength", "spectra names"):
         assert word in LIBRARY_FORMAT_HELP
-    assert panel.helpButton.toolTip()
+    assert panel.picker.helpButton.toolTip()
 
 
 def test_excluded_minerals_drop_out_of_matching(panel):
