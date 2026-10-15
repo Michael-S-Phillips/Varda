@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import geopandas as gpd
 import PyQt6Ads as ads
 import shapely
-from PyQt6.QtCore import QDate, QSortFilterProxyModel, Qt
+from PyQt6.QtCore import QDate, QModelIndex, QSortFilterProxyModel, Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QStatusBar,
     QTableView,
@@ -57,11 +58,34 @@ from varda.workspaces.find_data.catalog_dialogs import (
     applySavedStacApis,
 )
 from varda.workspaces.find_data.downloads_panel import DownloadsPanel
-from varda.workspaces.find_data.map_view import FootprintMap
+from varda.workspaces.find_data.map_view import ADD, REMOVE, FootprintMap
+from varda.workspaces.find_data.projection import MapProjection
 from varda.workspaces.find_data.results_model import SORT_ROLE, ResultsModel
 
 AREA_VIEW, AREA_BOX, AREA_IMAGE = "Map view", "Box on the map", "An image's footprint"
 DEFAULT_LIMIT = 100
+
+
+class SelectedFilter(QSortFilterProxyModel):
+    """Sorts the results; with ``setShown``, lists only those products."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setSortRole(SORT_ROLE)
+        self.shown: set[str] | None = None
+
+    def setShown(self, ids: set[str] | None) -> None:
+        self.shown = ids
+        self.invalidateFilter()
+
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:  # noqa: N803 (Qt's names)
+        if self.shown is None:
+            return True
+        model = self.sourceModel()
+        return (
+            isinstance(model, ResultsModel)
+            and model.products[source_row].id in self.shown
+        )
 
 
 class FindDataWorkspace(QMainWindow):
@@ -81,11 +105,10 @@ class FindDataWorkspace(QMainWindow):
         self.overlayPaths: list[str] = []
 
         self.map = FootprintMap()
-        self.map.sigClicked.connect(self._onMapClicked)
+        self.map.sigSelect.connect(self._onMapSelect)
         self.results = ResultsModel(self)
-        self.proxy = QSortFilterProxyModel(self)
+        self.proxy = SelectedFilter(self)
         self.proxy.setSourceModel(self.results)
-        self.proxy.setSortRole(SORT_ROLE)
         self.table = QTableView()
         self.table.setModel(self.proxy)
         self.table.setSortingEnabled(True)
@@ -125,12 +148,20 @@ class FindDataWorkspace(QMainWindow):
         self.stacApisButton.setToolTip("Add, remove or edit the STAC APIs searched")
         self.stacApisButton.clicked.connect(self._editStacApis)
         self.collectionBox = QComboBox()
+        # wide enough to tell collections apart; the full name is its tooltip
+        self.collectionBox.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.collectionBox.setMinimumContentsLength(32)
+        self.collectionBox.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self.collectionBox.currentIndexChanged.connect(lambda _: self._onCollection())
         self.addFileButton = QPushButton("Add Footprint File…")
         self.addFileButton.clicked.connect(self._addFootprintFile)
         self.filters = QWidget()
-        self.filters.setLayout(QVBoxLayout())
-        self.filters.layout().setContentsMargins(0, 0, 0, 0)
+        self.filtersLayout = QVBoxLayout(self.filters)
+        self.filtersLayout.setContentsMargins(0, 0, 0, 0)
         self.areaBox = QComboBox()
         self.areaBox.addItems([AREA_VIEW, AREA_BOX, AREA_IMAGE])
         self.areaBox.currentIndexChanged.connect(lambda _: self._onArea())
@@ -192,6 +223,10 @@ class FindDataWorkspace(QMainWindow):
 
     def _buildMapBar(self) -> None:
         self.bodyLabel = QLabel()
+        self.projectionBox = QComboBox()
+        for projection in MapProjection:
+            self.projectionBox.addItem(projection.value, projection)
+        self.projectionBox.currentIndexChanged.connect(lambda _: self._onProjection())
         self.basemapBox = QComboBox()
         self.basemapBox.setToolTip(
             "A loaded, georeferenced image of the same body under the footprints"
@@ -208,6 +243,7 @@ class FindDataWorkspace(QMainWindow):
         whole.clicked.connect(self.map.showWhole)
         bar = QHBoxLayout()
         bar.addWidget(self.bodyLabel)
+        bar.addWidget(self.projectionBox)
         bar.addWidget(QLabel("Basemap:"))
         bar.addWidget(self.basemapBox, 1)
         bar.addWidget(overlay)
@@ -248,10 +284,16 @@ class FindDataWorkspace(QMainWindow):
         checkNone.clicked.connect(
             lambda: self.results.setChecked(list(self.results.checked), False)
         )
+        self.onlySelected = QCheckBox("Show only selected")
+        self.onlySelected.setToolTip(
+            "Only the products selected now; selecting on the map changes the list"
+        )
+        self.onlySelected.toggled.connect(self._onOnlySelected)
         bar = QHBoxLayout()
         for button in (add, checkAll, checkNone):
             bar.addWidget(button)
         bar.addStretch()
+        bar.addWidget(self.onlySelected)
         self.resultsPanel = QWidget()
         layout = QVBoxLayout(self.resultsPanel)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -321,11 +363,10 @@ class FindDataWorkspace(QMainWindow):
         self.loginButton.setVisible(bool(catalog.credentialFields))
         self.stacApisButton.setVisible(isinstance(catalog, StacCatalog))
         self.addFileButton.setVisible(isinstance(catalog, FootprintFileCatalog))
-        layout = self.filters.layout()
-        while layout.count():
-            item = layout.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
+        layout = self.filtersLayout
+        while (item := layout.takeAt(0)) is not None:
+            if (widget := item.widget()) is not None:
+                widget.deleteLater()
         if catalog.params:
             layout.addWidget(groupWidget(catalog))
         else:
@@ -368,6 +409,7 @@ class FindDataWorkspace(QMainWindow):
     def _onCollection(self) -> None:
         body = self.body()
         self.bodyLabel.setText(f"<b>{body}</b>" if body else "")
+        self.map.setProjection(self.projectionBox.currentData(), body)
         images = [i for i in self.projectImages if imageBody(i) == body] if body else []
         for box in (self.basemapBox, self.areaImage):
             box.blockSignals(True)
@@ -453,6 +495,7 @@ class FindDataWorkspace(QMainWindow):
             self.searchStatus.setText("This catalog needs a login.")
             return
         self._query = query
+        self.onlySelected.setChecked(False)  # a new search lists everything
         self.results.setProducts([])
         self._run(query, append=False)
 
@@ -534,25 +577,39 @@ class FindDataWorkspace(QMainWindow):
         )
         return [self.results.products[r] for r in rows]
 
-    def selectProducts(self, ids: list[str], add: bool = False) -> None:
+    def selectProducts(
+        self, ids: list[str], add: bool = False, remove: bool = False
+    ) -> None:
+        """Select products (adding to the selection, or removing from it).
+        With Show only selected, the table then lists the new selection."""
+        current = {p.id for p in self.selectedProducts()}
+        wanted = (
+            current - set(ids) if remove else (current | set(ids) if add else set(ids))
+        )
+        if self.onlySelected.isChecked():
+            self.proxy.setShown(wanted)
         selection = self.table.selectionModel()
         assert selection is not None
-        if not add:
-            selection.clearSelection()
+        selection.clearSelection()
         for row, product in enumerate(self.results.products):
-            if product.id in ids:
+            if product.id in wanted:
                 index = self.proxy.mapFromSource(self.results.index(row, 1))
+                if not index.isValid():
+                    continue
                 selection.select(
                     index,
                     selection.SelectionFlag.Select | selection.SelectionFlag.Rows,
                 )
-                self.table.scrollTo(index)
+                if product.id in ids:
+                    self.table.scrollTo(index)
 
-    def _onMapClicked(self, longitude: float, latitude: float, add: bool) -> None:
-        point = shapely.Point(longitude, latitude)
-        hits = [p.id for p in self.results.products if p.footprint.covers(point)]
-        if hits or not add:
-            self.selectProducts(hits, add)
+    def _onMapSelect(self, ids: list[str], mode: str) -> None:
+        self.selectProducts(ids, add=mode == ADD, remove=mode == REMOVE)
+
+    def _onOnlySelected(self, only: bool) -> None:
+        selected = [p.id for p in self.selectedProducts()]
+        self.proxy.setShown(set(selected) if only else None)
+        self.selectProducts(selected)
 
     def _onSelection(self) -> None:
         products = self.selectedProducts()
@@ -609,27 +666,33 @@ class FindDataWorkspace(QMainWindow):
 
     # --- basemap and overlays -----------------------------------------------------------------
 
+    def _onProjection(self) -> None:
+        self.map.setProjection(self.projectionBox.currentData(), self.body())
+        self._onBasemap()
+
     def _onBasemap(self) -> None:
         image = self.basemapBox.currentData()
         if image is None:
             self.map.setBasemap(None)
             return
-        body = self.body()
+        projector = self.map.projector
         self.status.showMessage(f"Reprojecting {image.name} for the map…")
         runInBackground(
-            lambda: basemap(image, body),
-            lambda result: self._showBasemap(*result),
+            lambda: basemap(image, projector),
+            lambda result: self._showBasemap(projector, *result),
             lambda error: self.status.showMessage(
                 f"The basemap couldn't be drawn: {error}", 8000
             ),
             description="Drawing a basemap",
         )
 
-    def _showBasemap(self, rgba, bounds) -> None:
+    def _showBasemap(self, projector, rgba, bounds) -> None:
+        if projector is not self.map.projector:
+            return  # drawn for a projection the map has left
         self.map.setBasemap(rgba, bounds)
         self.status.clearMessage()
         if not self.results.products:
-            self.map.zoomTo(bounds, padding=0.05)
+            self.map.zoomToMap(bounds, padding=0.05)
 
     def _chooseOverlay(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -664,6 +727,7 @@ class FindDataWorkspace(QMainWindow):
             "catalog": self.catalogBox.currentData(),
             "collection": collection.id if collection else "",
             "area": self.areaBox.currentText(),
+            "projection": self.projectionBox.currentData().name,
             "box": list(self.map.areaBounds()),
             "view": list(self.map.viewBounds()),
             "footprintFiles": list(FootprintFileCatalog.paths),
@@ -679,6 +743,9 @@ class FindDataWorkspace(QMainWindow):
             self.catalogBox.blockSignals(True)
             self.catalogBox.setCurrentIndex(index)
             self.catalogBox.blockSignals(False)
+        projection = MapProjection.__members__.get(state.get("projection", ""))
+        if projection is not None:
+            self.projectionBox.setCurrentIndex(self.projectionBox.findData(projection))
         self._onCatalog(select=state.get("collection", ""))
         area = self.areaBox.findText(state.get("area", AREA_VIEW))
         self.areaBox.setCurrentIndex(max(area, 0))

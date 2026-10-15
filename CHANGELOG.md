@@ -28,6 +28,15 @@ can alter results.
     commands.
   - Catalogs that need a login ask for it once and keep it in the system
     keychain; the STAC APIs searched can be edited (STAC APIs…).
+  - **Map projections:** equirectangular, or north or south polar
+    stereographic, with a graticule that gets finer as you zoom in and the
+    pointer's latitude and longitude below the map. Basemaps, overlays and
+    the search box follow the projection; a view around a pole searches
+    every longitude.
+  - **Selecting on the map:** click selects the footprints under the
+    pointer, Shift-click adds, Cmd-click (Ctrl-click) removes, and
+    Shift-drag adds every footprint a box touches. **Show only selected**
+    narrows the results table to the selection.
 
 ## 0.8.0 (2026-10-15)
 

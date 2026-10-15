@@ -1,6 +1,8 @@
-"""The find-data map: footprints in longitude and latitude (equirectangular),
-over a graticule, a basemap image and vector overlays, with a box to search
-in. Clicking selects the footprints under the pointer."""
+"""The find-data map: footprints over a graticule, a basemap image and vector
+overlays, in equirectangular or polar stereographic (``projection``), with a
+box to search in. Click selects the footprints under the pointer, Shift adds
+to the selection, Cmd (Ctrl) removes from it, and Shift-drag adds every
+footprint a box touches."""
 
 from __future__ import annotations
 
@@ -10,16 +12,25 @@ import numpy as np
 import pyqtgraph as pg
 import shapely
 from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
-from PyQt6.QtWidgets import QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QGraphicsRectItem, QLabel, QVBoxLayout, QWidget
 
 from varda.catalogs.catalog import Product
+from varda.workspaces.find_data.projection import (
+    Bounds,
+    MapProjection,
+    Projector,
+    graticule,
+)
 
 FOOTPRINT_PEN = pg.mkPen("#38c8ff", width=1)
 SELECTED_PEN = pg.mkPen("#ffd200", width=2.5)
 AREA_PEN = pg.mkPen("#ff4fd8", width=2, style=Qt.PenStyle.DashLine)
+BAND_PEN = pg.mkPen("#ffd200", width=1, style=Qt.PenStyle.DashLine)
+GRATICULE_PEN = pg.mkPen((255, 255, 255, 70), width=1)
 OVERLAY_COLORS = ("#7CFC00", "#ff8c00", "#ff4040", "#c080ff", "#ffffff")
 
-Bounds = tuple[float, float, float, float]  # west, south, east, north
+# What a click or a box does to the selection
+REPLACE, ADD, REMOVE = "replace", "add", "remove"
 
 
 def outlines(geometries: Sequence[shapely.Geometry]) -> tuple[np.ndarray, np.ndarray]:
@@ -45,19 +56,63 @@ def outlines(geometries: Sequence[shapely.Geometry]) -> tuple[np.ndarray, np.nda
     return np.concatenate(xs), np.concatenate(ys)
 
 
+class MapViewBox(pg.ViewBox):
+    """Shift-drag draws a box (sigBoxed, in map coordinates) instead of
+    panning."""
+
+    sigBoxed = pyqtSignal(QRectF)
+
+    def __init__(self):
+        super().__init__()
+        self.band = QGraphicsRectItem()
+        self.band.setPen(BAND_PEN)
+        self.band.setZValue(20)
+        self.band.hide()
+        self.addItem(self.band, ignoreBounds=True)
+
+    def mouseDragEvent(self, ev, axis=None):
+        if (
+            ev.button() != Qt.MouseButton.LeftButton
+            or not ev.modifiers() & Qt.KeyboardModifier.ShiftModifier
+        ):
+            super().mouseDragEvent(ev, axis)
+            return
+        ev.accept()
+        rect = QRectF(
+            self.mapSceneToView(ev.buttonDownScenePos()),
+            self.mapSceneToView(ev.scenePos()),
+        ).normalized()
+        if ev.isFinish():
+            self.band.hide()
+            self.sigBoxed.emit(rect)
+        else:
+            self.band.setRect(rect)
+            self.band.show()
+
+
 class FootprintMap(QWidget):
-    sigClicked = pyqtSignal(float, float, bool)  # longitude, latitude, add to selection
+    # product ids, and REPLACE, ADD or REMOVE
+    sigSelect = pyqtSignal(list, str)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.plot = pg.PlotWidget()
+        self.projector = Projector()
+        self._products: list[Product] = []
+        self._shapes: list[shapely.Geometry] = []  # the footprints, projected
+        self._selectedProducts: list[Product] = []
+        self._overlayLayers: list[list[shapely.Geometry]] = []
+        self._overlays: list[pg.GraphicsObject] = []
+        self._labels: list[pg.TextItem] = []
+        self.viewBox = MapViewBox()
+        self.viewBox.sigBoxed.connect(self._onBox)
+        self.plot = pg.PlotWidget(viewBox=self.viewBox)
         self.plot.setAspectLocked(True)
-        self.plot.showGrid(x=True, y=True, alpha=0.25)
-        self.plot.setLabel("bottom", "Longitude (°E)")
-        self.plot.setLabel("left", "Latitude (°)")
         self.basemapItem = pg.ImageItem()
         self.basemapItem.setZValue(-10)
         self.plot.addItem(self.basemapItem)
+        self.graticuleItem = pg.PlotCurveItem(pen=GRATICULE_PEN, connect="finite")
+        self.graticuleItem.setZValue(-5)
+        self.plot.addItem(self.graticuleItem)
         self.footprints = pg.PlotCurveItem(pen=FOOTPRINT_PEN, connect="finite")
         self.selected = pg.PlotCurveItem(pen=SELECTED_PEN, connect="finite")
         self.selected.setZValue(5)
@@ -68,77 +123,161 @@ class FootprintMap(QWidget):
         )
         self.area.setVisible(False)
         self.plot.addItem(self.area)
-        self._overlays: list[pg.GraphicsObject] = []
-        self.plot.scene().sigMouseClicked.connect(self._onClick)
+        scene = self.plot.scene()
+        assert isinstance(scene, pg.GraphicsScene)
+        scene.sigMouseClicked.connect(self._onClick)
+        scene.sigMouseMoved.connect(self._onMove)
+        self.viewBox.sigRangeChanged.connect(lambda *_: self._drawGraticule())
+        self.pointer = QLabel()
+        self.pointer.setToolTip(
+            "Click selects footprints; Shift-click adds, Cmd-click (Ctrl-click) "
+            "removes; Shift-drag adds every footprint in a box."
+        )
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.plot)
+        layout.addWidget(self.plot, 1)
+        layout.addWidget(self.pointer)
+        self._showAxes()
         self.showWhole()
 
+    # --- projection and view -------------------------------------------------------------
+
+    def setProjection(self, projection: MapProjection, body: str) -> None:
+        """Draw in ``projection`` on ``body``'s sphere, keeping the view and
+        the search box where they were (the basemap must be drawn again)."""
+        if (projection, body or "Earth") == (
+            self.projector.projection,
+            self.projector.body,
+        ):
+            return
+        view, area = self.viewBounds(), self.areaBounds()
+        self.projector = Projector(projection, body)
+        self.basemapItem.clear()
+        self._showAxes()
+        self.setFootprints(self._products)
+        self.setSelected(self._selectedProducts)
+        layers, self._overlayLayers = self._overlayLayers, []
+        self.clearOverlays()
+        for geometries in layers:
+            self.addOverlay(geometries)
+        self.setArea(area)
+        self.zoomTo(view, padding=0)
+
+    def _showAxes(self) -> None:
+        polar = self.projector.polar
+        for axis in ("bottom", "left"):
+            self.plot.showAxis(axis, not polar)
+        self.plot.showGrid(x=not polar, y=not polar, alpha=0.25)
+        if not polar:
+            self.plot.setLabel("bottom", "Longitude (°E)")
+            self.plot.setLabel("left", "Latitude (°)")
+        self._drawGraticule()
+
+    def _drawGraticule(self) -> None:
+        for label in self._labels:
+            self.viewBox.removeItem(label)
+        self._labels = []
+        if not self.projector.polar:
+            self.graticuleItem.setData([], [])
+            return
+        lines, labels = graticule(self.projector, self.mapView())
+        self.graticuleItem.setData(*outlines(lines))
+        for x, y, text in labels:
+            label = pg.TextItem(text, color=(255, 255, 255, 150), anchor=(0, 1))
+            label.setPos(x, y)
+            label.setZValue(-4)
+            self.viewBox.addItem(label, ignoreBounds=True)
+            self._labels.append(label)
+
+    def mapView(self) -> Bounds:
+        """The view in map coordinates."""
+        (x0, x1), (y0, y1) = self.viewBox.viewRange()
+        return (x0, y0, x1, y1)
+
     def showWhole(self) -> None:
-        self.plot.getViewBox().setRange(
-            xRange=(-180, 180), yRange=(-90, 90), padding=0.02
-        )
+        self.zoomTo(self.projector.hemisphere, padding=0.02)
 
     def zoomTo(self, bounds: Bounds, padding: float = 0.15) -> None:
-        west, south, east, north = bounds
-        self.plot.getViewBox().setRange(
-            xRange=(west, east), yRange=(south, north), padding=padding
-        )
+        """Show longitude-latitude bounds."""
+        mapBounds = self.projector.mapBounds(bounds)
+        if mapBounds is not None:
+            self.zoomToMap(mapBounds, padding)
+
+    def zoomToMap(self, bounds: Bounds, padding: float = 0.15) -> None:
+        x0, y0, x1, y1 = bounds
+        self.viewBox.setRange(xRange=(x0, x1), yRange=(y0, y1), padding=padding)
 
     def viewBounds(self) -> Bounds:
-        (west, east), (south, north) = self.plot.getViewBox().viewRange()
-        return (
-            max(west, -180.0),
-            max(south, -90.0),
-            min(east, 180.0),
-            min(north, 90.0),
+        """The view in longitude and latitude."""
+        return self.projector.lonLatBounds(self.mapView())
+
+    def _onMove(self, position: QPointF) -> None:
+        point = self.viewBox.mapSceneToView(position)
+        longitude, latitude = (
+            float(v) for v in self.projector.inverse(point.x(), point.y())
+        )
+        self.pointer.setText(
+            f"{abs(latitude):.3f}°{'N' if latitude >= 0 else 'S'}, {longitude:.3f}°E"
         )
 
     # --- the search box ---------------------------------------------------------------
 
     def showArea(self, visible: bool) -> None:
         if visible and not self.area.isVisible():
-            west, south, east, north = self.viewBounds()
-            width, height = east - west, north - south
-            self.area.setPos((west + width / 4, south + height / 4))
+            x0, y0, x1, y1 = self.mapView()
+            width, height = x1 - x0, y1 - y0
+            self.area.setPos((x0 + width / 4, y0 + height / 4))
             self.area.setSize((width / 2, height / 2))
         self.area.setVisible(visible)
 
     def areaBounds(self) -> Bounds:
+        """The search box in longitude and latitude."""
         x, y = self.area.pos()
         width, height = self.area.size()
-        return (float(x), float(y), float(x + width), float(y + height))
+        return self.projector.lonLatBounds(
+            (float(x), float(y), float(x + width), float(y + height))
+        )
 
     def setArea(self, bounds: Bounds) -> None:
-        west, south, east, north = bounds
-        self.area.setPos((west, south))
-        self.area.setSize((east - west, north - south))
+        mapBounds = self.projector.mapBounds(bounds)
+        if mapBounds is None:
+            return
+        x0, y0, x1, y1 = mapBounds
+        self.area.setPos((x0, y0))
+        self.area.setSize((x1 - x0, y1 - y0))
 
     # --- layers ------------------------------------------------------------------------
 
     def setFootprints(self, products: Sequence[Product]) -> None:
-        x, y = outlines([p.footprint for p in products])
-        self.footprints.setData(x, y)
+        self._products = list(products)
+        self._shapes = [self.projector.geometry(p.footprint) for p in self._products]
+        self.footprints.setData(*outlines(self._shapes))
 
     def setSelected(self, products: Sequence[Product]) -> None:
-        x, y = outlines([p.footprint for p in products])
-        self.selected.setData(x, y)
+        self._selectedProducts = list(products)
+        shapes = [self.projector.geometry(p.footprint) for p in self._selectedProducts]
+        self.selected.setData(*outlines(shapes))
 
     def setBasemap(self, rgba: np.ndarray | None, bounds: Bounds | None = None) -> None:
+        """An RGBA image (rows north to south) covering ``bounds`` in map
+        coordinates."""
         if rgba is None or bounds is None:
             self.basemapItem.clear()
             return
-        west, south, east, north = bounds
+        x0, y0, x1, y1 = bounds
         # rows run north to south; the plot's y runs up
         self.basemapItem.setImage(rgba[::-1].transpose(1, 0, 2), autoLevels=False)
-        self.basemapItem.setRect(QRectF(west, south, east - west, north - south))
+        self.basemapItem.setRect(QRectF(x0, y0, x1 - x0, y1 - y0))
 
     def addOverlay(self, geometries: Sequence[shapely.Geometry]) -> None:
-        color = OVERLAY_COLORS[len(self._overlays) % len(OVERLAY_COLORS)]
-        x, y = outlines(geometries)
+        """Longitude-latitude geometries, drawn in the next color."""
+        color = OVERLAY_COLORS[len(self._overlayLayers) % len(OVERLAY_COLORS)]
+        self._overlayLayers.append(list(geometries))
+        shapes = [self.projector.geometry(g) for g in geometries]
+        shapes = [g for g in shapes if not g.is_empty]
+        x, y = outlines(shapes)
         points = [
-            g for g in geometries if isinstance(g, (shapely.Point, shapely.MultiPoint))
+            g for g in shapes if isinstance(g, (shapely.Point, shapely.MultiPoint))
         ]
         item = pg.PlotCurveItem(x, y, pen=pg.mkPen(color, width=2), connect="finite")
         item.setZValue(3)
@@ -156,14 +295,35 @@ class FootprintMap(QWidget):
     def clearOverlays(self) -> None:
         for item in self._overlays:
             self.plot.removeItem(item)
-        self._overlays = []
+        self._overlays, self._overlayLayers = [], []
+
+    # --- selecting ---------------------------------------------------------------------------
+
+    def productsIn(self, shape: shapely.Geometry) -> list[str]:
+        """The ids of the footprints that touch a shape in map coordinates."""
+        return [
+            p.id
+            for p, s in zip(self._products, self._shapes)
+            if not s.is_empty and s.intersects(shape)
+        ]
 
     def _onClick(self, event) -> None:
         if event.button() != Qt.MouseButton.LeftButton or event.double():
             return
-        point: QPointF = self.plot.getViewBox().mapSceneToView(event.scenePos())
-        add = bool(
-            event.modifiers()
-            & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
-        )
-        self.sigClicked.emit(point.x(), point.y(), add)
+        point: QPointF = self.viewBox.mapSceneToView(event.scenePos())
+        modifiers = event.modifiers()
+        if modifiers & Qt.KeyboardModifier.ControlModifier:  # Cmd on a Mac
+            mode = REMOVE
+        elif modifiers & Qt.KeyboardModifier.ShiftModifier:
+            mode = ADD
+        else:
+            mode = REPLACE
+        hits = self.productsIn(shapely.Point(point.x(), point.y()))
+        if hits or mode == REPLACE:
+            self.sigSelect.emit(hits, mode)
+
+    def _onBox(self, rect: QRectF) -> None:
+        box = shapely.box(rect.left(), rect.top(), rect.right(), rect.bottom())
+        hits = self.productsIn(box)
+        if hits:
+            self.sigSelect.emit(hits, ADD)
