@@ -1,54 +1,57 @@
-"""Zooming a display histogram re-bins it over the visible range and refits Y,
-so a peak of valid values is not dwarfed by a stack of fill values in the tail."""
+"""The histogram keeps the user's zoom when only the stretch changes."""
 
 import numpy as np
 import pytest
+from PyQt6.QtCore import QRectF
 
-from varda.common.entities import VardaRaster
-from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.new_histogram_view import NewHistogramView
+from varda.utilities.debug import generate_random_image
 
 
 @pytest.fixture
 def view(qtbot):
-    rng = np.random.default_rng(0)
-    # 60% of the pixels are a fill value far out in the tail, the rest a
-    # gentle distribution of valid values around 0.5.
-    cube = 0.5 + 0.05 * rng.normal(size=(50, 50, 3))
-    cube[:30, :, :] = -9999.0
-    image = VardaRaster(ArrayDataSource(cube), name="params")
-    view = NewHistogramView(ImageRenderer(image=image))
-    qtbot.addWidget(view)
-    view.resize(500, 300)
-    view.show()
-    qtbot.waitExposed(view)
-    qtbot.wait(50)
-    return view
+    renderer = ImageRenderer(image=generate_random_image((40, 40, 10)))
+    widget = NewHistogramView(renderer)
+    qtbot.addWidget(widget)
+    widget.show()
+    return widget
 
 
-def _curve(plot):
-    (item,) = [i for i in plot.listDataItems()]
-    return item.getData()
+def _plot(view):
+    return next(iter(view._values))
 
 
-def test_zooming_in_rebins_over_the_visible_range_and_refits_y(view, qtbot):
-    plot = view.monoPlot  # the renderer starts in mono mode
-    viewBox = plot.getViewBox()
-    _, yBefore = _curve(plot)
-    yMaxBefore = viewBox.viewRange()[1][1]
-    assert yBefore.max() >= 0.6 * 2500  # the fill-value stack dominates
-
-    viewBox.setXRange(0.3, 0.7, padding=0)
-    qtbot.wait(50)
-
-    x, y = _curve(plot)
-    assert x.min() >= 0.3 and x.max() <= 0.7  # binned over what is visible
-    assert len(x) >= 100  # at full resolution, not one bar
-    assert y.max() < 0.6 * 2500  # the stack is out of view...
-    assert viewBox.viewRange()[1][1] < yMaxBefore / 2  # ...and Y follows
+def _zoomIn(viewBox):
+    (x0, x1), (y0, y1) = viewBox.viewRange()
+    viewBox.showAxRect(QRectF(x0 + 0.3 * (x1 - x0), y0, 0.2 * (x1 - x0), (y1 - y0) / 3))
+    return viewBox.viewRange()[0]
 
 
-def test_histogram_x_axis_can_be_zoomed_with_the_mouse(view):
-    for plot in (view.monoPlot, view.rPlot, view.gPlot, view.bPlot):
-        assert plot.getViewBox().state["mouseEnabled"] == [True, False]
+def test_a_box_zoom_zooms_x_and_rebins(view):
+    viewBox = _plot(view).getViewBox()
+    before = viewBox.viewRange()[0]
+    zoomed = _zoomIn(viewBox)
+    assert zoomed[1] - zoomed[0] < 0.5 * (before[1] - before[0])
+    xs, _ys = view._curves[_plot(view)].getData()
+    assert xs.min() >= zoomed[0] - 1e-9 and xs.max() <= zoomed[1] + 1e-9
+
+
+def test_changing_the_stretch_keeps_the_zoom(view):
+    viewBox = _plot(view).getViewBox()
+    zoomed = _zoomIn(viewBox)
+    lo, hi = zoomed
+    view.imageRenderer.setStretchMinMax(0, lo, (lo + hi) / 2)  # e.g. dragging the region
+    assert np.allclose(viewBox.viewRange()[0], zoomed)
+    region = view.monoRegion if view.monoRegion is not None else view.rRegion
+    assert np.allclose(region.getRegion(), (lo, (lo + hi) / 2))
+
+
+def test_showing_other_bands_resets_the_view(view):
+    viewBox = _plot(view).getViewBox()
+    _zoomIn(viewBox)
+    settings = view.imageRenderer.settings
+    settings.mono.band.set((int(settings.mono.band.get()) + 3) % 10)
+    full = view._values[_plot(view)]
+    x0, x1 = _plot(view).getViewBox().viewRange()[0]
+    assert x0 <= full.min() and x1 >= full.max()

@@ -4,6 +4,14 @@ Notable changes to Varda. Release notes on GitHub are generated from pull
 requests; this file records what users need to know, especially changes that
 can alter results.
 
+## Unreleased
+
+### Fixed
+
+- **The histogram keeps its zoom when the stretch changes.** Dragging a
+  stretch region (or changing the stretch) snapped the histogram back to the
+  full range, which also undid a span you'd just zoomed to.
+
 ## 0.7.2 (2026-10-15)
 
 ### Added
