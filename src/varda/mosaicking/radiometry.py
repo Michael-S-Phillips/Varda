@@ -17,6 +17,7 @@ resampling. Held images keep their values; the others are corrected:
 from __future__ import annotations
 
 import math
+import warnings
 from collections import deque
 from collections.abc import Callable, Iterable
 
@@ -143,7 +144,9 @@ def _overlapSamples(
                 cubes[key] = readCube(item)
             values = sampleOnGrid(item, cubes[key], coarse, Resampling.NEAREST)
             samples.append(values.reshape(-1, values.shape[2]))
-        valid = np.isfinite(samples[0]).all(axis=1) & np.isfinite(samples[1]).all(
+        # Pixels both images have data in (a band either is missing stays NaN
+        # and is left out of that band's statistics)
+        valid = np.isfinite(samples[0]).any(axis=1) & np.isfinite(samples[1]).any(
             axis=1
         )
         if valid.sum() >= MIN_SAMPLES:
@@ -173,7 +176,12 @@ def _samplesOf(pairs: dict[tuple[int, int], Pair], key: int, other: int) -> Pair
 
 
 def _robustLine(x: np.ndarray, y: np.ndarray, mode: LinearMode) -> tuple[float, float]:
-    """y ≈ gain·x + offset, refitted without residuals beyond TRIM sigmas."""
+    """y ≈ gain·x + offset, refitted without residuals beyond TRIM sigmas;
+    pairs missing either value are left out (gain 1, offset 0 if too few)."""
+    finite = np.isfinite(x) & np.isfinite(y)
+    if finite.sum() < MIN_SAMPLES:
+        return 1.0, 0.0
+    x, y = x[finite], y[finite]
     keep = np.ones(len(x), bool)
     gain, offset = 1.0, 0.0
     for _ in range(3):
@@ -236,21 +244,14 @@ def _global(
     gains = np.ones((len(keys), bands))
     offsets = np.zeros((len(keys), bands))
     position = {k: n for n, k in enumerate(keys)}
-    stats = {
-        pair: (
-            np.std(a, axis=0),
-            np.std(b, axis=0),
-            np.mean(a, axis=0),
-            np.mean(b, axis=0),
-            len(a),
-        )
-        for pair, (a, b) in pairs.items()
-    }
+    stats = {pair: _pairStats(a, b) for pair, (a, b) in pairs.items()}
     if free and mode is not LinearMode.OFFSET:
         for band in range(bands):
             rows, rhs = [], []
             for (i, j), (si, sj, _, _, n) in stats.items():
-                row, value, weight = np.zeros(len(free)), 0.0, math.sqrt(n)
+                if not (np.isfinite(si[band]) and np.isfinite(sj[band])):
+                    continue  # too few pixels share this band
+                row, value, weight = np.zeros(len(free)), 0.0, math.sqrt(n[band])
                 for key, coefficient in ((i, si[band]), (j, -sj[band])):
                     if key in column:
                         row[column[key]] += coefficient * weight
@@ -258,14 +259,15 @@ def _global(
                         value -= coefficient * weight  # a held gain is 1
                 rows.append(row)
                 rhs.append(value)
-            solution = np.linalg.lstsq(np.array(rows), np.array(rhs), rcond=None)[0]
-            for key, n in column.items():
-                gains[position[key], band] = solution[n]
+            for key, solved in _solve(rows, rhs, column).items():
+                gains[position[key], band] = solved
     if free and mode is not LinearMode.GAIN:
         for band in range(bands):
             rows, rhs = [], []
             for (i, j), (_, _, mi, mj, n) in stats.items():
-                row, weight = np.zeros(len(free)), math.sqrt(n)
+                if not (np.isfinite(mi[band]) and np.isfinite(mj[band])):
+                    continue
+                row, weight = np.zeros(len(free)), math.sqrt(n[band])
                 # (g_i·m_i + o_i) - (g_j·m_j + o_j) = 0
                 value = (
                     gains[position[j], band] * mj[band]
@@ -276,10 +278,46 @@ def _global(
                         row[column[key]] += sign * weight
                 rows.append(row)
                 rhs.append(value)
-            solution = np.linalg.lstsq(np.array(rows), np.array(rhs), rcond=None)[0]
-            for key, n in column.items():
-                offsets[position[key], band] = solution[n]
+            for key, solved in _solve(rows, rhs, column).items():
+                offsets[position[key], band] = solved
     return {k: Correction(gains[position[k]], offsets[position[k]]) for k in free}
+
+
+def _solve(
+    rows: list[np.ndarray], rhs: list[float], column: dict[int, int]
+) -> dict[int, float]:
+    """The least-squares values of the images the equations constrain (an
+    image with no usable overlap in a band keeps its default)."""
+    if not rows:
+        return {}
+    matrix = np.array(rows)
+    solution = np.linalg.lstsq(matrix, np.array(rhs), rcond=None)[0]
+    return {
+        key: float(solution[n]) for key, n in column.items() if np.any(matrix[:, n])
+    }
+
+
+def _pairStats(
+    a: np.ndarray, b: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Per band: each image's standard deviation and mean over the pixels
+    both have that band in, and how many there are (NaN statistics where
+    too few)."""
+    both = np.isfinite(a) & np.isfinite(b)
+    counts = both.sum(axis=0)
+    a, b = np.where(both, a, np.nan), np.where(both, b, np.nan)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # empty bands stay NaN
+        stats = [
+            np.nanstd(a, axis=0),
+            np.nanstd(b, axis=0),
+            np.nanmean(a, axis=0),
+            np.nanmean(b, axis=0),
+        ]
+    few = counts < MIN_SAMPLES
+    for value in stats:
+        value[few] = np.nan
+    return stats[0], stats[1], stats[2], stats[3], counts
 
 
 def _histograms(
@@ -298,14 +336,19 @@ def _histograms(
         for key in sorted(neighbors[done] - set(corrections)):
             mine, theirs = _samplesOf(pairs, key, done)
             theirs = corrections[done].apply(theirs)
-            lutIn = np.percentile(mine, levels, axis=0).T  # (bands, quantiles)
-            lutOut = np.percentile(theirs, levels, axis=0).T
             ins, outs = [], []
             for b in range(bands):
-                x, first = np.unique(lutIn[b], return_index=True)  # increasing
+                both = np.isfinite(mine[:, b]) & np.isfinite(theirs[:, b])
+                if both.sum() < MIN_SAMPLES:  # nothing to match: leave the band
+                    ins.append(levels.copy())
+                    outs.append(levels.copy())
+                    continue
+                lutIn = np.percentile(mine[both, b], levels)
+                lutOut = np.percentile(theirs[both, b], levels)
+                x, first = np.unique(lutIn, return_index=True)  # increasing
                 ins.append(np.interp(levels, np.linspace(0, 100, len(x)), x))
                 outs.append(
-                    np.interp(levels, np.linspace(0, 100, len(x)), lutOut[b][first])
+                    np.interp(levels, np.linspace(0, 100, len(x)), lutOut[first])
                 )
             corrections[key] = Correction(
                 np.ones(bands), np.zeros(bands), np.array(ins), np.array(outs)

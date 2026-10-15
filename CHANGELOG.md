@@ -71,6 +71,12 @@ can alter results.
 
 ### Fixed
 
+- **Mosaics no longer have gashes where an image misses a few bands.** A
+  pixel missing data in some bands (a bad CRISM detector column, say) was
+  dropped whole, leaving holes, or the image below, in the export (the
+  display-band preview didn't show it). A pixel now counts when at least half
+  its bands have data, as analyses treat it, and is copied as measured;
+  radiometric balancing, seams and feathering handle missing bands per band.
 - **The histogram keeps its zoom when the stretch changes.** Dragging a
   stretch region (or changing the stretch) snapped the histogram back to the
   full range, which also undid a span you'd just zoomed to.

@@ -59,8 +59,9 @@ def computeSeams(
         if coarse is None:
             continue
         a, b = (_sample(item, coarse, cubes) for item in (top, bottom))
-        validA = np.asarray(np.isfinite(a).all(axis=2))
-        validB = np.asarray(np.isfinite(b).all(axis=2))
+        # sampleOnGrid empties pixels without data; others may miss a band
+        validA = np.asarray(np.isfinite(a).any(axis=2))
+        validB = np.asarray(np.isfinite(b).any(axis=2))
         both = validA & validB
         if min(coarse.width, coarse.height) < MIN_OVERLAP or not both.any():
             continue
@@ -129,8 +130,8 @@ def _leastDifference(
     both = validA & validB
     rows, cols = np.nonzero(both)
     top, bottom, left, right = rows.min(), rows.max(), cols.min(), cols.max()
-    spread = a[both].std(axis=0)
-    spread = np.where(spread > 0, spread, 1.0)
+    spread = np.nanstd(a[both], axis=0)
+    spread = np.where(np.isfinite(spread) & (spread > 0), spread, 1.0)
     difference = np.mean(np.abs(np.nan_to_num(a - b)) / spread, axis=2)
     cost = np.where(both, difference + 1e-3, np.inf)  # a little length cost
     vertical = (bottom - top) >= (right - left)
