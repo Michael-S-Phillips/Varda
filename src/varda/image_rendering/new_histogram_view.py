@@ -4,7 +4,8 @@ drawn on top as a draggable region.
 The X axis can be zoomed (wheel, drag; Shift/Ctrl/Cmd-drag zooms to a box).
 Each zoom re-bins the histogram over the visible range and refits the Y axis,
 so a distribution of valid values stays readable next to a stack of fill
-values far out in the tail.
+values far out in the tail. A change of stretch only moves the regions, so
+the zoom stays; the view resets when other data is shown.
 """
 
 import logging
@@ -44,6 +45,9 @@ class NewHistogramView(QWidget):
         self._values: dict[pg.PlotWidget, np.ndarray] = {}
         self._curves: dict[pg.PlotWidget, pg.PlotDataItem] = {}
         self._rebinning = False
+        # What the plots show (the renderer's cached band data, and the mode):
+        # while it's unchanged, a refresh only moves the stretch regions
+        self._shown: tuple[object, object] | None = None
 
         self.rRegion: pg.LinearRegionItem | None = None
         self.gRegion: pg.LinearRegionItem | None = None
@@ -72,17 +76,30 @@ class NewHistogramView(QWidget):
         mode = renderer.settings.mode.get()
         self.layout().setCurrentIndex(1 if mode == RenderMode.MONO else 0)
 
-        # clear curves (this also removes region items; they are re-added below)
-        for plot in (self.rPlot, self.gPlot, self.bPlot, self.monoPlot):
-            plot.clear()
-        self._values.clear()
-        self._curves.clear()
-
         minMaxVals = renderer.getMinMaxValues()
         if minMaxVals is not None:
             data = renderer.getRawBandData()
         else:
             data = renderer.getStretchedData()
+
+        if (
+            self._shown is not None
+            and self._shown[0] is data
+            and self._shown[1] == mode
+        ):
+            # Same data, new stretch (e.g. a region was dragged): keep the zoom
+            if mode == RenderMode.MONO:
+                self._syncMonoRegion(minMaxVals)
+            else:
+                self._syncRgbRegions(minMaxVals)
+            return
+        self._shown = (data, mode)
+
+        # clear curves (this also removes region items; they are re-added below)
+        for plot in (self.rPlot, self.gPlot, self.bPlot, self.monoPlot):
+            plot.clear()
+        self._values.clear()
+        self._curves.clear()
 
         if mode == RenderMode.MONO:
             self._plotHistogram(data.ravel(), self.monoPlot, "w", (255, 255, 255, 50))
@@ -141,7 +158,8 @@ class NewHistogramView(QWidget):
         else:
             with QSignalBlocker(self.monoRegion):
                 self.monoRegion.setRegion((lo, hi))
-        self.monoPlot.plotItem.addItem(self.monoRegion, ignoreBounds=True)
+        if self.monoRegion not in self.monoPlot.plotItem.items:
+            self.monoPlot.plotItem.addItem(self.monoRegion, ignoreBounds=True)
 
     def _onMonoRegionChanged(self):
         lo, hi = self.monoRegion.getRegion()
@@ -170,7 +188,8 @@ class NewHistogramView(QWidget):
             else:
                 with QSignalBlocker(region):
                     region.setRegion((lo, hi))
-            plot.plotItem.addItem(region, ignoreBounds=True)
+            if region not in plot.plotItem.items:
+                plot.plotItem.addItem(region, ignoreBounds=True)
 
     def _onRRegionChanged(self):
         lo, hi = self.rRegion.getRegion()
