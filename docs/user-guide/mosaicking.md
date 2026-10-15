@@ -89,6 +89,31 @@ them; Auto Align provides that density: a model with more
 freedom fits the points you placed but can bend the image between them.
 **Reset Alignment** returns the image to its original georeferencing.
 
+## Balancing brightness
+
+Images taken at different times or angles differ in brightness. The
+**Radiometry** tab (beside Tie Points) corrects that from the overlaps, band
+by band, without changing the images themselves:
+
+- **None** (the default): every spectrum stays exactly as measured.
+- **Linear, to the held images:** each image overlapping a held image gets
+  a gain and offset per band, from a robust regression of the held image's
+  values on its own in their overlap.
+- **Linear, global least squares** (as ISIS `equalizer`): every overlap is
+  solved together, so images that only overlap each other are balanced
+  through their neighbors. Gains make each overlap's standard deviations
+  agree, then offsets make its means agree. Every image must connect,
+  through overlaps, to a held image; Varda says which don't.
+- **Histogram matching:** maps each image's values onto its neighbor's,
+  outward from the held images. It's non-linear and changes spectral shape,
+  so the exported mosaic is labeled "(visual)".
+
+**Fit** chooses gain and offset, gain only or offset only for the linear
+methods. **Held** images keep their values (the top image, by default).
+Statistics come from a subsample of each overlap. The table shows each
+image's mean gain and offset; hover for every band. The corrections are
+saved with the session and recorded in the exported mosaic's metadata.
+
 ## Exporting
 
 **Export Mosaic…** renders the mosaic and adds it to the image list:
@@ -104,7 +129,8 @@ freedom fits the points you placed but can bend the image between them.
   useful for checking seams and tracing a spectrum back to its strip.
 
 Seams are hard (no blending), so spectra are never mixed across them. The
-mosaic's metadata records the inputs, the resampling and the full recipe.
+mosaic's metadata records the inputs, the resampling, the radiometric
+corrections and the full recipe.
 
 Saving the session keeps each Mosaic workspace's recipe (order, visibility,
 alignments and tie points), so you can reopen it and keep working.

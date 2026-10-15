@@ -174,6 +174,8 @@ def renderMosaic(
                 break
             cols, rowsIn = rawPixels(item, grid, rows, todo)
             values, valid = _sample(cube, cols, rowsIn, resampling)
+            if item.radiometry is not None:
+                values = item.radiometry.apply(values, bands)
             target = np.flatnonzero(todo)[valid]
             tile[target] = values[valid]
             tileSources[target] = project.inputs.index(item)
