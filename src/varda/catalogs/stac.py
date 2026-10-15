@@ -80,7 +80,7 @@ class StacCatalog(Catalog):
     name = "STAC catalogs"
     description = (
         "Any STAC API: USGS Astrogeology (Mars, the Moon, Europa, …) and Earth "
-        "Search (Sentinel-2, Landsat, …) by default; add others in Settings."
+        "Search (Sentinel-2, Landsat, …) by default; add others with the STAC APIs… button."
     )
     # The APIs searched; Varda's settings replace this with the user's list
     apis: ClassVar[tuple[StacApi, ...]] = DEFAULT_APIS

@@ -15,6 +15,13 @@ can alter results.
   STAC (USGS Astrogeology for Mars, the Moon and Europa, and Earth Search, by
   default), the PDS Orbital Data Explorer, and footprint files (offline);
   plugins can add more with a `registerCatalogs` hook.
+  - **Downloads:** add checked products to the download list, choose their
+    files (the essential ones come checked) and download them into one folder
+    per product, with progress, Cancel and resuming; finished data opens in
+    Varda. The list also exports as a CSV or a script of resumable `curl`
+    commands.
+  - Catalogs that need a login ask for it once and keep it in the system
+    keychain; the STAC APIs searched can be edited (STAC APIs…).
 
 ## 0.8.0 (2026-10-15)
 
