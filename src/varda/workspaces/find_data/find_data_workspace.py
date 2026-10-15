@@ -47,6 +47,7 @@ from varda.catalogs.http import fetchBytes
 from varda.catalogs.registry import availableCatalogs
 from varda.catalogs.stac import StacCatalog
 from varda.common.entities import VardaRaster
+from varda.common.observable_list import ObservableList
 from varda.common.parameter_widgets import groupWidget
 from varda.common.ui import MutedLabel, VardaDockWidget
 from varda.image_loading.image_loading_service import ImageLoadingService
@@ -97,6 +98,11 @@ class FindDataWorkspace(QMainWindow):
         super().__init__(parent)
         self.setWindowTitle("Find Data")
         self.projectImages = projectImages if projectImages is not None else []
+        if isinstance(self.projectImages, ObservableList):
+            # images loaded later (a download, say) can be basemaps too
+            self.projectImages.sigDataChanged.connect(
+                lambda _: self._refreshImageLists()
+            )
         self._catalogs: dict[str, Catalog] = {}  # one each, so filters persist
         self._collections: list[Collection] = []
         self._query: SearchQuery | None = None
@@ -410,7 +416,20 @@ class FindDataWorkspace(QMainWindow):
         body = self.body()
         self.bodyLabel.setText(f"<b>{body}</b>" if body else "")
         self.map.setProjection(self.projectionBox.currentData(), body)
+        self._refreshImageLists(keep=False)
+        self._onArea()
+        self._onBasemap()
+
+    def _refreshImageLists(self, keep: bool = True) -> None:
+        """The loaded images of the collection's body, offered as basemaps
+        and search areas. With ``keep``, the current choices stay (and the
+        basemap is redrawn only if its image went away)."""
+        body = self.body()
         images = [i for i in self.projectImages if imageBody(i) == body] if body else []
+        chosen = {
+            box: box.currentData() if keep else None
+            for box in (self.basemapBox, self.areaImage)
+        }
         for box in (self.basemapBox, self.areaImage):
             box.blockSignals(True)
             box.clear()
@@ -418,10 +437,20 @@ class FindDataWorkspace(QMainWindow):
         for image in images:
             self.basemapBox.addItem(image.name, image)
             self.areaImage.addItem(image.name, image)
-        for box in (self.basemapBox, self.areaImage):
+        for box, image in chosen.items():
+            index = next(
+                (i for i in range(box.count()) if box.itemData(i) is image), -1
+            )
+            if index >= 0:
+                box.setCurrentIndex(index)
             box.blockSignals(False)
-        self._onArea()
-        self._onBasemap()
+        if keep:
+            self._onArea()
+            if (
+                chosen[self.basemapBox] is not None
+                and self.basemapBox.currentData() is None
+            ):
+                self._onBasemap()  # its image was closed
 
     def _addFootprintFile(self) -> None:
         path, _ = QFileDialog.getOpenFileName(

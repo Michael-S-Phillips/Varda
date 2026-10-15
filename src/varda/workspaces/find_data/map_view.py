@@ -107,7 +107,8 @@ class FootprintMap(QWidget):
         self.viewBox.sigBoxed.connect(self._onBox)
         self.plot = pg.PlotWidget(viewBox=self.viewBox)
         self.plot.setAspectLocked(True)
-        self.basemapItem = pg.ImageItem()
+        # rows are y, whatever pyqtgraph's global imageAxisOrder says
+        self.basemapItem = pg.ImageItem(axisOrder="row-major")
         self.basemapItem.setZValue(-10)
         self.plot.addItem(self.basemapItem)
         self.graticuleItem = pg.PlotCurveItem(pen=GRATICULE_PEN, connect="finite")
@@ -266,7 +267,7 @@ class FootprintMap(QWidget):
             return
         x0, y0, x1, y1 = bounds
         # rows run north to south; the plot's y runs up
-        self.basemapItem.setImage(rgba[::-1].transpose(1, 0, 2), autoLevels=False)
+        self.basemapItem.setImage(rgba[::-1], autoLevels=False)
         self.basemapItem.setRect(QRectF(x0, y0, x1 - x0, y1 - y0))
 
     def addOverlay(self, geometries: Sequence[shapely.Geometry]) -> None:

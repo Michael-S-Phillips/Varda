@@ -12,6 +12,7 @@ from affine import Affine
 from varda.catalogs import registry
 from varda.catalogs.bodies import geographicCrs
 from varda.catalogs.catalog import Catalog, Collection, Product, SearchPage
+from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
 from varda.common.parameter import FloatParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
@@ -247,3 +248,50 @@ def test_the_polar_map_draws_footprints_and_searches_around_the_pole(workspace, 
         0.0, abs=0.5
     )
     assert workspace.sessionState()["projection"] == "NORTH_POLAR"
+
+
+def _marsImage(name="mars image", data=None):
+    if data is None:
+        data = np.random.default_rng(0).random((50, 60, 3)).astype(np.float32)
+    return VardaRaster(
+        ArrayDataSource(
+            data,
+            wavelengths=np.array([400.0, 500.0, 600.0]),
+            transform=Affine(0.05, 0, 76.5, 0, -0.05, 19.5),
+            crs=geographicCrs("Mars"),
+        ),
+        name=name,
+    )
+
+
+def test_images_loaded_later_become_basemaps_and_keep_the_choice(qtbot, monkeypatch):
+    monkeypatch.setattr(registry, "catalogRegistry", [FakeCatalog])
+    images = ProjectImages()
+    workspace = FindDataWorkspace(images)
+    qtbot.addWidget(workspace)
+    qtbot.waitUntil(lambda: workspace.collectionBox.count() == 1, timeout=5000)
+    assert workspace.basemapBox.count() == 1  # just None
+    first = _marsImage("first")
+    images.append(first)  # e.g. a download that opened
+    assert workspace.basemapBox.count() == 2 and workspace.areaImage.count() == 1
+    workspace.basemapBox.setCurrentIndex(1)
+    images.append(_marsImage("second"))
+    assert workspace.basemapBox.count() == 3
+    assert workspace.basemapBox.currentData() is first  # the choice stays
+    images.remove(first)
+    assert workspace.basemapBox.currentData() is None
+
+
+def test_the_basemap_is_drawn_north_up_and_not_mirrored(workspace):
+    rgba = np.zeros((4, 6, 4), np.uint8)
+    rgba[0, 0] = (255, 0, 0, 255)  # the northwest corner (rows run north to south)
+    workspace.map.setBasemap(rgba, (10.0, 20.0, 16.0, 24.0))
+    item = workspace.map.basemapItem
+    image = item.image
+    assert image is not None and image.shape[:2] == (4, 6)  # rows are y
+    # pyqtgraph puts the item's first row at the bottom (south) of its rect
+    assert tuple(image[-1, 0]) == (255, 0, 0, 255)
+    rect = item.mapRectToParent(item.boundingRect())
+    assert (rect.left(), rect.top(), rect.width(), rect.height()) == pytest.approx(
+        (10, 20, 6, 4)
+    )
