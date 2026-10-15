@@ -27,8 +27,10 @@ from varda.analysis.transforms import TRANSFORM_METADATA_KEY, InverseTransformAn
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
 from varda.context_keys import EXPR_HAS_IMAGES, EXPR_NEVER
+from varda.image_loading import ImageLoadingService
 from varda.maingui import MainGUI
 from varda.optional_features.optional_features_dialog import openOptionalFeatures
+from varda.workspaces.mosaic.cam2map_dialog import Cam2mapDialog
 from varda.workspaces.spectral_hourglass.new_hourglass_dialog import (
     NewSpectralHourglassDialog,
 )
@@ -224,6 +226,17 @@ def openFattMapDialog(
     ).connectOnRun(runner.run).open()
 
 
+def openCam2map(images: ProjectImages, mainGui: MainGUI) -> None:
+    """Map-project a raw ISIS cube; the result joins the project."""
+    dialog = Cam2mapDialog(parent=mainGui)
+    dialog.sigProjected.connect(
+        lambda path: ImageLoadingService.load_images(
+            file_paths=[path], on_success_callback=images.append
+        )
+    )
+    dialog.show()
+
+
 def openSpectralHourglass(images: ProjectImages, mainGui: MainGUI) -> None:
     NewSpectralHourglassDialog(images, parent=mainGui).connectOnAccept(
         mainGui.addTab
@@ -233,6 +246,7 @@ def openSpectralHourglass(images: ProjectImages, mainGui: MainGUI) -> None:
 EIGENVALUE_PLOT_ACTION_ID = "varda.processing.eigenvalue_plot"
 SPECTRAL_HOURGLASS_ACTION_ID = "varda.processing.spectral_hourglass"
 FATT_ACTION_ID = "varda.processing.fatt"
+CAM2MAP_ACTION_ID = "varda.processing.cam2map"
 OPTIONAL_FEATURES_ACTION_ID = "varda.processing.optional_features"
 
 PROCESSING_SUBMENUS = processingSubmenus(MenuId.PROCESSING, ANALYSES)
@@ -271,6 +285,16 @@ PROCESSING_ACTIONS = processingActions(
         callback=openFatt,
         enablement=EXPR_HAS_IMAGES,
         menus=[MenuRule(id=categoryMenuId(MenuId.PROCESSING, "Endmembers"), order=1)],
+    ),
+    Action(
+        id=CAM2MAP_ACTION_ID,
+        title="Map-Project with ISIS (cam2map)…",
+        tooltip=(
+            "Map-project a raw camera cube with ISIS cam2map, so it can be "
+            "mosaicked (needs ISIS; see Optional Features)"
+        ),
+        callback=openCam2map,
+        menus=[MenuRule(id=categoryMenuId(MenuId.PROCESSING, "Geometry"), order=99)],
     ),
     Action(
         id=OPTIONAL_FEATURES_ACTION_ID,

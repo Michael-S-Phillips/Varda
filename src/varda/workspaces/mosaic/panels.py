@@ -357,6 +357,8 @@ class RadiometryPanel(QWidget):
     # (method, mode, held keys)
     sigBalance = pyqtSignal(object, object, object)
     sigCleared = pyqtSignal()
+    sigCompareIsis = pyqtSignal(object, object)  # (mode, held keys)
+    sigUseIsis = pyqtSignal()
 
     def __init__(self, project: MosaicProject, parent: QWidget | None = None):
         super().__init__(parent)
@@ -379,8 +381,20 @@ class RadiometryPanel(QWidget):
         clear.clicked.connect(self._clear)
         self.status = MutedLabel("")
         self.status.setWordWrap(True)
-        self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Image", "Gain (mean)", "Offset (mean)"])
+        self.compareIsis = QPushButton("Compare with ISIS equalizer")
+        self.compareIsis.setToolTip(
+            "Solve the same balance with ISIS equalizer and show its gains and "
+            "offsets beside Varda's"
+        )
+        self.compareIsis.clicked.connect(self._compareIsis)
+        self.useIsis = QPushButton("Use ISIS's Corrections")
+        self.useIsis.clicked.connect(self.sigUseIsis)
+        self.useIsis.setVisible(False)
+        self.isisCorrections: dict[int, Correction] = {}
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(
+            ["Image", "Gain (mean)", "Offset (mean)", "ISIS gain", "ISIS offset"]
+        )
         header = self.table.horizontalHeader()
         assert header is not None
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
@@ -405,6 +419,11 @@ class RadiometryPanel(QWidget):
         buttons.addWidget(clear)
         buttons.addStretch()
         left.addLayout(buttons)
+        isisRow = QHBoxLayout()
+        isisRow.addWidget(self.compareIsis)
+        isisRow.addWidget(self.useIsis)
+        isisRow.addStretch()
+        left.addLayout(isisRow)
         left.addWidget(self.status)
         right = QVBoxLayout()
         right.addWidget(self.table, 1)
@@ -445,6 +464,12 @@ class RadiometryPanel(QWidget):
                     f"{np.mean(correction.gain):.4f}",
                     f"{np.mean(correction.offset):.4g}",
                 ]
+            isis = self.isisCorrections.get(item.key)
+            cells += (
+                [f"{np.mean(isis.gain):.4f}", f"{np.mean(isis.offset):.4g}"]
+                if isis is not None
+                else ["", ""]
+            )
             tip = _perBand(correction) if correction is not None else ""
             for column, text in enumerate(cells):
                 cell = QTableWidgetItem(text)
@@ -458,6 +483,27 @@ class RadiometryPanel(QWidget):
             for row in range(self.held.count())
             if self.held.item(row).checkState() == Qt.CheckState.Checked
         )
+
+    def setIsisAvailable(self, available: bool) -> None:
+        self.compareIsis.setVisible(available)
+
+    def showIsis(self, corrections: dict[int, Correction], message: str) -> None:
+        self.compareIsis.setEnabled(True)
+        self.isisCorrections = corrections
+        self.useIsis.setVisible(bool(corrections))
+        self.status.setText(message)
+        self.refresh()
+
+    def _compareIsis(self) -> None:
+        held = self.heldKeys()
+        if not held:
+            self.status.setText(
+                "Hold at least one image: the others are matched to it."
+            )
+            return
+        self.compareIsis.setEnabled(False)
+        self.status.setText("Running ISIS equalizer…")
+        self.sigCompareIsis.emit(self.mode.currentData(), held)
 
     def _updateState(self) -> None:
         method = self.method.currentData()

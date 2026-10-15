@@ -5,7 +5,9 @@ project, with a map of which image each pixel came from."""
 
 from __future__ import annotations
 
+import tempfile
 from collections.abc import MutableSequence, Sequence
+from pathlib import Path
 
 import numpy as np
 import PyQt6Ads as ads
@@ -39,7 +41,9 @@ from varda.mosaicking.matching import (
     findTiePoints,
 )
 from varda.mosaicking.model import DEFAULT_INLIER_PX, MosaicProject
+from varda.mosaicking.backends.isis import crossCheckRadiometry
 from varda.mosaicking.seams import Seam, SeamMethod, computeSeams
+from varda.optional_features.isis_section import currentIsis
 from varda.mosaicking.radiometry import (
     LinearMode,
     RadiometryMethod,
@@ -105,6 +109,9 @@ class MosaicWorkspace(QMainWindow):
         self._cache: dict[int, np.ndarray] = {}
         # Each image's outlier threshold (px), as last set in Auto Align
         self._thresholds: dict[int, float] = {}
+        # The fit mode and held images the last ISIS comparison used
+        self._isisMode = LinearMode.BOTH
+        self._isisHeld: frozenset[int] = frozenset()
 
         self.canvas = MosaicCanvas()
         self.inputsPanel = InputsPanel(self.project)
@@ -125,6 +132,9 @@ class MosaicWorkspace(QMainWindow):
         self.inputsPanel.sigAutoAlign.connect(self.openAutoAlign)
         self.radiometryPanel.sigBalance.connect(self.balance)
         self.radiometryPanel.sigCleared.connect(self.refreshPreview)
+        self.radiometryPanel.setIsisAvailable(currentIsis() is not None)
+        self.radiometryPanel.sigCompareIsis.connect(self.compareWithIsis)
+        self.radiometryPanel.sigUseIsis.connect(self.useIsisCorrections)
         self.seamsPanel.sigCompute.connect(self.findSeams)
         self.seamsPanel.sigEdit.connect(lambda _: self.showSeams())
         self.seamsPanel.sigCleared.connect(self._seamsChanged)
@@ -310,6 +320,64 @@ class MosaicWorkspace(QMainWindow):
             lambda error: self.radiometryPanel.showResult(str(error)),
             description="Balancing a mosaic",
         )
+
+    def compareWithIsis(self, mode: LinearMode, held: frozenset[int]) -> None:
+        """ISIS equalizer's solution of the same balance, in the background."""
+        install = currentIsis()
+        if install is None:
+            return
+        self._isisMode, self._isisHeld = mode, held
+
+        def task() -> dict:
+            with tempfile.TemporaryDirectory(prefix="varda-equalizer-") as folder:
+                return crossCheckRadiometry(
+                    self.project, mode, held, install, Path(folder)
+                )
+
+        def finished(corrections: dict) -> None:
+            ours = {
+                i.key: i.radiometry
+                for i in self.project.inputs
+                if i.radiometry is not None
+            }
+            gaps = [
+                float(np.max(np.abs(corrections[k].gain - c.gain)))
+                for k, c in ours.items()
+                if k in corrections and c.lutIn is None
+            ]
+            comparison = (
+                f" The gains differ from Varda's by at most {max(gaps):.4f}."
+                if gaps
+                else " Balance with the global least-squares method to compare."
+            )
+            self.radiometryPanel.showIsis(
+                corrections,
+                f"ISIS equalizer solved {len(corrections)} images.{comparison}",
+            )
+
+        runInBackground(
+            task,
+            finished,
+            lambda error: self.radiometryPanel.showIsis(
+                {}, f"ISIS equalizer failed: {error}"
+            ),
+            description="Cross-checking with ISIS equalizer",
+        )
+
+    def useIsisCorrections(self) -> None:
+        corrections = self.radiometryPanel.isisCorrections
+        if not corrections:
+            return
+        self.project.applyRadiometry(
+            RadiometryResult(
+                RadiometryMethod.GLOBAL,
+                self._isisMode,
+                frozenset(self._isisHeld),
+                corrections,
+            )
+        )
+        self.radiometryPanel.showResult("Using ISIS equalizer's corrections.")
+        self.refreshPreview()
 
     # --- seams -----------------------------------------------------------------------
 
