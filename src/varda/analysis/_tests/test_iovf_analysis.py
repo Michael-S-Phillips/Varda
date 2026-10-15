@@ -24,9 +24,9 @@ def _image() -> VardaRaster:
     return VardaRaster(source, name="scene")
 
 
-def test_iovf_is_listed_under_filtering():
+def test_iovf_is_listed_under_spectral_filtering():
     assert IovfAnalysis in ANALYSES
-    assert IovfAnalysis.category == "Filtering"
+    assert IovfAnalysis.category == "Filtering/Spectral"
 
 
 def test_result_keeps_bands_and_removes_the_spike():

@@ -16,6 +16,21 @@ from varda.rois.roi_collection import ROICollection
 ProgressCallback = Callable[[int, str], None]
 
 
+SUBMENU = "/"  # separates the levels of a category path
+
+
+def categoryLevels(category: str) -> list[str]:
+    """The menus a category sits in, outermost first:
+    "Filtering/Spatial" -> ["Filtering", "Filtering/Spatial"]."""
+    parts = [part.strip() for part in category.split(SUBMENU)]
+    return [SUBMENU.join(parts[: i + 1]) for i in range(len(parts))]
+
+
+def categoryTitle(category: str) -> str:
+    """How a category reads in text: "Filtering → Spatial"."""
+    return " → ".join(category.split(SUBMENU))
+
+
 @attrs.frozen
 class AnalysisContext:
     """What the workspace offers an analysis beyond the image itself."""
@@ -36,7 +51,8 @@ class Analysis(ParameterGroup):
     analysisId: ClassVar[str] = "analysis"
     name: ClassVar[str] = "Analysis"
     description: ClassVar[str] = ""
-    # Processing-menu submenu the analysis is listed under.
+    # Processing-menu submenu the analysis is listed under; "/" nests submenus
+    # ("Filtering/Spatial" is the Spatial submenu of Filtering).
     category: ClassVar[str] = "General"
     # What the analysis needs when isAvailable() is False, e.g. "HyPyRameter".
     requirement: ClassVar[str] = ""

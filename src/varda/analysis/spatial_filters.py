@@ -21,7 +21,7 @@ from varda.common.parameter import (
     StringParameter,
 )
 
-CATEGORY = "Filtering"
+CATEGORY = "Filtering/Spatial"
 
 
 def _sizeParameter(default: int = 3, description: str = "") -> IntParameter:

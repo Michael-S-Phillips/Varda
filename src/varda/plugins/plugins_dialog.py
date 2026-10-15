@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from varda.analysis.analysis import categoryTitle
 from varda.common.ui import MutedLabel
 from varda.plugins.manifest import PluginError
 from varda.plugins.plugin_manager import INSTALLED, PluginRecord, VardaPluginManager
@@ -40,7 +41,8 @@ def describeContributions(record: PluginRecord) -> str:
     if analyses:
         parts.append(
             ", ".join(
-                f"{a.name.rstrip(' .…')} (Processing → {a.category})" for a in analyses
+                f"{a.name.rstrip(' .…')} (Processing → {categoryTitle(a.category)})"
+                for a in analyses
             )
         )
     if formats:

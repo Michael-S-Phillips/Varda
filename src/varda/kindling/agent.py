@@ -40,8 +40,9 @@ raise ValueError with a sentence the user can act on.
 version 0.1.0 and api "1".
 - An Analysis's category is the Processing submenu it appears in. Use one of \
 the existing categories listed in the request, spelled exactly, whenever one \
-fits (a smoothing filter goes in an existing filtering menu, not a new \
-"Filters"); create a new category only if none fits. The checks reject a new \
+fits (a spatial smoothing filter goes in "Filtering/Spatial", not a new \
+"Filters"); create a new category only if none fits. A "/" separates \
+submenus: "Filtering/Spatial" is the Spatial submenu of Filtering. The checks reject a new \
 category that duplicates an existing one.
 - An Analysis's name is its menu title: short, in title case, without a \
 trailing ellipsis (Varda adds one).

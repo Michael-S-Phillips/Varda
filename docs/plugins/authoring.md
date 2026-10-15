@@ -75,7 +75,7 @@ class BandDepth(Analysis):
     analysisId = "band_depth"            # unique within your plugin
     name = "Band Depth"                  # the menu item and dialog title
     description = "Depth of an absorption at a chosen wavelength …"
-    category = "Spectral Parameters"     # the Processing submenu (new ones are created)
+    category = "Spectral Parameters"     # the Processing submenu; "Filtering/Spectral" nests (new ones are created)
 
     left = FloatParameter("Left shoulder", 1800.0, (300.0, 5000.0), "nm")
     center = FloatParameter("Band center", 1930.0, (300.0, 5000.0), "nm")
