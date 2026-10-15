@@ -347,6 +347,10 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             tool.sigPixelSelected.connect(
                 functools.partial(self._onPixelSelected, tool.viewport.imageEntity)
             )
+            # The window around the pixel is the active plot's
+            tool.setWindowProvider(
+                lambda: self.pixelSpectraDocks.active.pixelConfig.window()
+            )
         elif isinstance(tool, RatioExplorerTool):
             self.ratioExplorer.bindTool(tool)
 

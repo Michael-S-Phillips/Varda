@@ -36,3 +36,23 @@ def test_closing_the_pixel_dock_then_selecting_a_pixel_reopens_it(qapp):
 
     assert not workflow.pixelPlotDock.isClosed()
     assert len(workflow.pixelPlotWidget.pixelCurves) == 1
+
+
+def test_the_tool_uses_the_active_plots_window_and_outlines_it(qapp):
+    image = generate_random_image((20, 20, 10))
+    workflow = GeneralImageAnalysisWorkflow(GeneralImageAnalysisConfig([image]))
+    workflow.toolManager1.activateTool(PixelSelectTool)
+    tool = workflow.toolManager1.activeTool
+    workflow.pixelPlotWidget.pixelConfig.windowWidth.set(3)
+    workflow.pixelPlotWidget.pixelConfig.windowHeight.set(5)
+    assert tool.windowProvider() == (3, 5)
+
+    tool.isDragging = True
+    tool._outlineWindow(10, 10)
+    assert tool._windowOutline is not None
+    tool._hideCrosshairs()
+    assert tool._windowOutline is None
+
+    tool.sigPixelSelected.emit(QPointF(10.0, 10.0))
+    (curve,) = workflow.pixelPlotWidget.pixelCurves
+    assert curve.plotDataItem.name() == "Region 3×5 at (10, 10)"

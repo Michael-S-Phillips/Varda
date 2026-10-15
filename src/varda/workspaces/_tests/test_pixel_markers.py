@@ -8,6 +8,7 @@ from psygnal import Signal
 from PyQt6.QtCore import QPointF
 from PyQt6.QtWidgets import QLabel, QMainWindow
 
+from varda.common.entities import Color
 from varda.common.ui import VardaDockWidget
 from varda.plotting.pixel_spectra_plot import SpectrumMode
 from varda.utilities.debug import generate_random_image
@@ -16,10 +17,15 @@ from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
 
 
 class FakeMarker:
-    def __init__(self, pos: QPointF, color) -> None:
-        self.pos = pos
+    def __init__(self, pos, color, symbol: str = "x") -> None:
+        self.pos = pos  # a point, or a region's corner points
         self.color = color
+        self.symbol = symbol
+        self.highlighted = False
         self.removed = False
+
+    def setHighlighted(self, highlighted: bool) -> None:
+        self.highlighted = highlighted
 
     def setPos(self, pos: QPointF) -> None:
         self.pos = pos
@@ -45,8 +51,13 @@ class FakeViewport:
     def pixelToLocalCoords(self, pixelCoords: np.ndarray) -> np.ndarray:
         return np.asarray(pixelCoords, dtype=float) - self.offset
 
-    def addPointOverlay(self, pos: QPointF, color) -> FakeMarker:
-        marker = FakeMarker(pos, color)
+    def addPointOverlay(self, pos: QPointF, color, symbol: str = "x") -> FakeMarker:
+        marker = FakeMarker(pos, color, symbol)
+        self.markers.append(marker)
+        return marker
+
+    def addROIOverlay(self, points, color) -> FakeMarker:
+        marker = FakeMarker(list(points), color, symbol="region")
         self.markers.append(marker)
         return marker
 
@@ -131,3 +142,39 @@ def test_spectra_on_a_plot_opened_later_are_marked_too(setup):
     docks.addPixelSpectra([image], 7, 9)
 
     assert len(viewports[0].live()) == 2
+
+
+def test_pixels_are_marked_with_circles(setup):
+    docks, viewports, _c, image = setup
+    docks.addPixelSpectra([image], 3, 5)
+    assert viewports[0].live()[0].symbol == "o"
+
+
+def test_the_spectrum_selected_on_the_plot_is_highlighted_on_the_image(setup):
+    docks, viewports, _c, image = setup
+    (first,) = docks.addPixelSpectra([image], 1, 1)
+    docks.addPixelSpectra([image], 4, 4)
+    docks.active.selectPlot(first)
+    marks = viewports[0].live()
+    assert [m.highlighted for m in marks] == [True, False]
+    docks.active.deselectPlot()
+    assert not any(m.highlighted for m in viewports[0].live())
+
+
+def test_a_region_is_outlined_on_the_image(setup):
+    docks, viewports, _c, image = setup
+    docks.active.pixelConfig.windowWidth.set(3)
+    docks.active.pixelConfig.windowHeight.set(5)
+    docks.addPixelSpectra([image], 10, 10)
+    (marker,) = viewports[0].live()
+    corners = {(p.x(), p.y()) for p in marker.pos}
+    assert marker.symbol == "region"
+    assert corners == {(9.0, 8.0), (12.0, 8.0), (12.0, 13.0), (9.0, 13.0)}
+
+
+def test_a_marker_follows_its_curves_color(setup):
+    docks, viewports, _c, image = setup
+    (curve,) = docks.addPixelSpectra([image], 2, 2)
+    curve.config.color.set(Color(0.0, 1.0, 0.0, 1.0))
+    (marker,) = viewports[0].live()
+    assert marker.color.green() == 255 and marker.color.red() == 0
