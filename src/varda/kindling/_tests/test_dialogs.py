@@ -1,6 +1,6 @@
 import pytest
 from PyQt6.QtCore import QSettings
-from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtWidgets import QLabel, QMessageBox
 
 from varda.kindling import kindle_dialog
 from varda.kindling.ai_settings import KEYRING_SERVICE, AISettings
@@ -132,3 +132,62 @@ def test_discarding_asks_then_removes_the_draft(qtbot, dialog, tmp_path, monkeyp
 def test_without_a_description_nothing_starts(dialog):
     dialog.startButton.click()
     assert dialog.pages.currentIndex() == 0
+
+
+def test_each_provider_keeps_its_own_key_and_model(settings, memoryKeyring):
+    settings.setApiKey("sk-ant-test")
+    settings.model = "claude-sonnet-5-5"
+    settings.provider = "openai"
+    assert (settings.apiKey(), settings.model) == ("", "")
+    settings.setApiKey("sk-openai")
+    settings.model = "gpt-test"
+    assert memoryKeyring.passwords[(KEYRING_SERVICE, "openai")] == "sk-openai"
+    settings.provider = "anthropic"
+    assert (settings.apiKey(), settings.model) == ("sk-ant-test", "claude-sonnet-5-5")
+
+
+def test_a_local_server_needs_a_model_but_no_key(settings, memoryKeyring):
+    settings.provider = "openai-compatible"
+    assert not settings.isReady()
+    settings.model = "qwen3:14b"
+    assert settings.isReady()
+    provider = settings.createProvider()
+    assert str(provider.client.base_url).startswith("http://localhost:11434/v1")
+    assert settings.recipient == "the server at http://localhost:11434/v1"
+
+
+def test_openai_needs_a_key(settings, memoryKeyring):
+    settings.provider = "openai"
+    settings.model = "gpt-test"
+    assert not settings.isReady()
+    with pytest.raises(ProviderError, match="Add an API key"):
+        settings.createProvider()
+
+
+def test_the_settings_dialog_sets_up_a_local_server(qtbot, settings, memoryKeyring):
+    dialog = AISettingsDialog(settings)
+    qtbot.addWidget(dialog)
+    assert not dialog.form.isRowVisible(1)  # no server row for Anthropic
+    dialog.provider.setCurrentIndex(dialog.provider.findData("openai-compatible"))
+    assert dialog.form.isRowVisible(1) and not dialog.form.isRowVisible(4)
+    dialog.serverPreset.setCurrentIndex(2)
+    dialog.serverPreset.activated.emit(2)  # LM Studio
+    assert dialog.baseUrl.text() == "http://localhost:1234/v1"
+    dialog.model.setCurrentText("qwen3-14b")
+    dialog._save()
+    assert settings.provider == "openai-compatible"
+    assert (settings.baseUrl, settings.model) == (
+        "http://localhost:1234/v1",
+        "qwen3-14b",
+    )
+    assert settings.isReady()
+    assert settings.modelFor("anthropic")  # Anthropic's choice is kept
+
+
+def test_the_kindle_dialog_says_where_the_description_goes(qtbot, settings, tmp_path):
+    settings.provider = "openai"
+    manager = VardaPluginManager(tmp_path / "plugins")
+    dialog = KindleDialog(manager, [], settings)
+    qtbot.addWidget(dialog)
+    texts = [label.text() for label in dialog.findChildren(QLabel)]
+    assert any(t.startswith("Sent to OpenAI:") for t in texts)

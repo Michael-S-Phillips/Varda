@@ -42,11 +42,16 @@ PLACEHOLDER = (
     "Describe the feature, e.g. “A band depth map at 1.9 µm, against a "
     "straight-line continuum between 1.8 and 2.1 µm.”"
 )
-PRIVACY_NOTE = (
-    "Sent to Anthropic: your description, Varda's plugin docs, and the image's "
-    "size, wavelengths and no-data value. Never its pixels: the checks that run "
-    "the plugin on a crop of the image stay on this computer."
-)
+
+
+def privacyNote(recipient: str) -> str:
+    return (
+        f"Sent to {recipient}: your description, Varda's plugin docs, and the "
+        "image's size, wavelengths and no-data value. Never its pixels: the checks "
+        "that run the plugin on a crop of the image stay on this computer."
+    )
+
+
 AI_NOTE = (
     "This plugin was written by an AI. Read the summary and any warnings before "
     "enabling it: once enabled, it runs inside Varda like any installed plugin."
@@ -108,7 +113,7 @@ class KindleDialog(QDialog):
         self.imageChoice.addItem("No image (assume 400-2500 nm)", None)
         form = QFormLayout()
         form.addRow("Build it for:", self.imageChoice)
-        note = MutedLabel(PRIVACY_NOTE)
+        note = MutedLabel(privacyNote(self.settings.recipient))
         note.setWordWrap(True)
         self.startButton = QPushButton("Kindle")
         self.startButton.setDefault(True)

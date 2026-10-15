@@ -18,6 +18,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import anthropic
+import openai
 import certifi
 import keyring
 import numpy as np
@@ -181,9 +182,13 @@ def _updateCertificates() -> str:
 
 
 def _aiLibraries() -> str:
-    """The Anthropic SDK imports and keyring has a backend (on Linux without
-    a keychain service that's keyring's fail backend, which is reported)."""
-    return f"anthropic {anthropic.__version__}, keyring {type(keyring.get_keyring()).__module__}"
+    """The Anthropic and OpenAI SDKs import and keyring has a backend (on
+    Linux without a keychain service that's keyring's fail backend, which is
+    reported)."""
+    return (
+        f"anthropic {anthropic.__version__}, openai {openai.__version__}, "
+        f"keyring {type(keyring.get_keyring()).__module__}"
+    )
 
 
 def _pluginCheck(folder: Path, image: VardaRaster) -> str:

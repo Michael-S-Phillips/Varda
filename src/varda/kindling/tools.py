@@ -115,6 +115,13 @@ class KindlingTools:
         self.summary: str | None = None  # set by finish
 
     def call(self, call: ToolCall) -> ToolResult:
+        if call.invalid:
+            return ToolResult(
+                call.id,
+                f"The arguments weren't valid JSON ({call.invalid}); call "
+                f"{call.name} again with a JSON object.",
+                isError=True,
+            )
         try:
             return ToolResult(call.id, self._dispatch(call.name, call.arguments))
         except Exception as error:  # the model sees the error and can fix it

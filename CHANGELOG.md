@@ -24,6 +24,11 @@ can alter results.
   al. 2021). **Map Ticked Targets…** maps where they fit with DAFA/TT moving
   windows. Results are candidates to confirm. See the
   [FATT guide](docs/user-guide/fatt.md).
+- **Kindle a Feature works with OpenAI and local models.** Plugins → AI
+  Assistant Settings offers OpenAI and any OpenAI-compatible server,
+  including Ollama and LM Studio on your own computer (no key needed), with
+  Load Models to list a server's models. Each provider keeps its own key in
+  the keychain. See [Kindle a Feature](docs/user-guide/kindle-a-feature.md).
 
 ### Fixed
 

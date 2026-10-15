@@ -2,7 +2,12 @@ import numpy as np
 import pytest
 
 from varda.api import ArrayDataSource, VardaRaster
-from varda.kindling.agent import MAX_TURNS, Kindler, describeImage
+from varda.kindling.agent import (
+    MAX_REPLIES_WITHOUT_TOOLS,
+    MAX_TURNS,
+    Kindler,
+    describeImage,
+)
 from varda.kindling.checks import CheckReport
 from varda.kindling.providers import ProviderError, Reply
 from varda.kindling.tools import TOOL_SPECS, KindlingTools, PluginFolder
@@ -63,6 +68,15 @@ def test_a_reply_without_tools_is_nudged(tmp_path):
     kindler, provider = _kindler(tmp_path, replaying([Reply("Thinking."), *BUILD]))
     assert kindler.kindle("x", None).finished
     assert "Continue" in provider.conversation.received[1][0]
+
+
+def test_stops_when_the_model_never_uses_the_tools(tmp_path):
+    """Some local models ignore tools and only chat."""
+    kindler, provider = _kindler(tmp_path, lambda i: Reply("Here is some code."))
+    outcome = kindler.kindle("x", None)
+    assert not outcome.finished
+    assert "tool calls" in outcome.stopReason
+    assert outcome.turns == MAX_REPLIES_WITHOUT_TOOLS
 
 
 def test_stops_at_the_token_limit(tmp_path):
