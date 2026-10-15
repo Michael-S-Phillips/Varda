@@ -80,30 +80,46 @@ def test_small_images_load_into_memory_and_large_ones_read_on_demand(source):
     assert isinstance(wrapForReading(source, limitBytes=100), CachedDataSource)
 
 
-def test_reads_from_several_threads_are_serialised(source):
+@pytest.mark.parametrize(
+    "read",
+    [
+        lambda c: c.getData(window=(0, 0, 5, 5)),
+        lambda c: c.getData(bandIndices=[1]),
+        lambda c: c.getPixelSpectrum(1, 1),
+        lambda c: c.readAllBands(),
+    ],
+    ids=["window", "bands", "spectrum", "whole"],
+)
+def test_reads_from_several_threads_are_serialised(source, read):
     cached = CachedDataSource(source)
-    inside = []
+    inside, overlaps = [], []
+
+    def watched(method):
+        def call(*args, **kwargs):
+            inside.append(1)
+            if len(inside) > 1:
+                overlaps.append(len(inside))  # asserted below, not in the thread
+            time.sleep(0.01)
+            inside.pop()
+            return method(*args, **kwargs)
+
+        return call
 
     class _Watching:
         def __getattr__(self, name):
             return getattr(source, name)
 
-        def getData(self, **kwargs):
-            inside.append(1)
-            assert len(inside) == 1, "two reads at once"
-            time.sleep(0.01)
-            inside.pop()
-            return source.getData(**kwargs)
+        getData = staticmethod(watched(source.getData))
+        getPixelSpectrum = staticmethod(watched(source.getPixelSpectrum))
+        readAllBands = staticmethod(watched(source.readAllBands))
 
     cached._source = _Watching()
-    threads = [
-        threading.Thread(target=cached.getData, kwargs={"window": (0, 0, 5, 5)})
-        for _ in range(6)
-    ]
+    threads = [threading.Thread(target=read, args=(cached,)) for _ in range(6)]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
+    assert overlaps == [], "two reads at once"
 
 
 def test_a_real_envi_file_read_on_demand_renders_and_gives_spectra(tmp_path, qtbot):

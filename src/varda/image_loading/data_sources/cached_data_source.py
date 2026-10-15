@@ -3,9 +3,10 @@ reads (e.g. the displayed bands) in a small least-recently-used cache.
 
 Used instead of loading the whole image into memory when it would take too
 much of it (see ``image_loading_service.wrapForReading``). Whole-image reads
-(an analysis) go straight to the file and are not cached. Reads are serialized
-with a lock: the display (GUI thread) and an analysis (a worker) may read at
-once, and a rasterio file handle is not thread-safe.
+(an analysis) go straight to the file and are not cached. Every read (bands,
+windows, spectra, the whole image) is serialized with one lock: the display
+(GUI thread) and an analysis (a worker) may read at once, and a rasterio file
+handle is not thread-safe.
 """
 
 from __future__ import annotations
@@ -51,12 +52,22 @@ class CachedDataSource(DelegatingDataSource):
     ) -> np.ndarray:
         if window is None and bandIndices is not None:
             return self.getBands(bandIndices)
-        return self._source.getData(
-            bandIndices=bandIndices, window=window, masked=masked
-        )
+        with self._lock:
+            return self._source.getData(
+                bandIndices=bandIndices, window=window, masked=masked
+            )
+
+    def getPixelSpectrum(self, x: int, y: int) -> np.ndarray:
+        with self._lock:
+            return self._source.getPixelSpectrum(x, y)
+
+    def readAllBands(self) -> np.ndarray:
+        with self._lock:
+            return self._source.readAllBands()
 
     def __getitem__(self, key) -> np.ndarray:
-        return self._source[key]
+        with self._lock:
+            return self._source[key]
 
     def __repr__(self) -> str:
         return f"CachedDataSource({self._source!r}, {len(self._cache)}/{self.maxEntries} cached)"
