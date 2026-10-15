@@ -104,7 +104,7 @@ class _PixelReadoutOverlay(QLabel):
 class _LegendOverlay(QLabel):
     """A key (rich text) pinned to the top-right of the image area, e.g. the
     classes of an overlaid classification. Like the readout it ignores the
-    mouse, so it never blocks navigation."""
+    mouse, so it never blocks navigation, unless it has links to click."""
 
     _MARGIN = 8
 
@@ -149,6 +149,8 @@ class ImageViewport(QWidget):
     # context menu. The viewport stays generic — it just reports where (in image pixels)
     # and the global cursor position. (imageCol, imageRow, QPoint global).
     sigContextMenuRequested = pyqtSignal(float, float, object)
+    # A link in the legend was clicked (its href), see setLegend
+    sigLegendLink = pyqtSignal(str)
 
     def __init__(self, imageRenderer: ImageRenderer, parent=None):
         super().__init__(parent)
@@ -193,6 +195,7 @@ class ImageViewport(QWidget):
         # QGraphicsView routes enter/leave to its viewport() child, so we filter that.
         self._readoutOverlay = _PixelReadoutOverlay(self)
         self._legendOverlay = _LegendOverlay(self, self._gv)
+        self._legendOverlay.linkActivated.connect(self.sigLegendLink)
         self._gv.scene().sigMouseMoved.connect(self._onHover)
         self._gv.viewport().installEventFilter(self)
 
@@ -516,8 +519,18 @@ class ImageViewport(QWidget):
             parts.append(f"{label} {shown}")
         return "  ".join(parts)
 
-    def setLegend(self, html: str) -> None:
-        """Show a key over the top-right of the image ("" hides it)."""
+    def setLegend(self, html: str, clickable: bool = False) -> None:
+        """Show a key over the top-right of the image ("" hides it). With
+        ``clickable``, its links (``<a href="...">``) emit sigLegendLink."""
+        legend = self._legendOverlay
+        legend.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents, not clickable
+        )
+        legend.setTextInteractionFlags(
+            Qt.TextInteractionFlag.LinksAccessibleByMouse
+            if clickable
+            else Qt.TextInteractionFlag.NoTextInteraction
+        )
         self._legendOverlay.setText(html)
         self._legendOverlay.setVisible(bool(html))
         if html:

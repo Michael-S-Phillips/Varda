@@ -8,6 +8,12 @@ can alter results.
 
 ### Added
 
+- **Overlay colors:** a single-band overlay's **Colors** menu chooses its
+  color map (Viridis, Magma, Inferno, Plasma, Cividis, Turbo, Gray or a
+  diverging Blue-White-Red), reverses it, and stretches it over the full
+  range or 2-98 % or 5-95 %. Clicking a class's swatch in the legend changes
+  its color; the new color is saved with the result and every view showing it
+  follows.
 - **Stretch From** (General Image Analysis, Render Settings): the stretch and
   the histogram can take their statistics from the full image, the main view
   or the zoom view, as in ENVI; the stretch then applies to the whole image.
