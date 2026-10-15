@@ -102,7 +102,8 @@ class AutoAlignDialog(QDialog):
         guidance = MutedLabel(
             f"The tie points are fitted with the image's transform ({model}); "
             "choose it in the Images panel. For map-projected images a "
-            "translation (or affine) is usually right."
+            "translation (or affine) is usually right; for unprojected strips "
+            "whose distortion varies, a polynomial or thin-plate spline."
         )
         guidance.setWordWrap(True)
 

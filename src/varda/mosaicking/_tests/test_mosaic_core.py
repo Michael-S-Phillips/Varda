@@ -12,6 +12,7 @@ from varda.mosaicking.grid import defaultGrid
 from varda.mosaicking.model import MosaicError, MosaicProject
 from varda.mosaicking.render import NO_SOURCE, Resampling, renderMosaic
 from varda.mosaicking.transforms import (
+    WARPS,
     FitError,
     TransformModel,
     applyMatrix,
@@ -60,7 +61,7 @@ def _shifted(image: VardaRaster, dx: float, dy: float) -> VardaRaster:
 # --- transforms ---------------------------------------------------------------
 
 
-@pytest.mark.parametrize("model", list(TransformModel))
+@pytest.mark.parametrize("model", [m for m in TransformModel if m not in WARPS])
 def test_fits_recover_a_planted_transform(model):
     src = RNG.uniform(5e5, 5.1e5, (12, 2))
     planted = {

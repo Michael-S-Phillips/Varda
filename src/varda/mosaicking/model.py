@@ -12,10 +12,14 @@ from attrs import define, field, frozen
 
 from varda.common.entities import VardaRaster
 from varda.mosaicking.transforms import (
+    WARPS,
     TransformModel,
+    Warp,
     applyMatrix,
     fitTransform,
+    fitWarp,
     ransacFit,
+    robustWarpFit,
     translation,
 )
 
@@ -26,22 +30,36 @@ DEFAULT_INLIER_PX = 1.0  # RANSAC's inlier threshold, in the moving image's pixe
 class MosaicInput:
     image: VardaRaster
     key: int  # stable across reordering; tie points refer to it
-    correction: np.ndarray = field(factory=lambda: np.eye(3))  # map → corrected map
+    # The correction, map → corrected map: the warp (if any), then the matrix
+    correction: np.ndarray = field(factory=lambda: np.eye(3))
     model: TransformModel = TransformModel.TRANSLATION
     visible: bool = True
+    warp: Warp | None = None  # a polynomial or thin-plate spline
+
+    def correct(self, points: np.ndarray) -> np.ndarray:
+        """Raw map coordinates to corrected ones."""
+        points = np.atleast_2d(np.asarray(points, float))
+        if self.warp is not None:
+            points = self.warp.forward(points)
+        return applyMatrix(self.correction, points)
+
+    def uncorrect(self, points: np.ndarray) -> np.ndarray:
+        """Corrected map coordinates back to raw ones."""
+        points = applyMatrix(np.linalg.inv(self.correction), np.atleast_2d(points))
+        return self.warp.inverse(points) if self.warp is not None else points
 
     def toMap(self, pixels: np.ndarray, corrected: bool = True) -> np.ndarray:
         """Pixel (col, row) coordinates to map coordinates, corrected or not."""
         pixels = np.atleast_2d(np.asarray(pixels, float))
         x, y = self.image.transform * (pixels[:, 0], pixels[:, 1])
         mapped = np.column_stack([x, y])
-        return applyMatrix(self.correction, mapped) if corrected else mapped
+        return self.correct(mapped) if corrected else mapped
 
     def fromMap(self, points: np.ndarray, corrected: bool = True) -> np.ndarray:
         """Map coordinates (corrected or not) back to pixel (col, row)."""
         points = np.atleast_2d(np.asarray(points, float))
         if corrected:
-            points = applyMatrix(np.linalg.inv(self.correction), points)
+            points = self.uncorrect(points)
         cols, rows = ~self.image.transform * (points[:, 0], points[:, 1])
         return np.column_stack([cols, rows])
 
@@ -51,9 +69,21 @@ class MosaicInput:
         return float(np.hypot(transform.a, transform.d))
 
     def footprint(self) -> np.ndarray:
-        """The corrected map coordinates of the image's four corners."""
+        """The corrected outline of the image, starting at its top-left corner:
+        its four corners, or points along the edges when a warp bends them."""
         w, h = self.image.width, self.image.height
-        return self.toMap(np.array([[0, 0], [w, 0], [w, h], [0, h]]))
+        if self.warp is None:
+            return self.toMap(np.array([[0, 0], [w, 0], [w, h], [0, h]]))
+        t = np.linspace(0, 1, 16, endpoint=False)
+        edges = np.concatenate(
+            [
+                np.column_stack([t * w, np.zeros_like(t)]),
+                np.column_stack([np.full_like(t, w), t * h]),
+                np.column_stack([(1 - t) * w, np.full_like(t, h)]),
+                np.column_stack([np.zeros_like(t), (1 - t) * h]),
+            ]
+        )
+        return self.toMap(edges)
 
 
 @define(eq=False)
@@ -123,7 +153,9 @@ class MosaicProject:
         item.correction = translation(dx, dy) @ item.correction
 
     def resetAlignment(self, key: int) -> None:
-        self.input(key).correction = np.eye(3)
+        item = self.input(key)
+        item.correction = np.eye(3)
+        item.warp = None
 
     # --- tie points ----------------------------------------------------------
 
@@ -178,14 +210,25 @@ class MosaicProject:
             ]
         ).reshape(-1, 2)
         manual = np.array([not p.auto for p in points], bool)
-        if manual.all():
-            matrix, residuals = fitTransform(moving.model, src, dst)
-            inliers = np.ones(len(points), bool)
+        limit = threshold * moving.pixelSize
+        if moving.model in WARPS:
+            if manual.all():
+                warp, residuals = fitWarp(moving.model, src, dst)
+                inliers = np.ones(len(points), bool)
+            else:
+                warp, residuals, inliers = robustWarpFit(
+                    moving.model, src, dst, limit, forced=manual
+                )
+            moving.warp, moving.correction = warp, np.eye(3)
         else:
-            matrix, residuals, inliers = ransacFit(
-                moving.model, src, dst, threshold * moving.pixelSize, forced=manual
-            )
-        moving.correction = matrix
+            if manual.all():
+                matrix, residuals = fitTransform(moving.model, src, dst)
+                inliers = np.ones(len(points), bool)
+            else:
+                matrix, residuals, inliers = ransacFit(
+                    moving.model, src, dst, limit, forced=manual
+                )
+            moving.warp, moving.correction = None, matrix
         for point, residual, inlier in zip(points, residuals, inliers, strict=True):
             point.residual = float(residual)
             point.inlier = bool(inlier)
@@ -217,6 +260,7 @@ class MosaicProject:
                     "correction": i.correction.tolist(),
                     "model": i.model.name,
                     "visible": i.visible,
+                    "warp": None if i.warp is None else i.warp.state(),
                 }
                 for i in order
             ],
@@ -242,6 +286,8 @@ class MosaicProject:
             item.correction = np.asarray(saved["correction"], float)
             item.model = TransformModel[saved.get("model", "TRANSLATION")]
             item.visible = bool(saved.get("visible", True))
+            warp = saved.get("warp")
+            item.warp = None if warp is None else Warp.fromState(warp)
         order = state.get("order")
         if order and sorted(order) == sorted(i.key for i in self.inputs):
             self.inputs.sort(key=lambda i: order.index(i.key))
