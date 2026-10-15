@@ -17,9 +17,8 @@ from urllib.parse import urlparse
 import geopandas as gpd
 import pandas as pd
 import shapely
-from pyproj import CRS
 
-from varda.catalogs.bodies import RADII_M, geographicCrs
+from varda.catalogs.bodies import BodyChoice, bodyOf, toLongitudeLatitude
 from varda.catalogs.catalog import (
     Catalog,
     CatalogError,
@@ -32,7 +31,7 @@ from varda.catalogs.catalog import (
     pageOffset,
 )
 from varda.catalogs.ode import DATABASES, OdeCatalog
-from varda.common.parameter import StringParameter
+from varda.common.parameter import EnumParameter, StringParameter
 
 # Column names tried, in order, for a product's id and observation start
 ID_COLUMNS = ("ProductId", "pdsid", "product_id", "id", "obs", "name", "Name")
@@ -49,20 +48,6 @@ ODE_COLUMNS = ("InstHostId", "InstId", "ProdType", "Target")
 LABELS = (".lbl", ".xml")
 # Web pages, not files
 PAGES = (".aspx", ".html", ".htm", ".php")
-
-
-def bodyOf(crs: CRS | None) -> str:
-    """The body a coordinate system belongs to, by its radius (within 1%)."""
-    if crs is None:
-        return "Earth"
-    ellipsoid = crs.ellipsoid
-    radius = ellipsoid.semi_major_metre if ellipsoid is not None else None
-    if crs.to_epsg() == 4326 or radius is None:
-        return "Earth"
-    for name, known in RADII_M.items():
-        if abs(radius - known) / known < 0.01:
-            return name
-    return "Earth"
 
 
 def _utc(moment: datetime) -> pd.Timestamp:
@@ -90,6 +75,13 @@ class FootprintFileCatalog(Catalog):
     # The files offered; the Find Data workspace adds the user's
     paths: ClassVar[list[str]] = []
     idContains = StringParameter("Product ID contains", "")
+    body = EnumParameter(
+        "Body",
+        BodyChoice,
+        BodyChoice.AUTO,
+        description="The body the footprints are on, when the file doesn't say "
+        "(GeoJSON always declares Earth's coordinates)",
+    )
 
     def __init__(self) -> None:
         super().__init__()
@@ -103,6 +95,9 @@ class FootprintFileCatalog(Catalog):
         ]
 
     def _body(self, path: str) -> str:
+        chosen = BodyChoice(self.body.get())
+        if chosen is not BodyChoice.AUTO:
+            return chosen.value
         return bodyOf(self._frame(path).attrs.get("source crs"))
 
     def _frame(self, path: str) -> gpd.GeoDataFrame:
@@ -114,9 +109,7 @@ class FootprintFileCatalog(Catalog):
                     f"Varda couldn't read {Path(path).name}: {error}"
                 ) from error
             source = frame.crs
-            body = bodyOf(source)
-            if source is not None and not source.is_geographic:
-                frame = frame.to_crs(geographicCrs(body))
+            frame = toLongitudeLatitude(frame)
             frame["geometry"] = frame.geometry.apply(_shift)
             frame.attrs["source crs"] = source
             self._frames[path] = frame

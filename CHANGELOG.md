@@ -4,6 +4,18 @@ Notable changes to Varda. Release notes on GitHub are generated from pull
 requests; this file records what users need to know, especially changes that
 can alter results.
 
+## Unreleased
+
+### Added
+
+- **Find and Fetch Data** (Workspace → Find and Fetch Data…): search catalogs
+  for observations of a place and see their footprints on a map, over a
+  loaded image and vector overlays (a rover traverse, a geologic map), with
+  the results in a sortable table and a preview. Varda ships three catalogs:
+  STAC (USGS Astrogeology for Mars, the Moon and Europa, and Earth Search, by
+  default), the PDS Orbital Data Explorer, and footprint files (offline);
+  plugins can add more with a `registerCatalogs` hook.
+
 ## 0.8.0 (2026-10-15)
 
 ### Added

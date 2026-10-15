@@ -12,7 +12,8 @@ import shapely
 
 from varda.catalogs import ode, stac
 from varda.catalogs.catalog import CatalogError, SearchQuery
-from varda.catalogs.footprints import FootprintFileCatalog, bodyOf
+from varda.catalogs.bodies import BodyChoice, bodyOf
+from varda.catalogs.footprints import FootprintFileCatalog
 from varda.catalogs.ode import OdeCatalog, odeLongitudes
 from varda.catalogs.registry import availableCatalogs
 from varda.catalogs.stac import StacApi, StacCatalog, _checksum
@@ -319,3 +320,20 @@ def test_live_stac_finds_ctx_dtms_over_jezero(monkeypatch):
     )
     page = catalog.search(SearchQuery(collection, (77, 18, 78, 19), limit=3), _progress)
     assert page.products and catalog.files(page.products[0])
+
+
+def test_a_geojson_on_mars_can_say_so(tmp_path, monkeypatch):
+    """GeoJSON always declares Earth's coordinates; the Body filter overrides it."""
+    frame = gpd.GeoDataFrame(
+        {"id": ["a"]}, geometry=[shapely.box(77, 18, 78, 19)], crs="OGC:CRS84"
+    )
+    frame.to_file(tmp_path / "mars.geojson", driver="GeoJSON")
+    monkeypatch.setattr(FootprintFileCatalog, "paths", [str(tmp_path / "mars.geojson")])
+    catalog = FootprintFileCatalog()
+    assert catalog.collections()[0].body == "Earth"
+    catalog.body.set(BodyChoice.MARS)
+    assert catalog.collections()[0].body == "Mars"
+    (product,) = catalog.search(
+        SearchQuery(str(tmp_path / "mars.geojson"), (77.2, 18.2, 77.5, 18.5)), _progress
+    ).products
+    assert product.footprint.bounds == (77.0, 18.0, 78.0, 19.0)  # degrees as they were
