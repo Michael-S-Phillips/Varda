@@ -133,3 +133,52 @@ def test_only_one_openable_file_per_image():
         [Path("a/obs.img"), Path("a/obs.hdr"), Path("a/obs.lbl"), Path("a/b.tif")]
     )
     assert sorted(found) == [Path("a/b.tif"), Path("a/obs.hdr")]
+
+
+def test_the_columns_can_be_dragged_wider(panel):
+    header = panel.tree.header()
+    assert header.sectionResizeMode(0) == header.ResizeMode.Interactive
+    header.resizeSection(0, 900)
+    assert header.sectionSize(0) == 900
+
+
+def test_check_all_essential_none_and_by_type(panel, catalog, qtbot):
+    queued = _listed(panel, catalog, qtbot)
+    panel.checkFiles(lambda f: True)
+    assert queued.chosen == set(FILES)
+    assert panel.total.text().startswith("3 files")
+    panel.checkFiles(lambda f: False)
+    assert queued.chosen == set()
+    panel.checkFiles(lambda f: f.role == "browse", add=True)
+    assert queued.chosen == {"obs_browse.png"}
+    browse = next(
+        queued.item.child(r)
+        for r in range(queued.item.childCount())
+        if queued.item.child(r).text(0) == "obs_browse.png"
+    )
+    assert browse.checkState(0) == Qt.CheckState.Checked
+    panel.checkFiles(lambda f: f.essential)
+    assert queued.chosen == {"obs.hdr", "obs.img"}
+
+
+def test_checks_apply_to_the_selected_products_only(panel, catalog, qtbot):
+    other = Product("obs2", "Another", "mars_obs", shapely.box(2, 2, 3, 3))
+    panel.add(catalog, [PRODUCT, other])
+    qtbot.waitUntil(lambda: all(q.status == WAITING for q in panel.queue), timeout=5000)
+    first, second = panel.queue
+    first.item.setSelected(True)
+    panel.checkFiles(lambda f: False)
+    assert first.chosen == set() and second.chosen == {"obs.hdr", "obs.img"}
+
+
+def test_select_by_status_then_download_only_those(panel, catalog, qtbot):
+    other = Product("obs2", "Another", "mars_obs", shapely.box(2, 2, 3, 3))
+    panel.add(catalog, [PRODUCT, other])
+    qtbot.waitUntil(lambda: all(q.status == WAITING for q in panel.queue), timeout=5000)
+    first, second = panel.queue
+    panel._setStatus(second, "Failed: the server returned 500.")
+    panel.selectProducts(lambda s: s.startswith("Failed"))
+    assert [i.text(0) for i in panel.tree.selectedItems()] == ["obs2"]
+    panel.downloadButton.click()
+    qtbot.waitUntil(lambda: panel.downloadButton.isEnabled(), timeout=10000)
+    assert second.status == DONE and first.status == WAITING

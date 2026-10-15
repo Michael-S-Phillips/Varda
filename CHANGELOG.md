@@ -36,6 +36,11 @@ can alter results.
     per product, with progress, Cancel and resuming; finished data opens in
     Varda. The list also exports as a CSV or a script of resumable `curl`
     commands.
+  - The download list's columns can be dragged wider to show full names.
+    **Check** checks all files, only the essential ones, none, or every file
+    of a type (data, labels, browse images); **Select** picks products by
+    status (e.g. the failed ones). Check, Download and Remove act on the
+    selected products, or on all when none are selected.
   - Catalogs that need a login ask for it once and keep it in the system
     keychain; the STAC APIs searched can be edited (STAC APIs…).
   - **Map projections:** equirectangular, or north or south polar
