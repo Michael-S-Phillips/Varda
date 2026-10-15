@@ -57,10 +57,15 @@ def _digest(path: Path, checksum: str) -> bool:
     return hasher.hexdigest() == expected
 
 
+def _exactSize(file: RemoteFile) -> int | None:
+    return file.size if file.exactSize else None
+
+
 def _complete(path: Path, file: RemoteFile) -> bool:
+    size = _exactSize(file)
     return (
         path.exists()
-        and (file.size is None or path.stat().st_size == file.size)
+        and (size is None or path.stat().st_size == size)
         and _digest(path, file.checksum)
     )
 
@@ -80,13 +85,15 @@ def download(
     target.parent.mkdir(parents=True, exist_ok=True)
     part = target.with_name(target.name + ".part")
     start = part.stat().st_size if part.exists() else 0
-    if file.size is not None and start > file.size:
+    exact = _exactSize(file)
+    if exact is not None and start > exact:
         part.unlink()
         start = 0
     request = urllib.request.Request(file.url, headers=dict(headers or {}))
     if start:
         request.add_header("Range", f"bytes={start}-")
     context = ssl.create_default_context(cafile=certifi.where())
+    expected: int | None = None  # bytes the server says the file has
     try:
         with urllib.request.urlopen(
             request,
@@ -97,7 +104,8 @@ def download(
             mode = "ab" if resumed else "wb"
             done = start if resumed else 0
             length = response.headers.get("Content-Length")
-            total = file.size or (done + int(length) if length else None)
+            expected = done + int(length) if length else None
+            total = exact or expected or file.size
             with open(part, mode) as out:
                 while chunk := response.read(CHUNK):
                     if cancelled is not None and cancelled.is_set():
@@ -117,7 +125,8 @@ def download(
         raise CatalogError(
             f"{file.name}: the download was interrupted ({error})."
         ) from error
-    if file.size is not None and part.stat().st_size < file.size:
+    complete = exact if exact is not None else expected
+    if complete is not None and part.stat().st_size < complete:
         raise CatalogError(
             f"{file.name}: the download was interrupted; it will resume."
         )
