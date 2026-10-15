@@ -1,8 +1,8 @@
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSplitter
 
-from varda.image_rendering.image_renderer import ImageRenderer
+from varda.image_rendering.image_renderer import ImageRenderer, StretchSource
 from varda.rois.varda_roi import VardaROIItem
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.image_rendering.raster_view.region_controller import (
@@ -74,6 +74,26 @@ class TripleRasterView(QWidget):
         self.zoomController = RegionController(
             self.viewport2, self.viewport3, self.roi2, self.mainController
         )
+
+        # The renderer learns what the main and zoom views show, for Stretch
+        # From; pans and zooms settle before the stretch is computed again
+        self._windowTimer = QTimer(self)
+        self._windowTimer.setSingleShot(True)
+        self._windowTimer.setInterval(150)
+        self._windowTimer.timeout.connect(self.pushStretchWindows)
+        self.mainController.sigRegionChanged.connect(self._windowTimer.start)
+        self.zoomController.sigRegionChanged.connect(self._windowTimer.start)
+        self.pushStretchWindows()
+
+    def pushStretchWindows(self) -> None:
+        height, width = self.viewport1.imageEntity.shape[:2]
+        for source, controller in (
+            (StretchSource.MAIN, self.mainController),
+            (StretchSource.ZOOM, self.zoomController),
+        ):
+            self.imageRenderer.setStretchWindow(
+                source, controller.imageWindow(height, width)
+            )
 
     def addToolbarToViewport(self, viewport, toolbar):
         """Add a toolbar to a specific viewport."""

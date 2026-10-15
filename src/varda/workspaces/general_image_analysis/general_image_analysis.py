@@ -106,7 +106,9 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # Initialize raster view
         self.imageRenderer = ImageRenderer(image=self.config.image.value)
 
-        self.rendererSettingsPanel = self.imageRenderer.getSettingsPanel()
+        self.rendererSettingsPanel = self.imageRenderer.getSettingsPanel(
+            stretchFrom=True
+        )
 
         self.tripleRasterView = TripleRasterView(self.imageRenderer, self)
 
