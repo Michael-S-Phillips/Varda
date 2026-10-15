@@ -7,6 +7,7 @@ from varda.catalogs.catalog import Collection
 from varda.workspaces.find_data.collection_picker import (
     INDEX_ROLE,
     CollectionCombo,
+    distinctTitles,
 )
 
 COLLECTIONS = [
@@ -88,3 +89,22 @@ def test_enter_chooses_the_first_match(qtbot):
         combo.popup.search.setText("kaguya")
         qtbot.keyClick(combo.popup.search, Qt.Key.Key_Return)
     assert combo.currentData() == "api#kaguya_dtms"
+
+
+def test_collections_with_the_same_title_are_told_apart_by_id():
+    same = "HiRISE Socet Set DTMs (USGS Astrogeology)"
+    titles = [
+        c.title
+        for c in distinctTitles(
+            [
+                Collection("https://stac.example/api#hirise_dtms", same, "Mars"),
+                Collection("https://stac.example/api#hirise_dtms_test", same, "Mars"),
+                Collection("https://stac.example/api#lola", "LOLA", "Moon"),
+            ]
+        )
+    ]
+    assert titles == [
+        f"{same} [hirise_dtms]",
+        f"{same} [hirise_dtms_test]",
+        "LOLA",
+    ]

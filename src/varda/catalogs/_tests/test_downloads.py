@@ -10,6 +10,7 @@ import shapely
 
 from varda.catalogs.catalog import CatalogError, Product, RemoteFile
 from varda.catalogs.downloads import (
+    IncompleteDownload,
     download,
     downloadProduct,
     exportList,
@@ -28,6 +29,9 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802 (the http.server API)
         _Handler.requests.append(self.headers.get("Range", ""))
+        if "missing" in self.path:  # a broken link in a catalog
+            self.send_error(404)
+            return
         start = 0
         if self.headers.get("Range"):
             start = int(self.headers["Range"].split("=")[1].split("-")[0])
@@ -130,3 +134,20 @@ def test_a_download_list_exports_as_csv_and_a_script(tmp_path):
     exportList([("ode", product, files)], tmp_path / "get.sh", tmp_path / "downloads")
     script = (tmp_path / "get.sh").read_text()
     assert script.startswith("#!/bin/sh") and "curl" in script and "-C -" in script
+
+
+def test_a_missing_file_does_not_stop_the_others(server, tmp_path):
+    missing = server.replace("data.bin", "missing.tif")
+    files = [
+        _file(server),
+        RemoteFile("missing.tif", missing, 10),
+        RemoteFile("other.bin", server, len(DATA)),
+    ]
+    with pytest.raises(IncompleteDownload) as raised:
+        downloadProduct(files, tmp_path / "product")
+    error = raised.value
+    assert [p.name for p in error.paths] == ["data.bin", "other.bin"]
+    assert (tmp_path / "product" / "other.bin").read_bytes() == DATA
+    assert len(error.failures) == 1 and error.failures[0].startswith("missing.tif:")
+    assert "404" in str(error) and "link to it is broken" in str(error)
+    assert str(error).startswith("1 of 3 files couldn't be downloaded")
