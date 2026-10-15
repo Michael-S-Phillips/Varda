@@ -11,7 +11,13 @@ import numpy as np
 from attrs import define, field, frozen
 
 from varda.common.entities import VardaRaster
-from varda.mosaicking.correction import Correction, LinearMode, RadiometryMethod
+from varda.mosaicking.recipe import (
+    Correction,
+    LinearMode,
+    RadiometryMethod,
+    Seam,
+    SeamMethod,
+)
 from varda.mosaicking.transforms import (
     WARPS,
     TransformModel,
@@ -140,6 +146,8 @@ class MosaicProject:
         self.radiometryMethod = RadiometryMethod.NONE
         self.radiometryMode = LinearMode.BOTH
         self.heldKeys: frozenset[int] = frozenset()
+        self.seamMethod = SeamMethod.PRIORITY
+        self.seams: list[Seam] = []
 
     # --- inputs ------------------------------------------------------------
 
@@ -184,6 +192,15 @@ class MosaicProject:
     def isVisual(self) -> bool:
         """Whether the recipe changes spectral shape (a visual product)."""
         return self.radiometryMethod is RadiometryMethod.HISTOGRAM
+
+    # --- seams -------------------------------------------------------------------
+
+    def setSeams(self, method: SeamMethod, seams: Sequence[Seam]) -> None:
+        self.seamMethod = method
+        self.seams = list(seams)
+
+    def clearSeams(self) -> None:
+        self.setSeams(SeamMethod.PRIORITY, [])
 
     # --- tie points ----------------------------------------------------------
 
@@ -283,6 +300,10 @@ class MosaicProject:
         order = sorted(self.inputs, key=lambda i: i.key)
         return {
             "order": [i.key for i in self.inputs],
+            "seams": {
+                "method": self.seamMethod.name,
+                "seams": [seam.state() for seam in self.seams],
+            },
             "radiometry": {
                 "method": self.radiometryMethod.name,
                 "mode": self.radiometryMode.name,
@@ -328,6 +349,11 @@ class MosaicProject:
             item.radiometry = (
                 None if radiometry is None else Correction.fromState(radiometry)
             )
+        seams = state.get("seams", {})
+        self.setSeams(
+            SeamMethod[seams.get("method", "PRIORITY")],
+            [Seam.fromState(seam) for seam in seams.get("seams", [])],
+        )
         radiometry = state.get("radiometry", {})
         self.radiometryMethod = RadiometryMethod[radiometry.get("method", "NONE")]
         self.radiometryMode = LinearMode[radiometry.get("mode", "BOTH")]

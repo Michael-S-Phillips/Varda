@@ -23,7 +23,12 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.common.ui import MutedLabel
-from varda.mosaicking.correction import Correction, LinearMode, RadiometryMethod
+from varda.mosaicking.recipe import (
+    Correction,
+    LinearMode,
+    RadiometryMethod,
+    SeamMethod,
+)
 from varda.mosaicking.model import MosaicProject, TiePoint
 from varda.mosaicking.transforms import TransformModel
 from varda.workspaces.mosaic.views import OUTLIER_COLOR, ImagePointView
@@ -482,5 +487,81 @@ class RadiometryPanel(QWidget):
     def _clear(self) -> None:
         self.project.clearRadiometry()
         self.status.setText("No corrections: every image keeps its values.")
+        self.refresh()
+        self.sigCleared.emit()
+
+
+class SeamsPanel(QWidget):
+    """Where each image takes over in an overlap."""
+
+    sigCompute = pyqtSignal(object)  # SeamMethod
+    sigEdit = pyqtSignal(bool)
+    sigCleared = pyqtSignal()
+
+    def __init__(self, project: MosaicProject, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.project = project
+        self.method = QComboBox()
+        for method in SeamMethod:
+            self.method.addItem(method.value, method)
+        self.computeButton = QPushButton("Find Seams")
+        self.computeButton.clicked.connect(self._compute)
+        self.edit = QPushButton("Edit on Mosaic")
+        self.edit.setCheckable(True)
+        self.edit.setToolTip(
+            "Drag the corners of the seam outlines on the mosaic; double-click "
+            "an edge to add a corner"
+        )
+        self.edit.toggled.connect(self.sigEdit)
+        clear = QPushButton("Clear")
+        clear.setToolTip("Back to the stack order: the top image wins in every overlap")
+        clear.clicked.connect(self._clear)
+        self.status = MutedLabel("")
+        self.status.setWordWrap(True)
+        note = MutedLabel(
+            "Seams only decide which image each pixel comes from, so spectra "
+            "stay exact. Voronoi splits each overlap down its middle; least "
+            "difference follows where the images agree, so the seam is hard to "
+            "see. Find seams again after changing the alignment."
+        )
+        note.setWordWrap(True)
+        form = QFormLayout()
+        form.addRow("Method:", self.method)
+        buttons = QHBoxLayout()
+        buttons.addWidget(self.computeButton)
+        buttons.addWidget(self.edit)
+        buttons.addWidget(clear)
+        buttons.addStretch()
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addLayout(buttons)
+        layout.addWidget(self.status)
+        layout.addWidget(note)
+        layout.addStretch(1)
+        self.refresh()
+
+    def refresh(self) -> None:
+        self.method.setCurrentIndex(list(SeamMethod).index(self.project.seamMethod))
+        self.edit.setEnabled(bool(self.project.seams))
+        if not self.project.seams and self.edit.isChecked():
+            self.edit.setChecked(False)
+
+    def showResult(self, message: str) -> None:
+        self.computeButton.setEnabled(True)
+        self.status.setText(message)
+        self.refresh()
+
+    def _compute(self) -> None:
+        method = self.method.currentData()
+        if method is SeamMethod.PRIORITY:
+            self._clear()
+            return
+        self.computeButton.setEnabled(False)
+        self.status.setText("Finding seams…")
+        self.sigCompute.emit(method)
+
+    def _clear(self) -> None:
+        self.project.clearSeams()
+        self.status.setText("The stack order decides: the top image wins.")
         self.refresh()
         self.sigCleared.emit()

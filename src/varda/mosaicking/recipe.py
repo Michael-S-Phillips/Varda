@@ -1,7 +1,13 @@
-"""A radiometric correction of one mosaic input: a gain and offset per band
-(documented linear corrections, as science mosaics use), or a per-band
-lookup table from histogram matching (visual only: it changes spectral
-shape). Applied while rendering, so the inputs are never changed."""
+"""The plain parts of a mosaic recipe (no dependencies on the rest of the
+mosaic code):
+
+- a radiometric ``Correction`` of one input: a gain and offset per band
+  (documented linear corrections, as science mosaics use), or a per-band
+  lookup table from histogram matching (visual only: it changes spectral
+  shape);
+- a ``Seam`` between two overlapping inputs: where the lower one takes over.
+
+Both are applied while rendering, so the inputs are never changed."""
 
 from __future__ import annotations
 
@@ -80,3 +86,35 @@ def extendedInterp(x: np.ndarray, xp: np.ndarray, fp: np.ndarray) -> np.ndarray:
         y = np.where(x < xp[0], fp[0] + (x - xp[0]) * low, y)
         y = np.where(x > xp[-1], fp[-1] + (x - xp[-1]) * high, y)
     return y
+
+
+class SeamMethod(LabeledEnum):
+    PRIORITY = "Priority (the stack order)"
+    VORONOI = "Middle of each overlap (Voronoi)"
+    LEAST_DIFFERENCE = "Least difference (where the images agree)"
+
+
+@frozen(eq=False)
+class Seam:
+    """Where, in the overlap of two inputs, the lower one (``bottom``) takes
+    over from the upper one (``top``): polygons in map coordinates. Elsewhere
+    the stack order decides."""
+
+    top: int  # input keys
+    bottom: int
+    regions: tuple[np.ndarray, ...]  # each (N, 2) map coordinates
+
+    def state(self) -> dict:
+        return {
+            "top": self.top,
+            "bottom": self.bottom,
+            "regions": [r.tolist() for r in self.regions],
+        }
+
+    @classmethod
+    def fromState(cls, state: dict) -> Seam:
+        return cls(
+            int(state["top"]),
+            int(state["bottom"]),
+            tuple(np.asarray(r, float) for r in state["regions"]),
+        )
