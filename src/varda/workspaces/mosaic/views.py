@@ -11,9 +11,12 @@ from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
 from varda.common.entities import VardaRaster
 from varda.mosaicking.grid import TargetGrid
+from varda.mosaicking.recipe import Seam
 
 PREVIEW_PIXELS = 1500  # the preview's longest side, at most
 FOOTPRINT_PEN = pg.mkPen("#ffd200", width=2)
+SEAM_PEN = pg.mkPen("#ff4fd8", width=2, style=Qt.PenStyle.DashLine)
+SEAM_EDIT_PEN = pg.mkPen("#ff4fd8", width=2)
 
 
 def displayBands(image: VardaRaster) -> list[int]:
@@ -89,6 +92,8 @@ class MosaicCanvas(_PlotView):
     (Shift for ten times as far)."""
 
     sigNudge = pyqtSignal(int, int)  # (right, up) steps, in output pixels
+    # (seam index, region index, new outline (N, 2) in map coordinates)
+    sigSeamEdited = pyqtSignal(int, int, object)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(
@@ -99,6 +104,7 @@ class MosaicCanvas(_PlotView):
         self.plot.keyPressEvent = self._keyPress  # type: ignore[method-assign]
         self.footprint = pg.PlotDataItem(pen=FOOTPRINT_PEN)
         self.plot.addItem(self.footprint)
+        self._seamItems: list[pg.GraphicsObject] = []
         self._framed = False
 
     def showPreview(self, cube: np.ndarray, grid: TargetGrid) -> None:
@@ -120,6 +126,35 @@ class MosaicCanvas(_PlotView):
             return
         closed = np.vstack([corners, corners[:1]])
         self.footprint.setData(closed[:, 0], closed[:, 1])
+
+    def showSeams(self, seams: list[Seam], editable: bool = False) -> None:
+        """Outline each seam's area (where the lower image takes over); when
+        ``editable``, as polygons whose corners can be dragged."""
+        for item in self._seamItems:
+            self.plot.removeItem(item)
+        self._seamItems = []
+        for s, seam in enumerate(seams):
+            for r, region in enumerate(seam.regions):
+                if editable:
+                    roi = pg.PolyLineROI(
+                        [tuple(p) for p in region], closed=True, pen=SEAM_EDIT_PEN
+                    )
+                    roi.sigRegionChangeFinished.connect(
+                        lambda roi, s=s, r=r: self._onSeamEdited(roi, s, r)
+                    )
+                    item: pg.GraphicsObject = roi
+                else:
+                    closed = np.vstack([region, region[:1]])
+                    item = pg.PlotDataItem(closed[:, 0], closed[:, 1], pen=SEAM_PEN)
+                self.plot.addItem(item)
+                self._seamItems.append(item)
+
+    def _onSeamEdited(self, roi: pg.PolyLineROI, seam: int, region: int) -> None:
+        # Handles sit in the ROI's own coordinates; its parent is the plot's
+        # view, which is in map coordinates
+        corners = [roi.mapToParent(handle["pos"]) for handle in roi.handles]
+        outline = np.array([[p.x(), p.y()] for p in corners], float)
+        self.sigSeamEdited.emit(seam, region, outline)
 
     def _keyPress(self, event) -> None:
         step = 10 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else 1

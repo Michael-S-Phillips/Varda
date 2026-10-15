@@ -114,6 +114,25 @@ Statistics come from a subsample of each overlap. The table shows each
 image's mean gain and offset; hover for every band. The corrections are
 saved with the session and recorded in the exported mosaic's metadata.
 
+## Seams
+
+By default the stack order decides: where images overlap, the top one wins.
+The **Seams** tab can split each overlap between the two images instead:
+
+- **Middle of each overlap (Voronoi):** each overlap pixel goes to the image
+  whose own part of the scene is nearer, so the seam runs down the middle.
+- **Least difference:** the seam follows the path where the two images
+  differ least (after any radiometric balancing), so it's hard to see.
+
+**Find Seams** computes them (from a reduced copy of each overlap) and
+outlines, on the mosaic, the area where the lower image takes over. **Edit on
+Mosaic** makes the outlines draggable: move a corner, or double-click an
+edge to add one. **Clear** returns to the stack order. Seams are kept in map
+coordinates, so they look the same at any export resolution; find them again
+after changing the alignment.
+
+Seams only choose which image each pixel comes from: spectra stay exact.
+
 ## Exporting
 
 **Export Mosaic…** renders the mosaic and adds it to the image list:
@@ -130,7 +149,7 @@ saved with the session and recorded in the exported mosaic's metadata.
 
 Seams are hard (no blending), so spectra are never mixed across them. The
 mosaic's metadata records the inputs, the resampling, the radiometric
-corrections and the full recipe.
+corrections, the seams and the full recipe.
 
 Saving the session keeps each Mosaic workspace's recipe (order, visibility,
 alignments and tie points), so you can reopen it and keep working.

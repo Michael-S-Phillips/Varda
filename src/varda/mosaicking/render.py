@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import numpy as np
+import shapely
 from attrs import frozen
 from scipy import ndimage
 
@@ -163,11 +164,28 @@ def renderMosaic(
         if item.key not in cache:
             cache[item.key] = _cube(item, bands)
     cubes = [cache[item.key] for item in inputs]
+    seams = _seamAreas(project, inputs)
     for start in range(0, grid.height, TILE_ROWS):
         rows = slice(start, min(start + TILE_ROWS, grid.height))
         progress(int(100 * start / grid.height), "rendering")
         tile = out[rows].reshape(-1, count)
         tileSources = sources[rows].reshape(-1)
+        if seams:
+            _renderWithSeams(
+                project,
+                inputs,
+                cubes,
+                seams,
+                grid,
+                rows,
+                resampling,
+                bands,
+                tile,
+                tileSources,
+            )
+            out[rows] = tile.reshape(rows.stop - rows.start, grid.width, count)
+            sources[rows] = tileSources.reshape(rows.stop - rows.start, grid.width)
+            continue
         for item, cube in zip(inputs, cubes):
             todo = tileSources == NO_SOURCE
             if not todo.any():
@@ -182,3 +200,57 @@ def renderMosaic(
         out[rows] = tile.reshape(rows.stop - rows.start, grid.width, count)
         sources[rows] = tileSources.reshape(rows.stop - rows.start, grid.width)
     return MosaicResult(out, sources)
+
+
+def _seamAreas(
+    project: MosaicProject, inputs: list[MosaicInput]
+) -> list[tuple[int, int, shapely.Geometry]]:
+    """The seams between rendered inputs, as (top position, bottom position,
+    the area the bottom one takes over), top first."""
+    position = {item.key: n for n, item in enumerate(inputs)}
+    areas = []
+    for seam in project.seams:
+        if seam.top in position and seam.bottom in position and seam.regions:
+            area = shapely.union_all(
+                [shapely.Polygon(r) for r in seam.regions if len(r) >= 3]
+            )
+            areas.append((position[seam.top], position[seam.bottom], area))
+    return sorted(areas, key=lambda a: (a[0], a[1]))
+
+
+def _renderWithSeams(
+    project: MosaicProject,
+    inputs: list[MosaicInput],
+    cubes: list[np.ndarray],
+    seams: list[tuple[int, int, shapely.Geometry]],
+    grid: TargetGrid,
+    rows: slice,
+    resampling: Resampling,
+    bands: list[int] | None,
+    tile: np.ndarray,
+    tileSources: np.ndarray,
+) -> None:
+    """One tile with seams: every input is sampled, the topmost valid one
+    owns each pixel, then each seam hands its area to the lower input where
+    that has data."""
+    x, y = grid.pixelCenters(rows)
+    samples, valids = [], []
+    for item, cube in zip(inputs, cubes):
+        cols, rowsIn = rawPixels(item, grid, rows)
+        values, valid = _sample(cube, cols, rowsIn, resampling)
+        if item.radiometry is not None:
+            values = item.radiometry.apply(values, bands)
+        samples.append(values)
+        valids.append(valid)
+    owner = np.full(len(x), NO_SOURCE, np.int64)
+    for n in range(len(inputs) - 1, -1, -1):  # the topmost valid input wins
+        owner[valids[n]] = n
+    for top, bottom, area in seams:
+        candidates = np.flatnonzero((owner == top) & valids[bottom])
+        if candidates.size:
+            inside = shapely.contains_xy(area, x[candidates], y[candidates])
+            owner[candidates[inside]] = bottom
+    for n, values in enumerate(samples):
+        mine = owner == n
+        tile[mine] = values[mine]
+        tileSources[mine] = project.inputs.index(inputs[n])

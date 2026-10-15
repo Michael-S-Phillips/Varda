@@ -24,7 +24,7 @@ import numpy as np
 from affine import Affine
 from attrs import frozen
 
-from varda.mosaicking.correction import Correction, LinearMode, RadiometryMethod
+from varda.mosaicking.recipe import Correction, LinearMode, RadiometryMethod
 from varda.mosaicking.grid import TargetGrid, overlapGrid
 from varda.mosaicking.model import MosaicError, MosaicProject
 from varda.mosaicking.render import Resampling, readCube, sampleOnGrid

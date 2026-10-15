@@ -10,7 +10,7 @@ from scipy import ndimage
 
 from varda.common.entities import VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
-from varda.mosaicking.correction import RadiometryMethod
+from varda.mosaicking.recipe import RadiometryMethod
 from varda.mosaicking.grid import defaultGrid
 from varda.mosaicking.render import Resampling, renderMosaic
 from varda.workspaces.mosaic.mosaic_workspace import MosaicWorkspace, mosaicRaster

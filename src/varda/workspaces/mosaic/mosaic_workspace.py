@@ -39,6 +39,7 @@ from varda.mosaicking.matching import (
     findTiePoints,
 )
 from varda.mosaicking.model import DEFAULT_INLIER_PX, MosaicProject
+from varda.mosaicking.seams import Seam, SeamMethod, computeSeams
 from varda.mosaicking.radiometry import (
     LinearMode,
     RadiometryMethod,
@@ -52,6 +53,7 @@ from varda.workspaces.mosaic.auto_align_dialog import AutoAlignDialog
 from varda.workspaces.mosaic.panels import (
     InputsPanel,
     RadiometryPanel,
+    SeamsPanel,
     TiePointPanel,
 )
 from varda.workspaces.mosaic.views import PREVIEW_PIXELS, MosaicCanvas, displayBands
@@ -108,6 +110,7 @@ class MosaicWorkspace(QMainWindow):
         self.inputsPanel = InputsPanel(self.project)
         self.tiePanel = TiePointPanel(self.project)
         self.radiometryPanel = RadiometryPanel(self.project)
+        self.seamsPanel = SeamsPanel(self.project)
         self.status = QStatusBar()
         self.setStatusBar(self.status)
         self._previewTimer = QTimer(self)
@@ -122,6 +125,10 @@ class MosaicWorkspace(QMainWindow):
         self.inputsPanel.sigAutoAlign.connect(self.openAutoAlign)
         self.radiometryPanel.sigBalance.connect(self.balance)
         self.radiometryPanel.sigCleared.connect(self.refreshPreview)
+        self.seamsPanel.sigCompute.connect(self.findSeams)
+        self.seamsPanel.sigEdit.connect(lambda _: self.showSeams())
+        self.seamsPanel.sigCleared.connect(self._seamsChanged)
+        self.canvas.sigSeamEdited.connect(self.editSeam)
         self.inputsPanel.sigExport.connect(self.export)
         self.tiePanel.sigChanged.connect(self.refreshPreview)
         self.canvas.sigNudge.connect(self.nudge)
@@ -135,6 +142,7 @@ class MosaicWorkspace(QMainWindow):
         self.radiometryDock = VardaDockWidget("Radiometry").withWidget(
             self.radiometryPanel
         )
+        self.seamsDock = VardaDockWidget("Seams").withWidget(self.seamsPanel)
         manager = self.dockManager
         manager.addDockWidget(ads.DockWidgetArea.CenterDockWidgetArea, self.canvasDock)
         manager.addDockWidget(
@@ -150,6 +158,7 @@ class MosaicWorkspace(QMainWindow):
         manager.addDockWidgetTabToArea(
             self.radiometryDock, self.tieDock.dockAreaWidget()
         )
+        manager.addDockWidgetTabToArea(self.seamsDock, self.tieDock.dockAreaWidget())
         self.tieDock.toggleView(True)  # Tie Points stays the front tab
         self.tieDock.setAsCurrentTab()
 
@@ -299,6 +308,42 @@ class MosaicWorkspace(QMainWindow):
             description="Balancing a mosaic",
         )
 
+    # --- seams -----------------------------------------------------------------------
+
+    def findSeams(self, method: SeamMethod) -> None:
+        """Find the seams in the background, then use and show them."""
+
+        def finished(seams: list[Seam]) -> None:
+            self.project.setSeams(method, seams)
+            self.seamsPanel.showResult(
+                f"{len(seams)} seam{'s' if len(seams) != 1 else ''} found."
+                if seams
+                else "No images overlap: there's nothing to split."
+            )
+            self._seamsChanged()
+
+        runInBackground(
+            lambda: computeSeams(self.project, method),
+            finished,
+            lambda error: self.seamsPanel.showResult(f"Finding seams failed: {error}"),
+            description="Finding mosaic seams",
+        )
+
+    def showSeams(self) -> None:
+        self.canvas.showSeams(self.project.seams, self.seamsPanel.edit.isChecked())
+
+    def editSeam(self, index: int, region: int, outline: np.ndarray) -> None:
+        """A seam outline dragged on the mosaic."""
+        seam = self.project.seams[index]
+        regions = list(seam.regions)
+        regions[region] = outline
+        self.project.seams[index] = Seam(seam.top, seam.bottom, tuple(regions))
+        self.refreshPreview()
+
+    def _seamsChanged(self) -> None:
+        self.showSeams()
+        self.refreshPreview()
+
     def addDisplacementField(self, displacement: DisplacementField) -> None:
         raster = displacementRaster(self.project, displacement)
         self.projectImages.append(raster)
@@ -349,6 +394,8 @@ class MosaicWorkspace(QMainWindow):
             self.project.restore(recipe)
             self.inputsPanel.refresh()
             self.radiometryPanel.refresh()
+            self.seamsPanel.refresh()
+            self.showSeams()
             self.tiePanel.setMoving(self.selectedKey())
             self.refreshPreview()
 
