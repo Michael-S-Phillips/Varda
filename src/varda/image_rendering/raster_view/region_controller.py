@@ -1,7 +1,7 @@
 import logging
 
 import numpy as np
-from PyQt6.QtCore import QObject, QPointF
+from PyQt6.QtCore import QObject, QPointF, pyqtSignal
 
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.rois.varda_roi import VardaROIItem
@@ -20,6 +20,8 @@ class RegionController(QObject):
       - panning the target moves the ROI on the source,
       - zooming the target resizes the ROI on the source.
     """
+
+    sigRegionChanged = pyqtSignal()  # the region pushed to the target changed
 
     dragSpeed: float = 0.5  # Speed multiplier for drag events
     minRoiSize: float = 4.0  # Smallest allowed ROI dimension, in source pixels
@@ -150,6 +152,20 @@ class RegionController(QObject):
         self._calculateAbsoluteROI()
         # Set the absolute ROI on the target viewport
         self.targetViewport.showRegion(self.internalROI)
+        self.sigRegionChanged.emit()
+
+    def imageWindow(self, height: int, width: int) -> tuple[slice, slice] | None:
+        """The rows and columns of the image the target viewport shows."""
+        if self.internalROI is None or len(self.internalROI.points) == 0:
+            return None
+        points = np.asarray(self.internalROI.points, dtype=float)
+        x0, y0 = points.min(axis=0)
+        x1, y1 = points.max(axis=0)
+        rows = slice(max(0, round(y0)), min(height, max(round(y1), round(y0) + 1)))
+        cols = slice(max(0, round(x0)), min(width, max(round(x1), round(x0) + 1)))
+        if rows.start >= rows.stop or cols.start >= cols.stop:
+            return None
+        return rows, cols
 
     def _onSourceRegionChanged(self):
         """Handle the source viewport emitting a new image.

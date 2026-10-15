@@ -49,7 +49,10 @@ class StretchAlgorithm(QObject):
         """
         return ParameterGroup()
 
-    def apply(self, image: np.ndarray) -> np.ndarray:
+    def apply(self, image: np.ndarray, sample: np.ndarray | None = None) -> np.ndarray:
+        """Stretch ``image`` to 0-1. Statistics (min, max, percentiles,
+        histogram) come from ``sample`` when given, e.g. the part of the image
+        a view shows, and from ``image`` otherwise."""
         raise NotImplementedError("Subclasses classes must implement this method.")
 
     def minMaxVals(self) -> tuple[np.ndarray, np.ndarray] | None:
@@ -67,7 +70,7 @@ class NoStretch(StretchAlgorithm):
     placeholder stretch algorithm that does nothing.
     """
 
-    def apply(self, image):
+    def apply(self, image, sample=None):
         return image
 
     def minMaxVals(self):
@@ -121,33 +124,22 @@ class MinMaxStretch(StretchAlgorithm):
         self.minVals = None
         self.maxVals = None
 
-    def apply(self, image):
+    def apply(self, image, sample=None):
         """Compute min/max values for the full range of data."""
         validateArrayShape(image)
+        stats = image if sample is None else sample
 
         if image.shape[2] == 1:
             # Handle grayscale or invalid data
-            minVal = np.nanmin(image)
-            maxVal = np.nanmax(image)
+            minVal = np.nanmin(stats)
+            maxVal = np.nanmax(stats)
             self.minVals = minVal
             self.maxVals = maxVal
             return (np.clip(image, minVal, maxVal) - minVal) / (maxVal - minVal)
 
         # Compute percentiles for each channel
-        minVals = np.array(
-            [
-                np.nanmin(image[:, :, 0]),
-                np.nanmin(image[:, :, 1]),
-                np.nanmin(image[:, :, 2]),
-            ]
-        ).reshape((1, 1, 3))
-        maxVals = np.array(
-            [
-                np.nanmax(image[:, :, 0]),
-                np.nanmax(image[:, :, 1]),
-                np.nanmax(image[:, :, 2]),
-            ]
-        ).reshape((1, 1, 3))
+        minVals = np.nanmin(stats, axis=(0, 1)).reshape((1, 1, 3))
+        maxVals = np.nanmax(stats, axis=(0, 1)).reshape((1, 1, 3))
 
         self.minVals = minVals.squeeze()
         self.maxVals = maxVals.squeeze()
@@ -193,7 +185,7 @@ class ManualValueStretchRGB(StretchAlgorithm):
     def parameters(self) -> ParameterGroup:
         return self.config
 
-    def apply(self, image: np.ndarray) -> np.ndarray:
+    def apply(self, image: np.ndarray, sample: np.ndarray | None = None) -> np.ndarray:
         """use the given min/max values to stretch the image"""
 
         validateArrayShape(image)
@@ -345,7 +337,7 @@ class LinearPercentileStretch(StretchAlgorithm):
     def parameters(self) -> ParameterGroup:
         return self.config
 
-    def apply(self, image: np.ndarray) -> np.ndarray:
+    def apply(self, image: np.ndarray, sample: np.ndarray | None = None) -> np.ndarray:
         """Compute min/max values based on percentiles.
 
         NOTE: This is an approximation using histogram binning. But I think that for the purpose of visualization it's indisinguishable.
@@ -362,8 +354,8 @@ class LinearPercentileStretch(StretchAlgorithm):
             image = image.copy()
             # profile("LinearPercentileStretch: Copied array")
 
-        # sample = image[::2, ::2]  # 1/4th pixels
-        sample = image
+        if sample is None:
+            sample = image
         # profile("LinearPercentileStretch: Created sample")
         if image.shape[2] == 1:
             # using a histogram approximation, which is significantly faster. For visualizing it's accurate enough
@@ -433,14 +425,14 @@ class LinearPercentileStretch(StretchAlgorithm):
 class _CurvedPercentileStretch(LinearPercentileStretch):
     """A percentile stretch to 0-1, then a curve that brightens the dark end."""
 
-    def linear(self, image: np.ndarray) -> np.ndarray:
-        return super().apply(image)
+    def linear(self, image: np.ndarray, sample: np.ndarray | None = None) -> np.ndarray:
+        return super().apply(image, sample)
 
     def curve(self, values: np.ndarray) -> np.ndarray:
         raise NotImplementedError
 
-    def apply(self, image: np.ndarray) -> np.ndarray:
-        return self.curve(self.linear(image))
+    def apply(self, image: np.ndarray, sample: np.ndarray | None = None) -> np.ndarray:
+        return self.curve(self.linear(image, sample))
 
 
 @registerStretchAlgorithm("Square Root (Percentile)")
@@ -472,13 +464,15 @@ class HistogramEqualizationStretch(StretchAlgorithm):
         self.minVals: np.ndarray | None = None
         self.maxVals: np.ndarray | None = None
 
-    def apply(self, image: np.ndarray) -> np.ndarray:
+    def apply(self, image: np.ndarray, sample: np.ndarray | None = None) -> np.ndarray:
         validateArrayShape(image)
+        stats = image if sample is None else sample
         out = np.full(image.shape, np.nan, dtype=np.float64)
         lows, highs = [], []
         for channel in range(image.shape[2]):
             values = image[:, :, channel]
-            finite = values[np.isfinite(values)]
+            sampled = stats[:, :, channel]
+            finite = sampled[np.isfinite(sampled)]
             if finite.size == 0:
                 lows.append(0.0)
                 highs.append(1.0)

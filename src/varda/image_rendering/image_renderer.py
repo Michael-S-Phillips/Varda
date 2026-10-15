@@ -15,6 +15,7 @@ from varda.common.parameter import (
     ParameterGroup,
     EnumParameter,
     FloatParameter,
+    LabeledEnum,
 )
 from varda.common.entities import VardaRaster
 from varda.common.vec2 import Vec2
@@ -37,6 +38,30 @@ class RenderMode(Enum):
     RGB = auto()
 
 
+class StretchSource(LabeledEnum):
+    """Where the stretch and the histogram take their statistics."""
+
+    FULL = "Full image"
+    MAIN = "Main view"
+    ZOOM = "Zoom view"
+
+
+Window = tuple[slice, slice]  # rows, columns of the image
+# A view's window that moves less than this (pixels) keeps the stretch as it
+# is: re-deriving a view's region from another's can jitter by a pixel
+WINDOW_TOLERANCE = 1
+
+
+def _sameWindow(a: Window | None, b: Window | None) -> bool:
+    if a is None or b is None:
+        return a is b
+    return all(
+        abs(x.start - y.start) <= WINDOW_TOLERANCE
+        and abs(x.stop - y.stop) <= WINDOW_TOLERANCE
+        for x, y in zip(a, b)
+    )
+
+
 class RgbBandGroup(ParameterGroup):
     red = BandParameter("Red Band")
     green = BandParameter("Green Band")
@@ -53,6 +78,13 @@ class RendererSettings(ParameterGroup):
     rgb = RgbBandGroup()
     mono = MonoViewGroup()
     stretch = StretchParameter("Stretch Algorithm")
+    stretchFrom = EnumParameter(
+        "Stretch From",
+        StretchSource,
+        StretchSource.FULL,
+        "Where the stretch and the histogram take their statistics: the whole "
+        "image, or the part the main or zoom view shows",
+    )
     opacity = FloatParameter(
         "Opacity", 1.0, (0.0, 1.0), "%", "Opacity of the rendered image."
     )
@@ -103,6 +135,12 @@ class ImageRenderer(QObject):
         self._rgb8: np.ndarray | None = None
         self._noData: np.ndarray | None = None
         self._lastOpacity = self.settings.opacity.get()
+        # The part of the image each view shows, set by the views, and the
+        # raw bands the statistics come from (cached, so its identity tells
+        # the histogram when it changed)
+        self._windows: dict[StretchSource, Window] = {}
+        self._sample: np.ndarray | None = None
+        self._sampleKey: tuple | None = None
         # Overlays leave no-data pixels see-through instead of opaque black
         self.transparentNoData = False
         self.settings.sigParameterChanged.connect(self._onSettingsChanged)
@@ -138,6 +176,35 @@ class ImageRenderer(QObject):
             self._rawBandData, self._rawKey = data, key
         return self._rawBandData
 
+    def setStretchWindow(self, source: StretchSource, window: Window | None) -> None:
+        """The part of the image a view shows; when the stretch comes from that
+        view, it's computed again."""
+        if _sameWindow(self._windows.get(source), window):
+            return
+        if window is None:
+            self._windows.pop(source, None)
+        else:
+            self._windows[source] = window
+        if self.settings.stretchFrom.get() is source:
+            self._rgb8 = None
+            self._stretchedData = None
+            self.cachedRender = None
+            self.sigShouldRefresh.emit()
+
+    def getSampleData(self) -> np.ndarray:
+        """The raw bands the stretch and the histogram take their statistics
+        from: the whole image, or the window of the chosen view (the whole
+        image while that view has none, or shows only no-data)."""
+        data = self._readBands()
+        window = self._windows.get(self.settings.stretchFrom.get())
+        key = (id(data), window)
+        if self._sample is None or self._sampleKey != key:
+            sample = data if window is None else data[window]
+            if sample.size == 0 or not np.isfinite(sample).any():
+                sample = data
+            self._sample, self._sampleKey = sample, key
+        return self._sample
+
     def render(self):
         """
         Render the image with the current band and stretch settings.
@@ -164,7 +231,9 @@ class ImageRenderer(QObject):
         """The stretched (and, in mono, color-mapped) 8-bit RGB picture and
         the (rows, cols) mask of pixels with no data in any channel."""
         mode = self.settings.mode.get()
-        data = self.settings.stretch.current.apply(self._readBands())
+        data = self.settings.stretch.current.apply(
+            self._readBands(), self.getSampleData()
+        )
         self._stretchedData = data
         noData = np.asarray(np.isnan(data).all(axis=2))
         data[np.isnan(data)] = 0
@@ -237,14 +306,18 @@ class ImageRenderer(QObject):
             channelParams[channel].set(Vec2(float(lo), float(hi)))
         self.settings.sigParameterChanged.emit(self.settings)
 
-    def getSettingsPanel(self) -> "RendererSettingsPanel":
-        return RendererSettingsPanel(self.settings)
+    def getSettingsPanel(self, stretchFrom: bool = False) -> "RendererSettingsPanel":
+        """The settings panel; ``stretchFrom`` shows Stretch From, for views
+        that report their windows (``setStretchWindow``)."""
+        return RendererSettingsPanel(self.settings, stretchFrom=stretchFrom)
 
 
 class RendererSettingsPanel(QWidget):
     """Panel for adjusting render settings, generated from the settings' parameters."""
 
-    def __init__(self, settings: RendererSettings, parent=None):
+    def __init__(
+        self, settings: RendererSettings, parent=None, stretchFrom: bool = False
+    ):
         super().__init__(parent)
         self.setWindowTitle("Image Render Settings")
         self.settings = settings
@@ -271,6 +344,8 @@ class RendererSettingsPanel(QWidget):
         # Stretch (self-contained combo + stacked sub-form)
         layout.addWidget(QLabel("Stretch Algorithm:"))
         layout.addWidget(parameterWidget(settings.stretch, self))
+        if stretchFrom:
+            layout.addWidget(formWidget([settings.stretchFrom], self))
 
         # Opacity (labeled form row)
         layout.addWidget(formWidget([settings.opacity], self))

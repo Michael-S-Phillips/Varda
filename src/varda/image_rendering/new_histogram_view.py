@@ -77,10 +77,9 @@ class NewHistogramView(QWidget):
         self.layout().setCurrentIndex(1 if mode == RenderMode.MONO else 0)
 
         minMaxVals = renderer.getMinMaxValues()
-        if minMaxVals is not None:
-            data = renderer.getRawBandData()
-        else:
-            data = renderer.getStretchedData()
+        # the values the stretch takes its statistics from (with no stretch,
+        # the raw values are the ones shown)
+        data = renderer.getSampleData()
 
         if (
             self._shown is not None

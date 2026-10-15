@@ -8,6 +8,10 @@ can alter results.
 
 ### Added
 
+- **Stretch From** (General Image Analysis, Render Settings): the stretch and
+  the histogram can take their statistics from the full image, the main view
+  or the zoom view, as in ENVI; the stretch then applies to the whole image.
+  It follows the views as you pan and zoom.
 - **Kindle a Feature checks before it builds.** If Varda already does what
   you describe (a menu item, an installed plugin, a file format or catalog),
   the AI says what and where instead of building; **Build Anyway** builds it
