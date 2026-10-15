@@ -30,6 +30,12 @@ def registerAnalyses():
 
 
 @hookspec
+def registerCatalogs():
+    """Return ``Catalog`` subclasses: sources of data the Find Data workspace
+    can search (footprints on a map) and download from."""
+
+
+@hookspec
 def registerDataSources():
     """Return ``(formatName, fileExtensions, DataSourceClass)`` tuples: file
     formats Varda can open, offered in File → Import Image(s)."""

@@ -10,6 +10,7 @@ from collections.abc import Callable
 from app_model import Application
 from app_model.types import MenuRule
 
+from varda.catalogs.registry import catalogRegistry
 from varda._actions._menu_ids import MenuGroup, MenuId
 from varda._actions._processing_actions import (
     _menuCallback,
@@ -67,6 +68,9 @@ class AppContributionSink:
             entry = RegisteredDataSource(formatName, extensions, cls)
             datasource_registry.append(entry)
             removers.append(lambda entry=entry: datasource_registry.remove(entry))
+        for catalog in contributions.catalogs:
+            catalogRegistry.append(catalog)
+            removers.append(lambda catalog=catalog: catalogRegistry.remove(catalog))
 
         def remove() -> None:
             for remover in reversed(removers):
