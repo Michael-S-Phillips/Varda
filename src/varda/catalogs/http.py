@@ -60,3 +60,25 @@ def fetchJson(
         ) from error
     except ValueError as error:
         raise CatalogError(f"{host} sent a reply Varda couldn't read.") from error
+
+
+def fetchBytes(
+    url: str, headers: Mapping[str, str] | None = None, limit: int = 5_000_000
+) -> bytes:
+    """A small file (a thumbnail, say) in memory; at most ``limit`` bytes."""
+    request = urllib.request.Request(
+        url, headers={**_headers(headers), "Accept": "*/*"}
+    )
+    context = ssl.create_default_context(cafile=certifi.where())
+    host = urllib.parse.urlparse(url).netloc
+    try:
+        with urllib.request.urlopen(
+            request,
+            timeout=TIMEOUT_S,
+            context=context if url.startswith("https") else None,
+        ) as response:
+            return response.read(limit)
+    except urllib.error.HTTPError as error:
+        raise CatalogError(f"{host} returned an error ({error.code}).") from error
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        raise CatalogError(f"{host} couldn't be reached.") from error
