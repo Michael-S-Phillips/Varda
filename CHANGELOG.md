@@ -8,6 +8,11 @@ can alter results.
 
 ### Added
 
+- **Cropping, to work on part of an image.** The **Crop** tool in an
+  image's toolbar adds a cropped copy of the box you drag to the image
+  list. **Geometry → Crop to ROI** crops to ROI classes, optionally making
+  pixels outside them no-data. Run any analysis or workspace (such as the
+  Spectral Hourglass) on the crop.
 - **Pixel Select windows.** The Pixel Spectra panel has Window Width and
   Height settings (like the Ratio Explorer's boxes): 1×1 selects one pixel;
   larger plots the region's mean spectrum with a ±1 σ band (no-data pixels

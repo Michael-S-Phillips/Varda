@@ -86,5 +86,20 @@ example, 1000 for kilometers of elevation over meters of pixel size).
 - **Subset:** keeps a range of rows and columns and a list of bands such as
   `1-100, 150-200`.
 
-All three keep the georeferencing right, so pixels stay at their place on the
-map, and Subset carries the wavelengths, bad bands and FWHM along.
+- **Crop to ROI:** crops to the ROIs of the classes you tick. Pixels
+  outside them can become no-data, so later processing sees only the ROIs.
+
+These keep the georeferencing right, so pixels stay at their place on the
+map, and carry the wavelengths, bad bands and FWHM along.
+
+### Working on part of an image
+
+To run anything, an analysis or a whole workspace such as the Spectral
+Hourglass, on part of an image, crop it first:
+
+- **Crop tool:** turn on **Crop** in an image's toolbar and drag a box. A
+  cropped copy is added to the image list.
+- **Crop to ROI:** draw an ROI, then run **Processing → Geometry → Crop to
+  ROI**.
+
+Then choose the crop in the analysis dialog, or open a new workspace for it.

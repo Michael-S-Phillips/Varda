@@ -14,7 +14,9 @@ from varda.analysis.bandwise import fillGaps, readBand
 from varda.analysis.rasters import sameBandsRaster
 from varda.common.entities import VardaRaster
 from varda.common.parameter import (
+    BoolParameter,
     LabeledEnum,
+    MultiChoiceParameter,
     EnumParameter,
     FloatParameter,
     IntParameter,
@@ -165,6 +167,47 @@ def _subsetMetadata(image: VardaRaster, bands: list[int]) -> dict:
     return metadata
 
 
+def crop(
+    image: VardaRaster,
+    top: int,
+    left: int,
+    height: int,
+    width: int,
+    *,
+    bands: list[int] | None = None,
+    outside: np.ndarray | None = None,
+    name: str = "",
+    description: str = "",
+) -> VardaRaster:
+    """Rows ``top``.. and columns ``left``.. (0-based) of ``image``, optionally
+    only some ``bands``; pixels where ``outside`` (a mask over the crop) is
+    True become no-data (NaN). Wavelengths, band metadata, display bands and
+    the georeferencing follow."""
+    bands = list(range(image.bandCount)) if bands is None else bands
+    data = image.getData(bandIndices=bands, window=(top, left, height, width))
+    cube = np.ma.filled(np.ma.asarray(data, dtype=np.float32), np.nan)
+    if image.nodata is not None:
+        cube[cube == image.nodata] = np.nan
+    if outside is not None:
+        cube[outside] = np.nan
+    default = [
+        bands.index(b) for b in np.asarray(image.defaultBands).ravel() if b in bands
+    ]
+    source = ArrayDataSource(
+        cube,
+        wavelengths=np.asarray(image.wavelengths)[bands],
+        wavelengthUnits=image.wavelengthUnits,
+        bandNames=[image.bandNames[b] for b in bands],
+        transform=image.transform * Affine.translation(left, top),
+        crs=image.crs,
+        defaultBands=np.array(default[:3]) if len(default) >= 3 else None,
+        extraMetadata=_subsetMetadata(image, bands),
+        description=description
+        or f"Crop of {image.name}: rows {top + 1}-{top + height}, columns {left + 1}-{left + width}",
+    )
+    return VardaRaster(source, name=name or f"{image.name} crop")
+
+
 class SubsetAnalysis(Analysis):
     analysisId = "subset"
     name = "Subset (Crop Rows, Columns, Bands)"
@@ -213,23 +256,83 @@ class SubsetAnalysis(Analysis):
         left, right = int(self.firstColumn.value) - 1, int(self.lastColumn.value)
         bands = self.bandList(image)
         reportProgress(0, "reading subset")
-        data = image.getData(
-            bandIndices=bands, window=(top, left, bottom - top, right - left)
+        return crop(
+            image,
+            top,
+            left,
+            bottom - top,
+            right - left,
+            bands=bands,
+            name=f"{image.name} subset",
+            description=(
+                f"Subset of {image.name}: rows {top + 1}-{bottom}, columns "
+                f"{left + 1}-{right}, {len(bands)} bands"
+            ),
         )
-        cube = np.ma.filled(np.ma.asarray(data, dtype=np.float32), np.nan)
-        default = [
-            bands.index(b) for b in np.asarray(image.defaultBands).ravel() if b in bands
-        ]
-        source = ArrayDataSource(
-            cube,
-            wavelengths=np.asarray(image.wavelengths)[bands],
-            wavelengthUnits=image.wavelengthUnits,
-            bandNames=[image.bandNames[b] for b in bands],
-            transform=image.transform * Affine.translation(left, top),
-            crs=image.crs,
-            nodata=image.nodata,
-            defaultBands=np.array(default[:3]) if len(default) >= 3 else None,
-            extraMetadata=_subsetMetadata(image, bands),
-            description=f"Subset of {image.name}: rows {top + 1}-{bottom}, columns {left + 1}-{right}, {len(bands)} bands",
+
+
+class CropToRoiAnalysis(Analysis):
+    analysisId = "crop_to_roi"
+    name = "Crop to ROI"
+    category = CATEGORY
+    needsRois = True
+    description = (
+        "Crop the image to the ROIs of the classes you tick (their bounding "
+        "box), so later processing, a Spectral Hourglass workspace for "
+        "instance, runs on just that part. Pixels outside the ROIs can become "
+        "no-data, so only the ROIs themselves are processed."
+    )
+
+    classes = MultiChoiceParameter(
+        "ROI Classes", description="Crop to the ROIs of these classes (all their ROIs)"
+    )
+    maskOutside = BoolParameter(
+        "Outside the ROIs Becomes No-Data",
+        True,
+        "Keep only the ROIs' pixels; untick to keep the whole bounding box",
+    )
+
+    def prepareFor(self, image: VardaRaster) -> None:
+        rois = self.context.rois
+        names = list(rois.classes()) if rois is not None else []
+        kept = [n for n in self.classes.value if n in names]
+        self.classes.setChoices(names, selected=kept or names[:1])
+
+    def unavailableReason(self, image: VardaRaster) -> str:
+        rois = self.context.rois
+        if rois is None or not len(rois):
+            return "Draw an ROI on the image first."
+        if not self.classes.value:
+            return "Tick at least one ROI class."
+        return ""
+
+    def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
+        rois = self.context.rois
+        if rois is None:
+            raise ValueError("Crop to ROI needs the workspace's ROIs.")
+        names = list(self.classes.value)
+        inside = np.zeros((image.height, image.width), bool)
+        for name in names:
+            inside |= rois.classMask(name, image)
+        if not inside.any():
+            raise ValueError(
+                f"The ROIs of {', '.join(names)} don't cover any of {image.name}."
+            )
+        rows, cols = (
+            np.flatnonzero(inside.any(axis=1)),
+            np.flatnonzero(inside.any(axis=0)),
         )
-        return VardaRaster(source, name=f"{image.name} subset")
+        top, left = int(rows[0]), int(cols[0])
+        height, width = int(rows[-1]) - top + 1, int(cols[-1]) - left + 1
+        window = inside[top : top + height, left : left + width]
+        reportProgress(10, "cropping")
+        return crop(
+            image,
+            top,
+            left,
+            height,
+            width,
+            outside=~window if self.maskOutside.value else None,
+            name=f"{image.name} {' + '.join(names)}",
+            description=f"{image.name} cropped to ROI class {', '.join(names)}",
+        )

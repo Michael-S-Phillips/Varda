@@ -1,7 +1,8 @@
 """Pixel selection in the general workspace plots into one persistent dock."""
 
-from PyQt6.QtCore import QPointF
+from PyQt6.QtCore import QPointF, QRect
 
+from varda.image_rendering.raster_view.viewport_tools.crop_tool import CropTool
 from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
     PixelSelectTool,
 )
@@ -12,9 +13,10 @@ from varda.workspaces.general_image_analysis import (
 )
 
 
-def test_pixel_selections_accumulate_in_the_pixel_spectra_dock(qapp):
+def test_pixel_selections_accumulate_in_the_pixel_spectra_dock(qtbot):
     image = generate_random_image((20, 20, 10))
     workflow = GeneralImageAnalysisWorkflow(GeneralImageAnalysisConfig([image]))
+    qtbot.addWidget(workflow)  # closed and deleted with the test, not by GC later
 
     workflow.toolManager1.activateTool(PixelSelectTool)
     tool = workflow.toolManager1.activeTool
@@ -25,9 +27,10 @@ def test_pixel_selections_accumulate_in_the_pixel_spectra_dock(qapp):
     assert len(workflow.pixelPlotWidget.pixelCurves) == 2
 
 
-def test_closing_the_pixel_dock_then_selecting_a_pixel_reopens_it(qapp):
+def test_closing_the_pixel_dock_then_selecting_a_pixel_reopens_it(qtbot):
     image = generate_random_image((20, 20, 10))
     workflow = GeneralImageAnalysisWorkflow(GeneralImageAnalysisConfig([image]))
+    qtbot.addWidget(workflow)  # closed and deleted with the test, not by GC later
     workflow.toolManager1.activateTool(PixelSelectTool)
     workflow.pixelPlotDock.toggleView(False)
     assert workflow.pixelPlotDock.isClosed()
@@ -38,9 +41,10 @@ def test_closing_the_pixel_dock_then_selecting_a_pixel_reopens_it(qapp):
     assert len(workflow.pixelPlotWidget.pixelCurves) == 1
 
 
-def test_the_tool_uses_the_active_plots_window_and_outlines_it(qapp):
+def test_the_tool_uses_the_active_plots_window_and_outlines_it(qtbot):
     image = generate_random_image((20, 20, 10))
     workflow = GeneralImageAnalysisWorkflow(GeneralImageAnalysisConfig([image]))
+    qtbot.addWidget(workflow)  # closed and deleted with the test, not by GC later
     workflow.toolManager1.activateTool(PixelSelectTool)
     tool = workflow.toolManager1.activeTool
     workflow.pixelPlotWidget.pixelConfig.windowWidth.set(3)
@@ -56,3 +60,16 @@ def test_the_tool_uses_the_active_plots_window_and_outlines_it(qapp):
     tool.sigPixelSelected.emit(QPointF(10.0, 10.0))
     (curve,) = workflow.pixelPlotWidget.pixelCurves
     assert curve.plotDataItem.name() == "Region 3×5 at (10, 10)"
+
+
+def test_a_crop_box_adds_a_cropped_image_to_the_project(qtbot):
+    image = generate_random_image((20, 20, 10))
+    project = [image]
+    workflow = GeneralImageAnalysisWorkflow(GeneralImageAnalysisConfig(project))
+    qtbot.addWidget(workflow)  # closed and deleted with the test, not by GC later
+    workflow.toolManager1.activateTool(CropTool)
+    workflow.toolManager1.activeTool.sigCropRequested.emit(QRect(2, 3, 8, 5))
+    assert len(project) == 2
+    cropped = project[1]
+    assert (cropped.width, cropped.height, cropped.bandCount) == (8, 5, 10)
+    assert "crop" in cropped.name
