@@ -120,6 +120,11 @@ def download(
             raise CatalogError(
                 f"{file.name}: access denied (check the login)."
             ) from error
+        if error.code in (404, 410):
+            raise CatalogError(
+                f"{file.name}: the archive doesn't have this file ({error.code}); "
+                "the catalog's link to it is broken."
+            ) from error
         raise CatalogError(f"{file.name}: the server returned {error.code}.") from error
     except (OSError, ValueError) as error:  # connection lost, timeouts, …
         raise CatalogError(
@@ -140,6 +145,19 @@ def download(
     return target
 
 
+class IncompleteDownload(CatalogError):
+    """Some of a product's files couldn't be downloaded; the others were.
+    ``paths`` are the downloaded files (in order), ``failures`` the reasons."""
+
+    def __init__(self, paths: list[Path], failures: list[str], total: int):
+        missing = len(failures)
+        super().__init__(
+            f"{missing} of {total} files couldn't be downloaded: " + " ".join(failures)
+        )
+        self.paths = paths
+        self.failures = failures
+
+
 def downloadProduct(
     files: Iterable[RemoteFile],
     folder: Path,
@@ -148,12 +166,16 @@ def downloadProduct(
     headers: Mapping[str, str] | None = None,
 ) -> list[Path]:
     """Download a product's files into its folder, in order; progress is the
-    share of bytes done (by file count when sizes are unknown)."""
+    share of bytes done (by file count when sizes are unknown). A file that
+    fails doesn't stop the others: they're downloaded, then
+    IncompleteDownload says which failed (a cancel stops at once)."""
     files = list(files)
     sizes = [f.size for f in files]
     known = all(s is not None for s in sizes)
     total = sum(s for s in sizes if s is not None) if known else len(files)
-    paths, before = [], 0.0
+    paths: list[Path] = []
+    failures: list[str] = []
+    before = 0.0
     for file in files:
 
         def report(done: int, size: int | None, before=before, file=file) -> None:
@@ -164,9 +186,16 @@ def downloadProduct(
             )
             progress(min(share, 1.0), f"downloading {file.name}")
 
-        paths.append(download(file, folder / file.name, report, cancelled, headers))
+        try:
+            paths.append(download(file, folder / file.name, report, cancelled, headers))
+        except CatalogError as error:
+            if cancelled is not None and cancelled.is_set():
+                raise
+            failures.append(str(error))
         before += (file.size or 0) if known else 1
     progress(1.0, "done")
+    if failures:
+        raise IncompleteDownload(paths, failures, len(files))
     return paths
 
 

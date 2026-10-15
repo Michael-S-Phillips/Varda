@@ -182,3 +182,39 @@ def test_select_by_status_then_download_only_those(panel, catalog, qtbot):
     panel.downloadButton.click()
     qtbot.waitUntil(lambda: panel.downloadButton.isEnabled(), timeout=10000)
     assert second.status == DONE and first.status == WAITING
+
+
+def test_a_missing_file_is_marked_and_the_rest_are_downloaded(
+    panel, server, qtbot, tmp_path
+):
+    class Broken(Catalog):
+        catalogId = "broken"
+        name = "Broken links"
+
+        def files(self, product):
+            return [
+                RemoteFile(
+                    "obs.hdr", f"{server}/obs.hdr", 100, role="data", essential=True
+                ),
+                RemoteFile(
+                    "gone.img", f"{server}/gone.img", 9, role="data", essential=True
+                ),
+            ]
+
+    panel.add(Broken(), [PRODUCT])
+    queued = panel.queue[0]
+    qtbot.waitUntil(lambda: queued.status == WAITING, timeout=5000)
+    opened = []
+    panel.sigOpen.connect(opened.append)
+    panel.downloadButton.click()
+    qtbot.waitUntil(lambda: panel.downloadButton.isEnabled(), timeout=10000)
+    assert queued.status.startswith("Failed: 1 of 2 files")
+    folder = tmp_path / "downloads" / "broken" / "mars_obs" / "obs"
+    assert (folder / "obs.hdr").exists() and not (folder / "gone.img").exists()
+    gone = next(
+        queued.item.child(r)
+        for r in range(queued.item.childCount())
+        if queued.item.child(r).text(0) == "gone.img"
+    )
+    assert gone.text(2) == "data: not downloaded" and "404" in gone.toolTip(2)
+    assert opened == []  # a header without its cube isn't opened

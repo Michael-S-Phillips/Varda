@@ -59,6 +59,12 @@ can alter results.
 
 ### Fixed
 
+- A product file that can't be downloaded (e.g. a catalog's broken link,
+  404) no longer stops the product's other files: they download, the product
+  is marked failed with the reason, and each missing file says "not
+  downloaded". The 404 message now says the archive doesn't have the file.
+- Collections with the same title (USGS's HiRISE DTMs and their test copy)
+  show their ids, so they can be told apart.
 - Ratio Explorer's numerator and denominator boxes now stay on their pixels
   when the view is panned or zoomed, instead of moving with it.
 - Closing a Find Data workspace while it was drawing a basemap, listing

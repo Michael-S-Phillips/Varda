@@ -29,7 +29,12 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.catalogs.catalog import Catalog, CatalogError, Product, RemoteFile
-from varda.catalogs.downloads import downloadProduct, exportList, productFolder
+from varda.catalogs.downloads import (
+    IncompleteDownload,
+    downloadProduct,
+    exportList,
+    productFolder,
+)
 from varda.image_loading.data_sources.registry import datasource_registry
 from varda.utilities.background import onMainThread, runInBackground
 
@@ -316,6 +321,7 @@ class DownloadsPanel(QWidget):
         queued.status = status
         if queued.item is not None:
             queued.item.setText(2, status)
+            queued.item.setToolTip(2, status)  # a failure's whole reason
             chosen = [f for f in queued.files if f.name in queued.chosen]
             sizes = [f.size for f in chosen if f.size is not None]
             queued.item.setText(1, formatBytes(sum(sizes)) if sizes else "")
@@ -415,15 +421,20 @@ class DownloadsPanel(QWidget):
                         cancel,
                         queued.catalog.requestHeaders(),
                     )
+                except IncompleteDownload as error:
+                    # the files that exist were downloaded; say which didn't
+                    finished(queued, [], str(error), error.failures)
+                    continue
                 except CatalogError as error:
                     # a cancel stops mid-file: the product just waits again
-                    finished(queued, [], WAITING if cancel.is_set() else str(error))
+                    finished(queued, [], WAITING if cancel.is_set() else str(error), [])
                     continue
                 # only data files open (not browse images, which Varda could
                 # read), and only with every essential file (a header needs its cube)
                 complete = all(f in files for f in queued.files if f.essential)
-                data = [p for p, f in zip(paths, files) if f.role == "data"]
-                finished(queued, data if complete else [], "")
+                dataNames = {f.name for f in files if f.role == "data"}
+                data = [p for p in paths if p.name in dataNames]
+                finished(queued, data if complete else [], "", [])
                 done += 1
             return done
 
@@ -442,7 +453,19 @@ class DownloadsPanel(QWidget):
         self.progress.setValue(int(100 * (index + fraction) / count))
         self.status.setText(f"{queued.product.id}: {message}")
 
-    def _finishedOne(self, queued: Queued, paths: list[Path], error: str) -> None:
+    def _finishedOne(
+        self, queued: Queued, paths: list[Path], error: str, failures: list[str]
+    ) -> None:
+        if queued.item is not None:
+            for row in range(queued.item.childCount()):
+                child = queued.item.child(row)
+                if child is None:
+                    continue
+                name = child.data(0, Qt.ItemDataRole.UserRole)
+                reason = next((f for f in failures if f.startswith(f"{name}:")), "")
+                role = next((f.role for f in queued.files if f.name == name), "")
+                child.setText(2, f"{role}: not downloaded" if reason else role)
+                child.setToolTip(2, reason)
         if error:
             self._setStatus(queued, error if error == WAITING else f"{FAILED}: {error}")
             return

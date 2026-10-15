@@ -5,7 +5,10 @@ group, title, id or description ("mars crism", "kaguya dtm")."""
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Sequence
+
+from attrs import evolve
 
 from PyQt6.QtCore import (
     QEvent,
@@ -33,6 +36,19 @@ from varda.common.ui import MutedLabel
 SEARCH_ROLE = Qt.ItemDataRole.UserRole + 1  # the text words are matched in
 INDEX_ROLE = Qt.ItemDataRole.UserRole + 2  # the collection's index in the combo
 POPUP_WIDTH, POPUP_HEIGHT = 520, 440
+
+
+def distinctTitles(collections: Sequence[Collection]) -> list[Collection]:
+    """The collections, with the id's last part added to any title its body
+    shares with another collection (a catalog's test copy, say), so they can
+    be told apart."""
+    counts = Counter((c.body, c.title) for c in collections)
+    return [
+        evolve(c, title=f"{c.title} [{c.id.rsplit('#', 1)[-1]}]")
+        if counts[(c.body, c.title)] > 1
+        else c
+        for c in collections
+    ]
 
 
 def searchText(collection: Collection) -> str:
@@ -226,7 +242,7 @@ class CollectionCombo(QComboBox):
     ) -> None:
         """Fill it ("Body: title" items holding the ids), choosing ``select``
         (or the first), without signals until the end."""
-        self.collections = list(collections)
+        self.collections = distinctTitles(collections)
         self.blockSignals(True)
         self.clear()
         for c in self.collections:
