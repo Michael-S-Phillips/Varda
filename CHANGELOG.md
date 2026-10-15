@@ -4,7 +4,7 @@ Notable changes to Varda. Release notes on GitHub are generated from pull
 requests; this file records what users need to know, especially changes that
 can alter results.
 
-## Unreleased
+## 0.7.0 (2026-10-15)
 
 ### Added
 

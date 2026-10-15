@@ -22,8 +22,8 @@ authors:
     affiliation: "Lunar and Planetary Laboratory, University of Arizona"
 license: GPL-3.0-or-later
 repository-code: "https://github.com/varda-pro/Varda"
-version: "0.6.0"
-date-released: "2026-10-14"
+version: "0.7.0"
+date-released: "2026-10-15"
 keywords:
   - hyperspectral
   - multispectral
