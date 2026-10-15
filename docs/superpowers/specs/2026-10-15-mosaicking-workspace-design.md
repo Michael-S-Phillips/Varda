@@ -1,6 +1,6 @@
 # Mosaicking workspace — Design
 
-Status: draft for review (2026-10-15).
+Status: approved 2026-10-15, with Michael's additions (SNR band selection, aesthetic options, a clean-room COSI-Corr re-implementation). Building phase 1.
 
 ## The idea
 
@@ -110,7 +110,12 @@ One **tie-point model** serves both manual and automatic alignment.
   2. A grid of tiles over each overlap, each one phase-correlated (upsampled
      about 100×). Each tile gives a tie point with a quality score.
   3. Optional **COSI-Corr-style refinement**: a phase-plane fit (Leprince et
-     al. 2007) for about 1/20 px.
+     al. 2007) for about 1/20 px. This is a **clean-room** re-implementation:
+     written from the published paper and the COSI-Corr user guide, never
+     from geoCosiCorr3D's code (its license is non-commercial). Reverse
+     Engineer Anything (REA) can help turn the paper into a precise spec and
+     test plan. Accuracy is checked against the paper's reported results on
+     synthetic shifts.
   4. An ORB/SIFT fallback when rotation or scale differ a lot.
 - **Fit:** RANSAC with the chosen transform: translation, rigid,
   similarity, affine, projective, polynomial (order 2–3) or thin-plate
@@ -120,10 +125,20 @@ One **tie-point model** serves both manual and automatic alignment.
   the same output COSI-Corr gives. They can be shown and added to the
   project, which makes them useful beyond mosaicking, for example for
   detecting change and deformation.
-- **ASP backend (extra):** run `image_align` on a chosen band (interest
-  points or dense disparity, ASP's choice of detector), then import its
-  match points and its 3×3 matrix as auto tie points and the fitted
-  transform.
+- **Which bands to align on (spectral cubes):** don't pick one band
+  arbitrarily. A **noise analysis** estimates each band's SNR (signal over
+  a noise estimate from shift differences, as MNF does) and picks the best
+  *N* bands (default 5, spread across the range) inside the inputs' common
+  wavelengths, skipping bad bands. Matching runs on each chosen band (or on
+  their SNR-weighted mean for speed). The tie points are pooled, so the
+  transform is fitted to all of them with RANSAC, and the residuals are
+  reported per band. A band whose fit disagrees, for example because of an
+  atmospheric band or a detector artifact, shows up and can be dropped.
+  Grayscale inputs simply use their one band.
+- **ASP backend (extra):** run `image_align` on each of the chosen high-SNR
+  bands (interest points or dense disparity, ASP's choice of detector),
+  then import the match points as auto tie points. Pooled with RANSAC, they
+  give one transform that is applied to every band.
 - **Guidance:** for map-projected inputs, the dialog says that translation
   (or affine) is usually right. For unprojected pushbroom images (raw CTX),
   it recommends map-projecting with ISIS `cam2map` (offered when ISIS is
@@ -251,17 +266,21 @@ Synthetic scenes with known answers, as for the analyses:
    detection with `cam2map` and `equalizer`, and optional OpenCV and kornia
    matchers (kornia through the PyTorch runtime).
 
-## Decisions to confirm
+## Decisions (2026-10-15)
 
-1. **Which data to build and test against first:** CTX (grayscale, larger
-   images) or CRISM (spectral, smaller)? Recommendation: both from phase 1.
-   The design is the same, and the spectral-fidelity defaults matter most for
-   CRISM.
-2. **The ASP extra:** offer the 260–650 MB download in-app, or detect only
-   and link to ASP's install page? Recommendation: offer it, as with
-   PyTorch, after detecting first.
-3. **Graph-cut seams** are left out of the first round; least difference
-   covers most cases. Fine to defer?
+1. **Data:** CTX and CRISM both, from phase 1.
+2. **The ASP extra:** offered in-app, as with PyTorch, after detecting an
+   existing install. Windows uses the built-in path (there is no native
+   ASP).
+3. **Graph-cut seams** are deferred; least difference covers most cases.
+4. **Science defaults, aesthetic options.** The defaults are hard seams,
+   per-band linear corrections only when asked, and nearest resampling.
+   Aesthetic methods are available for visual products: histogram matching,
+   feathering, multi-band blending, and bilinear or cubic resampling. Each
+   is labeled, recorded in provenance, and changes the export's name
+   ("… (visual)").
+5. **Band selection** for alignment uses the noise analysis above: the best
+   N SNR bands, pooled tie points, residuals per band.
 
 ## Sources
 
