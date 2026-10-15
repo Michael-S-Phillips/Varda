@@ -76,9 +76,16 @@ to look for change or deformation between two dates.
 | Similarity | Shift, rotation and uniform scale | 2 |
 | Affine | Also shear and different x and y scales | 3 |
 | Projective | Also perspective | 4 |
+| Polynomial (2nd or 3rd order) | Distortion that varies smoothly across the image | 6 or 10 |
+| Thin-plate spline | Local warps: bends through every tie point | 4 (many more in practice) |
 
 Pick the simplest transform that removes the misalignment (for
-map-projected images, usually translation or affine): a model with more
+map-projected images, usually translation or affine). Polynomials and
+thin-plate splines are for images whose distortion varies across them, such
+as pushbroom strips that weren't map-projected; map-projecting them first
+(ISIS `cam2map` for CTX) is better when you can. A thin-plate spline needs
+tie points spread over the whole overlap, and is only trustworthy between
+them; Auto Align provides that density: a model with more
 freedom fits the points you placed but can bend the image between them.
 **Reset Alignment** returns the image to its original georeferencing.
 

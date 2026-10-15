@@ -19,6 +19,10 @@ can alter results.
   The points are fitted robustly (RANSAC), with outliers shown. A per-band
   report lets you drop a band that disagrees. The tile shifts can be added
   to the image list as a displacement field (east, north, quality).
+- **Polynomial and thin-plate-spline alignment** for mosaic images whose
+  distortion varies across them (2nd or 3rd order polynomials, and a
+  thin-plate spline for local warps), fitted robustly like the other
+  transforms and saved with the session.
 - **Mosaic workspace.** **Workspace → New Mosaic Workspace…** joins
   overlapping images (spectral cubes or grayscale) with the same bands and
   projection. Order the images (the top one wins where they overlap), align

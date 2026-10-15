@@ -15,9 +15,9 @@ from scipy import ndimage
 from varda.common.parameter import LabeledEnum
 from varda.mosaicking.grid import TargetGrid
 from varda.mosaicking.model import MosaicInput, MosaicProject
-from varda.mosaicking.transforms import applyMatrix
 
 TILE_ROWS = 256
+WARP_STEP = 8  # a warp is evaluated every this many output pixels, then interpolated
 NO_SOURCE = -1
 
 
@@ -77,6 +77,52 @@ def readCube(item: MosaicInput, bands: list[int] | None = None) -> np.ndarray:
     return _cube(item, bands)
 
 
+def rawPixels(
+    item: MosaicInput, grid: TargetGrid, rows: slice, select: np.ndarray | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """The input's pixel (col, row) coordinates under the grid's pixel
+    centers in ``rows`` (or the ``select``ed ones of them). A warp is
+    evaluated on a coarse lattice and interpolated: it's smooth, and exact
+    evaluation of a spline at every pixel would be slow."""
+    x, y = grid.pixelCenters(rows)
+    if item.warp is None:
+        points = (
+            np.column_stack([x, y])
+            if select is None
+            else np.column_stack([x[select], y[select]])
+        )
+        raw = item.uncorrect(points)
+    else:
+        count = rows.stop - rows.start
+        lattice_r = np.unique(np.append(np.arange(0, count, WARP_STEP), count - 1))
+        lattice_c = np.unique(
+            np.append(np.arange(0, grid.width, WARP_STEP), grid.width - 1)
+        )
+        cc, rr = np.meshgrid(lattice_c + 0.5, lattice_r + rows.start + 0.5)
+        lx, ly = grid.transform * (cc.ravel(), rr.ravel())
+        coarse = item.uncorrect(np.column_stack([lx, ly])).reshape(
+            len(lattice_r), len(lattice_c), 2
+        )
+        allRows, allCols = np.meshgrid(
+            np.arange(count), np.arange(grid.width), indexing="ij"
+        )
+        # fractional positions in the lattice, for linear interpolation
+        fr = np.interp(allRows.ravel(), lattice_r, np.arange(len(lattice_r)))
+        fc = np.interp(allCols.ravel(), lattice_c, np.arange(len(lattice_c)))
+        if select is not None:
+            fr, fc = fr[select], fc[select]
+        raw = np.column_stack(
+            [
+                ndimage.map_coordinates(
+                    coarse[:, :, k], [fr, fc], order=1, mode="nearest"
+                )
+                for k in range(2)
+            ]
+        )
+    cols, rowsIn = ~item.image.transform * (raw[:, 0], raw[:, 1])
+    return np.asarray(cols), np.asarray(rowsIn)
+
+
 def sampleOnGrid(
     item: MosaicInput,
     cube: np.ndarray,
@@ -86,14 +132,10 @@ def sampleOnGrid(
     """One input (its ``cube``, read with ``readCube``) resampled onto
     ``grid`` through its correction: (rows, cols, bands), NaN off the image."""
     out = np.full((grid.height, grid.width, cube.shape[2]), np.nan, np.float32)
-    inverse = np.linalg.inv(item.correction)
-    pixelFromMap = ~item.image.transform
     for start in range(0, grid.height, TILE_ROWS):
         rows = slice(start, min(start + TILE_ROWS, grid.height))
-        x, y = grid.pixelCenters(rows)
-        mapped = applyMatrix(inverse, np.column_stack([x, y]))
-        cols, rowsIn = pixelFromMap * (mapped[:, 0], mapped[:, 1])
-        values, valid = _sample(cube, np.asarray(cols), np.asarray(rowsIn), resampling)
+        cols, rowsIn = rawPixels(item, grid, rows)
+        values, valid = _sample(cube, cols, rowsIn, resampling)
         values[~valid] = np.nan
         out[rows] = values.reshape(rows.stop - rows.start, grid.width, -1)
     return out
@@ -121,25 +163,17 @@ def renderMosaic(
         if item.key not in cache:
             cache[item.key] = _cube(item, bands)
     cubes = [cache[item.key] for item in inputs]
-    inverses = [np.linalg.inv(item.correction) for item in inputs]
-    pixelFromMaps = [~item.image.transform for item in inputs]
     for start in range(0, grid.height, TILE_ROWS):
         rows = slice(start, min(start + TILE_ROWS, grid.height))
         progress(int(100 * start / grid.height), "rendering")
-        x, y = grid.pixelCenters(rows)
         tile = out[rows].reshape(-1, count)
         tileSources = sources[rows].reshape(-1)
-        for item, cube, inverse, pixelFromMap in zip(
-            inputs, cubes, inverses, pixelFromMaps
-        ):
+        for item, cube in zip(inputs, cubes):
             todo = tileSources == NO_SOURCE
             if not todo.any():
                 break
-            mapped = applyMatrix(inverse, np.column_stack([x[todo], y[todo]]))
-            cols, rowsIn = pixelFromMap * (mapped[:, 0], mapped[:, 1])
-            values, valid = _sample(
-                cube, np.asarray(cols), np.asarray(rowsIn), resampling
-            )
+            cols, rowsIn = rawPixels(item, grid, rows, todo)
+            values, valid = _sample(cube, cols, rowsIn, resampling)
             target = np.flatnonzero(todo)[valid]
             tile[target] = values[valid]
             tileSources[target] = project.inputs.index(item)

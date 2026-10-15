@@ -1,6 +1,6 @@
 # Mosaicking workspace — Design
 
-Status: approved 2026-10-15, with Michael's additions (SNR band selection, aesthetic options, a clean-room COSI-Corr re-implementation). Phase 1 merged (#155); phase 2 automatic alignment (tie points, refinement, RANSAC, displacement field) built; polynomial and TPS warps next.
+Status: approved 2026-10-15, with Michael's additions (SNR band selection, aesthetic options, a clean-room COSI-Corr re-implementation). Phase 1 merged (#155); phase 2 merged (#158 automatic alignment; polynomial and TPS warps in its follow-up). Next: phase 3, radiometry and seams.
 
 ## The idea
 
