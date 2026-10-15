@@ -19,7 +19,46 @@ The workspace has three panels:
 ## Aligning an image
 
 Images start where their georeferencing puts them. To correct one, select it
-in the Images list, then:
+in the Images list, then align it automatically, nudge it, or place tie
+points by hand.
+
+### Auto Align
+
+**Auto Align…** finds tie points between the selected image and the images
+it overlaps, and fits them:
+
+1. **Bands:** for spectral cubes, Varda estimates each band's SNR (scene
+   contrast over noise, from neighboring-pixel differences) and matches on
+   the best few bands (5 by default), spread across the spectrum and
+   skipping bad bands. Grayscale images use their one band.
+2. **Matching:** both images are resampled onto their overlap. A coarse
+   offset comes from phase correlation on a reduced copy, then a grid of
+   tiles (64 px by default, overlapping) is phase-correlated to about
+   0.1 px. Tiles without enough texture, or that correlate poorly once
+   aligned, are dropped.
+3. **Sub-pixel refinement** (on by default) refines each tile to about
+   1/50 px with the phase-plane fit of Leprince et al. (2007), the method
+   behind COSI-Corr, re-implemented from the paper.
+4. **Features:** when phase correlation finds too few matches (a large
+   rotation or scale difference, say), ORB features are matched instead.
+   Choose **Features** to use them directly.
+5. **Fit:** the tie points from every band are fitted together with the
+   image's transform, robustly (RANSAC): points farther off than the
+   **outlier threshold** (1 px by default) are left out and shown in red.
+   Manual tie points are never left out.
+
+The results list each band's points, how many the fit kept and their RMS.
+A band whose points disagree (an atmospheric band or a detector artifact,
+say) shows up with a high RMS or few kept points: untick it to fit without
+it. Running Auto Align again replaces the image's automatic tie points and
+keeps the manual ones; **Delete Automatic** removes them.
+
+**Add Displacement Field to Images** adds the tile shifts as an image: east
+and north displacement (map units) and match quality, tile by tile over the
+overlap, as COSI-Corr produces. It's useful beyond mosaicking, for example
+to look for change or deformation between two dates.
+
+### By hand
 
 - **Nudge it**: click the mosaic, then use the arrow keys to move the image by
   one output pixel (Shift: ten).
@@ -38,7 +77,8 @@ in the Images list, then:
 | Affine | Also shear and different x and y scales | 3 |
 | Projective | Also perspective | 4 |
 
-Pick the simplest transform that removes the misalignment: a model with more
+Pick the simplest transform that removes the misalignment (for
+map-projected images, usually translation or affine): a model with more
 freedom fits the points you placed but can bend the image between them.
 **Reset Alignment** returns the image to its original georeferencing.
 

@@ -11,7 +11,7 @@ import numpy as np
 import PyQt6Ads as ads
 from matplotlib import colormaps
 from matplotlib.colors import to_hex
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -31,10 +31,18 @@ from varda.common.entities import VardaRaster
 from varda.common.ui import VardaDockWidget
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.mosaicking.grid import TargetGrid, defaultGrid, pixelSize
-from varda.mosaicking.model import MosaicProject
+from varda.mosaicking.matching import (
+    AutoAlignResult,
+    DisplacementField,
+    MatchSettings,
+    applyTiePoints,
+    findTiePoints,
+)
+from varda.mosaicking.model import DEFAULT_INLIER_PX, MosaicProject
 from varda.mosaicking.render import NO_SOURCE, MosaicResult, Resampling, renderMosaic
 from varda.mosaicking.transforms import FitError
-from varda.utilities.background import runInBackground
+from varda.utilities.background import onMainThread, runInBackground
+from varda.workspaces.mosaic.auto_align_dialog import AutoAlignDialog
 from varda.workspaces.mosaic.panels import InputsPanel, TiePointPanel
 from varda.workspaces.mosaic.views import PREVIEW_PIXELS, MosaicCanvas, displayBands
 
@@ -83,6 +91,8 @@ class MosaicWorkspace(QMainWindow):
         self.setWindowTitle(f"Mosaic of {len(self.images)} images")
         self._bands = displayBands(self.images[0])
         self._cache: dict[int, np.ndarray] = {}
+        # Each image's outlier threshold (px), as last set in Auto Align
+        self._thresholds: dict[int, float] = {}
 
         self.canvas = MosaicCanvas()
         self.inputsPanel = InputsPanel(self.project)
@@ -98,6 +108,7 @@ class MosaicWorkspace(QMainWindow):
         self.inputsPanel.sigSelected.connect(self._onSelected)
         self.inputsPanel.sigChanged.connect(self.refreshPreview)
         self.inputsPanel.sigFit.connect(self.fit)
+        self.inputsPanel.sigAutoAlign.connect(self.openAutoAlign)
         self.inputsPanel.sigExport.connect(self.export)
         self.tiePanel.sigChanged.connect(self.refreshPreview)
         self.canvas.sigNudge.connect(self.nudge)
@@ -165,20 +176,90 @@ class MosaicWorkspace(QMainWindow):
         )
         self.refreshPreview()
 
-    def fit(self, key: int) -> None:
-        try:
-            residuals = self.project.fit(key)
-        except FitError as error:
-            self.inputsPanel.setStatus(str(error))
-            return
-        size = pixelSize(self.project)
-        rms = float(np.sqrt(np.mean(residuals**2))) / size if len(residuals) else 0.0
-        model = self.project.input(key).model.value.lower()
-        self.inputsPanel.setStatus(
-            f"Fitted a {model} transform to {len(residuals)} tie points: RMS {rms:.2f} pixels."
-        )
+    def fit(self, key: int) -> str:
+        """Fit an image to its tie points; returns (and shows) what happened."""
+        message = self._fit(key)
+        self.inputsPanel.setStatus(message)
         self.tiePanel.refresh()
+        self.canvas.showFootprint(self.project.input(self.selectedKey()).footprint())
         self.refreshPreview()
+        return message
+
+    def _fit(self, key: int) -> str:
+        try:
+            self.project.fit(key, self._thresholds.get(key, DEFAULT_INLIER_PX))
+        except FitError as error:
+            return str(error)
+        moving = self.project.input(key)
+        points = [p for p in self.project.tiePointsOf(key) if p.enabled]
+        kept = np.array([p.residual for p in points if p.inlier], float)
+        rms = float(np.sqrt(np.mean(kept**2))) / moving.pixelSize if kept.size else 0.0
+        model = moving.model.value.lower()
+        outliers = len(points) - len(kept)
+        counted = (
+            f"{len(kept)} of {len(points)} tie points ({outliers} outliers left out)"
+            if outliers
+            else f"{len(points)} tie points"
+        )
+        return f"Fitted a {model} transform to {counted}: RMS {rms:.2f} pixels."
+
+    # --- automatic alignment ---------------------------------------------------------
+
+    def openAutoAlign(self, key: int) -> AutoAlignDialog:
+        dialog = AutoAlignDialog(self.project, key, self)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        dialog.threshold.setValue(self._thresholds.get(key, DEFAULT_INLIER_PX))
+        dialog.sigRun.connect(
+            lambda moving, references, settings, threshold: self.autoAlign(
+                dialog, moving, references, settings, threshold
+            )
+        )
+        dialog.sigBandUsed.connect(
+            lambda moving, band, used: self.setBandUsed(dialog, moving, band, used)
+        )
+        dialog.sigAddField.connect(self.addDisplacementField)
+        dialog.show()
+        return dialog
+
+    def autoAlign(
+        self,
+        dialog: AutoAlignDialog,
+        key: int,
+        references: list[int],
+        settings: MatchSettings,
+        threshold: float,
+    ) -> None:
+        """Match in the background, then put the tie points in and fit them."""
+        self._thresholds[key] = threshold
+        progress = onMainThread(dialog.showProgress)
+
+        def finished(result: AutoAlignResult) -> None:
+            applyTiePoints(self.project, key, result)
+            message = self.fit(key) if result.added else "Nothing was fitted."
+            dialog.showResult(result, message)
+
+        runInBackground(
+            lambda: findTiePoints(self.project, key, references, settings, progress),
+            finished,
+            lambda error: dialog.showFailure(f"Auto Align failed: {error}"),
+            description="Aligning a mosaic image",
+        )
+
+    def setBandUsed(
+        self, dialog: AutoAlignDialog, key: int, band: int, used: bool
+    ) -> None:
+        """Use or leave out one band's automatic tie points, and refit."""
+        for point in self.project.tiePointsOf(key):
+            if point.auto and point.band == band:
+                point.enabled = used
+        message = self.fit(key)
+        dialog.summary.setText(message)
+        dialog.showBands()
+
+    def addDisplacementField(self, displacement: DisplacementField) -> None:
+        raster = displacementRaster(self.project, displacement)
+        self.projectImages.append(raster)
+        self.status.showMessage(f"Added {raster.name} to the image list.", 8000)
 
     # --- export --------------------------------------------------------------------------
 
@@ -258,6 +339,36 @@ def mosaicRaster(
     )
     suffix = " (visual)" if visual else ""
     return VardaRaster(source, name=f"Mosaic of {len(names)} images{suffix}")
+
+
+def displacementRaster(
+    project: MosaicProject, displacement: DisplacementField
+) -> VardaRaster:
+    """A displacement field as an image: east and north displacement (map
+    units) and match quality, on the tile grid over the overlap."""
+    moving = project.input(displacement.movingKey).image.name
+    reference = project.input(displacement.referenceKey).image.name
+    names = ["East displacement", "North displacement", "Match quality"]
+    source = ArrayDataSource(
+        np.stack(
+            [displacement.dx, displacement.dy, displacement.quality], axis=2
+        ).astype(np.float32),
+        wavelengths=np.array(names),
+        wavelengthUnits="",
+        bandNames=names,
+        transform=displacement.transform,
+        crs=project.inputs[0].image.crs,
+        defaultBands=np.array([0, 0, 0]),
+        extraMetadata={
+            "displacement": {
+                "moving": moving,
+                "reference": reference,
+                "units": "map units",
+            }
+        },
+        description=f"Displacement of {moving} relative to {reference}, tile by tile",
+    )
+    return VardaRaster(source, name=f"Displacement of {moving} from {reference}")
 
 
 def sourcesRaster(

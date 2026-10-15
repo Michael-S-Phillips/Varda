@@ -8,15 +8,18 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import numpy as np
-from attrs import define, field
+from attrs import define, field, frozen
 
 from varda.common.entities import VardaRaster
 from varda.mosaicking.transforms import (
     TransformModel,
     applyMatrix,
     fitTransform,
+    ransacFit,
     translation,
 )
+
+DEFAULT_INLIER_PX = 1.0  # RANSAC's inlier threshold, in the moving image's pixels
 
 
 @define(eq=False)
@@ -34,6 +37,19 @@ class MosaicInput:
         mapped = np.column_stack([x, y])
         return applyMatrix(self.correction, mapped) if corrected else mapped
 
+    def fromMap(self, points: np.ndarray, corrected: bool = True) -> np.ndarray:
+        """Map coordinates (corrected or not) back to pixel (col, row)."""
+        points = np.atleast_2d(np.asarray(points, float))
+        if corrected:
+            points = applyMatrix(np.linalg.inv(self.correction), points)
+        cols, rows = ~self.image.transform * (points[:, 0], points[:, 1])
+        return np.column_stack([cols, rows])
+
+    @property
+    def pixelSize(self) -> float:
+        transform = self.image.transform
+        return float(np.hypot(transform.a, transform.d))
+
     def footprint(self) -> np.ndarray:
         """The corrected map coordinates of the image's four corners."""
         w, h = self.image.width, self.image.height
@@ -50,6 +66,19 @@ class TiePoint:
     referencePixel: tuple[float, float]
     enabled: bool = True
     residual: float = float("nan")  # map units, after the last fit
+    auto: bool = False  # found by matching rather than placed by hand
+    quality: float = float("nan")  # the match's score (0-1), for automatic points
+    band: int | None = None  # the band it was matched on
+    inlier: bool = True  # whether the last (robust) fit kept it
+
+
+@frozen
+class BandFit:
+    """How one band's automatic tie points agreed with the last fit."""
+
+    count: int
+    inliers: int
+    rms: float  # the inliers' residual, in the moving image's pixels
 
 
 class MosaicError(ValueError):
@@ -99,7 +128,15 @@ class MosaicProject:
     # --- tie points ----------------------------------------------------------
 
     def addTiePoint(
-        self, movingKey: int, movingPixel, referenceKey: int, referencePixel
+        self,
+        movingKey: int,
+        movingPixel,
+        referenceKey: int,
+        referencePixel,
+        *,
+        auto: bool = False,
+        quality: float = float("nan"),
+        band: int | None = None,
     ) -> TiePoint:
         if movingKey == referenceKey:
             raise MosaicError("A tie point joins two different images.")
@@ -108,16 +145,27 @@ class MosaicProject:
             (float(movingPixel[0]), float(movingPixel[1])),
             referenceKey,
             (float(referencePixel[0]), float(referencePixel[1])),
+            auto=auto,
+            quality=float(quality),
+            band=band,
         )
         self.tiePoints.append(point)
         return point
 
+    def removeAutoTiePoints(self, movingKey: int) -> None:
+        """Drop the automatic tie points of an image (before matching again)."""
+        self.tiePoints = [
+            p for p in self.tiePoints if not (p.auto and p.movingKey == movingKey)
+        ]
+
     def tiePointsOf(self, key: int) -> list[TiePoint]:
         return [p for p in self.tiePoints if p.movingKey == key]
 
-    def fit(self, key: int) -> np.ndarray:
+    def fit(self, key: int, threshold: float = DEFAULT_INLIER_PX) -> np.ndarray:
         """Fit the input's correction to its enabled tie points (its pixels
-        onto the references' current positions); returns the residuals."""
+        onto the references' current positions); returns the residuals (map
+        units). With automatic points, the fit is robust: points off by more
+        than ``threshold`` pixels are left out (manual points never are)."""
         moving = self.input(key)
         points = [p for p in self.tiePointsOf(key) if p.enabled]
         src = moving.toMap(
@@ -129,11 +177,32 @@ class MosaicProject:
                 for p in points
             ]
         ).reshape(-1, 2)
-        matrix, residuals = fitTransform(moving.model, src, dst)
+        manual = np.array([not p.auto for p in points], bool)
+        if manual.all():
+            matrix, residuals = fitTransform(moving.model, src, dst)
+            inliers = np.ones(len(points), bool)
+        else:
+            matrix, residuals, inliers = ransacFit(
+                moving.model, src, dst, threshold * moving.pixelSize, forced=manual
+            )
         moving.correction = matrix
-        for point, residual in zip(points, residuals):
+        for point, residual, inlier in zip(points, residuals, inliers, strict=True):
             point.residual = float(residual)
+            point.inlier = bool(inlier)
         return residuals
+
+    def bandReport(self, key: int) -> dict[int, BandFit]:
+        """For each band an image's automatic tie points came from: how many
+        there are, how many the last fit kept, and their RMS residual."""
+        size = self.input(key).pixelSize
+        report = {}
+        auto = [p for p in self.tiePointsOf(key) if p.auto and p.enabled]
+        for band in sorted({p.band for p in auto if p.band is not None}):
+            points = [p for p in auto if p.band == band]
+            kept = np.array([p.residual for p in points if p.inlier], float)
+            rms = float(np.sqrt(np.mean(kept**2))) / size if kept.size else float("nan")
+            report[band] = BandFit(len(points), int(kept.size), rms)
+        return report
 
     # --- saving ----------------------------------------------------------------
 
@@ -158,6 +227,9 @@ class MosaicProject:
                     "reference": p.referenceKey,
                     "referencePixel": list(p.referencePixel),
                     "enabled": p.enabled,
+                    "auto": p.auto,
+                    "quality": None if np.isnan(p.quality) else p.quality,
+                    "band": p.band,
                 }
                 for p in self.tiePoints
             ],
@@ -180,6 +252,9 @@ class MosaicProject:
                 p["reference"],
                 tuple(p["referencePixel"]),
                 p.get("enabled", True),
+                auto=p.get("auto", False),
+                quality=float("nan") if p.get("quality") is None else p["quality"],
+                band=p.get("band"),
             )
             for p in state.get("tiePoints", [])
         ]

@@ -72,6 +72,33 @@ def _sample(
     return values, valid
 
 
+def readCube(item: MosaicInput, bands: list[int] | None = None) -> np.ndarray:
+    """An input's data as float32 (rows, cols, bands), NaN where no-data."""
+    return _cube(item, bands)
+
+
+def sampleOnGrid(
+    item: MosaicInput,
+    cube: np.ndarray,
+    grid: TargetGrid,
+    resampling: Resampling = Resampling.BILINEAR,
+) -> np.ndarray:
+    """One input (its ``cube``, read with ``readCube``) resampled onto
+    ``grid`` through its correction: (rows, cols, bands), NaN off the image."""
+    out = np.full((grid.height, grid.width, cube.shape[2]), np.nan, np.float32)
+    inverse = np.linalg.inv(item.correction)
+    pixelFromMap = ~item.image.transform
+    for start in range(0, grid.height, TILE_ROWS):
+        rows = slice(start, min(start + TILE_ROWS, grid.height))
+        x, y = grid.pixelCenters(rows)
+        mapped = applyMatrix(inverse, np.column_stack([x, y]))
+        cols, rowsIn = pixelFromMap * (mapped[:, 0], mapped[:, 1])
+        values, valid = _sample(cube, np.asarray(cols), np.asarray(rowsIn), resampling)
+        values[~valid] = np.nan
+        out[rows] = values.reshape(rows.stop - rows.start, grid.width, -1)
+    return out
+
+
 def renderMosaic(
     project: MosaicProject,
     grid: TargetGrid,

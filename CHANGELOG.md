@@ -8,6 +8,17 @@ can alter results.
 
 ### Added
 
+- **Auto Align in the Mosaic workspace.** Finds tie points between an image
+  and the images it overlaps:
+  - phase-correlated tiles on the bands with the best SNR, spread across the
+    spectrum;
+  - refined to about 1/50 px with the phase-plane fit of Leprince et al.
+    (2007), the method behind COSI-Corr, re-implemented from the paper;
+  - ORB features when rotation or scale differ.
+
+  The points are fitted robustly (RANSAC), with outliers shown. A per-band
+  report lets you drop a band that disagrees. The tile shifts can be added
+  to the image list as a displacement field (east, north, quality).
 - **Mosaic workspace.** **Workspace → New Mosaic Workspace…** joins
   overlapping images (spectral cubes or grayscale) with the same bands and
   projection. Order the images (the top one wins where they overlap), align
