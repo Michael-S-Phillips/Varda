@@ -128,6 +128,7 @@ class MosaicWorkspace(QMainWindow):
         self.seamsPanel.sigCompute.connect(self.findSeams)
         self.seamsPanel.sigEdit.connect(lambda _: self.showSeams())
         self.seamsPanel.sigCleared.connect(self._seamsChanged)
+        self.seamsPanel.sigBlendChanged.connect(self.refreshPreview)
         self.canvas.sigSeamEdited.connect(self.editSeam)
         self.inputsPanel.sigExport.connect(self.export)
         self.tiePanel.sigChanged.connect(self.refreshPreview)
@@ -142,7 +143,9 @@ class MosaicWorkspace(QMainWindow):
         self.radiometryDock = VardaDockWidget("Radiometry").withWidget(
             self.radiometryPanel
         )
-        self.seamsDock = VardaDockWidget("Seams").withWidget(self.seamsPanel)
+        self.seamsDock = VardaDockWidget("Seams and Blending").withWidget(
+            self.seamsPanel
+        )
         manager = self.dockManager
         manager.addDockWidget(ads.DockWidgetArea.CenterDockWidgetArea, self.canvasDock)
         manager.addDockWidget(

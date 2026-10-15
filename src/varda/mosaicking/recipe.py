@@ -118,3 +118,34 @@ class Seam:
             int(state["bottom"]),
             tuple(np.asarray(r, float) for r in state["regions"]),
         )
+
+
+class BlendMethod(LabeledEnum):
+    NONE = "None (hard seams; keeps spectra exact)"
+    FEATHER = "Feather (visual)"
+    MULTIBAND = "Multi-band (visual)"
+
+
+DEFAULT_FEATHER_WIDTH = 20  # pixels of the finest input
+DEFAULT_LEVELS = 4
+
+
+@frozen
+class Blend:
+    """How images mix across their seams. Anything but NONE mixes spectra, so
+    the mosaic is a visual product."""
+
+    method: BlendMethod = BlendMethod.NONE
+    width: int = DEFAULT_FEATHER_WIDTH  # feather: the ramp's width, finest-input pixels
+    levels: int = DEFAULT_LEVELS  # multi-band: pyramid levels
+
+    def state(self) -> dict:
+        return {"method": self.method.name, "width": self.width, "levels": self.levels}
+
+    @classmethod
+    def fromState(cls, state: dict) -> Blend:
+        return cls(
+            BlendMethod[state.get("method", "NONE")],
+            int(state.get("width", DEFAULT_FEATHER_WIDTH)),
+            int(state.get("levels", DEFAULT_LEVELS)),
+        )

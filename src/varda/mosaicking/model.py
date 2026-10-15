@@ -12,6 +12,8 @@ from attrs import define, field, frozen
 
 from varda.common.entities import VardaRaster
 from varda.mosaicking.recipe import (
+    Blend,
+    BlendMethod,
     Correction,
     LinearMode,
     RadiometryMethod,
@@ -148,6 +150,7 @@ class MosaicProject:
         self.heldKeys: frozenset[int] = frozenset()
         self.seamMethod = SeamMethod.PRIORITY
         self.seams: list[Seam] = []
+        self.blend = Blend()
 
     # --- inputs ------------------------------------------------------------
 
@@ -191,7 +194,10 @@ class MosaicProject:
     @property
     def isVisual(self) -> bool:
         """Whether the recipe changes spectral shape (a visual product)."""
-        return self.radiometryMethod is RadiometryMethod.HISTOGRAM
+        return (
+            self.radiometryMethod is RadiometryMethod.HISTOGRAM
+            or self.blend.method is not BlendMethod.NONE
+        )
 
     # --- seams -------------------------------------------------------------------
 
@@ -201,6 +207,15 @@ class MosaicProject:
 
     def clearSeams(self) -> None:
         self.setSeams(SeamMethod.PRIORITY, [])
+
+    def setBlend(
+        self, method: BlendMethod, width: int | None = None, levels: int | None = None
+    ) -> None:
+        self.blend = Blend(
+            method,
+            self.blend.width if width is None else int(width),
+            self.blend.levels if levels is None else int(levels),
+        )
 
     # --- tie points ----------------------------------------------------------
 
@@ -300,6 +315,7 @@ class MosaicProject:
         order = sorted(self.inputs, key=lambda i: i.key)
         return {
             "order": [i.key for i in self.inputs],
+            "blend": self.blend.state(),
             "seams": {
                 "method": self.seamMethod.name,
                 "seams": [seam.state() for seam in self.seams],
@@ -349,6 +365,7 @@ class MosaicProject:
             item.radiometry = (
                 None if radiometry is None else Correction.fromState(radiometry)
             )
+        self.blend = Blend.fromState(state.get("blend", {}))
         seams = state.get("seams", {})
         self.setSeams(
             SeamMethod[seams.get("method", "PRIORITY")],
