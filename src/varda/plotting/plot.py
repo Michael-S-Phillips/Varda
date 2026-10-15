@@ -347,6 +347,9 @@ class _PlotGraphicsView(pg.GraphicsView):
 
 
 class VardaPlotWidget(QWidget):
+    # The selected curve changed: the curve, or None when nothing is selected
+    sigSelectedCurveChanged = pyqtSignal(object)
+
     def __init__(
         self,
         parent: QWidget | None = None,
@@ -799,9 +802,11 @@ class VardaPlotWidget(QWidget):
         super().keyPressEvent(a0)
 
     def selectPlot(self, curve: Curve) -> None:
-        self.deselectPlot()
+        if self.selectedCurve is not None:
+            self.selectedCurve.setHighlighted(False)
         self.selectedCurve = curve
         curve.setHighlighted(True)
+        self.sigSelectedCurveChanged.emit(curve)
         self.curveSettingsBox.setContent(
             WrapperWidget(
                 VBoxBuilder(Qt.AlignmentFlag.AlignTop)
@@ -820,10 +825,12 @@ class VardaPlotWidget(QWidget):
         self.deselectPlot()
 
     def deselectPlot(self):
-        if self.selectedCurve is not None:
-            self.selectedCurve.setHighlighted(False)
-            self.curveSettingsBox.setContent(self._curvePlaceholder())
+        if self.selectedCurve is None:
+            return
+        self.selectedCurve.setHighlighted(False)
+        self.curveSettingsBox.setContent(self._curvePlaceholder())
         self.selectedCurve = None
+        self.sigSelectedCurveChanged.emit(None)
 
     def _addLibrarySpectrum(self) -> None:
         folderName = self.libraryCombo.currentText()

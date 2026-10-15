@@ -4,6 +4,21 @@ Notable changes to Varda. Release notes on GitHub are generated from pull
 requests; this file records what users need to know, especially changes that
 can alter results.
 
+## Unreleased
+
+### Added
+
+- **Pixel Select windows.** The Pixel Spectra panel has Window Width and
+  Height settings (like the Ratio Explorer's boxes): 1×1 selects one pixel;
+  larger plots the region's mean spectrum with a ±1 σ band (no-data pixels
+  left out), and the window is outlined while you Ctrl-drag.
+
+### Changed
+
+- **Plotted spectra are marked with circles** in their curve's color
+  (a region with its outline), and selecting a spectrum on the plot
+  highlights its marker on the image. Markers follow a change of color.
+
 ## 0.7.1 (2026-10-15)
 
 ### Changed
