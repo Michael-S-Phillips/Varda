@@ -6,6 +6,7 @@ from PyQt6.QtCore import QPointF, Qt
 
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
+from varda.image_rendering.raster_view.triple_raster_view import TripleRasterView
 from varda.image_rendering.raster_view.pointer_event import (
     KeyEvent,
     PointerAction,
@@ -139,3 +140,27 @@ def test_moves_are_not_consumed_so_hover_readouts_keep_working(tool):
     pos = QPointF(1.0, 1.0)
     move = PointerEvent(PointerAction.MOVE, pos, pos, Qt.MouseButton.NoButton, NO_MOD)
     assert tool.onPointerEvent(move) is False
+
+
+def test_the_boxes_stay_on_their_pixels_when_the_view_pans_and_zooms(qtbot):
+    image = generate_random_image((80, 120, 10))
+    view = TripleRasterView(ImageRenderer(image=image))
+    qtbot.addWidget(view)
+    view.resize(1200, 700)
+    view.show()
+    main = view.viewport2  # shows the region boxed in the overview
+    tool = RatioExplorerTool(main)
+    tool.activate()
+    tool.onPointerEvent(_left(50.0, 30.0))
+    handle = tool._numeratorOverlay
+    placed = []
+    original = handle.setPoints
+    handle.setPoints = lambda points: (placed.append(points), original(points))
+    view.roi1.setPos((20, 10))  # pan
+    view.roi1.setSize((60, 40))  # and zoom out
+    expected = main.pixelToLocalCoords(tool.selection.numerator)
+    assert placed, "the box was not moved with the view"
+    got = np.array([[p.x(), p.y()] for p in placed[-1]])
+    np.testing.assert_allclose(got, expected)
+    tool.deactivate()
+    assert tool._numeratorOverlay is None and tool.selection.numerator is not None

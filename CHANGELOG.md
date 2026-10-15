@@ -59,6 +59,8 @@ can alter results.
 
 ### Fixed
 
+- Ratio Explorer's numerator and denominator boxes now stay on their pixels
+  when the view is panned or zoomed, instead of moving with it.
 - Closing a Find Data workspace while it was drawing a basemap, listing
   collections, searching or downloading could raise an error when the work
   finished; such results are now dropped.
