@@ -1,4 +1,5 @@
-"""Processing > Optional Features: install, update or remove PyTorch.
+"""Processing > Optional Features: install, update or remove PyTorch, and
+set up the Ames Stereo Pipeline (``asp_section``).
 
 Opens on its own from the menu, or with a ``reason`` when someone picks a CNN
 or ViT classifier before PyTorch is installed.
@@ -17,6 +18,7 @@ from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -28,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.branding.loader import RedrawSpinner
+from varda.optional_features.asp_section import AspSection
 from varda.utilities.background import onMainThread, runInBackground
 from varda.optional_features.torch_runtime import (
     Backend,
@@ -137,11 +140,14 @@ class OptionalFeaturesDialog(QDialog):
         self.cancelButton.clicked.connect(self._cancel)
         self.uninstallButton = QPushButton("Uninstall")
         self.uninstallButton.clicked.connect(self._uninstall)
+        # PyTorch's own buttons sit in its section; Close is the dialog's
+        torchButtons = QHBoxLayout()
+        torchButtons.addWidget(self.installButton)
+        torchButtons.addWidget(self.cancelButton)
+        torchButtons.addWidget(self.uninstallButton)
+        torchButtons.addStretch()
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
-        buttons.addButton(self.installButton, QDialogButtonBox.ButtonRole.ActionRole)
-        buttons.addButton(self.cancelButton, QDialogButtonBox.ButtonRole.ActionRole)
-        buttons.addButton(self.uninstallButton, QDialogButtonBox.ButtonRole.ActionRole)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.reasonLabel)
@@ -150,11 +156,17 @@ class OptionalFeaturesDialog(QDialog):
         layout.addWidget(self.statusLabel)
         layout.addLayout(form)
         layout.addLayout(progress)
+        layout.addLayout(torchButtons)
         layout.addLayout(detailsRow)
         layout.addWidget(self.log)
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(separator)
+        self.aspSection = AspSection()
+        layout.addWidget(self.aspSection)
         layout.addWidget(buttons)
         self.setMinimumWidth(480)
-        self._setBusy(False)  # after the button box, which shows its buttons
+        self._setBusy(False)  # after the layout, which shows the buttons it adds
         self._refresh()
 
     # --- state ---------------------------------------------------------------
@@ -298,6 +310,7 @@ class OptionalFeaturesDialog(QDialog):
             clipboard.setText(self.diagnostics())
 
     def reject(self) -> None:
+        self.aspSection.cancelRunning()
         if self._installer is not None:
             self._cancel()  # don't leave a download running with no window
         super().reject()
