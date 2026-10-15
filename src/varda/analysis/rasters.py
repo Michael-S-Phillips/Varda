@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 import numpy as np
+from affine import Affine
 
 from varda.common.entities import VardaRaster
 from varda.common.spectral_axis import BAND_METADATA_KEYS
@@ -132,6 +133,29 @@ def singleBandRaster(
     return VardaRaster(source, name=name)
 
 
+def namedBandsRaster(
+    image: VardaRaster,
+    values: np.ndarray,
+    bandNames: list[str],
+    *,
+    name: str,
+    description: str,
+    units: str = "",
+) -> VardaRaster:
+    """A raster over ``image``'s footprint whose bands are named, not
+    wavelengths (hue, saturation, value...)."""
+    source = ArrayDataSource(
+        np.asarray(values, dtype=np.float32),
+        wavelengths=np.array(bandNames),
+        wavelengthUnits=units,
+        bandNames=list(bandNames),
+        transform=image.transform,
+        crs=image.crs,
+        description=description,
+    )
+    return VardaRaster(source, name=name)
+
+
 def bandMetadata(image: VardaRaster) -> dict:
     """The image's per-band metadata (FWHM, bad bands, scale factor) for a
     derived raster with the same bands, so its band model carries over."""
@@ -143,16 +167,22 @@ def bandMetadata(image: VardaRaster) -> dict:
 
 
 def sameBandsRaster(
-    image: VardaRaster, values: np.ndarray, *, name: str, description: str
+    image: VardaRaster,
+    values: np.ndarray,
+    *,
+    name: str,
+    description: str,
+    transform: Affine | None = None,
 ) -> VardaRaster:
     """A cube with ``image``'s bands, wavelengths (and their FWHM and bad
-    bands), display bands and footprint."""
+    bands), display bands and footprint, or another grid (``transform``)
+    when it was resampled, rotated or cropped."""
     source = ArrayDataSource(
         np.asarray(values, dtype=np.float32),
         wavelengths=np.asarray(image.wavelengths),
         wavelengthUnits=image.wavelengthUnits,
         bandNames=list(image.bandNames),
-        transform=image.transform,
+        transform=image.transform if transform is None else transform,
         crs=image.crs,
         defaultBands=np.asarray(image.defaultBands),
         extraMetadata=bandMetadata(image),

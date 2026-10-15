@@ -4,6 +4,24 @@ Notable changes to Varda. Release notes on GitHub are generated from pull
 requests; this file records what users need to know, especially changes that
 can alter results.
 
+## Unreleased
+
+### Added
+
+- **Image processing tools** (see the user guide's Image processing page):
+  - Filtering: Smoothing, Sharpening, Edge Detection, Morphology, Speckle
+    Filters (Lee, Kuan, Frost), Frequency Filter (FFT) and Custom Kernel,
+    on all bands or one.
+  - Statistics: Local Statistics and Co-occurrence (GLCM) texture.
+  - Transforms: Color Transform (RGB ↔ HSV/HLS), Decorrelation Stretch and
+    Saturation Stretch.
+  - Classification: Density Slice, Majority/Minority Filter, Sieve and
+    Clump for class maps.
+  - Topography (new): Terrain, which computes slope, aspect, hillshade,
+    curvature and roughness from a DTM.
+  - Geometry (new): Resample, Rotate / Flip and Subset, keeping the
+    georeferencing and band metadata.
+
 ## 0.6.0 (2026-10-14)
 
 ### Added
