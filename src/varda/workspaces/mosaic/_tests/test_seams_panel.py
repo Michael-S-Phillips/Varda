@@ -11,9 +11,9 @@ from scipy import ndimage
 from varda.common.entities import VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.mosaicking.grid import defaultGrid
-from varda.mosaicking.recipe import SeamMethod
-from varda.mosaicking.render import renderMosaic
-from varda.workspaces.mosaic.mosaic_workspace import MosaicWorkspace
+from varda.mosaicking.recipe import BlendMethod, SeamMethod
+from varda.mosaicking.render import Resampling, renderMosaic
+from varda.workspaces.mosaic.mosaic_workspace import MosaicWorkspace, mosaicRaster
 
 
 def _strip(cube, firstCol, name):
@@ -97,3 +97,22 @@ def test_seams_survive_a_session(workspace, qtbot):
     reopened.restoreSessionState(workspace.sessionState())
     assert reopened.seamsPanel.method.currentData() is SeamMethod.LEAST_DIFFERENCE
     assert np.array_equal(_sources(reopened), _sources(workspace))
+
+
+def test_blending_controls_set_the_recipe_and_label_it_visual(workspace, qtbot):
+    panel = workspace.seamsPanel
+    assert not panel.featherWidth.isEnabled() and not panel.levels.isEnabled()
+    panel.blend.setCurrentIndex(panel.blend.findData(BlendMethod.FEATHER))
+    panel.featherWidth.setValue(12)
+    assert workspace.project.blend.method is BlendMethod.FEATHER
+    assert workspace.project.blend.width == 12 and panel.featherWidth.isEnabled()
+    grid = defaultGrid(workspace.project)
+    result = renderMosaic(workspace.project, grid)
+    assert mosaicRaster(
+        workspace.project, result, grid, Resampling.NEAREST
+    ).name.endswith("(visual)")
+    reopened = MosaicWorkspace(workspace.images, [])
+    qtbot.addWidget(reopened)
+    reopened.restoreSessionState(workspace.sessionState())
+    assert reopened.seamsPanel.blend.currentData() is BlendMethod.FEATHER
+    assert reopened.seamsPanel.featherWidth.value() == 12

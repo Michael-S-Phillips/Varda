@@ -133,6 +133,21 @@ after changing the alignment.
 
 Seams only choose which image each pixel comes from: spectra stay exact.
 
+### Blending (visual)
+
+For a mosaic meant to be looked at, **Blending** (in the same tab) softens
+the seams, or the stack order's edges when there are no seams:
+
+- **Feather:** each image fades into the next over the **feather width**
+  (in pixels of the finest image), centered on the seam.
+- **Multi-band:** coarse detail (overall brightness) mixes over a wide band
+  and fine detail over a narrow one (Burt and Adelson's method), which hides
+  brightness differences without blurring texture. **Levels** sets how wide
+  the coarsest band is: each level doubles it.
+
+Blending mixes the images' spectra near the seams, so a blended mosaic is
+labeled "(visual)". Keep **None** for analysis.
+
 ## Exporting
 
 **Export Mosaic…** renders the mosaic and adds it to the image list:

@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -26,6 +27,7 @@ from varda.common.ui import MutedLabel
 from varda.mosaicking.recipe import (
     Correction,
     LinearMode,
+    BlendMethod,
     RadiometryMethod,
     SeamMethod,
 )
@@ -492,11 +494,12 @@ class RadiometryPanel(QWidget):
 
 
 class SeamsPanel(QWidget):
-    """Where each image takes over in an overlap."""
+    """Where each image takes over in an overlap, and how they mix there."""
 
     sigCompute = pyqtSignal(object)  # SeamMethod
     sigEdit = pyqtSignal(bool)
     sigCleared = pyqtSignal()
+    sigBlendChanged = pyqtSignal()
 
     def __init__(self, project: MosaicProject, parent: QWidget | None = None):
         super().__init__(parent)
@@ -525,6 +528,29 @@ class SeamsPanel(QWidget):
             "see. Find seams again after changing the alignment."
         )
         note.setWordWrap(True)
+        self.blend = QComboBox()
+        for method in BlendMethod:
+            self.blend.addItem(method.value, method)
+        self.featherWidth = QSpinBox()
+        self.featherWidth.setRange(1, 1000)
+        self.featherWidth.setSuffix(" px")
+        self.featherWidth.setToolTip(
+            "The feather's width across the seam, in the finest image's pixels"
+        )
+        self.levels = QSpinBox()
+        self.levels.setRange(1, 10)
+        self.levels.setToolTip(
+            "Pyramid levels: each one mixes coarser detail over twice the width"
+        )
+        self.blend.currentIndexChanged.connect(lambda _: self._onBlend())
+        self.featherWidth.valueChanged.connect(lambda _: self._onBlend())
+        self.levels.valueChanged.connect(lambda _: self._onBlend())
+        blendNote = MutedLabel(
+            "Blending mixes the images' spectra near the seams, so a blended "
+            "mosaic is labeled visual. Keep None for analysis."
+        )
+        blendNote.setWordWrap(True)
+
         form = QFormLayout()
         form.addRow("Method:", self.method)
         buttons = QHBoxLayout()
@@ -532,12 +558,24 @@ class SeamsPanel(QWidget):
         buttons.addWidget(self.edit)
         buttons.addWidget(clear)
         buttons.addStretch()
-        layout = QVBoxLayout(self)
-        layout.addLayout(form)
-        layout.addLayout(buttons)
-        layout.addWidget(self.status)
-        layout.addWidget(note)
-        layout.addStretch(1)
+        blendForm = QFormLayout()
+        blendForm.addRow("Blending:", self.blend)
+        blendForm.addRow("Feather width:", self.featherWidth)
+        blendForm.addRow("Levels:", self.levels)
+        seams, blending = QVBoxLayout(), QVBoxLayout()
+        seams.addWidget(QLabel("<b>Seams</b>"))
+        seams.addLayout(form)
+        seams.addLayout(buttons)
+        seams.addWidget(self.status)
+        seams.addWidget(note)
+        seams.addStretch(1)
+        blending.addWidget(QLabel("<b>Blending</b>"))
+        blending.addLayout(blendForm)
+        blending.addWidget(blendNote)
+        blending.addStretch(1)
+        layout = QHBoxLayout(self)
+        layout.addLayout(seams, 1)
+        layout.addLayout(blending, 1)
         self.refresh()
 
     def refresh(self) -> None:
@@ -545,6 +583,27 @@ class SeamsPanel(QWidget):
         self.edit.setEnabled(bool(self.project.seams))
         if not self.project.seams and self.edit.isChecked():
             self.edit.setChecked(False)
+        blend = self.project.blend
+        for control in (self.blend, self.featherWidth, self.levels):
+            control.blockSignals(True)
+        self.blend.setCurrentIndex(list(BlendMethod).index(blend.method))
+        self.featherWidth.setValue(blend.width)
+        self.levels.setValue(blend.levels)
+        for control in (self.blend, self.featherWidth, self.levels):
+            control.blockSignals(False)
+        self._updateBlendControls()
+
+    def _updateBlendControls(self) -> None:
+        method = self.blend.currentData()
+        self.featherWidth.setEnabled(method is BlendMethod.FEATHER)
+        self.levels.setEnabled(method is BlendMethod.MULTIBAND)
+
+    def _onBlend(self) -> None:
+        self.project.setBlend(
+            self.blend.currentData(), self.featherWidth.value(), self.levels.value()
+        )
+        self._updateBlendControls()
+        self.sigBlendChanged.emit()
 
     def showResult(self, message: str) -> None:
         self.computeButton.setEnabled(True)
