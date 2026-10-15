@@ -15,7 +15,11 @@ from varda.catalogs.catalog import Catalog, Collection, Product, SearchPage
 from varda.common.entities import VardaRaster
 from varda.common.parameter import FloatParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+from PyQt6.QtCore import QRectF
+
 from varda.workspaces.find_data.find_data_workspace import AREA_BOX, FindDataWorkspace
+from varda.workspaces.find_data.map_view import ADD, REMOVE, REPLACE
+from varda.workspaces.find_data.projection import MapProjection
 
 PRODUCTS = [
     Product(
@@ -115,7 +119,8 @@ def test_the_filters_and_dates_reach_the_catalog(workspace, qtbot):
 def test_clicking_a_footprint_selects_it_and_shows_it(workspace, qtbot):
     workspace.map.zoomTo((76.5, 17.5, 78.5, 19.0), padding=0)
     _search(workspace, qtbot)
-    workspace._onMapClicked(77.2, 18.2, False)
+    hits = workspace.map.productsIn(shapely.Point(77.2, 18.2))
+    workspace._onMapSelect(hits, REPLACE)
     assert [p.id for p in workspace.selectedProducts()] == ["obs_a"]
     assert (
         "obs_a" in workspace.details.text() and "Incidence" in workspace.details.text()
@@ -190,3 +195,55 @@ def test_a_catalog_that_needs_a_login_asks_before_searching(workspace, monkeypat
     assert asked == [workspace.catalog()]
     assert workspace.searchStatus.text() == "This catalog needs a login."
     assert FakeCatalog.queries == []
+
+
+def _selected(workspace):
+    return sorted(p.id for p in workspace.selectedProducts())
+
+
+def test_shift_adds_cmd_removes_and_a_box_adds_footprints(workspace, qtbot):
+    workspace.map.zoomTo((76.5, 17.5, 78.5, 19.0), padding=0)
+    _search(workspace, qtbot)
+    workspace.more()
+    qtbot.waitUntil(lambda: len(workspace.results.products) == 2, timeout=5000)
+    workspace._onMapSelect(["obs_a"], REPLACE)
+    workspace._onMapSelect(["obs_b"], ADD)
+    assert _selected(workspace) == ["obs_a", "obs_b"]
+    workspace._onMapSelect(["obs_a"], REMOVE)
+    assert _selected(workspace) == ["obs_b"]
+    picked = []
+    workspace.map.sigSelect.connect(lambda ids, mode: picked.append((ids, mode)))
+    workspace.map._onBox(QRectF(77.4, 18.1, 0.3, 0.2))  # touches both
+    assert picked == [(["obs_a", "obs_b"], ADD)]
+
+
+def test_show_only_selected_filters_the_table(workspace, qtbot):
+    workspace.map.zoomTo((76.5, 17.5, 78.5, 19.0), padding=0)
+    _search(workspace, qtbot)
+    workspace.more()
+    qtbot.waitUntil(lambda: len(workspace.results.products) == 2, timeout=5000)
+    workspace._onMapSelect(["obs_b"], REPLACE)
+    workspace.onlySelected.setChecked(True)
+    assert workspace.proxy.rowCount() == 1 and _selected(workspace) == ["obs_b"]
+    workspace._onMapSelect(["obs_a"], ADD)  # selecting on the map changes the list
+    assert workspace.proxy.rowCount() == 2
+    workspace.onlySelected.setChecked(False)
+    assert workspace.proxy.rowCount() == 2 and _selected(workspace) == [
+        "obs_a",
+        "obs_b",
+    ]
+
+
+def test_the_polar_map_draws_footprints_and_searches_around_the_pole(workspace, qtbot):
+    _search(workspace, qtbot)
+    north = workspace.projectionBox.findData(MapProjection.NORTH_POLAR)
+    workspace.projectionBox.setCurrentIndex(north)
+    assert workspace.map.projector.polar and workspace.map.projector.body == "Mars"
+    x, _ = workspace.map.footprints.getData()
+    assert len(x) > 0 and abs(np.nanmax(np.abs(x))) > 1000  # meters, not degrees
+    workspace.map.showWhole()
+    west, south, east, north_ = workspace.searchArea()
+    assert (west, east, north_) == (-180.0, 180.0, 90.0) and south == pytest.approx(
+        0.0, abs=0.5
+    )
+    assert workspace.sessionState()["projection"] == "NORTH_POLAR"
