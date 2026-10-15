@@ -43,8 +43,15 @@ class ParameterGroup:
         # used to store all parameters in a list, for generating UI later.
         self.params: dict[str, Parameter | ParameterGroup] = {}
 
-        # find all Parameter attributes defined in the class and create unique copies of them for this instance
-        for name, attr in self.__class__.__dict__.items():
+        # find all Parameter attributes defined in the class and its bases (the
+        # class's own first, so a subclass can override or follow a base's) and
+        # create unique copies of them for this instance
+        declared: dict[str, Parameter | ParameterGroup] = {}
+        for cls in type(self).__mro__:
+            for name, attr in vars(cls).items():
+                if isinstance(attr, (Parameter, ParameterGroup)):
+                    declared.setdefault(name, attr)
+        for name, attr in declared.items():
             if isinstance(attr, Parameter) or isinstance(attr, ParameterGroup):
                 instanceParam = attr.clone()
                 # link the parameter's change signal to the collection's change signal. lambda is to discard the value sent by the parameter
@@ -246,12 +253,17 @@ class BoolParameter(Parameter[bool]):
         )
 
 
-class EnumParameter(Parameter[Enum]):
+class LabeledEnum(Enum):
+    """An Enum whose values are the labels the UI shows ("RGB to HSV"),
+    instead of labels made from the member names."""
+
+
+class EnumParameter[E: Enum](Parameter[E]):
     def __init__(
         self,
         name: str,
-        enumType: type[Enum],
-        default: Enum | None = None,
+        enumType: type[E],
+        default: E | None = None,
         description=None,
     ):
         # store the enum type so we can derive members and validation at runtime
@@ -270,6 +282,9 @@ class EnumParameter(Parameter[Enum]):
             return match.group().upper() if match.group() is not None else ""
 
         for enum in enumType:
+            if isinstance(enum, LabeledEnum):
+                self.enumNames.append(str(enum.value))
+                continue
             name = enum.name
             # convert snake_case and/or camelCase notation into space-seperated words.
             name = re.sub(r"_", r" ", name)
@@ -280,7 +295,7 @@ class EnumParameter(Parameter[Enum]):
             name = re.sub(r"^([a-z])", makeUpper, name)
             self.enumNames.append(name)
 
-    def clone(self) -> EnumParameter:
+    def clone(self) -> EnumParameter[E]:
         return EnumParameter(self.name, self.enumType, self.default, self.description)
 
 

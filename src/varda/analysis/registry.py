@@ -33,6 +33,29 @@ from varda.analysis.statistical_classifiers import (
     MaximumLikelihoodAnalysis,
 )
 from varda.analysis.statistics import SpatialEntropyAnalysis, SpectralEntropyAnalysis
+from varda.analysis.spatial_filters import (
+    CustomKernelAnalysis,
+    EdgeDetectionAnalysis,
+    FrequencyFilterAnalysis,
+    MorphologyAnalysis,
+    SharpeningAnalysis,
+    SmoothingAnalysis,
+    SpeckleFilterAnalysis,
+)
+from varda.analysis.texture import CooccurrenceTextureAnalysis, LocalStatisticsAnalysis
+from varda.analysis.color_transforms import (
+    ColorTransformAnalysis,
+    DecorrelationStretchAnalysis,
+    SaturationStretchAnalysis,
+)
+from varda.analysis.class_tools import (
+    ClumpAnalysis,
+    DensitySliceAnalysis,
+    MajorityFilterAnalysis,
+    SieveAnalysis,
+)
+from varda.analysis.topography import TerrainAnalysis
+from varda.analysis.geometry import ResampleAnalysis, RotateFlipAnalysis, SubsetAnalysis
 from varda.analysis.transforms import (
     IcaAnalysis,
     InverseTransformAnalysis,
@@ -46,12 +69,24 @@ ANALYSES: list[type[Analysis]] = [
     BandMathAnalysis,
     ContinuumRemovalAnalysis,
     IovfAnalysis,
+    SmoothingAnalysis,
+    SharpeningAnalysis,
+    EdgeDetectionAnalysis,
+    MorphologyAnalysis,
+    SpeckleFilterAnalysis,
+    FrequencyFilterAnalysis,
+    CustomKernelAnalysis,
     PcaAnalysis,
     MnfAnalysis,
     IcaAnalysis,
     InverseTransformAnalysis,
+    ColorTransformAnalysis,
+    DecorrelationStretchAnalysis,
+    SaturationStretchAnalysis,
     SpectralEntropyAnalysis,
     SpatialEntropyAnalysis,
+    LocalStatisticsAnalysis,
+    CooccurrenceTextureAnalysis,
     SpectralDerivativeAnalysis,
     SpectralSlopeAnalysis,
     SpatialGradientAnalysis,
@@ -61,6 +96,10 @@ ANALYSES: list[type[Analysis]] = [
     MaximumLikelihoodAnalysis,
     MahalanobisAnalysis,
     KMeansAnalysis,
+    DensitySliceAnalysis,
+    MajorityFilterAnalysis,
+    SieveAnalysis,
+    ClumpAnalysis,
     PixelPurityAnalysis,
     SamMappingAnalysis,
     UnmixingAnalysis,
@@ -69,6 +108,10 @@ ANALYSES: list[type[Analysis]] = [
     LocalRxAnalysis,
     AceAnalysis,
     MatchedFilterAnalysis,
+    TerrainAnalysis,
+    ResampleAnalysis,
+    RotateFlipAnalysis,
+    SubsetAnalysis,
 ]
 
 

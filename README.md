@@ -53,7 +53,11 @@ https://github.com/user-attachments/assets/58862020-51f0-4161-bc46-391e288d789b
   classes, and tabulate their statistics.
 - **Run analyses:** band math and spectral parameters, continuum removal,
   PCA, MNF and ICA, classification (from maximum likelihood and k-means to
-  small neural networks), target and anomaly detection, filtering and more.
+  small neural networks), target and anomaly detection, and more.
+- **Process images:** smoothing, sharpening, edge detection, morphology,
+  speckle and FFT filters, texture measures, color transforms and
+  decorrelation stretch, class map clean-up, terrain from DTMs (slope,
+  aspect, hillshade), and resampling, rotating and cropping.
   Results join your project as new images, which you can save as ENVI or
   GeoTIFF files.
 - **Find and map endmembers** with the Spectral Hourglass, an ENVI-style
