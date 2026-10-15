@@ -8,15 +8,16 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from app_model import Application
-from app_model.types import MenuRule, SubmenuItem
+from app_model.types import MenuRule
 
 from varda._actions._menu_ids import MenuGroup, MenuId
 from varda._actions._processing_actions import (
     _menuCallback,
     _slug,
-    categoryMenuId,
     processingActions,
+    submenuItem,
 )
+from varda.analysis.analysis import categoryLevels
 from varda.analysis.registry import ANALYSES
 from varda.image_loading.data_sources.registry import (
     RegisteredDataSource,
@@ -30,17 +31,25 @@ PLUGIN_CATEGORY_ORDER = 100  # plugins' own submenus come after Varda's
 class AppContributionSink:
     def __init__(self, app: Application) -> None:
         self._app = app
-        self._builtinCategories = {analysis.category for analysis in ANALYSES}
-        # new category -> (plugins using it, how to remove its submenu)
+        # every menu level Varda's own analyses use ("Filtering", "Filtering/Spatial")
+        self._builtinLevels = {
+            level
+            for analysis in ANALYSES
+            for level in categoryLevels(analysis.category)
+        }
+        # a plugin's new menu level -> (plugins using it, how to remove its submenu)
         self._submenus: dict[str, tuple[int, Callable[[], None]]] = {}
 
     def add(self, plugin: str, contributions: Contributions) -> Callable[[], None]:
         removers: list[Callable[[], None]] = []
         analyses = contributions.analyses
         if analyses:
-            for category in dict.fromkeys(a.category for a in analyses):
-                if category not in self._builtinCategories:
-                    removers.append(self._useCategory(category))
+            levels = dict.fromkeys(
+                level for a in analyses for level in categoryLevels(a.category)
+            )
+            for level in levels:
+                if level not in self._builtinLevels:
+                    removers.append(self._useLevel(level))
             actions = processingActions(
                 MenuId.PROCESSING,
                 f"varda.plugin.{_slug(plugin)}",
@@ -65,27 +74,28 @@ class AppContributionSink:
 
         return remove
 
-    def _useCategory(self, category: str) -> Callable[[], None]:
-        """A Processing submenu for a plugin's own category, shared by every
-        plugin using it and removed with the last one."""
-        users, removeSubmenu = self._submenus.get(category, (0, None))
+    def _useLevel(self, level: str) -> Callable[[], None]:
+        """A Processing submenu for a plugin's own category (or a level of
+        its path), shared by every plugin using it and removed with the last."""
+        users, removeSubmenu = self._submenus.get(level, (0, None))
         if removeSubmenu is None:
-            item = SubmenuItem(
-                submenu=categoryMenuId(MenuId.PROCESSING, category),
-                title=category,
-                order=PLUGIN_CATEGORY_ORDER + len(self._submenus),
-            )
             removeSubmenu = self._app.menus.append_menu_items(
-                [(MenuId.PROCESSING, item)]
+                [
+                    submenuItem(
+                        MenuId.PROCESSING,
+                        level,
+                        PLUGIN_CATEGORY_ORDER + len(self._submenus),
+                    )
+                ]
             )
-        self._submenus[category] = (users + 1, removeSubmenu)
+        self._submenus[level] = (users + 1, removeSubmenu)
 
         def release() -> None:
-            count, remover = self._submenus[category]
+            count, remover = self._submenus[level]
             if count == 1:
                 remover()
-                del self._submenus[category]
+                del self._submenus[level]
             else:
-                self._submenus[category] = (count - 1, remover)
+                self._submenus[level] = (count - 1, remover)
 
         return release

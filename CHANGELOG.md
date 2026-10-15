@@ -4,6 +4,15 @@ Notable changes to Varda. Release notes on GitHub are generated from pull
 requests; this file records what users need to know, especially changes that
 can alter results.
 
+## Unreleased
+
+### Changed
+
+- **Filtering is split into Spatial and Spectral submenus.** The spatial
+  filters are under Processing → Filtering → Spatial; IOVF and spectral
+  filters from plugins are under Filtering → Spectral. Plugins can nest
+  their own submenus with a "/" in their category ("Filtering/Spectral").
+
 ## 0.7.0 (2026-10-15)
 
 ### Added

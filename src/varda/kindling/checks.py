@@ -22,7 +22,8 @@ import numpy as np
 from attrs import frozen
 
 from varda.common.entities import VardaRaster
-from varda.kindling.categories import duplicateOf
+from varda.analysis.analysis import categoryTitle
+from varda.kindling.categories import placementProblem
 
 CHECK_FLAG = "--check-plugin"
 TIMEOUT_SECONDS = 180
@@ -53,7 +54,7 @@ class AnalysisResult:
 
     @property
     def location(self) -> str:
-        return f"Processing → {self.category} → {self.name}"
+        return f"Processing → {categoryTitle(self.category)} → {self.name}"
 
 
 @frozen
@@ -82,14 +83,15 @@ class CheckReport:
     def withCategoriesChecked(self, categories: Sequence[str]) -> CheckReport:
         """Reject an analysis category that duplicates an existing Processing
         submenu ("Filters" beside "Filtering")."""
-        problems = []
-        for analysis in self.analyses:
-            duplicate = duplicateOf(analysis.category, categories)
-            if duplicate:
-                problems.append(
-                    f"{analysis.name}'s category {analysis.category!r} duplicates "
-                    f"the existing {duplicate!r} menu: set category = {duplicate!r}."
+        problems = [
+            problem
+            for analysis in self.analyses
+            if (
+                problem := placementProblem(
+                    analysis.name, analysis.category, categories
                 )
+            )
+        ]
         return attrs.evolve(self, categoryProblems=tuple(dict.fromkeys(problems)))
 
     @classmethod

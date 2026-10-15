@@ -6,9 +6,9 @@ from varda._actions import ALL_ACTIONS
 from varda._actions._menu_ids import MENUBAR, MenuId
 from varda._actions._processing_actions import (
     OPTIONAL_FEATURES_ACTION_ID,
-    PROCESSING_SUBMENUS,
     categoryMenuId,
     processingActions,
+    PROCESSING_SUBMENUS,
     processingSubmenus,
 )
 from varda.analysis.analysis import Analysis
@@ -107,3 +107,34 @@ def test_band_parameters_is_offered_under_spectral_parameters():
     assert ("varda/processing", "Spectral Parameters") in [
         (parent, item.title) for parent, item in PROCESSING_SUBMENUS
     ]
+
+
+class _Spatial(Analysis):
+    analysisId = "spatial"
+    name = "Spatial"
+    category = "Filtering/Spatial"
+
+
+class _Spectral(Analysis):
+    analysisId = "spectral"
+    name = "Spectral"
+    category = "Filtering/Spectral"
+
+
+def test_a_category_path_nests_submenus_once_per_level():
+    submenus = processingSubmenus("root", [_Spatial, _Spectral])
+    placed = [(parent, item.submenu, item.title) for parent, item in submenus]
+    assert placed == [
+        ("root", "root/filtering", "Filtering"),
+        ("root/filtering", "root/filtering_spatial", "Spatial"),
+        ("root/filtering", "root/filtering_spectral", "Spectral"),
+    ]
+
+
+def test_the_menu_puts_spatial_before_spectral_filters():
+    titles = [
+        item.title
+        for parent, item in PROCESSING_SUBMENUS
+        if parent.endswith("/filtering")
+    ]
+    assert titles == ["Spatial", "Spectral"]

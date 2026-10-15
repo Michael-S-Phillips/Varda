@@ -16,7 +16,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMessageBox
 
 from varda._actions._menu_ids import MenuId
-from varda.analysis.analysis import Analysis
+from varda.analysis.analysis import SUBMENU, Analysis, categoryLevels
 from varda.analysis.dialog import RunAnalysisDialog
 from varda.analysis.eigenvalue_dialog import EigenvaluePlotDialog
 from varda.analysis.registry import ANALYSES
@@ -88,20 +88,28 @@ def categoryMenuId(root: str, category: str) -> str:
     return f"{root}/{_slug(category)}"
 
 
+def submenuItem(root: str, level: str, order: int) -> tuple[str, SubmenuItem]:
+    """``level``'s submenu, in its parent's menu (``root`` at the top)."""
+    parent = level.rpartition(SUBMENU)[0]
+    return (
+        categoryMenuId(root, parent) if parent else root,
+        SubmenuItem(
+            submenu=categoryMenuId(root, level),
+            title=level.rpartition(SUBMENU)[2],
+            order=order,
+        ),
+    )
+
+
 def processingSubmenus(
     root: str, analyses: Sequence[type[Analysis]]
 ) -> list[tuple[str, SubmenuItem]]:
-    """One submenu under ``root`` per category, in first-appearance order."""
-    categories = list(dict.fromkeys(analysis.category for analysis in analyses))
-    return [
-        (
-            root,
-            SubmenuItem(
-                submenu=categoryMenuId(root, category), title=category, order=i
-            ),
-        )
-        for i, category in enumerate(categories)
-    ]
+    """One submenu per category, nested by its path ("Filtering/Spatial"),
+    in first-appearance order."""
+    levels = dict.fromkeys(
+        level for analysis in analyses for level in categoryLevels(analysis.category)
+    )
+    return [submenuItem(root, level, i) for i, level in enumerate(levels)]
 
 
 def processingActions(

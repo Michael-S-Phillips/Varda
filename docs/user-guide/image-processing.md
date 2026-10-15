@@ -14,6 +14,11 @@ build it: see [Kindle a Feature](kindle-a-feature.md).
 
 ## Filtering
 
+Filters are under **Filtering → Spatial** (across the image, band by band)
+and **Filtering → Spectral** (along each pixel's spectrum).
+
+### Spatial
+
 | Tool | Methods |
 |---|---|
 | **Smoothing** | Mean (box), Gaussian, Median (removes spikes and speckle, keeps edges), Bilateral and Total variation (edge-preserving) |
@@ -24,8 +29,11 @@ build it: see [Kindle a Feature](kindle-a-feature.md).
 | **Frequency Filter (FFT)** | Low, high or band pass in the Fourier domain, with Gaussian, Butterworth or ideal cutoffs (fractions of the Nyquist frequency) |
 | **Custom Kernel** | Your own kernel, written as rows separated by `;`, e.g. `0 -1 0; -1 5 -1; 0 -1 0` |
 
-The Iterative Outlier Voting Filter (IOVF) removes isolated spikes in both the
-spatial and spectral dimensions.
+### Spectral
+
+The Iterative Outlier Voting Filter (IOVF) removes isolated spikes, judging
+each value against its neighbors in both space and wavelength. Spectral
+filters added by plugins (a spectral smoothing filter, say) go here too.
 
 ## Texture (Statistics)
 

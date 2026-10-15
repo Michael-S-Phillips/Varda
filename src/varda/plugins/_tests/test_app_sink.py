@@ -112,3 +112,44 @@ def test_a_name_ending_in_an_ellipsis_gets_only_one():
         MenuId.PROCESSING, "x", [_Ellipsis], lambda a: lambda: None
     )
     assert action.title == "Spectral Smoothing…"
+
+
+class _Nested(Analysis):
+    analysisId = "nested"
+    name = "Nested"
+    category = "Filtering/Spectral"
+
+
+class _NewNested(Analysis):
+    analysisId = "new_nested"
+    name = "New Nested"
+    category = "Mosaics/Seams"
+
+
+def _submenuIds(app, menuId) -> list[str]:
+    return [getattr(i, "submenu", None) for i in _menuItems(app, menuId)]
+
+
+def test_a_plugin_can_join_an_existing_submenu_without_duplicating_it(app):
+    sink = AppContributionSink(app)
+    remove = sink.add("p", Contributions(analyses=(_Nested,)))
+    spectral = categoryMenuId(MenuId.PROCESSING, "Filtering/Spectral")
+    assert "varda.plugin.p.nested" in _commandIds(app, spectral)
+    filtering = categoryMenuId(MenuId.PROCESSING, "Filtering")
+    assert filtering not in _submenuIds(
+        app, MenuId.PROCESSING
+    )  # Varda's own, not added again
+    remove()
+
+
+def test_a_plugin_s_new_nested_menus_are_added_and_removed(app):
+    sink = AppContributionSink(app)
+    remove = sink.add("p", Contributions(analyses=(_NewNested,)))
+    mosaics = categoryMenuId(MenuId.PROCESSING, "Mosaics")
+    seams = categoryMenuId(MenuId.PROCESSING, "Mosaics/Seams")
+    assert mosaics in _submenuIds(app, MenuId.PROCESSING)
+    assert seams in _submenuIds(app, mosaics)
+    assert "varda.plugin.p.new_nested" in _commandIds(app, seams)
+    remove()
+    assert mosaics not in _submenuIds(app, MenuId.PROCESSING)
+    assert seams not in _submenuIds(app, mosaics)

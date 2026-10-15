@@ -14,7 +14,7 @@ from varda.common.parameter import FloatParameter, IntParameter
 class IovfAnalysis(Analysis):
     analysisId = "iovf"
     name = "Iterative Outlier Voting Filter (IOVF)"
-    category = "Filtering"
+    category = "Filtering/Spectral"
     description = (
         "Removes isolated spikes without smoothing the spectra (Phillips et al. "
         "2023): Grubbs outlier tests vote on every voxel of the noise left after "

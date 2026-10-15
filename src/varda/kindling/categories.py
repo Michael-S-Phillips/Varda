@@ -9,6 +9,7 @@ import re
 from collections.abc import Iterable
 from difflib import SequenceMatcher
 
+from varda.analysis.analysis import SUBMENU, categoryLevels
 from varda.analysis.registry import ANALYSES
 from varda.plugins.plugin_manager import VardaPluginManager
 
@@ -45,3 +46,34 @@ def duplicateOf(category: str, existing: Iterable[str]) -> str:
     if category in existing:
         return ""
     return next((name for name in existing if _same(name, category)), "")
+
+
+def submenusOf(level: str, categories: Iterable[str]) -> list[str]:
+    """The categories inside menu ``level`` ("Filtering" holds
+    "Filtering/Spatial" and "Filtering/Spectral")."""
+    return [c for c in categories if c.startswith(level + SUBMENU)]
+
+
+def placementProblem(name: str, category: str, categories: Iterable[str]) -> str:
+    """Why ``category`` is a poor place for analysis ``name`` among the
+    menu's ``categories`` (paths), or "" if it's fine."""
+    categories = list(categories)
+    levels = list(
+        dict.fromkeys(level for c in categories for level in categoryLevels(c))
+    )
+    duplicate = category if category in levels else duplicateOf(category, levels)
+    if not duplicate:
+        return ""
+    inside = submenusOf(duplicate, categories)
+    if inside:
+        choices = ", ".join(repr(c) for c in inside)
+        return (
+            f"{name}'s category {category!r} is the {duplicate!r} menu, which has "
+            f"submenus: set category to one of {choices}."
+        )
+    if duplicate == category:
+        return ""
+    return (
+        f"{name}'s category {category!r} duplicates the existing {duplicate!r} "
+        f"menu: set category = {duplicate!r}."
+    )
