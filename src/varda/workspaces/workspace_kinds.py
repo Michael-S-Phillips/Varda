@@ -20,6 +20,7 @@ from varda.workspaces.general_image_analysis import (
     GeneralImageAnalysisConfig,
     GeneralImageAnalysisWorkflow,
 )
+from varda.workspaces.mosaic.mosaic_workspace import MosaicWorkspace
 from varda.workspaces.spectral_hourglass.hourglass_workspace import (
     SpectralHourglassWorkspace,
 )
@@ -36,6 +37,8 @@ def describeWorkspace(workspace: object) -> tuple[str, list[VardaRaster]] | None
         return "dual", [workspace.image1, workspace.image2]
     if isinstance(workspace, SpectralHourglassWorkspace):
         return "hourglass", [workspace.model.image]
+    if isinstance(workspace, MosaicWorkspace):
+        return "mosaic", list(workspace.images)
     return None
 
 
@@ -58,6 +61,10 @@ def buildWorkspace(
         return DualImageWorkspace(config)
     if kind == "hourglass":
         workspace = SpectralHourglassWorkspace(images[0], projectImages)
+        workspace.restoreSessionState(dict(extra or {}))
+        return workspace
+    if kind == "mosaic":
+        workspace = MosaicWorkspace(images, projectImages)
         workspace.restoreSessionState(dict(extra or {}))
         return workspace
     logger.warning("Unknown workspace kind %r; skipped", kind)
