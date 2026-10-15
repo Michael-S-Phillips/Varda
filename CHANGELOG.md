@@ -16,6 +16,14 @@ can alter results.
   default nearest-neighbor export keeps every spectrum exact; an optional map
   shows which image each pixel came from. See the
   [mosaicking guide](docs/user-guide/mosaicking.md).
+- **Factor Analysis Target Transformation (FATT).** **Processing →
+  Endmembers → Factor Analysis Target Transformation…** finds the factor
+  space of an image's spectra (covariance or Hysime, with Malinowski's
+  indicator function to choose the number of factors) and ranks library
+  spectra by how well it reproduces them (normalized RMSE, as Lin, Tarnas et
+  al. 2021). **Map Ticked Targets…** maps where they fit with DAFA/TT moving
+  windows. Results are candidates to confirm. See the
+  [FATT guide](docs/user-guide/fatt.md).
 
 ### Fixed
 

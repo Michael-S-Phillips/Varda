@@ -136,6 +136,8 @@ ignore_imports = [
     "varda.analysis.runner -> **",
     "varda.analysis.eigenvalue_dialog -> **",
     "varda.analysis.eigenvalue_plot -> **",
+    "varda.analysis.fatt_dialog -> **",
+    "varda.analysis.library_picker -> **",
     "varda.analysis.transforms -> PyQt6",
     "varda.analysis.band_math -> PyQt6",
     "varda.analysis.band_math -> varda.common.parameter_widgets",

@@ -48,10 +48,12 @@ class RunAnalysisDialog(QDialog):
         image: VardaRaster | None = None,
         analysis: type[Analysis] | None = None,
         rois: ROICollection | None = None,
+        instance: Analysis | None = None,
         parent: QWidget | None = None,
     ) -> None:
         """``rois``: the current workspace's ROI collection, handed to analyses
-        that train on or use ROIs."""
+        that train on or use ROIs. ``instance``: an analysis whose settings
+        were already chosen elsewhere, to run as it is (or adjust)."""
         super().__init__(parent)
         # Opened for one analysis (from its menu entry), the dialog is that
         # analysis's dialog: no picker, its name as the title.
@@ -60,6 +62,8 @@ class RunAnalysisDialog(QDialog):
         self._context = AnalysisContext(rois=rois)
         # One instance per analysis class, so settings persist while switching
         self._instances: dict[type[Analysis], Analysis] = {}
+        if instance is not None:
+            self._instances[type(instance)] = instance
         # Analyses whose setting changes already re-check whether Run is allowed
         self._watched: set[Analysis] = set()
 
