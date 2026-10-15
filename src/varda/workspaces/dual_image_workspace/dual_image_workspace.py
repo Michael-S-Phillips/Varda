@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from enum import Enum
 
 # third party imports
-from PyQt6.QtCore import QPointF
+from PyQt6.QtCore import QPointF, QRect
 from PyQt6.QtWidgets import QMainWindow
 import PyQt6Ads as ads
 
@@ -34,6 +34,7 @@ from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
 from varda.image_rendering.raster_view.viewport_tools.ratio_explorer_tool import (
     RatioExplorerTool,
 )
+from varda.image_rendering.raster_view.viewport_tools.crop_tool import CropTool
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_drawing_state import ROIDrawingState
@@ -44,6 +45,7 @@ from varda.plotting.plot import VardaPlotWidget
 from varda.points.point_collection import PointCollection
 from varda.points.point_manager_widget import PointManagerWidget
 from varda.workspaces.raster_overlay import OverlayBar
+from varda.workspaces.cropping import addCrop, cropMessage
 from varda.workspaces.pixel_markers import PixelMarkerController
 from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
 from varda.workspaces.saved_point_markers import SavedPointMarkers
@@ -449,6 +451,14 @@ class DualImageWorkspace(QMainWindow):
             )
         elif isinstance(tool, RatioExplorerTool):
             self.ratioExplorer.bindTool(tool)
+        elif isinstance(tool, CropTool):
+            tool.sigCropRequested.connect(
+                functools.partial(self._onCropRequested, tool.viewport.imageEntity)
+            )
+
+    def _onCropRequested(self, image: VardaRaster, box: QRect) -> None:
+        cropped = addCrop(image, box, self.projectImages)
+        self.statusBar().showMessage(cropMessage(cropped))
 
     def _configurePixelPlot(self, plot: PixelSpectraPlotWidget) -> None:
         # After the plot's "View" and "Pixel Spectra" sections

@@ -55,7 +55,12 @@ from varda.analysis.class_tools import (
     SieveAnalysis,
 )
 from varda.analysis.topography import TerrainAnalysis
-from varda.analysis.geometry import ResampleAnalysis, RotateFlipAnalysis, SubsetAnalysis
+from varda.analysis.geometry import (
+    CropToRoiAnalysis,
+    ResampleAnalysis,
+    RotateFlipAnalysis,
+    SubsetAnalysis,
+)
 from varda.analysis.transforms import (
     IcaAnalysis,
     InverseTransformAnalysis,
@@ -112,6 +117,7 @@ ANALYSES: list[type[Analysis]] = [
     ResampleAnalysis,
     RotateFlipAnalysis,
     SubsetAnalysis,
+    CropToRoiAnalysis,
 ]
 
 

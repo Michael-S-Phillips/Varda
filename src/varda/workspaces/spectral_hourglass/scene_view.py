@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtCore import QPointF, Qt, pyqtSignal
+from PyQt6.QtCore import QPointF, QRect, Qt, pyqtSignal
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -33,6 +33,7 @@ from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
     PixelSelectTool,
 )
+from varda.image_rendering.raster_view.viewport_tools.crop_tool import CropTool
 from varda.image_rendering.raster_view.viewport_tools.roi_tools import ROIDrawTool
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.rois.region_statistics import rasterizeFootprint
@@ -93,6 +94,7 @@ def _removing() -> bool:
 class SceneView(QWidget):
     sigPixelClicked = pyqtSignal(int)  # flat pixel index
     sigPixelsDrawn = pyqtSignal(object, bool)  # flat pixel indices, add (else remove)
+    sigCropRequested = pyqtSignal(QRect)  # a box drawn with the Crop tool
 
     def __init__(self, image: VardaRaster, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -406,6 +408,8 @@ class SceneView(QWidget):
     def _onToolActivated(self, tool) -> None:
         if isinstance(tool, PixelSelectTool):
             tool.sigPixelSelected.connect(self._onPixelSelected)
+        elif isinstance(tool, CropTool):
+            tool.sigCropRequested.connect(self.sigCropRequested)
         elif isinstance(tool, ROIDrawTool):
             tool.sigROIDrawingComplete.connect(self._onShapeDrawn)
             self._applyShape()

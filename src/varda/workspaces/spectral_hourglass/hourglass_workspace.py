@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 import pyqtgraph as pg
 import PyQt6Ads as ads
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QFileDialog,
@@ -41,6 +41,7 @@ from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.image_rendering.new_histogram_view import NewHistogramView
 from varda.plotting.plot import VardaPlotWidget
 from varda.plotting.spectrum_matching import matchToReference
+from varda.workspaces.cropping import addCrop, cropMessage
 from varda.workspaces.spectral_hourglass.endmember_table import EndmemberTable
 from varda.workspaces.spectral_hourglass.hourglass_model import (
     HourglassModel,
@@ -208,6 +209,7 @@ class SpectralHourglassWorkspace(QMainWindow):
         self.runner.sigFailed.connect(self._onFailed)
         self.nd.sigLassoSelected.connect(self._assignPixels)
         self.scene.sigPixelsDrawn.connect(self._onPixelsDrawn)
+        self.scene.sigCropRequested.connect(self._onCropRequested)
         self.nd.sigPointHovered.connect(self._onPixelHovered)
         self.nd.collapseBox.toggled.connect(lambda _: self._applyCollapse())
         self.scene.sigPixelClicked.connect(self._onPixelClicked)
@@ -392,6 +394,10 @@ class SpectralHourglassWorkspace(QMainWindow):
             self.endmemberTable.setActiveEndmember(endmember.id)
             return endmember.id
         return active
+
+    def _onCropRequested(self, box: QRect) -> None:
+        cropped = addCrop(self.model.image, box, self.projectImages)
+        self.status.showMessage(cropMessage(cropped))
 
     def _onPixelsDrawn(self, pixels: np.ndarray, add: bool) -> None:
         """Pixels inside a shape drawn on the scene: the valid ones join (or

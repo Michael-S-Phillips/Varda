@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from PyQt6.QtCore import QRect
 from PyQt6.QtGui import QColor
 
 from synthetic_scene import PATCHES, WAVELENGTHS, endmemberSpectra, syntheticScene
@@ -358,3 +359,10 @@ def test_the_shape_picker_shows_with_the_draw_tool(workspace):
     assert scene.toolManager.activeTool.shape is ROIMode.POLYGON
     _drawAction(workspace).trigger()  # off again
     assert scene.shapeBox.isHidden()
+
+
+def test_a_crop_box_on_the_scene_adds_a_crop_to_the_project(workspace):
+    workspace.scene.sigCropRequested.emit(QRect(0, 0, 10, 12))
+    cropped = workspace.projectImages[-1]
+    assert (cropped.width, cropped.height) == (10, 12)
+    assert "Spectral Hourglass" in workspace.status.currentMessage()
