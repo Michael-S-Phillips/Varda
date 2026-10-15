@@ -76,6 +76,12 @@ class RemoteFile:
     checksum: str = ""  # "md5:…" or "sha256:…"
     role: str = "data"  # one of ROLES
     essential: bool = True  # selected by default
+    exactSize: bool = True  # False when ``size`` is the archive's rounded figure
+
+
+def pageOffset(page: object) -> int:
+    """A SearchPage.nextPage that is a row offset (the first page's is None)."""
+    return page if isinstance(page, int) else 0
 
 
 class Catalog(ParameterGroup):
