@@ -3,7 +3,9 @@ alignment) and the tie points between the selected input and a reference."""
 
 from __future__ import annotations
 
+import numpy as np
 from PyQt6.QtCore import QPointF, Qt, pyqtSignal
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -20,9 +22,20 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.common.ui import MutedLabel
-from varda.mosaicking.model import MosaicProject
+from varda.mosaicking.model import MosaicProject, TiePoint
 from varda.mosaicking.transforms import TransformModel
-from varda.workspaces.mosaic.views import ImagePointView
+from varda.workspaces.mosaic.views import OUTLIER_COLOR, ImagePointView
+
+
+# Rows are numbered by the vertical header; pixels are (col, row)
+COLUMNS = ["Reference", "Moving", "Source", "Quality", "Residual (px)", "Use"]
+USE_COLUMN = COLUMNS.index("Use")
+
+
+def _kind(point: TiePoint) -> str:
+    if not point.auto:
+        return "manual"
+    return "auto" if point.inlier else "outlier"
 
 
 class InputsPanel(QWidget):
@@ -31,6 +44,7 @@ class InputsPanel(QWidget):
     sigSelected = pyqtSignal(int)  # input key
     sigChanged = pyqtSignal()  # order, visibility or alignment changed
     sigFit = pyqtSignal(int)
+    sigAutoAlign = pyqtSignal(int)
     sigExport = pyqtSignal()
 
     def __init__(self, project: MosaicProject, parent: QWidget | None = None):
@@ -46,6 +60,11 @@ class InputsPanel(QWidget):
         for model in TransformModel:
             self.model.addItem(model.value, model)
         self.model.currentIndexChanged.connect(self._onModel)
+        autoAlign = QPushButton("Auto Align…")
+        autoAlign.setToolTip(
+            "Find tie points with the overlapping images automatically and fit them"
+        )
+        autoAlign.clicked.connect(lambda: self.sigAutoAlign.emit(self.selectedKey()))
         fit = QPushButton("Fit to Tie Points")
         fit.clicked.connect(lambda: self.sigFit.emit(self.selectedKey()))
         reset = QPushButton("Reset Alignment")
@@ -55,8 +74,9 @@ class InputsPanel(QWidget):
         self.status = MutedLabel("")
         self.status.setWordWrap(True)
         hint = MutedLabel(
-            "Top wins where images overlap. Select an image and use the arrow keys "
-            "on the mosaic to nudge it (Shift: ×10), or place tie points below."
+            "Top wins where images overlap. Select an image and Auto Align it, use "
+            "the arrow keys on the mosaic to nudge it (Shift: ×10), or place tie "
+            "points below."
         )
         hint.setWordWrap(True)
 
@@ -70,6 +90,7 @@ class InputsPanel(QWidget):
         layout.addWidget(hint)
         layout.addWidget(QLabel("<b>Alignment</b> of the selected image"))
         layout.addWidget(self.model)
+        layout.addWidget(autoAlign)
         layout.addWidget(fit)
         layout.addWidget(reset)
         layout.addWidget(self.status)
@@ -156,11 +177,8 @@ class TiePointPanel(QWidget):
         self.movingView.sigClicked.connect(self._onMovingClicked)
         self.movingLabel = QLabel()
         self.hint = MutedLabel("")
-        # Rows are numbered by the vertical header; pixels are (col, row)
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(
-            ["Reference", "Moving", "Residual (px)", "Use"]
-        )
+        self.table = QTableWidget(0, len(COLUMNS))
+        self.table.setHorizontalHeaderLabels(COLUMNS)
         self.table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
         )
@@ -168,6 +186,9 @@ class TiePointPanel(QWidget):
         self.table.itemChanged.connect(self._onTableChanged)
         delete = QPushButton("Delete Selected")
         delete.clicked.connect(self._deleteSelected)
+        deleteAuto = QPushButton("Delete Automatic")
+        deleteAuto.setToolTip("Delete the selected image's automatic tie points")
+        deleteAuto.clicked.connect(self._deleteAutomatic)
 
         views = QHBoxLayout()
         left, right = QVBoxLayout(), QVBoxLayout()
@@ -182,7 +203,10 @@ class TiePointPanel(QWidget):
         views.addLayout(right, 1)
         side = QVBoxLayout()
         side.addWidget(self.table, 1)
-        side.addWidget(delete)
+        buttons = QHBoxLayout()
+        buttons.addWidget(delete)
+        buttons.addWidget(deleteAuto)
+        side.addLayout(buttons)
         views.addLayout(side, 1)
         layout = QVBoxLayout(self)
         layout.addLayout(views, 1)
@@ -211,31 +235,37 @@ class TiePointPanel(QWidget):
 
     def refresh(self) -> None:
         points = self._points()
+        kinds = [_kind(p) for p in points]
         self.referenceView.showPoints(
-            [p.referencePixel for p in points], self._pendingReference
+            [p.referencePixel for p in points], self._pendingReference, kinds
         )
-        self.movingView.showPoints([p.movingPixel for p in points])
+        self.movingView.showPoints([p.movingPixel for p in points], kinds=kinds)
         self.table.blockSignals(True)
         self.table.setRowCount(len(points))
-        size = max(abs(self.project.input(self.movingKey).image.transform.a), 1e-12)
+        size = self.project.input(self.movingKey).pixelSize
         for row, point in enumerate(points):
             cells = [
                 "%.1f, %.1f" % point.referencePixel,
                 "%.1f, %.1f" % point.movingPixel,
-                ""
-                if point.residual != point.residual
-                else "%.2f" % (point.residual / size),
+                f"Auto, band {point.band + 1}"
+                if point.auto and point.band is not None
+                else ("Auto" if point.auto else "Manual"),
+                "" if np.isnan(point.quality) else f"{point.quality:.2f}",
+                "" if np.isnan(point.residual) else f"{point.residual / size:.2f}",
             ]
             for column, text in enumerate(cells):
                 item = QTableWidgetItem(text)
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                if not point.inlier:
+                    item.setForeground(QColor(OUTLIER_COLOR))
+                    item.setToolTip("The last fit left this point out (an outlier)")
                 self.table.setItem(row, column, item)
             use = QTableWidgetItem()
             use.setFlags(use.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             use.setCheckState(
                 Qt.CheckState.Checked if point.enabled else Qt.CheckState.Unchecked
             )
-            self.table.setItem(row, 3, use)
+            self.table.setItem(row, USE_COLUMN, use)
         self.table.blockSignals(False)
         waiting = (
             "now click the same feature on the moving image"
@@ -278,11 +308,16 @@ class TiePointPanel(QWidget):
         self.sigChanged.emit()
 
     def _onTableChanged(self, item: QTableWidgetItem) -> None:
-        if item.column() == 3:
+        if item.column() == USE_COLUMN:
             self._points()[item.row()].enabled = (
                 item.checkState() == Qt.CheckState.Checked
             )
             self.sigChanged.emit()
+
+    def _deleteAutomatic(self) -> None:
+        self.project.removeAutoTiePoints(self.movingKey)
+        self.refresh()
+        self.sigChanged.emit()
 
     def _deleteSelected(self) -> None:
         rows = sorted(

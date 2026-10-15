@@ -61,6 +61,11 @@ class MapAxis(pg.AxisItem):
         return [f"{value * scale:.{decimals}f}" for value in values]
 
 
+MANUAL_COLOR = "#ffd200"
+AUTO_COLOR = "#38c8ff"
+OUTLIER_COLOR = "#ff4040"
+
+
 class _PlotView(QWidget):
     def __init__(
         self,
@@ -141,11 +146,14 @@ class ImagePointView(_PlotView):
         super().__init__(parent)
         self.plot.getViewBox().invertY(True)
         self.markers = pg.ScatterPlotItem(
-            size=12, pen=pg.mkPen("#ffd200", width=2), brush=None
+            size=12, pen=pg.mkPen(MANUAL_COLOR, width=2), brush=None
         )
+        # Automatic points are many: small dots, red where the fit left them out
+        self.autoMarkers = pg.ScatterPlotItem(size=5, pen=None)
         self.pending = pg.ScatterPlotItem(
             size=14, pen=pg.mkPen("#ff4040", width=2), brush=None, symbol="+"
         )
+        self.plot.addItem(self.autoMarkers)
         self.plot.addItem(self.markers)
         self.plot.addItem(self.pending)
         self._labels: list[pg.TextItem] = []
@@ -166,16 +174,36 @@ class ImagePointView(_PlotView):
         self,
         points: list[tuple[float, float]],
         pending: tuple[float, float] | None = None,
+        kinds: list[str] | None = None,
     ) -> None:
+        """Mark tie points: ``kinds`` says which are "manual" (numbered, by
+        their row in the table), "auto" or "outlier" (manual by default)."""
+        kinds = kinds or ["manual"] * len(points)
         for label in self._labels:
             self.plot.removeItem(label)
         self._labels = []
-        self.markers.setData(pos=points) if points else self.markers.setData([], [])
-        for number, (x, y) in enumerate(points, start=1):
-            label = pg.TextItem(str(number), color="#ffd200", anchor=(0, 1))
+        manual = [
+            (n, p) for n, (p, k) in enumerate(zip(points, kinds), 1) if k == "manual"
+        ]
+        self.markers.setData(
+            pos=[p for _, p in manual]
+        ) if manual else self.markers.setData([], [])
+        for number, (x, y) in manual:
+            label = pg.TextItem(str(number), color=MANUAL_COLOR, anchor=(0, 1))
             label.setPos(x, y)
             self.plot.addItem(label)
             self._labels.append(label)
+        auto = [(p, k) for p, k in zip(points, kinds) if k != "manual"]
+        if auto:
+            self.autoMarkers.setData(
+                pos=[p for p, _ in auto],
+                brush=[
+                    pg.mkBrush(OUTLIER_COLOR if k == "outlier" else AUTO_COLOR)
+                    for _, k in auto
+                ],
+            )
+        else:
+            self.autoMarkers.setData([], [])
         self.pending.setData(pos=[pending]) if pending else self.pending.setData([], [])
 
     def _onClick(self, event) -> None:

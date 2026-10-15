@@ -103,3 +103,62 @@ def fitTransform(
         matrix = np.linalg.inv(normalize) @ params @ normalize
     residuals = np.hypot(*(applyMatrix(matrix, src) - dst).T)
     return matrix, residuals
+
+
+RANSAC_CONFIDENCE = 0.999
+RANSAC_MAX_TRIALS = 2000
+
+
+def ransacFit(
+    model: TransformModel,
+    src: np.ndarray,
+    dst: np.ndarray,
+    threshold: float,
+    forced: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """A fit that ignores outliers (RANSAC): minimal samples are fitted, the
+    one most points agree with (residual under ``threshold``, map units) wins,
+    and the transform is refitted to its inliers. ``forced`` points (manual
+    ones) always count as inliers. Returns the matrix, every point's residual
+    and the inlier mask. Deterministic."""
+    src, dst = np.asarray(src, float), np.asarray(dst, float)
+    count = len(src)
+    forced = np.zeros(count, bool) if forced is None else np.asarray(forced, bool)
+    needed = MIN_POINTS[model]
+    if count <= needed:
+        matrix, residuals = fitTransform(model, src, dst)  # raises when too few
+        return matrix, residuals, np.ones(count, bool)
+    rng = np.random.default_rng(0)
+    best = np.ones(count, bool)
+    bestCount, bestError = -1, np.inf
+    trials, trial = RANSAC_MAX_TRIALS, 0
+    while trial < trials:
+        trial += 1
+        sample = rng.choice(count, needed, replace=False)
+        try:
+            matrix, _ = fitTransform(model, src[sample], dst[sample])
+        except FitError:
+            continue
+        residuals = np.hypot(*(applyMatrix(matrix, src) - dst).T)
+        inliers = (residuals < threshold) | forced
+        agreeing, error = int(inliers.sum()), float(residuals[inliers].sum())
+        if agreeing > bestCount or (agreeing == bestCount and error < bestError):
+            best, bestCount, bestError = inliers, agreeing, error
+            # Enough trials to have drawn an all-inlier sample, with confidence
+            share = agreeing / count
+            if share >= 1.0:
+                break
+            trials = min(
+                RANSAC_MAX_TRIALS,
+                int(np.ceil(np.log(1 - RANSAC_CONFIDENCE) / np.log(1 - share**needed))),
+            )
+    matrix, _ = fitTransform(model, src[best], dst[best])
+    for _ in range(2):  # settle the inliers on the refitted transform
+        residuals = np.hypot(*(applyMatrix(matrix, src) - dst).T)
+        inliers = (residuals < threshold) | forced
+        if inliers.sum() < needed or np.array_equal(inliers, best):
+            break
+        best = inliers
+        matrix, _ = fitTransform(model, src[best], dst[best])
+    residuals = np.hypot(*(applyMatrix(matrix, src) - dst).T)
+    return matrix, residuals, best

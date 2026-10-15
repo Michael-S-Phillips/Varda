@@ -65,3 +65,30 @@ def defaultGrid(project: MosaicProject, resolution: float | None = None) -> Targ
         else Affine(size, 0.0, left, 0.0, size, bottom)
     )
     return TargetGrid(transform, width, height, first.crs)
+
+
+def overlapGrid(
+    project: MosaicProject, referenceKey: int, movingKey: int
+) -> TargetGrid | None:
+    """A grid over the overlap of two inputs' footprints (their bounding
+    boxes), at the finest pixel size, on the reference's pixel grid; None when
+    they don't overlap."""
+    reference, moving = project.input(referenceKey), project.input(movingKey)
+    a, b = reference.footprint(), moving.footprint()
+    left, right = max(a[:, 0].min(), b[:, 0].min()), min(a[:, 0].max(), b[:, 0].max())
+    bottom, top = max(a[:, 1].min(), b[:, 1].min()), min(a[:, 1].max(), b[:, 1].max())
+    size = pixelSize(project)
+    anchor = a[0]
+    left = anchor[0] + math.ceil((left - anchor[0]) / size - 1e-9) * size
+    bottom = anchor[1] + math.ceil((bottom - anchor[1]) / size - 1e-9) * size
+    width = int(math.floor((right - left) / size + 1e-9))
+    height = int(math.floor((top - bottom) / size + 1e-9))
+    if width < 1 or height < 1:
+        return None
+    northUp = reference.image.transform.e < 0
+    transform = (
+        Affine(size, 0.0, left, 0.0, -size, bottom + height * size)
+        if northUp
+        else Affine(size, 0.0, left, 0.0, size, bottom)
+    )
+    return TargetGrid(transform, width, height, reference.image.crs)
