@@ -5,6 +5,7 @@ so every choice stays editable."""
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 
 import numpy as np
@@ -32,6 +33,10 @@ from varda.mosaicking.transforms import (
     translation,
 )
 
+# A pixel with data in fewer of its good bands than this is empty (as analyses
+# treat it: analysis.rasters.MIN_VALID_BAND_FRACTION)
+MIN_VALID_BAND_FRACTION = 0.5
+VALID_CHUNK = 32  # bands read at a time when finding the pixels with data
 DEFAULT_INLIER_PX = 1.0  # RANSAC's inlier threshold, in the moving image's pixels
 
 
@@ -45,6 +50,37 @@ class MosaicInput:
     visible: bool = True
     warp: Warp | None = None  # a polynomial or thin-plate spline
     radiometry: Correction | None = None  # applied to its values when rendering
+    _valid: np.ndarray | None = field(default=None, init=False, repr=False)
+
+    def validMask(self) -> np.ndarray:
+        """(rows, cols): the pixels with data. As for analyses, a pixel counts
+        when at least half its good bands have data (one missing band, from
+        a bad detector column say, doesn't empty it). Read once, a few bands
+        at a time, and from every band, so a preview of a few bands agrees
+        with the full export."""
+        if self._valid is None:
+            image = self.image
+            bad = image.bandModel.badBands
+            good = (
+                np.flatnonzero(~bad)
+                if bad.size and not bad.all()
+                else np.arange(image.bandCount)
+            )
+            count = np.zeros((image.height, image.width), np.int32)
+            for start in range(0, len(good), VALID_CHUNK):
+                bands = [int(b) for b in good[start : start + VALID_CHUNK]]
+                data = np.ma.filled(
+                    np.ma.asarray(image.getData(bandIndices=bands), dtype=np.float32),
+                    np.nan,
+                )
+                finite = np.isfinite(data)
+                if image.nodata is not None:
+                    finite &= data != image.nodata
+                count += finite.sum(axis=2)
+            self._valid = count >= max(
+                1, math.ceil(MIN_VALID_BAND_FRACTION * len(good))
+            )
+        return self._valid
 
     def correct(self, points: np.ndarray) -> np.ndarray:
         """Raw map coordinates to corrected ones."""

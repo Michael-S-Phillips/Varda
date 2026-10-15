@@ -46,10 +46,16 @@ def _cube(item: MosaicInput, bands: list[int] | None) -> np.ndarray:
 
 
 def _sample(
-    cube: np.ndarray, cols: np.ndarray, rows: np.ndarray, resampling: Resampling
+    cube: np.ndarray,
+    cols: np.ndarray,
+    rows: np.ndarray,
+    resampling: Resampling,
+    mask: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Values (N, bands) at continuous pixel coordinates, and whether each
-    lands inside the image with every band valid."""
+    lands inside the image on a pixel with data (``mask``, the input's
+    ``validMask``). A pixel's missing bands stay NaN: its spectrum is copied
+    as measured."""
     height, width, bands = cube.shape
     if resampling is Resampling.NEAREST:
         c, r = np.floor(cols).astype(np.int64), np.floor(rows).astype(np.int64)
@@ -70,7 +76,9 @@ def _sample(
             values[inside, band] = ndimage.map_coordinates(
                 cube[:, :, band], coordinates, order=1, mode="nearest", cval=np.nan
             )
-    valid = inside & np.isfinite(values).all(axis=1)
+    c = np.clip(np.floor(cols).astype(np.int64), 0, width - 1)
+    r = np.clip(np.floor(rows).astype(np.int64), 0, height - 1)
+    valid = inside & mask[r, c]
     return values, valid
 
 
@@ -137,7 +145,7 @@ def sampleOnGrid(
     for start in range(0, grid.height, TILE_ROWS):
         rows = slice(start, min(start + TILE_ROWS, grid.height))
         cols, rowsIn = rawPixels(item, grid, rows)
-        values, valid = _sample(cube, cols, rowsIn, resampling)
+        values, valid = _sample(cube, cols, rowsIn, resampling, item.validMask())
         values[~valid] = np.nan
         out[rows] = values.reshape(rows.stop - rows.start, grid.width, -1)
     return out
@@ -206,7 +214,7 @@ def renderMosaic(
             if not todo.any():
                 break
             cols, rowsIn = rawPixels(item, grid, rows, todo)
-            values, valid = _sample(cube, cols, rowsIn, resampling)
+            values, valid = _sample(cube, cols, rowsIn, resampling, item.validMask())
             if item.radiometry is not None:
                 values = item.radiometry.apply(values, bands)
             target = np.flatnonzero(todo)[valid]
@@ -249,7 +257,7 @@ def _ownership(
     samples, valids = [], []
     for item, cube in zip(inputs, cubes):
         cols, rowsIn = rawPixels(item, grid, rows)
-        values, valid = _sample(cube, cols, rowsIn, resampling)
+        values, valid = _sample(cube, cols, rowsIn, resampling, item.validMask())
         if item.radiometry is not None:
             values = item.radiometry.apply(values, bands)
         samples.append(values)
@@ -351,7 +359,7 @@ def _feather(
     ramping from 0 to 1 over ``width`` pixels centered on it."""
     count = samples[0].shape[1]
     total = np.zeros((owner.size, count))
-    weights = np.zeros(owner.size)
+    weights = np.zeros((owner.size, count))
     for n, (values, valid) in enumerate(zip(samples, valids)):
         mine = (owner == n).reshape(shape)
         if not mine.any():
@@ -360,10 +368,12 @@ def _feather(
             mine, _insideDistance(mine) - 0.5, 0.5 - _insideDistance(~mine)
         ).ravel()
         weight = np.clip(0.5 + signed / width, 0.0, 1.0) * valid
-        total += weight[:, None] * np.nan_to_num(values)
-        weights += weight
+        # per band, so a band the pixel is missing doesn't darken the blend
+        perBand = weight[:, None] * np.isfinite(values)
+        total += perBand * np.nan_to_num(values)
+        weights += perBand
     with np.errstate(invalid="ignore", divide="ignore"):
-        blended = np.where(weights[:, None] > 0, total / weights[:, None], np.nan)
+        blended = np.where(weights > 0, total / weights, np.nan)
     return blended.reshape(*shape, count).astype(np.float32)
 
 
