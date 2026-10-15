@@ -18,11 +18,57 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.common.ui import MutedLabel
-from varda.kindling.ai_settings import AISettings
-from varda.kindling.providers import ANTHROPIC_MODELS, AnthropicProvider, ProviderError
+from varda.kindling.ai_settings import (
+    PROVIDER_LABELS,
+    AISettings,
+    makeProvider,
+    openAIProvider,
+)
+from varda.kindling.providers import (
+    ANTHROPIC,
+    ANTHROPIC_MODELS,
+    COMPATIBLE,
+    LOCAL_SERVERS,
+    OPENAI,
+    Provider,
+    ProviderError,
+)
 from varda.utilities.background import runInBackground
 
 KEYS_URL = "https://console.anthropic.com/settings/keys"
+OPENAI_KEYS_URL = "https://platform.openai.com/api-keys"
+KEY_HELP = {
+    ANTHROPIC: (
+        f'Create a key at <a href="{KEYS_URL}">console.anthropic.com</a>. It\'s '
+        "kept in your system's keychain, never in a file."
+    ),
+    OPENAI: (
+        f'Create a key at <a href="{OPENAI_KEYS_URL}">platform.openai.com</a>. '
+        "It's kept in your system's keychain, never in a file."
+    ),
+    COMPATIBLE: (
+        "Local servers such as Ollama and LM Studio don't need a key; leave it "
+        "empty. A hosted server's key is kept in your system's keychain."
+    ),
+}
+KEY_PLACEHOLDER = {ANTHROPIC: "sk-ant-…", OPENAI: "sk-…", COMPATIBLE: "Optional"}
+BUDGET_NOTE = {
+    ANTHROPIC: (
+        "Varda stops building when a feature (or each round of changes) has "
+        "used this many tokens; text Anthropic has cached counts a tenth, as "
+        "it's billed. Anthropic bills your account for what's used."
+    ),
+    OPENAI: (
+        "Varda stops building when a feature (or each round of changes) has "
+        "used this many tokens. OpenAI bills your account for what's used."
+    ),
+    COMPATIBLE: (
+        "Varda stops building when a feature (or each round of changes) has "
+        "used this many tokens. A local model costs nothing but time; give it "
+        "a context window of 32k tokens or more, and a model that supports "
+        "tool calls."
+    ),
+}
 
 
 class AISettingsDialog(QDialog):
@@ -31,11 +77,12 @@ class AISettingsDialog(QDialog):
     ):
         super().__init__(parent)
         self.setWindowTitle("AI Assistant Settings")
-        self.setMinimumWidth(520)
+        self.setMinimumWidth(560)
         self.settings = settings if settings is not None else AISettings()
 
-        provider = QComboBox()
-        provider.addItem("Anthropic (Claude)")
+        self.provider = QComboBox()
+        for provider, label in PROVIDER_LABELS.items():
+            self.provider.addItem(label, provider)
         self.key = QLineEdit()
         self.key.setEchoMode(QLineEdit.EchoMode.Password)
         self.removeKey = QPushButton("Remove Key")
@@ -43,41 +90,49 @@ class AISettingsDialog(QDialog):
         keyRow = QHBoxLayout()
         keyRow.addWidget(self.key, 1)
         keyRow.addWidget(self.removeKey)
+        self.keyHelp = QLabel()
+        self.keyHelp.setOpenExternalLinks(True)
+        self.keyHelp.setWordWrap(True)
         self.workspace = QLineEdit(self.settings.workspaceId)
         self.workspace.setPlaceholderText(
             "Only for a key that isn't tied to a workspace"
         )
+        self.baseUrl = QLineEdit(self.settings.baseUrl)
+        self.baseUrl.setPlaceholderText("http://localhost:11434/v1")
+        self.serverPreset = QComboBox()
+        self.serverPreset.addItem("Preset…")
+        for name, url in LOCAL_SERVERS.items():
+            self.serverPreset.addItem(name, url)
+        self.serverPreset.activated.connect(self._usePreset)
+        serverRow = QHBoxLayout()
+        serverRow.addWidget(self.baseUrl, 1)
+        serverRow.addWidget(self.serverPreset)
         self.model = QComboBox()
         self.model.setEditable(True)
-        self.model.addItems(ANTHROPIC_MODELS)
-        self.model.setCurrentText(self.settings.model)
+        self.loadModels = QPushButton("Load Models")
+        self.loadModels.setToolTip("List the models the server offers")
+        self.loadModels.clicked.connect(self._loadModels)
+        modelRow = QHBoxLayout()
+        modelRow.addWidget(self.model, 1)
+        modelRow.addWidget(self.loadModels)
         self.budget = QSpinBox()
         self.budget.setRange(50_000, 5_000_000)
         self.budget.setSingleStep(50_000)
         self.budget.setGroupSeparatorShown(True)
         self.budget.setSuffix(" tokens")
         self.budget.setValue(self.settings.tokenBudget)
+        self.budgetNote = MutedLabel("")
+        self.budgetNote.setWordWrap(True)
 
-        form = QFormLayout()
-        form.addRow("Provider:", provider)
+        self.form = form = QFormLayout()
+        form.addRow("Provider:", self.provider)
+        form.addRow("Server:", serverRow)
         form.addRow("API key:", keyRow)
-        keyHelp = QLabel(
-            f'Create a key at <a href="{KEYS_URL}">console.anthropic.com</a>. It\'s '
-            "kept in your system's keychain, never in a file."
-        )
-        keyHelp.setOpenExternalLinks(True)
-        keyHelp.setWordWrap(True)
-        form.addRow("", keyHelp)
+        form.addRow("", self.keyHelp)
         form.addRow("Workspace ID:", self.workspace)
-        form.addRow("Model:", self.model)
+        form.addRow("Model:", modelRow)
         form.addRow("Limit per feature:", self.budget)
-        budgetNote = MutedLabel(
-            "Varda stops building when a feature (or each round of changes) has "
-            "used this many tokens; text Anthropic has cached counts a tenth, as "
-            "it's billed. Anthropic bills your account for what's used."
-        )
-        budgetNote.setWordWrap(True)
-        form.addRow("", budgetNote)
+        form.addRow("", self.budgetNote)
 
         self.status = MutedLabel("")
         self.status.setWordWrap(True)
@@ -95,34 +150,75 @@ class AISettingsDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(self.status)
         layout.addWidget(buttons)
+
+        self.provider.setCurrentIndex(self.provider.findData(self.settings.provider))
+        self.provider.currentIndexChanged.connect(lambda _: self._showProvider())
+        self._showProvider()
+
+    def chosenProvider(self) -> str:
+        return self.provider.currentData()
+
+    def _showProvider(self) -> None:
+        """Show the chosen provider's rows and its saved model and key."""
+        provider = self.chosenProvider()
+        model = self.settings.modelFor(provider)
+        self.form.setRowVisible(1, provider == COMPATIBLE)
+        self.form.setRowVisible(4, provider == ANTHROPIC)
+        self.loadModels.setVisible(provider != ANTHROPIC)
+        self.keyHelp.setText(KEY_HELP[provider])
+        self.budgetNote.setText(BUDGET_NOTE[provider])
+        self.model.clear()
+        if provider == ANTHROPIC:
+            self.model.addItems(ANTHROPIC_MODELS)
+        self.model.setCurrentText(model)
+        modelEdit = self.model.lineEdit()
+        assert modelEdit is not None  # the combo box is editable
+        modelEdit.setPlaceholderText("e.g. qwen3:14b" if provider == COMPATIBLE else "")
+        self.status.clear()
         self._showSavedKey()
+
+    def _usePreset(self, index: int) -> None:
+        url = self.serverPreset.itemData(index)
+        if url:
+            self.baseUrl.setText(url)
+        self.serverPreset.setCurrentIndex(0)
+
+    def _savedKey(self) -> str:
+        return self.settings.apiKey(self.chosenProvider())
 
     def _showSavedKey(self) -> None:
         try:
-            saved = bool(self.settings.apiKey())
+            saved = bool(self._savedKey())
         except ProviderError as error:
             saved = False
             self.status.setText(str(error))
         self.key.clear()
-        self.key.setPlaceholderText("Saved in your keychain" if saved else "sk-ant-…")
+        self.key.setPlaceholderText(
+            "Saved in your keychain"
+            if saved
+            else KEY_PLACEHOLDER[self.chosenProvider()]
+        )
         self.removeKey.setEnabled(saved)
 
     def _keyToUse(self) -> str:
-        return self.key.text().strip() or self.settings.apiKey()
+        return self.key.text().strip() or self._savedKey()
+
+    def _providerFromFields(self) -> Provider:
+        return makeProvider(
+            self.chosenProvider(),
+            self._keyToUse(),
+            self.model.currentText().strip(),
+            self.baseUrl.text().strip(),
+            self.workspace.text().strip(),
+        )
 
     def _test(self) -> None:
         try:
-            key = self._keyToUse()
+            provider = self._providerFromFields()
         except ProviderError as error:
             self.status.setText(str(error))
             return
-        if not key:
-            self.status.setText("Enter an API key first.")
-            return
         self.status.setText("Testing…")
-        provider = AnthropicProvider(
-            key, self.model.currentText().strip(), self.workspace.text().strip()
-        )
         runInBackground(
             provider.test,
             self.status.setText,
@@ -130,15 +226,50 @@ class AISettingsDialog(QDialog):
             description="Testing the AI connection",
         )
 
+    def _loadModels(self) -> None:
+        provider = self.chosenProvider()
+        try:
+            key = self._keyToUse()
+        except ProviderError as error:
+            self.status.setText(str(error))
+            return
+        if provider == OPENAI and not key:
+            self.status.setText("Enter an API key first.")
+            return
+        try:
+            client = openAIProvider(provider, key, "", self.baseUrl.text().strip())
+        except ProviderError as error:
+            self.status.setText(str(error))
+            return
+        self.status.setText("Loading the models…")
+        runInBackground(
+            client.listModels,
+            self._showModels,
+            lambda error: self.status.setText(str(error)),
+            description="Listing the AI models",
+        )
+
+    def _showModels(self, models: list[str]) -> None:
+        current = self.model.currentText()
+        self.model.clear()
+        self.model.addItems(models)
+        self.model.setCurrentText(current or (models[0] if models else ""))
+        self.status.setText(
+            f"{len(models)} models available."
+            if models
+            else "The server lists no models."
+        )
+
     def _removeKey(self) -> None:
         try:
-            self.settings.removeApiKey()
+            self.settings.removeApiKey(self.chosenProvider())
             self.status.setText("The key was removed from your keychain.")
         except ProviderError as error:
             self.status.setText(str(error))
         self._showSavedKey()
 
     def _save(self) -> None:
+        self.settings.provider = self.chosenProvider()
         try:
             if self.key.text().strip():
                 self.settings.setApiKey(self.key.text().strip())
@@ -147,5 +278,6 @@ class AISettingsDialog(QDialog):
             return
         self.settings.model = self.model.currentText().strip()
         self.settings.workspaceId = self.workspace.text().strip()
+        self.settings.baseUrl = self.baseUrl.text().strip()
         self.settings.tokenBudget = self.budget.value()
         self.accept()

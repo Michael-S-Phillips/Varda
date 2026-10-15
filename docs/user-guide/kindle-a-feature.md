@@ -8,23 +8,49 @@ data before you decide to use it.
 
 ## Connect your AI
 
-Kindle a Feature uses your own Anthropic account, so you need an API key.
+Kindle a Feature uses an AI you choose. Open **Plugins → AI Assistant
+Settings…**, pick a **provider**, fill in its details, and click **Test
+Connection**.
 
-1. Create a key at [console.anthropic.com](https://console.anthropic.com/settings/keys).
-2. In Varda, open **Plugins → AI Assistant Settings…**, paste the key, and
-   click **Test Connection**. If Anthropic says the key isn't tied to a
-   workspace, also enter your **Workspace ID** (console.anthropic.com →
-   Settings → Workspaces), or create the key inside a workspace.
-3. Choose a **model**. The most capable model builds the most reliable
-   plugins; the cheaper ones suit simple features.
-4. Set the **limit per feature**: Varda stops building when a feature (or
-   a round of changes) has used this many tokens, and shows the count as it
-   goes. Text Anthropic has cached counts a tenth, as it's billed. Anthropic
-   bills your account for what's used.
+- **Anthropic (Claude):** create a key at
+  [console.anthropic.com](https://console.anthropic.com/settings/keys) and
+  paste it. If Anthropic says the key isn't tied to a workspace, also enter
+  your **Workspace ID** (console.anthropic.com → Settings → Workspaces), or
+  create the key inside a workspace.
+- **OpenAI:** create a key at
+  [platform.openai.com](https://platform.openai.com/api-keys), paste it, and
+  click **Load Models** to pick a model.
+- **OpenAI-compatible server:** any server that speaks OpenAI's Chat
+  Completions API, including models running on your own computer:
+  - **Ollama**: `ollama serve`, then `ollama pull` a model. The address is
+    `http://localhost:11434/v1`.
+  - **LM Studio**: start its local server (Developer tab). The address is
+    `http://localhost:1234/v1`.
+  - Others, such as vLLM, llama.cpp's server or a hosted service: enter
+    their `/v1` address.
 
-The key is stored in your system's keychain (Keychain on macOS, Credential
-Manager on Windows, the Secret Service on Linux), never in a file or a
-session. **Remove Key** deletes it.
+  **Preset…** fills in the Ollama and LM Studio addresses. Local servers
+  don't need a key; leave it empty. **Load Models** lists what the server
+  offers (older Ollama versions don't list them: type the name as
+  `ollama list` shows it).
+
+Then choose a **model**. The most capable model builds the most reliable
+plugins; the cheaper ones suit simple features. A local model must
+**support tool calls** (Qwen3, Llama 3.1 or later and Mistral Small do, for
+example), and it needs a context window of **32k tokens or more**. Ollama's
+default is much smaller: set `OLLAMA_CONTEXT_LENGTH=32768` before
+`ollama serve`, or set the context length in LM Studio. Varda stops if the
+model doesn't make tool calls. Expect a local model to be slower and less
+reliable than the hosted ones.
+
+Set the **limit per feature**: Varda stops building when a feature (or a
+round of changes) has used this many tokens, and shows the count as it goes.
+With Anthropic, cached text counts a tenth, as it's billed. Hosted providers
+bill your account for what's used; a local model costs nothing but time.
+
+Keys are stored in your system's keychain (Keychain on macOS, Credential
+Manager on Windows, the Secret Service on Linux), one per provider, never in
+a file or a session. **Remove Key** deletes the chosen provider's key.
 
 ## Kindle a feature
 
@@ -68,8 +94,9 @@ disable, reload or remove them like any other plugin.
 
 ## Privacy and safety
 
-- **Sent to Anthropic:** your description, Varda's plugin documentation, and
-  the image's size, wavelengths and no-data value.
+- **Sent to your AI provider** (or your own server, for a local model): your
+  description, Varda's plugin documentation, and the image's size,
+  wavelengths and no-data value.
 - **Never sent:** the image's pixels, file paths or ROIs. The checks that run
   the plugin on a crop of your image happen on your computer.
 - **Running the code:** while it's being built, the plugin only runs in a

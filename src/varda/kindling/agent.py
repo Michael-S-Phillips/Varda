@@ -15,6 +15,9 @@ from varda.kindling.providers import Conversation, Provider, Reply, ToolResult
 from varda.kindling.tools import TOOL_SPECS, KindlingTools
 
 MAX_TURNS = 40
+# Replies in a row without a tool call before giving up: the model isn't
+# using the tools (some local models only chat)
+MAX_REPLIES_WITHOUT_TOOLS = 3
 SYSTEM_PROMPT = """\
 You build plugins for Varda, a desktop app for hyperspectral and multispectral \
 images used by planetary and Earth scientists. A user has described a feature \
@@ -136,6 +139,7 @@ class Kindler:
         self.cancelled.clear()
         startTokens, startTurns = self.tokens, self.turns
         reply = self._send(message)
+        withoutTools = 0
         while True:
             if reply.text:
                 self.onProgress(reply.text)
@@ -148,6 +152,13 @@ class Kindler:
                     for c in reply.toolCalls
                 ]
                 return self._outcome(False, stop)
+            withoutTools = 0 if reply.toolCalls else withoutTools + 1
+            if withoutTools >= MAX_REPLIES_WITHOUT_TOOLS:
+                return self._outcome(
+                    False,
+                    "Stopped: the model isn't making tool calls, which Kindle a "
+                    "Feature needs. Choose a model that supports them.",
+                )
             if not reply.toolCalls:
                 reply = self._send(
                     "Continue: use the tools, and call finish once run_checks passes."

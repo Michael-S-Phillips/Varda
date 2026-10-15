@@ -11,7 +11,6 @@ from varda.common.ui import openOwnedDialog
 from varda.kindling.ai_settings import AISettings
 from varda.kindling.ai_settings_dialog import AISettingsDialog
 from varda.kindling.kindle_dialog import KindleDialog
-from varda.kindling.providers import ProviderError
 from varda.maingui import MainGUI
 from varda.plugins.plugin_manager import VardaPluginManager
 from varda.plugins.plugins_dialog import (
@@ -25,21 +24,17 @@ from varda.plugins.plugins_dialog import (
 def kindleFeature(
     manager: VardaPluginManager, images: ProjectImages, mainGui: MainGUI
 ) -> None:
-    """Open Kindle a Feature; without an API key, the AI settings first."""
+    """Open Kindle a Feature; until an AI is set up, the AI settings first."""
     settings = AISettings()
 
     def kindle() -> None:
         openOwnedDialog(KindleDialog(manager, list(images), settings, parent=mainGui))
 
-    try:
-        hasKey = bool(settings.apiKey())
-    except ProviderError:
-        hasKey = False
-    if hasKey:
+    if settings.isReady():
         kindle()
         return
     dialog = AISettingsDialog(settings, parent=mainGui)
-    dialog.accepted.connect(lambda: kindle() if settings.apiKey() else None)
+    dialog.accepted.connect(lambda: kindle() if settings.isReady() else None)
     openOwnedDialog(dialog)
 
 
