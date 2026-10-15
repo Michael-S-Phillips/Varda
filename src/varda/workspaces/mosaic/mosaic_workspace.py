@@ -39,11 +39,21 @@ from varda.mosaicking.matching import (
     findTiePoints,
 )
 from varda.mosaicking.model import DEFAULT_INLIER_PX, MosaicProject
+from varda.mosaicking.radiometry import (
+    LinearMode,
+    RadiometryMethod,
+    RadiometryResult,
+    balance,
+)
 from varda.mosaicking.render import NO_SOURCE, MosaicResult, Resampling, renderMosaic
 from varda.mosaicking.transforms import FitError
 from varda.utilities.background import onMainThread, runInBackground
 from varda.workspaces.mosaic.auto_align_dialog import AutoAlignDialog
-from varda.workspaces.mosaic.panels import InputsPanel, TiePointPanel
+from varda.workspaces.mosaic.panels import (
+    InputsPanel,
+    RadiometryPanel,
+    TiePointPanel,
+)
 from varda.workspaces.mosaic.views import PREVIEW_PIXELS, MosaicCanvas, displayBands
 
 PREVIEW_DELAY_MS = 80
@@ -97,6 +107,7 @@ class MosaicWorkspace(QMainWindow):
         self.canvas = MosaicCanvas()
         self.inputsPanel = InputsPanel(self.project)
         self.tiePanel = TiePointPanel(self.project)
+        self.radiometryPanel = RadiometryPanel(self.project)
         self.status = QStatusBar()
         self.setStatusBar(self.status)
         self._previewTimer = QTimer(self)
@@ -109,6 +120,8 @@ class MosaicWorkspace(QMainWindow):
         self.inputsPanel.sigChanged.connect(self.refreshPreview)
         self.inputsPanel.sigFit.connect(self.fit)
         self.inputsPanel.sigAutoAlign.connect(self.openAutoAlign)
+        self.radiometryPanel.sigBalance.connect(self.balance)
+        self.radiometryPanel.sigCleared.connect(self.refreshPreview)
         self.inputsPanel.sigExport.connect(self.export)
         self.tiePanel.sigChanged.connect(self.refreshPreview)
         self.canvas.sigNudge.connect(self.nudge)
@@ -119,6 +132,9 @@ class MosaicWorkspace(QMainWindow):
         self.canvasDock = VardaDockWidget("Mosaic").withWidget(self.canvas)
         self.inputsDock = VardaDockWidget("Images").withWidget(self.inputsPanel)
         self.tieDock = VardaDockWidget("Tie Points").withWidget(self.tiePanel)
+        self.radiometryDock = VardaDockWidget("Radiometry").withWidget(
+            self.radiometryPanel
+        )
         manager = self.dockManager
         manager.addDockWidget(ads.DockWidgetArea.CenterDockWidgetArea, self.canvasDock)
         manager.addDockWidget(
@@ -131,6 +147,11 @@ class MosaicWorkspace(QMainWindow):
             self.tieDock,
             self.canvasDock.dockAreaWidget(),
         )
+        manager.addDockWidgetTabToArea(
+            self.radiometryDock, self.tieDock.dockAreaWidget()
+        )
+        self.tieDock.toggleView(True)  # Tie Points stays the front tab
+        self.tieDock.setAsCurrentTab()
 
     # --- preview -------------------------------------------------------------------
 
@@ -256,6 +277,28 @@ class MosaicWorkspace(QMainWindow):
         dialog.summary.setText(message)
         dialog.showBands()
 
+    # --- radiometry ------------------------------------------------------------------
+
+    def balance(
+        self, method: RadiometryMethod, mode: LinearMode, held: frozenset[int]
+    ) -> None:
+        """Fit the radiometric corrections in the background, then use them."""
+
+        def finished(result: RadiometryResult) -> None:
+            self.project.applyRadiometry(result)
+            self.radiometryPanel.showResult(
+                result.message
+                or f"Balanced with {method.value.split(' (')[0].lower()}."
+            )
+            self.refreshPreview()
+
+        runInBackground(
+            lambda: balance(self.project, method, mode, held),
+            finished,
+            lambda error: self.radiometryPanel.showResult(str(error)),
+            description="Balancing a mosaic",
+        )
+
     def addDisplacementField(self, displacement: DisplacementField) -> None:
         raster = displacementRaster(self.project, displacement)
         self.projectImages.append(raster)
@@ -305,6 +348,7 @@ class MosaicWorkspace(QMainWindow):
         if recipe:
             self.project.restore(recipe)
             self.inputsPanel.refresh()
+            self.radiometryPanel.refresh()
             self.tiePanel.setMoving(self.selectedKey())
             self.refreshPreview()
 
@@ -317,7 +361,7 @@ def mosaicRaster(
 ) -> VardaRaster:
     """The rendered mosaic as a project image, with its recipe in the metadata."""
     first = project.inputs[0].image
-    visual = resampling is not Resampling.NEAREST
+    visual = resampling is not Resampling.NEAREST or project.isVisual
     names = [i.image.name for i in project.inputs]
     source = ArrayDataSource(
         result.cube,
@@ -335,7 +379,7 @@ def mosaicRaster(
                 "recipe": project.state(),
             },
         },
-        description=f"Mosaic of {', '.join(names)} ({resampling.value.split(' (')[0].lower()} resampling)",
+        description=f"Mosaic of {', '.join(names)} ({_methods(project, resampling)})",
     )
     suffix = " (visual)" if visual else ""
     return VardaRaster(source, name=f"Mosaic of {len(names)} images{suffix}")
@@ -369,6 +413,16 @@ def displacementRaster(
         description=f"Displacement of {moving} relative to {reference}, tile by tile",
     )
     return VardaRaster(source, name=f"Displacement of {moving} from {reference}")
+
+
+def _methods(project: MosaicProject, resampling: Resampling) -> str:
+    """How a mosaic was made, in a few words: its resampling and radiometry."""
+    parts: list[str] = [f"{resampling.value.split(' (')[0].lower()} resampling"]
+    if project.radiometryMethod is not RadiometryMethod.NONE:
+        parts.append(
+            f"{project.radiometryMethod.value.split(' (')[0].lower()} radiometry"
+        )
+    return ", ".join(parts)
 
 
 def sourcesRaster(

@@ -9,6 +9,7 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QFormLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -22,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.common.ui import MutedLabel
+from varda.mosaicking.correction import Correction, LinearMode, RadiometryMethod
 from varda.mosaicking.model import MosaicProject, TiePoint
 from varda.mosaicking.transforms import TransformModel
 from varda.workspaces.mosaic.views import OUTLIER_COLOR, ImagePointView
@@ -328,3 +330,157 @@ class TiePointPanel(QWidget):
             self.project.tiePoints.remove(points[row])
         self.refresh()
         self.sigChanged.emit()
+
+
+def _perBand(correction: Correction, shown: int = 12) -> str:
+    """Each band's gain and offset, for a tooltip."""
+    if correction.lutIn is not None:
+        return "Histogram matching: a lookup table per band"
+    lines = [
+        f"Band {b + 1}: gain {g:.4f}, offset {o:.4g}"
+        for b, (g, o) in enumerate(zip(correction.gain, correction.offset))
+    ]
+    more = len(lines) - shown
+    return "\n".join(lines[:shown] + ([f"… and {more} more bands"] if more > 0 else []))
+
+
+class RadiometryPanel(QWidget):
+    """Balancing the images' brightness from their overlaps, per band."""
+
+    # (method, mode, held keys)
+    sigBalance = pyqtSignal(object, object, object)
+    sigCleared = pyqtSignal()
+
+    def __init__(self, project: MosaicProject, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.project = project
+        self.method = QComboBox()
+        for method in RadiometryMethod:
+            self.method.addItem(method.value, method)
+        self.method.currentIndexChanged.connect(lambda _: self._updateState())
+        self.mode = QComboBox()
+        for mode in LinearMode:
+            self.mode.addItem(mode.value, mode)
+        self.held = QListWidget()
+        self.held.setToolTip(
+            "Held images keep their values; the others are matched to them"
+        )
+        self.balanceButton = QPushButton("Balance")
+        self.balanceButton.clicked.connect(self._balance)
+        clear = QPushButton("Clear")
+        clear.setToolTip("Remove the corrections: every image keeps its values")
+        clear.clicked.connect(self._clear)
+        self.status = MutedLabel("")
+        self.status.setWordWrap(True)
+        self.table = QTableWidget(0, 3)
+        self.table.setHorizontalHeaderLabels(["Image", "Gain (mean)", "Offset (mean)"])
+        header = self.table.horizontalHeader()
+        assert header is not None
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        note = MutedLabel(
+            "Linear corrections are documented per band and recorded with the "
+            "mosaic; with None every spectrum stays exact. Histogram matching "
+            "changes spectral shape, so its mosaic is labeled visual."
+        )
+        note.setWordWrap(True)
+
+        form = QFormLayout()
+        form.addRow("Method:", self.method)
+        form.addRow("Fit:", self.mode)
+        left = QVBoxLayout()
+        left.addLayout(form)
+        left.addWidget(QLabel("Held images:"))
+        left.addWidget(self.held, 1)
+        buttons = QHBoxLayout()
+        buttons.addWidget(self.balanceButton)
+        buttons.addWidget(clear)
+        buttons.addStretch()
+        left.addLayout(buttons)
+        left.addWidget(self.status)
+        right = QVBoxLayout()
+        right.addWidget(self.table, 1)
+        right.addWidget(note)
+        layout = QHBoxLayout(self)
+        layout.addLayout(left, 1)
+        layout.addLayout(right, 1)
+        self.refresh()
+
+    def refresh(self) -> None:
+        """Show the project's radiometry: its method, held images and corrections."""
+        self.method.blockSignals(True)
+        self.method.setCurrentIndex(
+            list(RadiometryMethod).index(self.project.radiometryMethod)
+        )
+        self.method.blockSignals(False)
+        self.mode.setCurrentIndex(list(LinearMode).index(self.project.radiometryMode))
+        held = self.project.heldKeys or {self.project.inputs[0].key}
+        self.held.clear()
+        for item in self.project.inputs:
+            row = QListWidgetItem(item.image.name)
+            row.setData(Qt.ItemDataRole.UserRole, item.key)
+            row.setFlags(row.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            row.setCheckState(
+                Qt.CheckState.Checked if item.key in held else Qt.CheckState.Unchecked
+            )
+            self.held.addItem(row)
+        self.table.setRowCount(len(self.project.inputs))
+        for row, item in enumerate(self.project.inputs):
+            correction = item.radiometry
+            if correction is None:
+                cells = [item.image.name, "—", "—"]
+            elif correction.lutIn is not None:
+                cells = [item.image.name, "histogram", "histogram"]
+            else:
+                cells = [
+                    item.image.name,
+                    f"{np.mean(correction.gain):.4f}",
+                    f"{np.mean(correction.offset):.4g}",
+                ]
+            tip = _perBand(correction) if correction is not None else ""
+            for column, text in enumerate(cells):
+                cell = QTableWidgetItem(text)
+                cell.setToolTip(tip)
+                self.table.setItem(row, column, cell)
+        self._updateState()
+
+    def heldKeys(self) -> frozenset[int]:
+        return frozenset(
+            int(self.held.item(row).data(Qt.ItemDataRole.UserRole))
+            for row in range(self.held.count())
+            if self.held.item(row).checkState() == Qt.CheckState.Checked
+        )
+
+    def _updateState(self) -> None:
+        method = self.method.currentData()
+        self.mode.setEnabled(
+            method in (RadiometryMethod.REFERENCE, RadiometryMethod.GLOBAL)
+        )
+        self.held.setEnabled(method is not RadiometryMethod.NONE)
+
+    def showResult(self, message: str) -> None:
+        self.balanceButton.setEnabled(True)
+        self.status.setText(message)
+        self.refresh()
+
+    def _balance(self) -> None:
+        method = self.method.currentData()
+        if method is RadiometryMethod.NONE:
+            self._clear()
+            return
+        held = self.heldKeys()
+        if not held:
+            self.status.setText(
+                "Hold at least one image: the others are matched to it."
+            )
+            return
+        self.balanceButton.setEnabled(False)
+        self.status.setText("Balancing…")
+        self.sigBalance.emit(method, self.mode.currentData(), held)
+
+    def _clear(self) -> None:
+        self.project.clearRadiometry()
+        self.status.setText("No corrections: every image keeps its values.")
+        self.refresh()
+        self.sigCleared.emit()

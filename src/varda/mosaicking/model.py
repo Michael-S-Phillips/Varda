@@ -11,6 +11,7 @@ import numpy as np
 from attrs import define, field, frozen
 
 from varda.common.entities import VardaRaster
+from varda.mosaicking.correction import Correction, LinearMode, RadiometryMethod
 from varda.mosaicking.transforms import (
     WARPS,
     TransformModel,
@@ -35,6 +36,7 @@ class MosaicInput:
     model: TransformModel = TransformModel.TRANSLATION
     visible: bool = True
     warp: Warp | None = None  # a polynomial or thin-plate spline
+    radiometry: Correction | None = None  # applied to its values when rendering
 
     def correct(self, points: np.ndarray) -> np.ndarray:
         """Raw map coordinates to corrected ones."""
@@ -134,6 +136,10 @@ class MosaicProject:
             )
         self.inputs = [MosaicInput(image, key) for key, image in enumerate(images)]
         self.tiePoints: list[TiePoint] = []
+        # How the radiometric corrections were made (for labels and provenance)
+        self.radiometryMethod = RadiometryMethod.NONE
+        self.radiometryMode = LinearMode.BOTH
+        self.heldKeys: frozenset[int] = frozenset()
 
     # --- inputs ------------------------------------------------------------
 
@@ -156,6 +162,28 @@ class MosaicProject:
         item = self.input(key)
         item.correction = np.eye(3)
         item.warp = None
+
+    # --- radiometry ------------------------------------------------------------
+
+    def applyRadiometry(self, result) -> None:
+        """Use a ``radiometry.balance`` result: its corrections (inputs it
+        left out get none) and how they were made."""
+        for item in self.inputs:
+            item.radiometry = result.corrections.get(item.key)
+        self.radiometryMethod = result.method
+        self.radiometryMode = result.mode
+        self.heldKeys = frozenset(result.held)
+
+    def clearRadiometry(self) -> None:
+        for item in self.inputs:
+            item.radiometry = None
+        self.radiometryMethod = RadiometryMethod.NONE
+        self.heldKeys = frozenset()
+
+    @property
+    def isVisual(self) -> bool:
+        """Whether the recipe changes spectral shape (a visual product)."""
+        return self.radiometryMethod is RadiometryMethod.HISTOGRAM
 
     # --- tie points ----------------------------------------------------------
 
@@ -255,12 +283,20 @@ class MosaicProject:
         order = sorted(self.inputs, key=lambda i: i.key)
         return {
             "order": [i.key for i in self.inputs],
+            "radiometry": {
+                "method": self.radiometryMethod.name,
+                "mode": self.radiometryMode.name,
+                "held": sorted(self.heldKeys),
+            },
             "inputs": [
                 {
                     "correction": i.correction.tolist(),
                     "model": i.model.name,
                     "visible": i.visible,
                     "warp": None if i.warp is None else i.warp.state(),
+                    "radiometry": None
+                    if i.radiometry is None
+                    else i.radiometry.state(),
                 }
                 for i in order
             ],
@@ -288,6 +324,14 @@ class MosaicProject:
             item.visible = bool(saved.get("visible", True))
             warp = saved.get("warp")
             item.warp = None if warp is None else Warp.fromState(warp)
+            radiometry = saved.get("radiometry")
+            item.radiometry = (
+                None if radiometry is None else Correction.fromState(radiometry)
+            )
+        radiometry = state.get("radiometry", {})
+        self.radiometryMethod = RadiometryMethod[radiometry.get("method", "NONE")]
+        self.radiometryMode = LinearMode[radiometry.get("mode", "BOTH")]
+        self.heldKeys = frozenset(radiometry.get("held", []))
         order = state.get("order")
         if order and sorted(order) == sorted(i.key for i in self.inputs):
             self.inputs.sort(key=lambda i: order.index(i.key))
