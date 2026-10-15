@@ -163,3 +163,37 @@ def test_describe_image(image, expected):
         assert (
             "No-data value: -1.0" in text and "1000.0, 1500.0, 2000.0, 2500.0" in text
         )
+
+
+def test_varda_s_features_are_in_the_first_message(tmp_path):
+    kindler, provider = _kindler(tmp_path, replaying(BUILD))
+    kindler.kindle("x", None, features="- Processing → Band Math: an expression")
+    first = provider.conversation.received[0][0]
+    assert "Varda's features" in first and "- Processing → Band Math" in first
+    assert "point_to_existing" in provider.system and "decline" in provider.system
+
+
+def test_declining_ends_the_round_without_building(tmp_path):
+    script = [tools(call("decline", reason="Plugins can't redesign Varda."))]
+    kindler, provider = _kindler(tmp_path, replaying(script))
+    outcome = kindler.kindle("redesign the whole interface", None)
+    assert not outcome.finished and outcome.declined == "Plugins can't redesign Varda."
+    assert outcome.turns == 1 and not (tmp_path / "draft" / "plugin.py").exists()
+
+
+def test_an_existing_feature_stops_the_build_until_the_user_wants_it(tmp_path):
+    existing = tools(
+        call(
+            "point_to_existing",
+            feature="Band Math",
+            location="Processing → Spectral Parameters → Band Math",
+            explanation="Write R2300 / R2200.",
+        )
+    )
+    kindler, provider = _kindler(tmp_path, replaying([existing, *BUILD]))
+    outcome = kindler.kindle("a band ratio", None)
+    assert not outcome.finished and outcome.existing is not None
+    assert outcome.existing.location.endswith("Band Math")
+    outcome = kindler.buildAnyway()
+    assert outcome.finished and outcome.existing is None
+    assert "has seen Band Math" in provider.conversation.received[1][0]

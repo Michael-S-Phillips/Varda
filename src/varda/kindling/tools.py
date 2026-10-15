@@ -1,11 +1,14 @@
 """The tools the model uses to build a plugin: read Varda's plugin docs and
 examples, write and read files inside the plugin's own folder (nowhere
-else), run the checks, and finish. No Qt."""
+else), run the checks, and finish; or, instead of building, decline a
+request a plugin can't do, or point to a feature Varda already has. No Qt."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+
+from attrs import frozen
 
 from varda.kindling import docs
 from varda.kindling.checks import CheckReport
@@ -67,7 +70,35 @@ TOOL_SPECS = (
         "plain language what the feature does, its settings, and how to read the result.",
         _schema(summary="A short plain-language summary for the user"),
     ),
+    ToolSpec(
+        "decline",
+        "Stop without building, because a plugin can't do what the user asks. "
+        "The reason is shown to the user.",
+        _schema(
+            reason="Why, in plain language, and the closest feature a plugin "
+            "could add, if there is one"
+        ),
+    ),
+    ToolSpec(
+        "point_to_existing",
+        "Stop without building, because Varda already does what the user asks. "
+        "The user can still ask you to build it.",
+        _schema(
+            feature="The existing feature's name",
+            location="Where it is, e.g. 'Processing → Spectral Parameters → Band Math'",
+            explanation="How it does what the user asked, in plain language",
+        ),
+    ),
 )
+
+
+@frozen
+class Existing:
+    """A feature Varda already has that does what the user asked."""
+
+    feature: str
+    location: str
+    explanation: str
 
 
 class PluginFolder:
@@ -113,6 +144,17 @@ class KindlingTools:
         self._runChecks = runChecks
         self.lastReport: CheckReport | None = None
         self.summary: str | None = None  # set by finish
+        self.declined = ""  # set by decline
+        self.existing: Existing | None = None  # set by point_to_existing
+
+    @property
+    def stopped(self) -> bool:
+        """Whether the model ended the round: finished, declined or pointed
+        to an existing feature."""
+        return self.summary is not None or bool(self.declined) or bool(self.existing)
+
+    def reset(self) -> None:
+        self.summary, self.declined, self.existing = None, "", None
 
     def call(self, call: ToolCall) -> ToolResult:
         if call.invalid:
@@ -157,6 +199,23 @@ class KindlingTools:
                         "Run run_checks and make them pass before finishing."
                     )
                 self.summary = arguments.get("summary", "").strip()
+                return "Done."
+            case "decline":
+                reason = arguments.get("reason", "").strip()
+                if not reason:
+                    raise ValueError("Give the user the reason.")
+                self.declined = reason
+                return "Done."
+            case "point_to_existing":
+                existing = Existing(
+                    *(
+                        str(arguments.get(key, "")).strip()
+                        for key in ("feature", "location", "explanation")
+                    )
+                )
+                if not (existing.feature and existing.location):
+                    raise ValueError("Name the feature and where it is.")
+                self.existing = existing
                 return "Done."
             case _:
                 raise ValueError(f"There's no tool called {name!r}")

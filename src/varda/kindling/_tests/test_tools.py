@@ -72,3 +72,27 @@ def test_docs_and_examples_are_readable(plugin):
     assert "band-depth" in tools.call(call("list_examples")).content
     example = tools.call(call("read_example", name="band-depth")).content
     assert "--- plugin.py ---" in example and "--- tests/test_plugin.py ---" in example
+
+
+def test_declining_needs_a_reason(plugin):
+    kit = _tools(plugin)
+    assert kit.call(call("decline", reason="  ")).isError and not kit.stopped
+    assert not kit.call(call("decline", reason="Plugins can't move menus.")).isError
+    assert kit.stopped and kit.declined == "Plugins can't move menus."
+
+
+def test_pointing_to_an_existing_feature_names_it_and_where(plugin):
+    kit = _tools(plugin)
+    assert kit.call(call("point_to_existing", feature="Band Math", location="")).isError
+    kit.call(
+        call(
+            "point_to_existing",
+            feature="Band Math",
+            location="Processing → Spectral Parameters → Band Math",
+            explanation="It takes R2300 / R2200.",
+        )
+    )
+    assert kit.stopped and kit.existing is not None
+    assert kit.existing.feature == "Band Math"
+    kit.reset()
+    assert not kit.stopped

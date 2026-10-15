@@ -1,6 +1,8 @@
 """Plugins → Kindle a Feature: describe a feature, watch your AI build it as a
 plugin, review it (summary, where it appears, the checks, warnings and the
-code), then Enable, Ask for Changes, or Discard."""
+code), then Enable, Ask for Changes, or Discard. The AI may instead decline a
+request a plugin can't do, or point to a feature Varda already has (then
+Build Anyway)."""
 
 from __future__ import annotations
 
@@ -9,6 +11,7 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 
+from app_model import Application
 from PyQt6.QtGui import QFontDatabase
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -32,6 +35,7 @@ from varda.kindling.agent import Kindler, Outcome
 from varda.kindling.ai_settings import AISettings
 from varda.kindling.categories import menuCategories
 from varda.kindling.checks import runChecks, scanForWarnings
+from varda.kindling.features import featureInventory
 from varda.kindling.providers import ProviderError
 from varda.kindling.tools import KindlingTools, PluginFolder
 from varda.plugins.plugin_manager import VardaPluginManager, defaultPluginsFolder
@@ -46,8 +50,9 @@ PLACEHOLDER = (
 
 def privacyNote(recipient: str) -> str:
     return (
-        f"Sent to {recipient}: your description, Varda's plugin docs, and the "
-        "image's size, wavelengths and no-data value. Never its pixels: the checks "
+        f"Sent to {recipient}: your description, Varda's plugin docs and list of "
+        "features, and the image's size, wavelengths and no-data value. Never its "
+        "pixels: the checks "
         "that run the plugin on a crop of the image stay on this computer."
     )
 
@@ -178,10 +183,14 @@ class KindleDialog(QDialog):
         discard.clicked.connect(self.reject)
         self.enableButton = QPushButton("Enable")
         self.enableButton.clicked.connect(self._enable)
+        self.buildAnywayButton = QPushButton("Build Anyway")
+        self.buildAnywayButton.setToolTip("Build the feature even so")
+        self.buildAnywayButton.clicked.connect(self._buildAnyway)
         buttons = QHBoxLayout()
         buttons.addWidget(discard)
         buttons.addStretch(1)
         buttons.addWidget(self.reviseButton)
+        buttons.addWidget(self.buildAnywayButton)
         buttons.addWidget(self.enableButton)
         layout = QVBoxLayout(page)
         for widget in (
@@ -222,7 +231,8 @@ class KindleDialog(QDialog):
             onMainThread(self._progress),
         )
         kindler = self.kindler
-        self._build(lambda: kindler.kindle(description, image, categories))
+        features = featureInventory(Application.get_app("varda"))
+        self._build(lambda: kindler.kindle(description, image, categories, features))
 
     def _revise(self) -> None:
         feedback = self.feedback.toPlainText().strip()
@@ -233,6 +243,13 @@ class KindleDialog(QDialog):
         self.log.appendPlainText(f"\nYou asked: {feedback}")
         kindler = self.kindler
         self._build(lambda: kindler.revise(feedback))
+
+    def _buildAnyway(self) -> None:
+        if self.kindler is None:
+            return
+        self.log.appendPlainText("\nYou asked to build it anyway.")
+        kindler = self.kindler
+        self._build(kindler.buildAnyway)
 
     def _build(self, task) -> None:
         self.building = True
@@ -283,7 +300,23 @@ class KindleDialog(QDialog):
         assert self.tools is not None
         report = self.tools.lastReport
         passed = report is not None and report.passed
-        if outcome.finished:
+        existing = outcome.existing
+        summary = outcome.summary  # plain text; the rich text below escapes
+        if existing is not None:
+            self.headline.setText("<h3>Varda may already do this</h3>")
+            summary = (
+                f"<b>{escape(existing.feature, quote=False)}</b> ({escape(existing.location, quote=False)}): "
+                f"{escape(existing.explanation, quote=False)}<br><br>If it doesn't do what you "
+                "need, click Build Anyway, or say what's different and click Ask "
+                "for Changes."
+            )
+        elif outcome.declined:
+            self.headline.setText("<h3>This is beyond what a plugin can do</h3>")
+            summary = (
+                f"{escape(outcome.declined, quote=False)}<br><br>To try something else, "
+                "describe it below and click Ask for Changes."
+            )
+        elif outcome.finished:
             self.headline.setText("<h3>Your feature is ready to review</h3>")
         else:
             self.headline.setText(
@@ -291,8 +324,9 @@ class KindleDialog(QDialog):
                 "To keep going, write “continue” (or what to change) and click "
                 "Ask for Changes."
             )
-        self.summary.setText(outcome.summary)
-        self.summary.setVisible(bool(outcome.summary))
+        self.summary.setText(summary)
+        self.summary.setVisible(bool(summary))
+        self.buildAnywayButton.setVisible(existing is not None)
         places = [a.location for a in report.analyses] if report is not None else []
         self.location.setText("<b>Adds:</b> " + "; ".join(places) if places else "")
         warnings = scanForWarnings(self.folder)
@@ -333,7 +367,7 @@ class KindleDialog(QDialog):
             self.closeWhenDone = True
             self._stop()
             return
-        if self.pages.currentIndex() == 2:
+        if self.pages.currentIndex() == 2 and PluginFolder(self.folder).files():
             answer = QMessageBox.question(
                 self, "Discard Plugin", "Discard this plugin? It isn't enabled yet."
             )
