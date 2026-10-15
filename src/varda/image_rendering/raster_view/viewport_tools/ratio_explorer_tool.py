@@ -69,6 +69,10 @@ class RatioExplorerTool(ViewportTool):
         self.selection = RatioSelection(None, None)
         self._numeratorOverlay: ROIOverlayHandle | None = None
         self._denominatorOverlay: ROIOverlayHandle | None = None
+        self._shown = False  # boxes are drawn only while the tool is on
+        # The boxes are kept in image pixels; a zoom panel's local coordinates
+        # change with every pan and zoom, so they're placed again each time
+        viewport.sigImageChanged.connect(self._redraw)
 
     def setBoxSizeProvider(self, provider: Callable[[], tuple[int, int]]) -> None:
         self._boxSize = provider
@@ -78,15 +82,12 @@ class RatioExplorerTool(ViewportTool):
 
     def activate(self):
         super().activate()
+        self._shown = True
         self.showText(self.toolDescription, timeout=4000)
 
     def deactivate(self):
-        self._numeratorOverlay = self._drawBox(
-            self._numeratorOverlay, None, NUMERATOR_COLOR
-        )
-        self._denominatorOverlay = self._drawBox(
-            self._denominatorOverlay, None, DENOMINATOR_COLOR
-        )
+        self._shown = False
+        self._redraw()  # removes the boxes; the selection is kept
         super().deactivate()
 
     @override
@@ -134,13 +135,20 @@ class RatioExplorerTool(ViewportTool):
         self, numerator: np.ndarray | None, denominator: np.ndarray | None
     ) -> None:
         self.selection = RatioSelection(numerator, denominator)
+        self._redraw()
+        self.sigSelectionChanged.emit(self.selection)
+
+    def _redraw(self) -> None:
+        """Place the boxes on their image pixels in the viewport's current
+        coordinates (or remove them while the tool is off)."""
+        numerator = self.selection.numerator if self._shown else None
+        denominator = self.selection.denominator if self._shown else None
         self._numeratorOverlay = self._drawBox(
             self._numeratorOverlay, numerator, NUMERATOR_COLOR
         )
         self._denominatorOverlay = self._drawBox(
             self._denominatorOverlay, denominator, DENOMINATOR_COLOR
         )
-        self.sigSelectionChanged.emit(self.selection)
 
     def _drawBox(
         self,
