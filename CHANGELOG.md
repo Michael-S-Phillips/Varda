@@ -43,6 +43,10 @@ can alter results.
     pointer's latitude and longitude below the map. Basemaps, overlays and
     the search box follow the projection; a view around a pole searches
     every longitude.
+  - **Finding a collection:** the Collection menu opens a search over the
+    collections, grouped by body and then by mission and instrument with
+    counts; every word typed must match (e.g. "mars crism", "mars express",
+    "kaguya dtm"). ODE's mission abbreviations are spelled out for searching.
   - **Selecting on the map:** click selects the footprints under the
     pointer, Shift-click adds, Cmd-click (Ctrl-click) removes, and
     Shift-drag adds every footprint a box touches. **Show only selected**
