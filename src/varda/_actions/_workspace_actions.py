@@ -9,6 +9,7 @@ from varda.workspaces.dual_image_workspace import NewDualImageWorkspaceDialog
 from varda.workspaces.general_image_analysis import (
     NewGeneralImageAnalysisWorkspaceDialog,
 )
+from varda.workspaces.mosaic.new_mosaic_dialog import NewMosaicDialog
 from varda.workspaces.spectral_hourglass.new_hourglass_dialog import (
     NewSpectralHourglassDialog,
 )
@@ -35,6 +36,12 @@ def newSpectralHourglassWorkspace(images: ProjectImages, mainGui: MainGUI) -> No
     NewSpectralHourglassDialog(images, parent=mainGui).connectOnAccept(
         mainGui.addTab
     ).open()
+
+
+def newMosaicWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
+    openOwnedDialog(
+        NewMosaicDialog(images, parent=mainGui).connectOnAccept(mainGui.addTab)
+    )
 
 
 def duplicateCurrentWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
@@ -74,6 +81,17 @@ WORKSPACE_ACTIONS: list[Action] = [
         callback=newSpectralHourglassWorkspace,
         enablement=EXPR_HAS_IMAGES,
         menus=[MenuRule(id=MenuId.WORKSPACE, group=MenuGroup.WORKSPACE_NEW, order=3)],
+    ),
+    Action(
+        id="varda.workspace.new_mosaic",
+        title="New Mosaic Workspace…",
+        tooltip=(
+            "Combine overlapping images into one: align them (nudge or tie "
+            "points), order them, and export the mosaic"
+        ),
+        callback=newMosaicWorkspace,
+        enablement=EXPR_HAS_IMAGES,
+        menus=[MenuRule(id=MenuId.WORKSPACE, group=MenuGroup.WORKSPACE_NEW, order=4)],
     ),
     Action(
         id="varda.workspace.duplicate",

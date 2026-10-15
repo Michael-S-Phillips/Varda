@@ -6,6 +6,17 @@ can alter results.
 
 ## Unreleased
 
+### Added
+
+- **Mosaic workspace.** **Workspace → New Mosaic Workspace…** joins
+  overlapping images (spectral cubes or grayscale) with the same bands and
+  projection. Order the images (the top one wins where they overlap), align
+  each by nudging it with the arrow keys or by fitting a translation, rigid,
+  similarity, affine or projective transform to tie points, and export. The
+  default nearest-neighbor export keeps every spectrum exact; an optional map
+  shows which image each pixel came from. See the
+  [mosaicking guide](docs/user-guide/mosaicking.md).
+
 ### Fixed
 
 - **The histogram keeps its zoom when the stretch changes.** Dragging a
