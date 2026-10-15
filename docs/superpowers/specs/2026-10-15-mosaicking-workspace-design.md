@@ -113,9 +113,11 @@ One **tie-point model** serves both manual and automatic alignment.
      al. 2007) for about 1/20 px. This is a **clean-room** re-implementation:
      written from the published paper and the COSI-Corr user guide, never
      from geoCosiCorr3D's code (its license is non-commercial). Reverse
-     Engineer Anything (REA) can help turn the paper into a precise spec and
-     test plan. Accuracy is checked against the paper's reported results on
-     synthetic shifts.
+     Engineer Anything (REA) is not used: it works by decompiling binaries,
+     so pointing it at geoCosiCorr3D's libraries would copy the very code
+     we must not use. Accuracy is checked against the paper's reported
+     results on synthetic shifts, and optionally by comparing outputs with a
+     separately installed COSI-Corr as a black box.
   4. An ORB/SIFT fallback when rotation or scale differ a lot.
 - **Fit:** RANSAC with the chosen transform: translation, rigid,
   similarity, affine, projective, polynomial (order 2–3) or thin-plate
