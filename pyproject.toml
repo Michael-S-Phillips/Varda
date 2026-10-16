@@ -154,4 +154,6 @@ ignore_imports = [
     "varda.analysis.transforms -> PyQt6",
     "varda.analysis.band_math -> PyQt6",
     "varda.analysis.band_math -> varda.common.parameter_widgets",
+    "varda.analysis.geometry -> PyQt6",
+    "varda.analysis.crop_preview -> **",
 ]

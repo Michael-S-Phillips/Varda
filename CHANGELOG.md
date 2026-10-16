@@ -73,6 +73,10 @@ can alter results.
   Sentinel-2 MSI bands, a response file, or typed center/FWHM bands. CRISM
   reflectance as a CTX scene aligns to a CTX orthoimage where the cube's own
   bands don't.
+- **Subset with a preview** (Processing → Geometry → Subset): drag a box
+  on the image to choose the part to keep, and drag ranges on the box's
+  mean spectrum to choose the bands; both stay in step with the typed rows,
+  columns and bands.
 - **Workspace tabs work like a browser's:** drag them into order (sessions
   keep it), drag one out of the tab bar to open it in its own window, and
   middle-click to close.
