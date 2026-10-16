@@ -44,11 +44,36 @@ Views and settings are saved with the session.
   will print. The solid is watertight, with sides around any gaps left
   unfilled, so it's ready to slice.
 
+## Lines
+
+**Add Lines…** drapes a vector file's lines over the surface: a rover
+traverse, mapped contacts, or lines exported from the Lines tab of General
+Image Analysis (GeoJSON, GeoPackage, shapefile, KML). Polygons show as their
+outlines. Longitude and latitude are taken as degrees on the DEM's body
+(planetary GeoJSON files always claim Earth's), and other map projections
+are converted to the DEM's. GeoJSON can't store a Mars map projection, so a
+GeoJSON whose "degrees" are really projected coordinates is read in the
+DEM's projection; a GeoPackage keeps the projection and is the safer choice.
+Tick a layer to show or hide it; double-click it to change its color. Lines
+follow the exaggeration and are saved with the session (as their files).
+
 ## Figures and web pages
+
+- **Show** puts annotations on the view and in stills:
+  - a **north arrow**, which turns with the camera;
+  - a **scale bar**, the ground distance at the view's center (a
+    perspective view has no single scale; it is most accurate in views from
+    above), with the vertical exaggeration;
+  - a **color bar** for the elevation colors drape: the color map over the
+    elevation range it stretches across.
 
 - **Export Still…** renders the view as a PNG at HD, 4K, 8K, a 3000 px
   square or any size up to 16384 px a side, optionally with a transparent
   background for compositing.
+- **Export Animation…** renders a flyover: the camera circles the view's
+  center (a full turn or a part of one) over as many frames as you choose,
+  at HD, Full HD or square sizes. It's saved as an animated WebP (sharp and
+  small), a GIF, or a folder of numbered PNG frames for a video editor.
 - **Export Web Page…** saves the view as one self-contained HTML file that
   opens in any modern web browser, with no server and nothing to install.
   Readers can orbit and zoom, and change the exaggeration, the sun and the

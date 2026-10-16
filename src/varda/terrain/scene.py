@@ -25,6 +25,7 @@ from PIL import Image
 from pyproj import CRS
 
 from varda.common.entities import VardaRaster
+from varda.terrain.vectors import PageLine
 from varda.utilities.resources import resource_path
 
 MAX_SIDE = 1024  # vertices on a side, by default: about 2 million triangles
@@ -58,6 +59,9 @@ class TerrainSettings:
     shadows: bool = True
     background: str = "#101418"
     ambient: float = 0.35
+    northArrow: bool = True
+    scaleBar: bool = True  # measured at the view's center
+    colorBar: bool = True  # when the drape is colored by elevation
     sides: bool = False  # a block diagram: walls down to a base
     baseDepth: float = (
         0.0  # below the lowest point (height units; 0: a quarter of the relief)
@@ -197,6 +201,16 @@ PANEL = """<div id="panel">
 
 
 @frozen
+class Legend:
+    """A color bar: the color map's colors, low to high, and its range."""
+
+    colors: tuple[str, ...]  # "#rrggbb"
+    low: float
+    high: float
+    label: str = "Elevation (m)"
+
+
+@frozen
 class PageOverlay:
     """An image draped over part of the DEM: a PNG data URL and its bounds as
     fractions of the DEM's extent (west, south, east, north)."""
@@ -216,6 +230,8 @@ def pageHtml(
     title: str = "Varda 3D view",
     panel: bool = False,
     overlays: Sequence[PageOverlay] = (),
+    legend: Legend | None = None,
+    lines: Sequence[PageLine] = (),
 ) -> str:
     """The viewer page: self-contained, so the same file works in Varda and
     in any browser. ``texture`` is a data URL (``pngDataUrl``) draped over
@@ -236,6 +252,8 @@ def pageHtml(
         "settings": settings.toDict(),
         "camera": camera,
         "overlays": [asdict(overlay) for overlay in overlays],
+        "legend": None if legend is None else asdict(legend),
+        "lines": [asdict(line) for line in lines],
     }
     importmap = {"imports": {k: _dataUrl(folder / f) for k, f in THREE_FILES.items()}}
     safeTitle = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

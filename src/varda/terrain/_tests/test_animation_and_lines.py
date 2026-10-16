@@ -1,0 +1,68 @@
+"""Flyover animations from frames, and GIS lines placed on a DEM."""
+
+import geopandas as gpd
+import numpy as np
+import pytest
+import shapely
+from PIL import Image
+from pyproj import CRS
+
+from varda.terrain.animation import writeAnimation
+from varda.terrain.vectors import readLines
+
+MARS_EQC = CRS.from_user_input("+proj=eqc +R=3389500 +units=m +no_defs")
+
+
+@pytest.mark.parametrize("suffix", [".gif", ".webp"])
+def test_frames_become_a_looping_animation(tmp_path, suffix):
+    frames = []
+    for i in range(6):
+        path = tmp_path / f"frame{i:03}.png"
+        Image.fromarray(np.full((40, 60, 3), i * 40, np.uint8)).save(path)
+        frames.append(path)
+    target = writeAnimation(frames, tmp_path / f"orbit{suffix}", fps=10)
+    with Image.open(target) as animation:
+        assert animation.n_frames == 6 and animation.size == (60, 40)
+
+
+@pytest.mark.parametrize("suffix", [".gpkg", ".geojson"])
+def test_lines_are_placed_as_fractions_of_the_dem(tmp_path, suffix):
+    # a GeoPackage keeps the Mars projection; GeoJSON loses it (and says
+    # WGS 84), so its coordinates are taken as the DEM's
+    frame = gpd.GeoDataFrame(
+        geometry=[
+            shapely.LineString([(2500, 2500), (7500, 5000)]),
+            shapely.box(-500, -500, -100, -100),
+        ],
+        crs=MARS_EQC,
+    )
+    frame.to_file(tmp_path / f"traverse{suffix}")
+    line = readLines(
+        tmp_path / f"traverse{suffix}", MARS_EQC, (0, 0, 10000, 10000), "#f00"
+    )
+    assert line.name == "traverse" and len(line.paths) == 1  # the box is off the DEM
+    np.testing.assert_allclose(line.paths[0], [(0.25, 0.25), (0.75, 0.5)])
+
+
+def test_planetary_geojson_degrees_are_taken_on_the_dems_body(tmp_path):
+    # GeoJSON always says CRS84; on Mars these are Mars degrees
+    frame = gpd.GeoDataFrame(
+        geometry=[shapely.LineString([(0.0, 0.0), (0.01, 0.0)])], crs="OGC:CRS84"
+    )
+    frame.to_file(tmp_path / "mars.geojson")
+    perDegree = np.pi * 3389500 / 180
+    line = readLines(
+        tmp_path / "mars.geojson", MARS_EQC, (-1000, -1000, 1000, 1000), "#0f0"
+    )
+    start, end = line.paths[0]
+    np.testing.assert_allclose(start, (0.5, 0.5))
+    assert end[0] == pytest.approx(0.5 + 0.01 * perDegree / 2000, rel=1e-3)
+
+
+def test_lines_that_miss_the_dem_are_an_error_for_the_user(tmp_path):
+    frame = gpd.GeoDataFrame(
+        geometry=[shapely.LineString([(5000, 5000), (6000, 6000)])], crs=MARS_EQC
+    )
+    frame.to_file(tmp_path / "far.gpkg")
+    with pytest.raises(ValueError, match="crosses the DEM"):
+        readLines(tmp_path / "far.gpkg", MARS_EQC, (0, 0, 1000, 1000), "#f00")
