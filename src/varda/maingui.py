@@ -76,6 +76,7 @@ class MainGUI(QModelMainWindow):
         if tabBar is not None:
             tabBar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             tabBar.customContextMenuRequested.connect(self._showTabMenu)
+            tabBar.tabMoved.connect(lambda *_: self._followTabOrder())
         self.setCentralWidget(self.centralTabs)
         self._updateWorkspaceCount()
 
@@ -104,6 +105,14 @@ class MainGUI(QModelMainWindow):
             return
         self.centralTabs.setCurrentIndex(index)
         QModelMenu(WORKSPACE_TAB_MENU_ID, self.app).exec(tabBar.mapToGlobal(pos))
+
+    def _followTabOrder(self) -> None:
+        """Keep the workspaces in the tabs' order (sessions save them so);
+        detached ones follow."""
+        docked = [self.centralTabs.widget(i) for i in range(self.centralTabs.count())]
+        self.childWindows[:] = [w for w in docked if w in self.childWindows] + [
+            w for w in self.childWindows if w not in docked
+        ]
 
     def currentWorkspace(self) -> QWidget | None:
         return self.centralTabs.currentWidget()

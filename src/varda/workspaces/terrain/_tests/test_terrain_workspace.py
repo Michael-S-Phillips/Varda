@@ -11,7 +11,10 @@ from pytestqt.exceptions import TimeoutError as QtTimeoutError
 from pyproj import CRS
 
 from varda.common.di_types import ProjectImages
+from PyQt6.QtGui import QColor
+
 from varda.common.entities import VardaRaster
+from varda.lines.line_collection import LineCollection, shareLines, unshareLines
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.utilities.debug import generate_perlin_noise_3d
 from varda.workspaces.terrain.terrain_workspace import (
@@ -176,6 +179,42 @@ def test_sides_are_a_setting_the_view_gets(workspace):
     assert workspace.sessionState()["settings"]["sides"] is True
 
 
+def test_side_colors_and_edges_are_settings(workspace, qtbot, monkeypatch):
+    workspace.sides.setChecked(True)
+    assert workspace.form.isRowVisible(workspace.sideColor)
+    workspace.sideColor.setCurrentText("White")
+    workspace.sideColor.activated.emit(workspace.sideColor.currentIndex())
+    assert workspace.settings.sideColor == "#f0f0f0"
+    # a custom color, from the color dialog
+    monkeypatch.setattr(
+        "varda.workspaces.terrain.terrain_workspace.QColorDialog.getColor",
+        lambda *_: QColor("#123456"),
+    )
+    workspace.sideColor.activated.emit(workspace.sideColor.count() - 1)
+    assert workspace.settings.sideColor == "#123456"
+    assert workspace.sideColor.currentText() == "#123456"
+
+    assert workspace.settings.edges == "smooth"
+    workspace.edges.setCurrentText("Stepped")
+    assert workspace.settings.edges == "stepped"
+    # trimming builds the surface again, a rectangle
+    workspace.terrain = None
+    workspace.edges.setCurrentText("Trimmed to a rectangle")
+    qtbot.waitUntil(lambda: workspace.terrain is not None, timeout=10000)
+    assert workspace.terrain is not None
+    assert np.isfinite(workspace.terrain.heights).all()  # the test DEM is full
+
+    described = describeWorkspace(workspace)
+    assert described is not None
+    restored = buildWorkspace(
+        *described, workspace.projectImages, workspace.sessionState()
+    )
+    assert isinstance(restored, TerrainWorkspace)
+    qtbot.addWidget(restored)
+    assert restored.edges.currentText() == "Trimmed to a rectangle"
+    assert restored.sideColor.currentText() == "#123456"
+
+
 def test_the_print_dialog_shows_the_printed_size(workspace, qtbot):
     dialog = PrintDialog(workspace.terrain, 2.0)
     qtbot.addWidget(dialog)
@@ -294,3 +333,53 @@ def test_an_overlays_display_comes_back_with_the_session(workspace, images, qtbo
     qtbot.addWidget(restored)
     back = restored.overlayPanel.overlays[0].renderer.settings.rgb
     assert (back.red.get(), back.green.get(), back.blue.get()) == (5, 2, 0)
+
+
+def test_lines_drawn_in_another_workspace_are_draped_with_profiles(
+    workspace, images, qtbot
+):
+    # lines drawn on the orthoimage (its pixels), as an image workspace has them
+    lines = LineCollection()
+    lines.addLine([[5, 5], [55, 35]], name="Across", color="#ff0000")
+    lines.addLine([[30, 2], [30, 38]], name="Down", color="#00ff00")
+    workspace.addWorkspaceLines(images[1], lines)
+    assert [line.name for _, line in workspace.lineLayers] == ["Across", "Down"]
+    assert [line.color for _, line in workspace.lineLayers] == ["#ff0000", "#00ff00"]
+    across = workspace.lineLayers[0][1]
+    np.testing.assert_allclose(across.paths[0], [(5 / 60, 35 / 40), (55 / 60, 5 / 40)])
+
+    # their DEM profiles: the peak (-1300) is crossed by "Down" at x = 30
+    profiles = workspace.profilePlot.profiles
+    assert len(profiles) == 2
+    assert max(np.nanmax(p.values) for p in profiles.values()) == pytest.approx(
+        -1300, abs=5
+    )
+
+    # one line on its own, and the session keeps them without that workspace
+    workspace.addWorkspaceLines(images[1], lines, [lines.lines()[1].fid])
+    assert len(workspace.lineLayers) == 3
+    described = describeWorkspace(workspace)
+    assert described is not None
+    restored = buildWorkspace(*described, images, workspace.sessionState())
+    assert isinstance(restored, TerrainWorkspace)
+    qtbot.addWidget(restored)
+    assert [line.name for _, line in restored.lineLayers] == ["Across", "Down", "Down"]
+    np.testing.assert_allclose(restored.lineLayers[0][1].paths[0], across.paths[0])
+
+
+def test_the_add_lines_menu_offers_lines_open_workspaces_share(workspace, images):
+    lines = LineCollection()
+    lines.addLine([[5, 5], [55, 35]], name="Across")
+    shareLines(lines, images[1])
+    try:
+        workspace._fillLinesMenu()
+        menus = {a.text(): a.menu() for a in workspace.addLinesMenu.actions()}
+        assert "From a File…" in menus
+        sub = menus["ortho"]
+        assert sub is not None
+        assert [a.text() for a in sub.actions() if a.text()] == [
+            "All Lines (1)",
+            "Across",
+        ]
+    finally:
+        unshareLines(lines)

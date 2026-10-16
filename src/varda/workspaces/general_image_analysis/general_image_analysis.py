@@ -41,7 +41,7 @@ from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
 from varda.points.point_collection import PointCollection
 from varda.points.point_manager_widget import PointManagerWidget
-from varda.lines.line_collection import LineCollection
+from varda.lines.line_collection import LineCollection, shareLines, unshareLines
 from varda.lines.line_manager_widget import LineManagerWidget
 from varda.plotting.profile_plot import ProfilePlotWidget
 from varda.workspaces.line_display import LineDisplay
@@ -181,6 +181,7 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.pointManagerWidget = PointManagerWidget(self.pointCollection, parent=self)
         # Lines (Draw Line) and their profiles
         self.lineCollection = LineCollection()
+        shareLines(self.lineCollection, image)  # 3D Terrain can drape them
         self.lineManagerWidget = LineManagerWidget(self.lineCollection, image, self)
         self.profilePlot = ProfilePlotWidget(image, self)
         self.ratioExplorerConfig = RatioExplorerConfig()
@@ -443,4 +444,5 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
     def closeEvent(self, event):
         """Handle workflow closure"""
         self.roiDisplayController.cleanup()
+        unshareLines(self.lineCollection)
         super().closeEvent(event)

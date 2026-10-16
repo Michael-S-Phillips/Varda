@@ -21,6 +21,7 @@ from varda.terrain.scene import (
     pageHtml,
     pngDataUrl,
     quantize,
+    trimToRectangle,
 )
 
 
@@ -105,3 +106,31 @@ def test_gaps_inside_the_data_are_filled_but_the_outside_stays_empty():
     assert count == 20
     assert np.isfinite(filled[10:14, 15:20]).all() and np.isnan(filled[:, :3]).all()
     assert filled[12, 17] == pytest.approx(34, abs=3)  # follows the slope
+
+
+def test_trimming_keeps_the_largest_rectangle_with_data_everywhere():
+    heights = np.full((20, 30), np.nan, np.float32)
+    heights[3:15, 4:25] = 1.0  # the main block, 12 × 21
+    heights[2, 10:12] = 1.0  # ragged bits off its edge
+    heights[15, 4:9] = 1.0
+    heights[17:20, 0:3] = 1.0  # a small island elsewhere
+    trimmed = trimToRectangle(heights)
+    rows, cols = np.nonzero(np.isfinite(trimmed))
+    assert (rows.min(), rows.max(), cols.min(), cols.max()) == (3, 14, 4, 24)
+    assert np.isfinite(trimmed[3:15, 4:25]).all()
+    assert np.isnan(trimToRectangle(np.full((4, 4), np.nan))).all()
+
+
+def test_a_trimmed_terrain_has_straight_edges():
+    heights = np.ones((20, 20), np.float32)
+    heights[:5, :5] = np.nan  # a corner missing
+    terrain = buildTerrain(_dem(heights), fill=False, trim=True)
+    finite = np.isfinite(terrain.heights)
+    rows, cols = np.nonzero(finite)
+    block = finite[rows.min() : rows.max() + 1, cols.min() : cols.max() + 1]
+    assert block.all() and block.size == 15 * 20
+
+
+def test_edges_are_smooth_unless_chosen_otherwise():
+    assert TerrainSettings().edges == "smooth"
+    assert TerrainSettings.fromDict({}).edges == "smooth"

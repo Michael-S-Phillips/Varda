@@ -73,3 +73,11 @@ def test_current_workspace_is_the_selected_tab(gui):
 def test_closing_with_no_workspace_is_a_no_op(gui):
     gui.closeWorkspace(None)
     assert gui.childWindows == []
+
+
+def test_workspaces_follow_the_tabs_order_for_sessions(gui):
+    first, second, third = _Workspace(), _Workspace(), _Workspace()
+    for name, workspace in zip("abc", (first, second, third)):
+        gui.addTab(workspace, name)
+    gui.centralTabs.tabBar().moveTab(2, 0)  # dragged to the front
+    assert gui.childWindows == [third, first, second]

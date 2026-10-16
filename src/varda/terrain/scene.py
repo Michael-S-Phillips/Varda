@@ -13,6 +13,7 @@ import base64
 import io
 import json
 import math
+import sys
 import warnings
 from collections.abc import Sequence
 from pathlib import Path
@@ -20,6 +21,7 @@ from pathlib import Path
 import attrs
 import numpy as np
 from attrs import asdict, define, frozen
+from numba import njit
 from scipy import ndimage
 from PIL import Image
 from pyproj import CRS
@@ -28,6 +30,7 @@ from varda.common.entities import VardaRaster
 from varda.terrain.vectors import PageLine
 from varda.utilities.resources import resource_path
 
+_CACHE = not getattr(sys, "frozen", False)  # see stretch_algorithms._CACHE
 MAX_SIDE = 1024  # vertices on a side, by default: about 2 million triangles
 MAX_TEXTURE = 8192  # px on a side for the drape
 LEVELS = 65534  # height levels (16 bits, 0 meaning no data)
@@ -67,6 +70,9 @@ class TerrainSettings:
         0.0  # below the lowest point (height units; 0: a quarter of the relief)
     )
     sideColor: str = "#a08e78"
+    # the outline: "smooth" (cut diagonally), "stepped" (cell by cell) or
+    # "rectangle" (trimmed to the largest rectangle with data everywhere)
+    edges: str = "smooth"
 
     def toDict(self) -> dict:
         return asdict(self)
@@ -137,15 +143,52 @@ def fillGaps(heights: np.ndarray, smoothing: int = 4) -> tuple[np.ndarray, int]:
     return filled.astype(heights.dtype), count
 
 
+@njit(cache=_CACHE)
+def _largestRectangle(valid: np.ndarray) -> tuple[int, int, int, int]:
+    """(top, left, bottom, right), exclusive, of the largest all-True
+    rectangle: each row's run lengths upward as a histogram, whose largest
+    rectangle a stack finds."""
+    rows, cols = valid.shape
+    runs = np.zeros(cols + 1, np.int64)  # a 0 at the end empties the stack
+    stack = np.zeros(cols + 1, np.int64)
+    best, box = 0, (0, 0, 0, 0)
+    for r in range(rows):
+        for c in range(cols):
+            runs[c] = runs[c] + 1 if valid[r, c] else 0
+        size = 0
+        for c in range(cols + 1):
+            while size > 0 and runs[stack[size - 1]] >= runs[c]:
+                tall = runs[stack[size - 1]]
+                size -= 1
+                left = stack[size - 1] + 1 if size > 0 else 0
+                if tall * (c - left) > best:
+                    best = tall * (c - left)
+                    box = (r + 1 - tall, left, r + 1, c)
+            stack[size] = c
+            size += 1
+    return box
+
+
+def trimToRectangle(heights: np.ndarray) -> np.ndarray:
+    """Heights outside the largest rectangle that has data everywhere set
+    to NaN, for a block with straight sides."""
+    top, left, bottom, right = _largestRectangle(np.isfinite(heights))
+    trimmed = np.full_like(heights, np.nan)
+    trimmed[top:bottom, left:right] = heights[top:bottom, left:right]
+    return trimmed
+
+
 def buildTerrain(
     dem: VardaRaster,
     band: int = 0,
     maxSide: int = MAX_SIDE,
     size: tuple[float, float] | None = None,
     fill: bool = True,
+    trim: bool = False,
 ) -> Terrain:
     """``dem``'s ``band`` as a terrain grid at most ``maxSide`` vertices on a
-    side. ``size`` is its ``groundSize``: pass it when building on a worker
+    side, its gaps filled (``fill``) and trimmed to a rectangle (``trim``).
+    ``size`` is its ``groundSize``: pass it when building on a worker
     thread, as pyproj's CRS objects mustn't be shared between threads."""
     raw = dem.getBands([band])
     data = np.ma.filled(raw, np.nan) if np.ma.isMaskedArray(raw) else raw
@@ -159,6 +202,8 @@ def buildTerrain(
     filled = 0
     if fill:
         heights, filled = fillGaps(heights)
+    if trim:
+        heights = trimToRectangle(heights)
     return Terrain(heights, widthM, heightM, step, filled)
 
 

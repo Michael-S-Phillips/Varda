@@ -1,5 +1,13 @@
 # Sessions and saving results
 
+## Workspace tabs
+
+Workspaces open as tabs, which work like a web browser's: drag a tab to
+reorder it, drag it out of the tab bar (or double-click it) to open it in a
+window of its own, and close it with its × or a middle click. Closing a
+workspace's own window puts it back in the tabs. Sessions reopen the
+workspaces in the tabs' order.
+
 ## Sessions
 
 **File → Save Session…** (⌘S) writes a `.varda` file recording the open
