@@ -128,8 +128,16 @@ a CTX DEM say, on top of the surface:
    map-projected products are mostly just offset, or rigid, similarity,
    affine, projective, polynomial or a thin-plate spline for warped ones.
    The panel reports the tie points used and their RMS residual.
-4. **Shift E, N** moves the overlay by hand, in meters, after the fit;
-   **Reset Alignment** returns it to its georeferencing.
+   **Match using** chooses the image that is matched: the overlay itself,
+   or another loaded image with the same georeferencing. A parameter map
+   often has little texture to match, but a scene made from the same
+   observation (its reflectance convolved to the reference camera's band,
+   for example a CTX-like scene from CRISM) matches well, and the alignment
+   found for it moves the overlay.
+4. **Shift E, N** moves the overlay by hand, in meters, after the fit.
+   **Alignment: Copy** and **Paste** give another overlay the same
+   alignment (products of one observation share it); **Reset** returns the
+   overlay to its georeferencing.
 
 Overlays, their display settings and their alignments are saved with the
 session, and they're

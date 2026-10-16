@@ -4,7 +4,13 @@
 Opacity and visibility change the view at once (sigLook); a new overlay, new
 display settings or a new alignment need the textures built again
 (sigRebuild); Auto Align is the workspace's job (sigAlignRequested), as it
-needs the DEM and runs in the background."""
+needs the DEM and runs in the background.
+
+Auto Align can match another image than the overlay ("Match using"): a
+parameter map has little to match, but a scene simulated from the same
+observation (its reflectance convolved to the reference's band, say) shares
+its georeferencing, so the alignment found for it moves the overlay too.
+Alignments can also be copied from one overlay to another."""
 
 from __future__ import annotations
 
@@ -34,6 +40,7 @@ from varda.mosaicking.transforms import TransformModel
 from varda.terrain.overlays import Alignment
 
 HILLSHADE = "DEM hillshade"
+MATCH_ITSELF = "This overlay"
 DEFAULT_OPACITY = 0.85
 
 
@@ -45,6 +52,7 @@ class TerrainOverlay:
     visible: bool = True
     alignment: Alignment = field(factory=Alignment)
     reference: str = HILLSHADE  # what Auto Align matches against (an image's name)
+    matchWith: str = ""  # the image Auto Align matches for it (a name; "": itself)
 
     @classmethod
     def of(cls, image: VardaRaster) -> TerrainOverlay:
@@ -105,6 +113,14 @@ class OverlayPanel(QWidget):
             "grid (its orthoimage is best) or a hillshade of the DEM"
         )
         self.referenceBox.currentTextChanged.connect(self._onReference)
+        self.matchBox = QComboBox()
+        self.matchBox.setToolTip(
+            "The image Auto Align matches: the overlay itself, or another image "
+            "with the same georeferencing (e.g. a scene simulated from the same "
+            "observation, which matches better than a parameter map); the "
+            "alignment found moves the overlay"
+        )
+        self.matchBox.currentTextChanged.connect(self._onMatch)
         self.modelBox = QComboBox()
         for model in TransformModel:
             self.modelBox.addItem(model.value, model)
@@ -122,7 +138,16 @@ class OverlayPanel(QWidget):
             box.setSingleStep(5)
             box.setSuffix(" m")
             box.editingFinished.connect(self._onShift)
-        reset = QPushButton("Reset Alignment")
+        copy = QPushButton("Copy")
+        copy.setToolTip("Copy this overlay's alignment, to paste on another")
+        copy.clicked.connect(self.copyAlignment)
+        self.pasteButton = QPushButton("Paste")
+        self.pasteButton.setToolTip("Give this overlay the copied alignment")
+        self.pasteButton.setEnabled(False)
+        self.pasteButton.clicked.connect(self.pasteAlignment)
+        self._copied: dict | None = None  # a copied alignment's state
+        reset = QPushButton("Reset")
+        reset.setToolTip("Back to the overlay's own georeferencing")
         reset.clicked.connect(self._resetAlignment)
         self.alignment = MutedLabel("")
         self.alignment.setWordWrap(True)
@@ -137,13 +162,17 @@ class OverlayPanel(QWidget):
         form.addRow("Opacity:", self.opacity)
         form.addRow("", display)
         form.addRow("Align to:", self.referenceBox)
+        form.addRow("Match using:", self.matchBox)
         form.addRow("Model:", self.modelBox)
         form.addRow("", self.alignButton)
         shift = QHBoxLayout()
         shift.addWidget(self.shiftEast)
         shift.addWidget(self.shiftNorth)
         form.addRow("Shift E, N:", shift)
-        form.addRow("", reset)
+        alignment = QHBoxLayout()
+        for button in (copy, self.pasteButton, reset):
+            alignment.addWidget(button)
+        form.addRow("Alignment:", alignment)
         form.addRow(self.alignment)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -227,12 +256,19 @@ class OverlayPanel(QWidget):
         for widget in (
             self.opacity,
             self.referenceBox,
+            self.matchBox,
             self.modelBox,
             self.shiftEast,
             self.shiftNorth,
         ):
             widget.blockSignals(True)
         self.opacity.setValue(round(overlay.opacity * 100))
+        self.matchBox.clear()
+        self.matchBox.addItem(MATCH_ITSELF)
+        self.matchBox.addItems(
+            [i.name for i in self._candidates() if i is not overlay.image]
+        )
+        self.matchBox.setCurrentText(overlay.matchWith or MATCH_ITSELF)
         self.referenceBox.clear()
         self.referenceBox.addItems(
             [*[r.name for r in self._references() if r.bandCount == 1], HILLSHADE]
@@ -244,6 +280,7 @@ class OverlayPanel(QWidget):
         for widget in (
             self.opacity,
             self.referenceBox,
+            self.matchBox,
             self.modelBox,
             self.shiftEast,
             self.shiftNorth,
@@ -272,6 +309,24 @@ class OverlayPanel(QWidget):
         overlay = self.selected()
         if overlay is not None and name:
             overlay.reference = name
+
+    def _onMatch(self, name: str) -> None:
+        overlay = self.selected()
+        if overlay is not None and name:
+            overlay.matchWith = "" if name == MATCH_ITSELF else name
+
+    def copyAlignment(self) -> None:
+        overlay = self.selected()
+        if overlay is not None:
+            self._copied = overlay.alignment.state()
+            self.pasteButton.setEnabled(True)
+
+    def pasteAlignment(self) -> None:
+        overlay = self.selected()
+        if overlay is not None and self._copied is not None:
+            overlay.alignment = Alignment.fromState(self._copied)
+            self.showSelected()
+            self.sigRebuild.emit()
 
     def _onModel(self, _index: int) -> None:
         overlay = self.selected()

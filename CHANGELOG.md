@@ -40,6 +40,18 @@ can alter results.
     open General Image Analysis workspaces (on any georeferenced image of the
     DEM's body), to drape all or one at a time, with no file in between; a
     **Profiles** panel plots the DEM along the lines.
+  - **Alignment transfer:** **Match using** runs Auto Align on another image
+    with the overlay's georeferencing (e.g. a CTX-like scene simulated from
+    the same CRISM observation) and moves the overlay (e.g. its parameter
+    map) by the result; **Copy** and **Paste** give another overlay the
+    same alignment.
+- **Convolve to Sensor Bands** (Processing → Spectral Parameters): a cube
+  with wavelengths in another sensor's bands, each weighted by its spectral
+  response (bad bands and no-data left out, uncovered bands skipped):
+  approximate built-in CTX, HiRISE, THEMIS VIS, Landsat 8-9 OLI and
+  Sentinel-2 MSI bands, a response file, or typed center/FWHM bands. CRISM
+  reflectance as a CTX scene aligns to a CTX orthoimage where the cube's own
+  bands don't.
 - **Workspace tabs work like a browser's:** drag them into order (sessions
   keep it), drag one out of the tab bar to open it in its own window, and
   middle-click to close.

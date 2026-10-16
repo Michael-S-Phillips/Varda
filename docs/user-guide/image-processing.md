@@ -35,6 +35,34 @@ The Iterative Outlier Voting Filter (IOVF) removes isolated spikes, judging
 each value against its neighbors in both space and wavelength. Spectral
 filters added by plugins (a spectral smoothing filter, say) go here too.
 
+## Convolve to sensor bands (Spectral Parameters)
+
+**Convolve to Sensor Bands** turns a cube with wavelengths into another
+sensor's bands: each band is the mean of the cube's bands weighted by that
+band's spectral response. Bad bands and no-data values are left out. A band
+the cube covers less than 90% of (HiRISE BG below CRISM's first band, say)
+is skipped, and the result's description lists it.
+
+Built in: MRO CTX, MRO HiRISE (BG, RED, NIR), Mars Odyssey THEMIS VIS,
+Landsat 8-9 OLI and Sentinel-2 MSI. These are approximations (boxcars from
+published band edges, or Gaussians from published centers and widths),
+close enough to make a scene for matching. For values that matter, choose
+**Custom bands** and give the sensor's response file: a CSV with a header
+row, then wavelength (`wavelength_um` or `wavelength_nm` in the header
+names the unit) and one column of response per band. Custom bands can also
+be typed as center/FWHM in nm: `Red 650/40; NIR 860/30`.
+
+A use: **aligning a hyperspectral product to a camera.** A CRISM parameter
+map has little texture to match against CTX, but CRISM reflectance
+convolved to the CTX band looks like CTX. In a 3D Terrain workspace, add the
+parameter map as an overlay, set **Match using** to the CTX-like scene and
+click **Auto Align**: the alignment found for the scene moves the parameter
+map (see [3D Terrain](3d-terrain.md)). Over Jezero, matching CRISM's own
+best band against the CTX orthoimage finds one false match; the CTX-like
+scene finds ten tie points, RMS 11 m. (CTX's band, 500-800 nm, lies in
+CRISM's VNIR detector, so use joined or VNIR data rather than an IR-only
+cube.)
+
 ## Texture (Statistics)
 
 - **Local Statistics (Texture):** the mean, standard deviation, variance,
