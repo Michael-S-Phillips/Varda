@@ -22,8 +22,8 @@ grid already ticked. Choose two or more, and how to link them:
 - The views pan and zoom together.
 - **Ctrl+click** in any view puts the cursor (yellow) on every view, and the
   **Linked Spectra** panel plots each image's spectrum there, one plot per
-  image so that each keeps its own units (a spectrum, a count, a flag).
-  Images with the same wavelengths share the horizontal axis. **Ctrl+drag**
+  image so that each keeps its own units (a spectrum, a count, a flag); each
+  plot pans and zooms on its own. **Ctrl+drag**
   updates the spectra as you go. Bad bands and no-data values show as gaps.
   **Export…** saves the spectra at the cursor as CSV.
 - A **bit mask** shows as bits by wavelength instead of a number: a

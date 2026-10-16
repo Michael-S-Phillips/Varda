@@ -1,7 +1,7 @@
 """Linked spectra: one plot per image, stacked, each showing that image's
 spectrum where the linked cursor is. Products of one pipeline (a result,
-its sample counts, its flags) have different units, so each gets its own
-vertical axis; images with the same spectral axis share the horizontal one.
+its sample counts, its flags) have different units, so each plot has its
+own axes and pans and zooms on its own.
 
 A bit mask (a pipeline's per-frame exclusions: bit i set where frame i was
 left out) reads better as bits than as a number: such images show as a
@@ -122,7 +122,6 @@ class LinkedSpectraPanel(QWidget):
     def showAt(self, positions: Sequence[np.ndarray]) -> None:
         """Each image's spectrum at its position (image coordinates)."""
         self._positions = list(positions)
-        axes: dict[str, pg.PlotItem] = {}
         for i, (image, point) in enumerate(zip(self.images, positions)):
             x, y = (float(v) for v in np.asarray(point).reshape(-1)[:2])
             spectrum = spectrumAt(image, x, y)
@@ -144,11 +143,6 @@ class LinkedSpectraPanel(QWidget):
                 plot.setLabel("left", "")
             plot.setTitle(title, size="9pt")
             plot.setLabel("bottom", spectrum.axisLabel)
-            # plots on the same spectral axis pan and zoom together
-            first = axes.setdefault(spectrum.axisLabel, plot)
-            plot.getViewBox().setXLink(
-                first.getViewBox() if first is not plot else None
-            )
 
     def _showBits(self, index: int, spectrum: LinkedSpectrum) -> str:
         """Draw a spectrum of bit masks as bits by wavelength; returns how
