@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing_extensions import override
 from typing import Callable
 
-from PyQt6.QtCore import Qt, QEvent, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QEvent, QPoint, QSize, pyqtSignal
 from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QApplication,
 )
-from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtGui import QColor, QMouseEvent, QPalette
 import PyQt6Ads as ads
 
 
@@ -351,10 +351,15 @@ class FileInputDialog(QDialog):
 
 
 class DetachableTabWidget(QTabWidget):
+    """Tabs that work like a browser's: drag them into order, drag one out of
+    the bar (or double-click it) to open it in a window of its own, close one
+    with its button or a middle click. Closing the window puts it back."""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setTabBar(self.DetachableTabBar(self))
         self.setTabsClosable(True)
+        self.setMovable(True)
         self.detachedWindows = {}
 
     def discardTab(self, widget: QWidget) -> None:
@@ -369,15 +374,21 @@ class DetachableTabWidget(QTabWidget):
                 self.removeTab(index)
         widget.setParent(None)
 
-    def detachTab(self, index):
+    def detachTab(self, index, at: QPoint | None = None):
+        """Open tab ``index`` in its own window (with its title bar at the
+        screen position ``at``, if given)."""
         widget = self.widget(index)
         if widget is None:
             return
 
         label = self.tabText(index)
+        size = widget.size()
         self.removeTab(index)
 
         detachedTabWindow = self.DetachedTabWindow(label, widget, self)
+        detachedTabWindow.resize(size)
+        if at is not None:
+            detachedTabWindow.move(at - QPoint(60, 10))
         detachedTabWindow.show()
 
         self.detachedWindows[widget] = detachedTabWindow
@@ -388,9 +399,49 @@ class DetachableTabWidget(QTabWidget):
         self.setCurrentWidget(widget)
 
     class DetachableTabBar(QTabBar):
+        TEAR_OFF = 40  # px the pointer must leave the bar by to tear a tab off
+
         def __init__(self, parentTabWidget):
             super().__init__()
             self.parentTabWidget = parentTabWidget
+            self._dragging = False
+
+        def mousePressEvent(self, event):
+            index = self.tabAt(event.position().toPoint())
+            if event.button() == Qt.MouseButton.MiddleButton and index != -1:
+                self.parentTabWidget.tabCloseRequested.emit(index)
+                return
+            self._dragging = event.button() == Qt.MouseButton.LeftButton and index != -1
+            super().mousePressEvent(event)
+
+        def mouseMoveEvent(self, event):
+            super().mouseMoveEvent(event)
+            margin = self.TEAR_OFF
+            outside = (
+                not self.rect()
+                .adjusted(-margin, -margin, margin, margin)
+                .contains(event.position().toPoint())
+            )
+            if self._dragging and outside:
+                self._dragging = False
+                # end the bar's own drag before the tab leaves it
+                super().mouseReleaseEvent(
+                    QMouseEvent(
+                        QEvent.Type.MouseButtonRelease,
+                        event.position(),
+                        event.globalPosition(),
+                        Qt.MouseButton.LeftButton,
+                        Qt.MouseButton.NoButton,
+                        event.modifiers(),
+                    )
+                )
+                self.parentTabWidget.detachTab(
+                    self.currentIndex(), event.globalPosition().toPoint()
+                )
+
+        def mouseReleaseEvent(self, event):
+            self._dragging = False
+            super().mouseReleaseEvent(event)
 
         def mouseDoubleClickEvent(self, event):
             index = self.tabAt(event.pos())

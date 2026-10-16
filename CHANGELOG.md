@@ -40,6 +40,9 @@ can alter results.
     open General Image Analysis workspaces (on any georeferenced image of the
     DEM's body), to drape all or one at a time, with no file in between; a
     **Profiles** panel plots the DEM along the lines.
+- **Workspace tabs work like a browser's:** drag them into order (sessions
+  keep it), drag one out of the tab bar to open it in its own window, and
+  middle-click to close.
 - **Lines and profiles** (General Image Analysis): draw straight lines,
   polylines or freehand lines with **Draw Line**, listed in the new **Lines**
   tab (rename, recolor, delete, export to GIS files) and saved with the
