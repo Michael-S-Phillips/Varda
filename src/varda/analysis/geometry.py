@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import numpy as np
 from affine import Affine
+from PyQt6.QtWidgets import QWidget
 from scipy import ndimage
 
 from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.bandwise import fillGaps, readBand
+from varda.analysis.crop_preview import CropPreview
 from varda.analysis.rasters import sameBandsRaster
 from varda.common.entities import VardaRaster
 from varda.common.parameter import (
@@ -213,9 +215,10 @@ class SubsetAnalysis(Analysis):
     name = "Subset (Crop Rows, Columns, Bands)"
     category = CATEGORY
     description = (
-        "Keep part of the image: a range of rows and columns (1-based, "
-        "inclusive) and a list of bands like 1-100, 150-200. Wavelengths, "
-        "band names, bad bands and the georeferencing follow."
+        "Keep part of the image: drag the box on the preview (or type the "
+        "rows and columns, 1-based and inclusive) and drag ranges on its "
+        "spectrum (or type bands like 1-100, 150-200). Wavelengths, band "
+        "names, bad bands and the georeferencing follow."
     )
 
     firstRow = IntParameter("First Row", 1, range=(1, 1_000_000), description="1-based")
@@ -231,8 +234,16 @@ class SubsetAnalysis(Analysis):
     bands = StringParameter("Bands", "", "e.g. 1-100, 150-200 (empty keeps all)")
 
     def prepareFor(self, image: VardaRaster) -> None:
-        self.lastRow.set(image.height)
-        self.lastColumn.set(image.width)
+        # the whole image to start, with ranges (and sliders) that fit it
+        self.firstRow.setRange((1, image.height), value=1)
+        self.lastRow.setRange((1, image.height), value=image.height)
+        self.firstColumn.setRange((1, image.width), value=1)
+        self.lastColumn.setRange((1, image.width), value=image.width)
+
+    def createPreviewWidget(self, image: VardaRaster) -> QWidget | None:
+        """The image with a box for the rows and columns, and the box's
+        mean spectrum with ranges for the bands."""
+        return CropPreview(image, self)
 
     def bandList(self, image: VardaRaster) -> list[int]:
         text = self.bands.value.strip()

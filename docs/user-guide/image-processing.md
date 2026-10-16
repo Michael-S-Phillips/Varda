@@ -123,8 +123,13 @@ example, 1000 for kilometers of elevation over meters of pixel size).
   with nearest neighbor (use it for class maps), bilinear or cubic
   interpolation.
 - **Rotate / Flip:** quarter turns and mirrors.
-- **Subset:** keeps a range of rows and columns and a list of bands such as
-  `1-100, 150-200`.
+- **Subset:** keeps a range of rows and columns and a list of bands. Its
+  preview shows the image with a box: drag it over the part to keep, or
+  resize it by its corners. Below, the box's mean spectrum shows the bands
+  to keep as shaded ranges: drag their edges, **Add Range** for another,
+  double-click one to remove it, **Keep All Bands** to start over. The
+  rows, columns and bands (`1-100, 150-200`) can also be typed, and box
+  and ranges follow.
 
 - **Crop to ROI:** crops to the ROIs of the classes you tick. Pixels
   outside them can become no-data, so later processing sees only the ROIs.
