@@ -167,8 +167,9 @@ class WeightedPcaAnalysis(_ComponentAnalysis):
         "same grid: per band (the same bands) or per pixel (one band), such as "
         "sample counts or uncertainties. Values with no weight, missing values "
         "and bad bands move neither the components nor a pixel's scores, so "
-        "flagged values can be left out by weighting them 0 (Band Math: "
-        "COUNT * (FLAGS == 0)). Equal weights give ordinary PCA."
+        "flagged values can be left out by weighting them 0 (Band Math, e.g. "
+        "frames used where unflagged: (20 - COUNT) * (FLAG05 == 0)). Equal "
+        "weights give ordinary PCA."
     )
     suffix = "WPCA"
     components = _componentsParameter()

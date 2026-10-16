@@ -63,6 +63,18 @@ scene finds ten tie points, RMS 11 m. (CTX's band, 500-800 nm, lies in
 CRISM's VNIR detector, so use joined or VNIR data rather than an IR-only
 cube.)
 
+## Bit masks (Statistics)
+
+**Decode Bit Mask** reads images whose values are sets of bits, such as a
+pipeline's per-frame exclusions (bit *i* set where frame *i* of a stack was
+left out) or a quality band, band by band: the **number of bits set**, **one
+bit** (1 where it's set), or **any of the bits** (1 where any is set; bits
+written like `0, 3-5`). No-data stays no-data.
+
+For MISE's example products, the number of bits set in EXCLUDE reproduces
+COUNT exactly, value for value: a check that the pipeline's two products
+agree. One bit (frame 0, say) shows where that frame was left out.
+
 ## Texture (Statistics)
 
 - **Local Statistics (Texture):** the mean, standard deviation, variance,

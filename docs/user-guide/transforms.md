@@ -25,9 +25,11 @@ uncertainties σ (weighted 1/σ²).
 
 Values with no weight change nothing: they don't bend the components, and
 each pixel's scores are fitted to its weighted values only. Missing values
-and bad bands have no weight. To leave out flagged values, weight them 0:
-for a pipeline's sample counts and flags, make the weights with Band Math
-(`COUNT * (FLAGS == 0)`). With equal weights it is ordinary PCA.
+and bad bands have no weight. Make the weights with Band Math from a
+pipeline's products, and leave out flagged values by weighting them 0. For
+MISE's products, whose COUNT is the number of frames left out of a stack of
+20 and whose FLAG05 marks values with more than 5 left out, that's
+`(20 - COUNT) * (FLAG05 == 0)`. With equal weights it is ordinary PCA.
 
 The covariance is the weighted one of Delchambre (2015, *MNRAS* 446,
 3545). Each pixel's scores are a small fit, so Weighted PCA starts at 10

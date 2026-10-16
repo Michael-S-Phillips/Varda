@@ -147,3 +147,27 @@ def test_the_new_workspace_dialog_offers_the_images_on_one_grid(qtbot, products)
     assert dialog.chosen() == products  # the first image's grid, ticked
     dialog.linkBox.setCurrentText(Link.MAP.value)
     assert dialog.link() is Link.MAP
+
+
+def test_a_bit_mask_shows_as_bits_by_wavelength(qtbot, products):
+    exclude = VardaRaster(
+        ArrayDataSource(
+            np.full((20, 30, 6), 0b1000000000000000101, np.uint32),
+            wavelengths=np.linspace(1.0, 5.0, 6),
+            wavelengthUnits="micrometers",
+        ),
+        name="MISE_EXCLUDE",
+    )
+    widget = LinkedImagesWorkspace([products[0], exclude], [], Link.PIXEL)
+    qtbot.addWidget(widget)
+    panel = widget.spectra
+    assert panel.asBits == [False, True]  # named like a mask, whole numbers
+    widget.placeCursor(0, 3.5, 3.5)
+    shown = panel.bitImages[1].image
+    assert shown is not None and shown.shape == (19, 6)  # bits 0-18 by band
+    np.testing.assert_array_equal(shown[[0, 1, 2, 18], 0], [1, 0, 1, 1])
+    assert "18 bits set, 3.0 per band" in panel.plots[1].titleLabel.text
+    panel.bitBoxes[exclude.name].setChecked(False)  # back to a line
+    assert not panel.asBits[1]
+    _, values = panel.curves[1].getData()
+    assert values[0] == 0b1000000000000000101

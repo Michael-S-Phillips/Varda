@@ -8,7 +8,13 @@ from pyproj import CRS
 
 from varda.common.entities import VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
-from varda.workspaces.linked_images.linking import Link, linkedPoints, spectrumAt
+from varda.workspaces.linked_images.linking import (
+    Link,
+    bitPlanes,
+    highestBit,
+    linkedPoints,
+    spectrumAt,
+)
 
 EQC = CRS.from_user_input("+proj=eqc +R=3396190 +units=m +no_defs")
 
@@ -72,3 +78,13 @@ def test_a_spectrum_leaves_out_no_data_and_bad_bands():
     assert spectrumAt(image, -1, 3) is None  # off the image
     plain = spectrumAt(_image(), 2, 2)
     assert plain is not None and plain.axisLabel == "Band"
+
+
+def test_a_spectrum_of_bit_masks_becomes_bits_by_band():
+    values = np.array([5.0, 0.0, np.nan, 2.0])
+    planes = bitPlanes(values, 3)
+    np.testing.assert_array_equal(
+        planes[:, [0, 1, 3]], [[1, 0, 0], [0, 0, 1], [1, 0, 0]]
+    )
+    assert np.isnan(planes[:, 2]).all()
+    assert highestBit(values) == 3 and highestBit(np.array([np.nan])) == 1
