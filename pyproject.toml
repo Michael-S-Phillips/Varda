@@ -130,6 +130,7 @@ source_modules = [
     "varda.lines.line_collection",
     "varda.terrain.scene",
     "varda.terrain.overlays",
+    "varda.terrain.solid",
 ]
 forbidden_modules = ["PyQt6"]
 ignore_imports = [

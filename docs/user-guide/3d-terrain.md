@@ -27,6 +27,23 @@ Drag to orbit, right-drag (or Shift-drag) to pan, and scroll to zoom.
 keeps the current camera by name; double-click a saved view to return to it.
 Views and settings are saved with the session.
 
+## Block diagrams and 3D printing
+
+- **Sides (block diagram)** stands the surface on walls down to a flat base,
+  like a cut block. **Base depth** is how far below the lowest point the
+  base is (Automatic: a quarter of the relief); it's exaggerated with the
+  heights.
+- **Fill gaps** (on by default) fills no-data gaps inside the DEM, such as a
+  DTM's voids on steep slopes, from the heights around them, so they don't
+  show as pits. No data around the outside of the DEM stays empty.
+- **Export for 3D Printing…** saves the terrain as a closed solid in STL,
+  the format slicers (Cura, PrusaSlicer, Bambu Studio and others) open.
+  Choose the **width** in millimeters, the **exaggeration**, the **base**
+  under the lowest point (3 mm by default), and the **detail** (points on
+  the longer side; 512 suits most printers). The dialog shows the size it
+  will print. The solid is watertight, with sides around any gaps left
+  unfilled, so it's ready to slice.
+
 ## Figures and web pages
 
 - **Export Still…** renders the view as a PNG at HD, 4K, 8K, a 3000 px

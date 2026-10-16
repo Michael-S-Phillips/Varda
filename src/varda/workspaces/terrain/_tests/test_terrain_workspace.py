@@ -15,6 +15,7 @@ from varda.utilities.debug import generate_perlin_noise_3d
 from varda.workspaces.terrain.terrain_workspace import (
     ELEVATION,
     PLAIN,
+    PrintDialog,
     StillDialog,
     TerrainWorkspace,
 )
@@ -162,3 +163,31 @@ def test_overlays_come_back_from_a_session(workspace, images, qtbot):
     (back,) = restored.overlayPanel.overlays
     assert back.image is overlay and back.opacity == 0.4
     assert back.alignment.shift == (12.0, -3.0)
+
+
+def test_sides_are_a_setting_the_view_gets(workspace):
+    workspace.sides.setChecked(True)
+    workspace.baseDepth.setValue(150)
+    assert workspace.settings.sides and workspace.settings.baseDepth == 150
+    assert workspace.form.isRowVisible(workspace.baseDepth)
+    assert workspace.sessionState()["settings"]["sides"] is True
+
+
+def test_the_print_dialog_shows_the_printed_size(workspace, qtbot):
+    dialog = PrintDialog(workspace.terrain, 2.0)
+    qtbot.addWidget(dialog)
+    dialog.widthBox.setValue(120)
+    width, depth, height = dialog.printedSize()
+    assert (width, depth) == pytest.approx((120, 80))  # a 1200 × 800 m DEM
+    # 200 m of relief at 0.1 mm per meter, doubled, on a 3 mm base
+    assert height == pytest.approx(200 * 0.1 * 2 + 3, abs=0.5)
+    assert "120 × 80" in dialog.sizeLabel.text()
+
+
+def test_the_stl_export_writes_a_closed_solid(workspace, qtbot, tmp_path):
+    path = tmp_path / "dem.stl"
+    workspace.savePrint(str(path), 120.0, 2.0, 3.0, 256)
+    qtbot.waitUntil(lambda: "Saved a solid" in workspace.status.text(), timeout=10000)
+    data = path.read_bytes()
+    count = int.from_bytes(data[80:84], "little")
+    assert count > 1000 and len(data) == 84 + 50 * count

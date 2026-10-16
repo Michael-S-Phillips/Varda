@@ -16,6 +16,7 @@ from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.terrain.scene import (
     TerrainSettings,
     buildTerrain,
+    fillGaps,
     groundSize,
     pageHtml,
     pngDataUrl,
@@ -93,3 +94,14 @@ def test_the_page_is_self_contained_and_safe_to_inline():
 def test_settings_ignore_keys_they_do_not_know():
     settings = TerrainSettings.fromDict({"exaggeration": 2.5, "future": 1})
     assert settings.exaggeration == 2.5 and settings.toDict()["sunAzimuth"] == 315
+
+
+def test_gaps_inside_the_data_are_filled_but_the_outside_stays_empty():
+    yy, xx = np.mgrid[0:30, 0:40]
+    heights = (xx * 2.0).astype(np.float32)
+    heights[10:14, 15:20] = np.nan  # a void on a slope
+    heights[:, :3] = np.nan  # no data around the outside
+    filled, count = fillGaps(heights)
+    assert count == 20
+    assert np.isfinite(filled[10:14, 15:20]).all() and np.isnan(filled[:, :3]).all()
+    assert filled[12, 17] == pytest.approx(34, abs=3)  # follows the slope
