@@ -14,6 +14,7 @@ from varda.image_rendering.raster_view.viewport_tools.ratio_explorer_tool import
     RatioExplorerTool,
 )
 from varda.image_rendering.raster_view.viewport_tools.roi_tools import ROIDrawTool
+from varda.image_rendering.raster_view.viewport_tools.line_tools import LineDrawTool
 from varda.image_rendering.raster_view.viewport_tools.crop_tool import CropTool
 
 
@@ -120,3 +121,5 @@ class ToolRegistry:
 
         # ROI drawing: one toggle; the shape is picked in the ROI manager
         self.registerTool(ROIDrawTool)
+        # Lines for profiles: one toggle; the kind is picked in the Lines manager
+        self.registerTool(LineDrawTool)

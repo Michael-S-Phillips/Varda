@@ -34,12 +34,17 @@ from varda.image_rendering.raster_view.viewport_tools.ratio_explorer_tool import
     RatioExplorerTool,
 )
 from varda.image_rendering.raster_view.viewport_tools.crop_tool import CropTool
+from varda.image_rendering.raster_view.viewport_tools.line_tools import LineDrawTool
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.common.parameter import ImageParameter, ParameterGroup
 from varda.plotting.pixel_spectra_plot import PixelSpectraPlotWidget
 from varda.plotting.plot import VardaPlotWidget
 from varda.points.point_collection import PointCollection
 from varda.points.point_manager_widget import PointManagerWidget
+from varda.lines.line_collection import LineCollection
+from varda.lines.line_manager_widget import LineManagerWidget
+from varda.plotting.profile_plot import ProfilePlotWidget
+from varda.workspaces.line_display import LineDisplay
 from varda.workspaces.raster_overlay import OverlayBar
 from varda.workspaces.pixel_markers import PixelMarkerController
 from varda.workspaces.pixel_spectra_docks import PixelSpectraDocks
@@ -174,6 +179,10 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # Saved pixel points (from the pixel-spectra plots' Save Point)
         self.pointCollection = PointCollection()
         self.pointManagerWidget = PointManagerWidget(self.pointCollection, parent=self)
+        # Lines (Draw Line) and their profiles
+        self.lineCollection = LineCollection()
+        self.lineManagerWidget = LineManagerWidget(self.lineCollection, image, self)
+        self.profilePlot = ProfilePlotWidget(image, self)
         self.ratioExplorerConfig = RatioExplorerConfig()
 
         # --- Viewport context menu (place template) ---
@@ -230,6 +239,10 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.roiDock.setWidget(self.roiManagerWidget)
         self.pointsDock = VardaDockWidget("Points Manager")
         self.pointsDock.setWidget(self.pointManagerWidget)
+        self.linesDock = VardaDockWidget("Lines")
+        self.linesDock.setWidget(self.lineManagerWidget)
+        self.profilesDock = VardaDockWidget("Profiles")
+        self.profilesDock.setWidget(self.profilePlot)
 
         # roiDockNew = Dock("ROI Dock", widget=self.roiManagerWidget, size=(100, 100))
         # docks.append(roiDockNew)
@@ -264,6 +277,11 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         self.dockManager.addDockWidget(
             ads.DockWidgetArea.CenterDockWidgetArea,
             self.pointsDock,
+            self.roiDock.dockAreaWidget(),
+        )
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.linesDock,
             self.roiDock.dockAreaWidget(),
         )
         self.roiDock.setAsCurrentTab()
@@ -306,6 +324,17 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
         # All three views show the same image: show the boxes in each
         self.ratioExplorer.setMirrorViewports(viewports)
         self.pixelSpectraDocks.newPlot()
+        # Profiles tabbed with the ROI and pixel plots
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea,
+            self.profilesDock,
+            self.plotDock.dockAreaWidget(),
+        )
+        self.plotDock.setAsCurrentTab()
+        self.lineDisplay = LineDisplay(self.lineCollection, viewports, parent=self)
+        self.lineManagerWidget.sigSelectionChanged.connect(self._onLinesSelected)
+        self.lineCollection.sigCollectionChanged.connect(self._updateProfiles)
+        self.profilePlot.sigCursor.connect(self.lineDisplay.setCursor)
 
     def _configurePixelPlot(self, plot: PixelSpectraPlotWidget) -> None:
         # After the plot's "View" and "Pixel Spectra" sections
@@ -357,10 +386,39 @@ class GeneralImageAnalysisWorkflow(QMainWindow):
             )
         elif isinstance(tool, RatioExplorerTool):
             self.ratioExplorer.bindTool(tool)
+        elif isinstance(tool, LineDrawTool):
+            tool.setKindProvider(self.lineManagerWidget.kind)
+            tool.sigLineDrawn.connect(self._onLineDrawn)
         elif isinstance(tool, CropTool):
             tool.sigCropRequested.connect(
                 functools.partial(self._onCropRequested, tool.viewport.imageEntity)
             )
+
+    def _onLineDrawn(self, vertices, kind) -> None:
+        fid = self.lineCollection.addLine(vertices, kind)
+        self.lineManagerWidget.select([fid])  # its profile shows
+        self.profilesDock.toggleView(True)
+        self.profilesDock.setAsCurrentTab()
+
+    def _onLinesSelected(self, fids: list[int]) -> None:
+        self.lineDisplay.highlight(fids)
+        self._updateProfiles()
+
+    def _updateProfiles(self) -> None:
+        """The selected lines' profiles, or every line's when none is selected."""
+        selected = set(self.lineManagerWidget.selectedFids())
+        lines = self.lineCollection.lines()
+        self.profilePlot.setLines(
+            [line for line in lines if line.fid in selected] if selected else lines
+        )
+
+    # --- sessions ---------------------------------------------------------------
+
+    def sessionState(self) -> dict:
+        return {"lines": self.lineCollection.toJson()}
+
+    def restoreSessionState(self, state: dict) -> None:
+        self.lineCollection.addFromJson(state.get("lines", []))
 
     def _onCropRequested(self, image: VardaRaster, box: QRect) -> None:
         cropped = addCrop(image, box, self.config.imageList)

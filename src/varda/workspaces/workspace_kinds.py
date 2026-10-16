@@ -56,7 +56,9 @@ def buildWorkspace(
     if kind == "general":
         config = GeneralImageAnalysisConfig(projectImages)
         config.image.set(images[0])
-        return GeneralImageAnalysisWorkflow(config)
+        workspace = GeneralImageAnalysisWorkflow(config)
+        workspace.restoreSessionState(dict(extra or {}))
+        return workspace
     if kind == "dual" and len(images) == 2:
         config = DualImageWorkspaceConfig(projectImages)
         config.image1Param.set(images[0])

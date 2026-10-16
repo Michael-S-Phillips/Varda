@@ -22,6 +22,7 @@ from varda.image_rendering.raster_view.overlay_handles import (
     PyqtgraphCrosshair,
     PyqtgraphPointOverlay,
     PyqtgraphPolygonOverlay,
+    PyqtgraphPolylineOverlay,
     PyqtgraphROIOverlay,
     PyqtgraphTextOverlay,
 )
@@ -40,6 +41,7 @@ if TYPE_CHECKING:
         RasterViewport,
         CrosshairHandle,
         PolygonOverlayHandle,
+        PolylineOverlayHandle,
         PointOverlayHandle,
         TextOverlayHandle,
         ROIOverlayHandle,
@@ -371,6 +373,15 @@ class ImageViewport(QWidget):
         """Add a display-only ROI polygon overlay; returns a handle to drive it.
         It is clipped to the displayed image (a zoom panel's region)."""
         return PyqtgraphROIOverlay(self._vb, points, color, clipTo=self.imageBounds)
+
+    def addPolylineOverlay(
+        self, points: Sequence[QPointF], color: QColor, width: float = 2.0
+    ) -> "PolylineOverlayHandle":
+        """Add an open line overlay (a drawn line); returns a handle to drive
+        it. It is clipped to the displayed image (a zoom panel's region)."""
+        return PyqtgraphPolylineOverlay(
+            self._vb, points, color, width, clipTo=self.imageBounds
+        )
 
     def addPointOverlay(
         self, pos: QPointF, color: QColor, symbol: str = "x"
