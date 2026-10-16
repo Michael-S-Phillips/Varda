@@ -15,6 +15,12 @@ can alter results.
   16384 px (transparent background optional), and **Export Web Page**: a
   self-contained interactive HTML file for any browser. Built on three.js in
   Qt WebEngine, which Varda now includes.
+  - **Overlays:** drape images that aren't on the DEM's grid (e.g. a CRISM
+    parameter composite over a CTX DEM), each with its display settings and
+    opacity, aligned by **Auto Align** against the DEM's orthoimage or a
+    hillshade (the Mosaic workspace's matching; translation by default, up to
+    polynomial and thin-plate-spline warps) and a manual shift in meters.
+    Saved with the session and included in stills and web pages.
 - **Lines and profiles** (General Image Analysis): draw straight lines,
   polylines or freehand lines with **Draw Line**, listed in the new **Lines**
   tab (rename, recolor, delete, export to GIS files) and saved with the

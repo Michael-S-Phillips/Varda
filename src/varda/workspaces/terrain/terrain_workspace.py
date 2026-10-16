@@ -5,9 +5,14 @@ stills, and a self-contained web page to share."""
 
 from __future__ import annotations
 
-from collections.abc import MutableSequence
+import json
+from collections.abc import MutableSequence, Sequence
 
+import attrs
 import numpy as np
+from pyproj import CRS
+from rasterio.crs import CRS as RasterioCRS
+from rasterio.transform import array_bounds
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -24,6 +29,7 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QSplitter,
     QVBoxLayout,
@@ -37,7 +43,18 @@ from varda.common.ui import MutedLabel
 from varda.image_rendering.image_renderer import ImageRenderer, RenderMode
 from varda.image_rendering.render_parameters import StretchParameter
 from varda.image_rendering.stretch_algorithms import LinearPercentileStretch
+from varda.terrain.overlays import (
+    Alignment,
+    align,
+    asRaster,
+    bandArray,
+    bestBand,
+    hillshade,
+    toProjection,
+)
+from varda.terrain.overlays import drape as drapeOverlay
 from varda.terrain.scene import (
+    PageOverlay,
     Terrain,
     TerrainSettings,
     buildTerrain,
@@ -47,6 +64,8 @@ from varda.terrain.scene import (
 )
 from varda.utilities.background import runInBackground
 from varda.workspaces.raster_overlay import COLOR_MAPS, colorMap
+from varda.workspaces.find_data.basemap import imageBody
+from varda.workspaces.terrain.overlay_panel import OverlayPanel, TerrainOverlay
 from varda.workspaces.terrain.terrain_view import TerrainView
 
 PLAIN, ELEVATION = "None (shaded relief)", "Elevation colors"
@@ -59,6 +78,18 @@ STILL_SIZES = {
     "Square (3000 × 3000)": (3000, 3000),
 }
 MAX_STILL = 16384  # px on a side: WebGL's canvas limit
+
+
+def wktOf(image: VardaRaster) -> str:
+    """The image's map projection as WKT, for worker threads (which mustn't
+    share pyproj objects)."""
+    return CRS.from_user_input(image.crs).to_wkt()
+
+
+def mapBounds(image: VardaRaster) -> tuple[float, float, float, float]:
+    """(west, south, east, north) in the image's map units."""
+    west, south, east, north = array_bounds(image.height, image.width, image.transform)
+    return float(west), float(south), float(east), float(north)
 
 
 def drapeRgba(image: VardaRaster, elevation: str | None = None) -> np.ndarray:
@@ -142,6 +173,9 @@ class TerrainWorkspace(QMainWindow):
         self.views: dict[str, dict] = {}  # name -> camera
         self._camera: dict | None = None  # kept across page rebuilds
         self._building = 0  # the latest build (older results are dropped)
+        # the last built page's parts, for Export Web Page
+        self._texture: str | None = None
+        self._overlays: list[PageOverlay] = []
         self._restoring = False
 
         self.view = TerrainView()
@@ -149,7 +183,11 @@ class TerrainWorkspace(QMainWindow):
         self.view.sigFailed.connect(self._onFailed)
         self._buildPanel()
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(self.panel)
+        scroll = QScrollArea()  # the panel is tall; small screens scroll it
+        scroll.setWidget(self.panel)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        splitter.addWidget(scroll)
         splitter.addWidget(self.view)
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([320, 1100])
@@ -246,11 +284,17 @@ class TerrainWorkspace(QMainWindow):
         exports = QHBoxLayout()
         exports.addWidget(still)
         exports.addWidget(web)
+        self.overlayPanel = OverlayPanel(self._overlayCandidates, self._references)
+        self.overlayPanel.sigRebuild.connect(self.rebuild)
+        self.overlayPanel.sigLook.connect(self._onOverlayLook)
+        self.overlayPanel.sigAlignRequested.connect(self.autoAlign)
         self.status = MutedLabel("")
         self.status.setWordWrap(True)
         self.panel = QWidget()
         layout = QVBoxLayout(self.panel)
         layout.addLayout(form)
+        layout.addWidget(QLabel("<b>Overlays</b>"))
+        layout.addWidget(self.overlayPanel)
         layout.addWidget(QLabel("<b>Views</b>"))
         layout.addWidget(self.viewList, 1)
         layout.addLayout(viewButtons)
@@ -259,6 +303,74 @@ class TerrainWorkspace(QMainWindow):
 
     def dem(self) -> VardaRaster | None:
         return self.demBox.currentData()
+
+    def _overlayCandidates(self) -> list[VardaRaster]:
+        """Georeferenced images of the DEM's body, other than the DEM."""
+        dem = self.dem()
+        if dem is None or not dem.hasGeospatialData:
+            return []
+        body = imageBody(dem)
+        return [
+            image
+            for image in self.projectImages
+            if image is not dem and image.hasGeospatialData and imageBody(image) == body
+        ]
+
+    def _references(self) -> list[VardaRaster]:
+        dem = self.dem()
+        return [] if dem is None else compatibleImages(list(self.projectImages), dem)
+
+    def _onOverlayLook(self, index: int, opacity: float, visible: bool) -> None:
+        if self.view.ready:
+            look = json.dumps({"opacity": opacity, "visible": visible})
+            self.view.evaluate(
+                f"window.viewer.setOverlay({index}, {look})", lambda _: None
+            )
+
+    def autoAlign(self, index: int) -> None:
+        """Match overlay ``index`` against its reference and fit its model, in
+        the background; the textures are then built again."""
+        dem = self.dem()
+        if dem is None or not 0 <= index < len(self.overlayPanel.overlays):
+            return
+        overlay = self.overlayPanel.overlays[index]
+        reference = next(
+            (r for r in self._references() if r.name == overlay.reference), None
+        )
+        demWkt, overlayWkt = wktOf(dem), wktOf(overlay.image)
+        width, _ = groundSize(dem)
+        pixelMeters = width / dem.width
+        demTransform, overlayTransform = dem.transform, overlay.image.transform
+        model = overlay.alignment.model
+        image = overlay.image
+        self.overlayPanel.showAlignment(overlay, "Aligning…")
+
+        def work() -> Alignment:
+            crs = RasterioCRS.from_wkt(demWkt)
+            if reference is None:  # a hillshade of the DEM
+                heights = bandArray(dem, 0)
+                referenceData = hillshade(heights, pixelMeters)
+            else:
+                referenceData = bandArray(reference, 0)
+            fixed = asRaster(referenceData[..., None], demTransform, crs, "reference")
+            band = bandArray(image, bestBand(image))
+            moved, movedTransform = toProjection(
+                band[..., None], overlayTransform, overlayWkt, demWkt
+            )
+            return align(fixed, asRaster(moved, movedTransform, crs, image.name), model)
+
+        def done(alignment: Alignment) -> None:
+            overlay.alignment = alignment
+            self.overlayPanel.showAlignment(overlay, "Aligned.")
+            self.overlayPanel.showSelected()
+            self.rebuild()
+
+        def failed(error: Exception) -> None:
+            self.overlayPanel.showAlignment(overlay, str(error))
+
+        runInBackground(
+            work, done, failed, description="Aligning an overlay", owner=self
+        )
 
     def drapeImage(self) -> VardaRaster | None:
         data = self.drapeBox.currentData()
@@ -406,18 +518,54 @@ class TerrainWorkspace(QMainWindow):
             self.status.setText(f"The drape couldn't be drawn: {error}")
             rgba = None
         maxSide = DETAIL[self.detailBox.currentText()]
-        settings, title = self.settings, dem.name
-        size = groundSize(dem)  # pyproj, so here: its objects aren't thread-safe
+        title = dem.name
+        # pyproj objects aren't thread-safe: what needs them is taken here
+        size = groundSize(dem)
+        demWkt = wktOf(dem)
+        bounds = mapBounds(dem)
+        layers = []
+        for overlay in self.overlayPanel.overlays:
+            try:
+                layers.append(
+                    (
+                        overlay.image.name,
+                        np.asarray(overlay.renderer.render()),
+                        overlay.image.transform,
+                        wktOf(overlay.image),
+                        Alignment.fromState(overlay.alignment.state()),
+                        overlay.opacity,
+                        overlay.visible,
+                    )
+                )
+            except Exception as error:  # one broken overlay shouldn't stop the rest
+                self.status.setText(f"{overlay.image.name} couldn't be drawn: {error}")
         self.status.setText("Building the surface…")
 
-        def work() -> tuple[Terrain, str]:
+        def work() -> tuple[Terrain, str | None, list[PageOverlay]]:
             terrain = buildTerrain(dem, band, maxSide, size)
             texture = None if rgba is None else pngDataUrl(rgba)
-            return terrain, pageHtml(terrain, texture, settings, self._camera, title)
+            crs = RasterioCRS.from_wkt(demWkt)
+            draped = []
+            for name, layer, transform, wkt, alignment, opacity, visible in layers:
+                moved, movedTransform = toProjection(
+                    layer.astype(np.float32), transform, wkt, demWkt
+                )
+                result = drapeOverlay(moved, movedTransform, crs, alignment, bounds)
+                if result is not None:
+                    draped.append(
+                        PageOverlay(
+                            name,
+                            pngDataUrl(result.rgba),
+                            result.uvBounds,
+                            opacity,
+                            visible,
+                        )
+                    )
+            return terrain, texture, draped
 
         runInBackground(
             work,
-            lambda result: self._show(build, *result),
+            lambda result: self._show(build, title, *result),
             lambda error: self.status.setText(
                 f"The surface couldn't be built: {error}"
             ),
@@ -425,11 +573,23 @@ class TerrainWorkspace(QMainWindow):
             owner=self,
         )
 
-    def _show(self, build: int, terrain: Terrain, html: str) -> None:
+    def _show(
+        self,
+        build: int,
+        title: str,
+        terrain: Terrain,
+        texture: str | None,
+        overlays: list[PageOverlay],
+    ) -> None:
         if build != self._building:
             return  # a newer build is on its way
         self.terrain = terrain
-        self.view.showPage(html)
+        self._texture, self._overlays = texture, overlays
+        self.view.showPage(
+            pageHtml(
+                terrain, texture, self.settings, self._camera, title, overlays=overlays
+            )
+        )
 
     def _onReady(self) -> None:
         if self.terrain is None:
@@ -518,30 +678,45 @@ class TerrainWorkspace(QMainWindow):
             return
         dem = self.dem()
         title = dem.name if dem is not None else "Varda 3D view"
-        # the shown page has no reader controls and may predate the camera
-        drape = self.drapeBox.currentData()
-        rgba = (
-            None
-            if drape == PLAIN
-            else drapeRgba(dem, self.colorMapBox.currentText())
-            if drape == ELEVATION and dem is not None
-            else drapeRgba(drape)
-            if isinstance(drape, VardaRaster)
-            else None
+        looks = {o.image.name: o for o in self.overlayPanel.overlays}
+        overlays = [
+            attrs.evolve(
+                o, opacity=looks[o.name].opacity, visible=looks[o.name].visible
+            )
+            if o.name in looks
+            else o
+            for o in self._overlays
+        ]
+        html = pageHtml(
+            terrain, self._texture, self.settings, camera, title, True, overlays
         )
-        texture = None if rgba is None else pngDataUrl(rgba)
-        html = pageHtml(terrain, texture, self.settings, camera, title, panel=True)
         with open(path, "w", encoding="utf-8") as f:
             f.write(html)
         self.status.setText(f"Saved an interactive web page to {path}.")
 
     # --- sessions ------------------------------------------------------------------------
 
+    def sessionImages(self) -> list[VardaRaster]:
+        """The images a session must keep for this workspace: the DEM, the
+        drape image (if any), then the overlays."""
+        dem, drape = self.dem(), self.drapeImage()
+        images = [image for image in (dem, drape) if image is not None]
+        return images + [o.image for o in self.overlayPanel.overlays]
+
     def sessionState(self) -> dict:
         drape = self.drapeBox.currentData()
         return {
             "band": int(self.bandBox.currentData() or 0),
             "drape": drape if isinstance(drape, str) else "image",
+            "overlays": [
+                {
+                    "opacity": o.opacity,
+                    "visible": o.visible,
+                    "reference": o.reference,
+                    "alignment": o.alignment.state(),
+                }
+                for o in self.overlayPanel.overlays
+            ],
             "colorMap": self.colorMapBox.currentText(),
             "detail": self.detailBox.currentText(),
             "settings": self.settings.toDict(),
@@ -550,10 +725,22 @@ class TerrainWorkspace(QMainWindow):
         }
 
     def restoreSessionState(
-        self, state: dict, drape: VardaRaster | None = None
+        self, state: dict, images: Sequence[VardaRaster] = ()
     ) -> None:
+        """``images``: the session's images after the DEM (``sessionImages``)."""
+        images = list(images)
+        drape = images.pop(0) if state.get("drape") == "image" and images else None
         self._restoring = True
         try:
+            overlays = []
+            for image, saved in zip(images, state.get("overlays", [])):
+                overlay = TerrainOverlay.of(image)
+                overlay.opacity = float(saved.get("opacity", overlay.opacity))
+                overlay.visible = bool(saved.get("visible", True))
+                overlay.reference = saved.get("reference", overlay.reference)
+                overlay.alignment = Alignment.fromState(saved.get("alignment", {}))
+                overlays.append(overlay)
+            self.overlayPanel.setOverlays(overlays)
             self.settings = TerrainSettings.fromDict(state.get("settings", {}))
             self._showSettings()
             index = self.bandBox.findData(state.get("band", 0))

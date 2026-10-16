@@ -89,16 +89,50 @@ terrain.castShadow = true;
 terrain.receiveShadow = true;
 world.add(terrain);
 
-const textureReady = new Promise((resolve) => {
-  if (!scene.texture) { material.color.set("#b8b0a4"); resolve(); return; }
-  new THREE.TextureLoader().load(scene.texture, (texture) => {
+const loader = new THREE.TextureLoader();
+function loadTexture(url) {
+  return new Promise((resolve) => loader.load(url, (texture) => {
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    resolve(texture);
+  }));
+}
+
+const textures = [];
+if (scene.texture) {
+  textures.push(loadTexture(scene.texture).then((texture) => {
     material.map = texture;
     material.needsUpdate = true;
-    resolve();
+  }));
+} else {
+  material.color.set("#b8b0a4");
+}
+
+// Overlays: images draped over part of the DEM, each its own layer (the
+// same surface, drawn just in front of the one below) with its own opacity
+const overlays = (scene.overlays || []).map((overlay, index) => {
+  const layer = new THREE.MeshStandardMaterial({
+    roughness: 0.95, metalness: 0, transparent: true, depthWrite: false,
+    opacity: overlay.opacity ?? 1,
+    polygonOffset: true, polygonOffsetFactor: -2 * (index + 1), polygonOffsetUnits: -2 * (index + 1),
   });
+  const mesh = new THREE.Mesh(geometry, layer);
+  mesh.receiveShadow = true;
+  mesh.visible = overlay.visible ?? true;
+  mesh.renderOrder = index + 1;
+  terrain.add(mesh); // so it follows the exaggeration
+  const [west, south, east, north] = overlay.uvBounds;
+  textures.push(loadTexture(overlay.texture).then((texture) => {
+    // the texture covers only its bounds; its clear border clamps outside them
+    texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.repeat.set(1 / (east - west), 1 / (north - south));
+    texture.offset.set(-west / (east - west), -south / (north - south));
+    layer.map = texture;
+    layer.needsUpdate = true;
+  }));
+  return { mesh, layer };
 });
+const textureReady = Promise.all(textures);
 
 // --- light ----------------------------------------------------------------
 
@@ -188,6 +222,12 @@ window.viewer = {
     controls.update();
   },
   home,
+  setOverlay(index, changes) {
+    const overlay = overlays[index];
+    if (!overlay) return;
+    if ("opacity" in changes) overlay.layer.opacity = changes.opacity;
+    if ("visible" in changes) overlay.mesh.visible = changes.visible;
+  },
   // A still at any size (within the GPU's limits), as a PNG data URL
   still(width, height, transparent) {
     const size = new THREE.Vector2();

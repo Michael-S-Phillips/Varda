@@ -44,8 +44,7 @@ def describeWorkspace(workspace: object) -> tuple[str, list[VardaRaster]] | None
     if isinstance(workspace, FindDataWorkspace):
         return "find_data", []
     if isinstance(workspace, TerrainWorkspace):
-        dem, drape = workspace.dem(), workspace.drapeImage()
-        return "terrain", [image for image in (dem, drape) if image is not None]
+        return "terrain", workspace.sessionImages()
     return None
 
 
@@ -82,8 +81,7 @@ def buildWorkspace(
         return workspace
     if kind == "terrain" and images:
         workspace = TerrainWorkspace(projectImages, images[0])
-        drape = images[1] if len(images) > 1 else None
-        workspace.restoreSessionState(dict(extra or {}), drape)
+        workspace.restoreSessionState(dict(extra or {}), images[1:])
         return workspace
     logger.warning("Unknown workspace kind %r; skipped", kind)
     return None
