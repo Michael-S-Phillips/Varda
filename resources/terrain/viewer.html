@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #101418;
+    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  #view { position: absolute; inset: 0; }
+  #panel { position: absolute; top: 12px; left: 12px; padding: 10px 12px; border-radius: 8px;
+    background: rgba(16, 20, 24, 0.78); color: #e8e8e8; display: grid;
+    grid-template-columns: auto 140px; gap: 6px 10px; align-items: center; }
+  #panel h1 { grid-column: 1 / -1; margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+  #panel button { grid-column: 1 / -1; }
+  #credit { position: absolute; right: 10px; bottom: 8px; color: rgba(255,255,255,0.55); font-size: 11px; }
+  #credit a { color: inherit; }
+</style>
+<script type="importmap">{{IMPORTMAP}}</script>
+</head>
+<body>
+<div id="view"></div>
+{{PANEL}}
+<script>window.VARDA_SCENE = {{SCENE}};</script>
+<script type="module">
+{{VIEWER}}
+</script>
+</body>
+</html>

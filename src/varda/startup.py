@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import QApplication
 
 import varda
 from varda._actions import MENUBAR
+from varda.workspaces.terrain.terrain_view import TerrainView
 from varda._actions._file_actions import importImagePaths
 from varda.all_images_view_list.image_list_menu_controller import (
     ImageListMenuController,
@@ -22,6 +23,8 @@ def createVarda(q_app: QApplication, checkForUpdates: bool = True) -> VardaAppli
     q_app.processEvents()
 
     app = VardaApplication()
+    # 3D views must go before WebEngine's profile does, or the exit crashes
+    q_app.aboutToQuit.connect(TerrainView.releaseAll)
     app.pluginManager.hook.onLoad(app=app)
     q_app.processEvents()
 

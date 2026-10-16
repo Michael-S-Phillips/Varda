@@ -12,7 +12,7 @@ import os
 import sys
 import threading
 
-from PyQt6.QtCore import QSize
+from PyQt6.QtCore import QCoreApplication, QSize, Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
@@ -91,6 +91,12 @@ def main():
 
         sys.exit(checkPlugin(sys.argv[sys.argv.index(CHECK_PLUGIN_FLAG) + 1 :]))
     _consoleForSelfTest()
+    # The 3D terrain view (Qt WebEngine) shares OpenGL with the rest of Qt
+    QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
+    if sys.platform.startswith("linux"):
+        # Chromium's sandbox needs user namespaces, which recent Ubuntu blocks;
+        # the view only ever loads Varda's own local page, never remote content
+        os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
     q_app = QApplication(sys.argv)
     q_app.setApplicationName("Varda")
     appIcon = QIcon()

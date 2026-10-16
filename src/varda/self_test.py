@@ -4,7 +4,8 @@ Runs the real application, then exercises what a frozen bundle most often
 breaks: package metadata, bundled resources, PROJ data, reading and writing
 files in background threads, numba-compiled rendering, the analyses that
 lean on optional libraries, the certificates the update check needs, and
-Kindle a Feature's plugin check (Varda running itself in check mode). Prints one line per check and returns the exit
+Kindle a Feature's plugin check (Varda running itself in check mode), and
+the 3D view's web engine and three.js page. Prints one line per check and returns the exit
 code (0 when everything passed).
 """
 
@@ -25,6 +26,8 @@ import numpy as np
 from affine import Affine
 from pyproj import Transformer
 from PyQt6.QtSvg import QSvgRenderer
+from varda.terrain.scene import TerrainSettings, buildTerrain, pageHtml
+from varda.workspaces.terrain.terrain_view import TerrainView
 from PyQt6.QtWidgets import QApplication
 from rasterio.crs import CRS
 
@@ -65,6 +68,7 @@ def runSelfTest(app: VardaApplication) -> int:
             ("plugin API", _pluginApi),
             ("update check certificates", _updateCertificates),
             ("AI libraries", _aiLibraries),
+            ("3D view (WebEngine, three.js)", lambda: _terrainView(image)),
             (
                 "plugin check (Kindle a Feature)",
                 lambda: _pluginCheck(Path(folder), image),
@@ -97,6 +101,37 @@ def _sampleImage() -> VardaRaster:
         transform=Affine(30.0, 0.0, 500000.0, 0.0, -30.0, 3500000.0),
     )
     return VardaRaster(dataSource=source, name="self-test")
+
+
+def _terrainView(image: VardaRaster) -> str:
+    """The web engine starts and loads the viewer page with its data (the
+    bundled three.js included); whether WebGL then draws depends on the
+    machine's graphics, so it's reported, not required."""
+    view = TerrainView()
+    outcome: dict[str, object] = {}
+    view.loadFinished.connect(lambda ok: outcome.setdefault("loaded", ok))
+    view.sigReady.connect(lambda: outcome.setdefault("webgl", "drawing"))
+    view.sigFailed.connect(
+        lambda reason: outcome.setdefault("webgl", f"none ({reason})")
+    )
+    terrain = buildTerrain(image, band=0, maxSide=32)
+    view.showPage(pageHtml(terrain, None, TerrainSettings(), title="self-test"))
+    deadline = time.time() + 30
+    while time.time() < deadline and not ("loaded" in outcome and "webgl" in outcome):
+        QApplication.processEvents()
+        time.sleep(0.02)
+    assert outcome.get("loaded") is True, "the web engine didn't load the page"
+    found: dict[str, object] = {}
+    view.evaluate(
+        "typeof window.VARDA_SCENE", lambda kind: found.setdefault("scene", kind)
+    )
+    deadline = time.time() + 10
+    while time.time() < deadline and "scene" not in found:
+        QApplication.processEvents()
+        time.sleep(0.02)
+    assert found.get("scene") == "object", "the page has no terrain data"
+    TerrainView.releaseAll()  # WebEngine crashes at exit with a page alive
+    return f"page loaded; WebGL {outcome.get('webgl', 'not ready in time')}"
 
 
 def _mainWindow(app: VardaApplication) -> str:

@@ -21,6 +21,7 @@ from varda.workspaces.general_image_analysis import (
     GeneralImageAnalysisWorkflow,
 )
 from varda.workspaces.find_data.find_data_workspace import FindDataWorkspace
+from varda.workspaces.terrain.terrain_workspace import TerrainWorkspace
 from varda.workspaces.mosaic.mosaic_workspace import MosaicWorkspace
 from varda.workspaces.spectral_hourglass.hourglass_workspace import (
     SpectralHourglassWorkspace,
@@ -42,6 +43,9 @@ def describeWorkspace(workspace: object) -> tuple[str, list[VardaRaster]] | None
         return "mosaic", list(workspace.images)
     if isinstance(workspace, FindDataWorkspace):
         return "find_data", []
+    if isinstance(workspace, TerrainWorkspace):
+        dem, drape = workspace.dem(), workspace.drapeImage()
+        return "terrain", [image for image in (dem, drape) if image is not None]
     return None
 
 
@@ -75,6 +79,11 @@ def buildWorkspace(
     if kind == "find_data":
         workspace = FindDataWorkspace(projectImages)
         workspace.restoreSessionState(dict(extra or {}))
+        return workspace
+    if kind == "terrain" and images:
+        workspace = TerrainWorkspace(projectImages, images[0])
+        drape = images[1] if len(images) > 1 else None
+        workspace.restoreSessionState(dict(extra or {}), drape)
         return workspace
     logger.warning("Unknown workspace kind %r; skipped", kind)
     return None

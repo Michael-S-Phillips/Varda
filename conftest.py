@@ -12,6 +12,17 @@ import varda  # noqa: F401
 import keyring
 import keyring.errors
 import pytest
+
+# Before pytest-qt makes the QApplication: the 3D view (Qt WebEngine) needs
+# to be imported first (and on Linux, without Chromium's sandbox, as the app)
+import os
+import sys
+
+if sys.platform.startswith("linux"):
+    os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
+import PyQt6.QtWebEngineWidgets  # noqa: E402, F401
+
+from varda.workspaces.terrain.terrain_view import TerrainView  # noqa: E402
 from keyring.backend import KeyringBackend
 from PyQt6.QtWidgets import QApplication
 
@@ -43,6 +54,14 @@ def memoryKeyring():
     keyring.set_keyring(backend)
     yield backend
     keyring.set_keyring(previous)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _releaseWebViews():
+    """Delete the 3D views before Python exits: WebEngine crashes at exit if
+    a page outlives its profile."""
+    yield
+    TerrainView.releaseAll()
 
 
 @pytest.fixture(autouse=True, scope="session")
