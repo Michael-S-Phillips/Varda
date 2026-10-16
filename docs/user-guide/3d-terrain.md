@@ -42,5 +42,32 @@ The 3D view needs WebGL 2 (any graphics from the last decade). If it isn't
 available, the workspace says so; updating the graphics driver usually
 helps.
 
-Draping images that aren't on the DEM's grid (a CRISM parameter map over a
-CTX DEM, say), with alignment, is coming next.
+## Overlays
+
+Drape images that aren't on the DEM's grid, a CRISM parameter composite over
+a CTX DEM say, on top of the surface:
+
+1. **Add Overlay** lists the loaded, georeferenced images of the DEM's body.
+   An overlay starts where its georeferencing puts it; images in another map
+   projection are reprojected to the DEM's.
+2. **Display…** sets its bands, stretch and color map as in the image views
+   (for CRISM MTRDR summary products, e.g. OLINDEX3, LCPINDEX2, HCPINDEX2
+   for the MAF composite). **Opacity** and the tick box change the view at
+   once.
+3. **Auto Align** matches the overlay's band with the best signal against
+   **Align to**: an image on the DEM's grid (its orthoimage works best) or a
+   hillshade of the DEM. It uses the Mosaic workspace's matching (phase
+   correlation refined to a fraction of a pixel, with features as a
+   fallback), and fits the **Model**: Translation by default, as
+   map-projected products are mostly just offset, or rigid, similarity,
+   affine, projective, polynomial or a thin-plate spline for warped ones.
+   The panel reports the tie points used and their RMS residual.
+4. **Shift E, N** moves the overlay by hand, in meters, after the fit;
+   **Reset Alignment** returns it to its georeferencing.
+
+Overlays and their alignments are saved with the session, and they're
+included in stills and exported web pages (with their opacity).
+
+Over Jezero, a CRISM MTRDR (FRT00005850) aligns to the USGS CTX DTM's
+orthoimage with about ten tie points and an RMS of 10 m, half a CRISM pixel;
+its georeferencing was off by about 160 m west and 340 m north.

@@ -14,6 +14,7 @@ import io
 import json
 import math
 import warnings
+from collections.abc import Sequence
 from pathlib import Path
 
 import attrs
@@ -161,6 +162,18 @@ PANEL = """<div id="panel">
 <div id="credit">Made with <a href="https://github.com/varda-pro/Varda">Varda</a></div>"""
 
 
+@frozen
+class PageOverlay:
+    """An image draped over part of the DEM: a PNG data URL and its bounds as
+    fractions of the DEM's extent (west, south, east, north)."""
+
+    name: str
+    texture: str
+    uvBounds: tuple[float, float, float, float]
+    opacity: float = 1.0
+    visible: bool = True
+
+
 def pageHtml(
     terrain: Terrain,
     texture: str | None,
@@ -168,10 +181,12 @@ def pageHtml(
     camera: dict | None = None,
     title: str = "Varda 3D view",
     panel: bool = False,
+    overlays: Sequence[PageOverlay] = (),
 ) -> str:
     """The viewer page: self-contained, so the same file works in Varda and
-    in any browser. ``texture`` is a data URL (``pngDataUrl``); ``panel``
-    adds controls for readers of an exported page."""
+    in any browser. ``texture`` is a data URL (``pngDataUrl``) draped over
+    the whole DEM, ``overlays`` over parts of it; ``panel`` adds controls for
+    readers of an exported page."""
     folder = Path(resource_path("resources/terrain"))
     levels, zMin, zStep = quantize(terrain.heights)
     rows, cols = levels.shape
@@ -186,6 +201,7 @@ def pageHtml(
         "texture": texture,
         "settings": settings.toDict(),
         "camera": camera,
+        "overlays": [asdict(overlay) for overlay in overlays],
     }
     importmap = {"imports": {k: _dataUrl(folder / f) for k, f in THREE_FILES.items()}}
     safeTitle = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
