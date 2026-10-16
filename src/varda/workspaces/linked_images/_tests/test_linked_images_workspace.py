@@ -1,0 +1,149 @@
+"""The Linked Images workspace: N images side by side, panned and zoomed
+together, one cursor whose spectra show for every image, lines whose
+profiles show for every image, and all of it kept with the session."""
+
+import numpy as np
+import pytest
+from affine import Affine
+from PyQt6.QtCore import QPointF, QRectF
+from pyproj import CRS
+
+from varda.common.entities import VardaRaster
+from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+from varda.image_rendering.raster_view.viewport_tools.pixel_select_tool import (
+    PixelSelectTool,
+)
+from varda.lines.line_collection import LineKind
+from varda.workspaces.linked_images.linked_images_workspace import (
+    LinkedImagesWorkspace,
+    NewLinkedImagesDialog,
+)
+from varda.workspaces.linked_images.linking import Link
+from varda.workspaces.workspace_kinds import buildWorkspace, describeWorkspace
+
+EQC = CRS.from_user_input("+proj=eqc +R=1560800 +units=m +no_defs")  # Europa
+
+
+def _product(name, values, transform=Affine(100, 0, 0, 0, -100, 0)):
+    """A (20, 30) product with 6 bands from 1 to 5 µm, each pixel's band b
+    holding ``values(row, col, b)``."""
+    rows, cols, bands = np.mgrid[0:20, 0:30, 0:6]
+    return VardaRaster(
+        ArrayDataSource(
+            values(rows, cols, bands).astype(np.float32),
+            wavelengths=np.linspace(1.0, 5.0, 6),
+            wavelengthUnits="micrometers",
+            transform=transform,
+            crs=EQC,
+        ),
+        name=name,
+    )
+
+
+@pytest.fixture
+def products():
+    return [
+        _product("AGGREGATE", lambda r, c, b: 1000 + 10 * r + c + b),
+        _product("COUNT", lambda r, c, b: (r + c + b) % 10),
+        _product("FLAGS", lambda r, c, b: (r * c + b) % 3),
+    ]
+
+
+@pytest.fixture
+def workspace(qtbot, products):
+    widget = LinkedImagesWorkspace(products, list(products), Link.PIXEL)
+    qtbot.addWidget(widget)
+    return widget
+
+
+def test_every_image_gets_a_view_and_a_spectrum_plot(workspace, products):
+    assert [v.imageEntity for v in workspace.viewports] == products
+    assert len(workspace.spectra.plots) == 3
+    assert workspace.windowTitle() == "AGGREGATE | COUNT | FLAGS"
+
+
+def test_the_cursor_shows_every_images_spectrum_there(workspace):
+    workspace.placeCursor(1, 4.5, 2.5)  # pixel (4, 2), placed on COUNT
+    aggregate, count, flags = (c.getData() for c in workspace.spectra.curves)
+    np.testing.assert_allclose(aggregate[0], [1, 1.8, 2.6, 3.4, 4.2, 5])  # µm
+    np.testing.assert_allclose(aggregate[1], 1000 + 20 + 4 + np.arange(6))
+    np.testing.assert_allclose(count[1], (2 + 4 + np.arange(6)) % 10)
+    np.testing.assert_allclose(flags[1], (8 + np.arange(6)) % 3)
+    assert "(4, 2)" in workspace.spectra.plots[0].titleLabel.text
+    assert workspace.cursorShown == [True, True, True]
+
+
+def test_a_ctrl_drag_moves_the_cursor_as_it_goes(workspace):
+    manager = workspace.toolManagers[2]
+    assert isinstance(manager.activeTool, PixelSelectTool)  # on from the start
+    assert manager.toolActions[PixelSelectTool].isChecked()
+    manager.activeTool.sigPixelDragged.emit(QPointF(7.2, 3.9))
+    assert workspace.cursorAt == (2, 7.2, 3.9)
+    _, count = workspace.spectra.curves[1].getData()
+    np.testing.assert_allclose(count, (3 + 7 + np.arange(6)) % 10)
+
+
+def test_by_map_location_a_finer_image_is_read_where_the_cursor_is(qtbot, products):
+    fine = _product(
+        "FINE", lambda r, c, b: 100 * r + c, transform=Affine(50, 0, 0, 0, -50, 0)
+    )
+    widget = LinkedImagesWorkspace([products[0], fine], [], Link.MAP)
+    qtbot.addWidget(widget)
+    widget.placeCursor(0, 4.5, 2.5)  # 450 m east, 250 m south: the fine (9, 5)
+    _, values = widget.spectra.curves[1].getData()
+    np.testing.assert_allclose(values, 100 * 5 + 9)
+    # off an image: no curve for it
+    widget.placeCursor(0, 25.5, 15.5)  # 2550 m east: past the fine grid's 1500 m
+    _, values = widget.spectra.curves[1].getData()
+    assert values is None or len(values) == 0
+    assert widget.cursorShown == [True, False]
+
+
+def test_panning_one_view_pans_them_all(workspace):
+    first, second, third = workspace.viewports
+    second.setViewRange(QRectF(5, 5, 10, 8))
+    second.sigViewRangeChangedManually.emit()
+    for view in (first, third):
+        rect = view.viewRect()
+        assert rect.center().x() == pytest.approx(
+            second.viewRect().center().x(), abs=0.5
+        )
+        assert rect.width() == pytest.approx(second.viewRect().width(), rel=0.05)
+
+
+def test_a_line_drawn_on_one_image_profiles_them_all(workspace):
+    workspace.addLine(1, np.array([[2.5, 2.5], [20.5, 12.5]]), LineKind.STRAIGHT)
+    (line,) = workspace.lines.lines()
+    assert [len(c) for c in workspace.imageLines] == [1, 1, 1]
+    assert all(len(p.profiles) == 1 for p in workspace.profilePlots)
+    profile = next(iter(workspace.profilePlots[0].profiles.values()))
+    assert profile.values[0] == pytest.approx(1000 + 20 + 2)  # band 1 at (2, 2)
+    workspace.lineManager.select([line.fid])
+    workspace.lines.removeLine(line.fid)
+    assert all(len(c) == 0 for c in workspace.imageLines)
+
+
+def test_the_workspace_comes_back_from_a_session(workspace, products, qtbot):
+    workspace.placeCursor(0, 3.5, 6.5)
+    workspace.addLine(0, np.array([[1, 1], [9, 9]]), LineKind.STRAIGHT)
+    workspace.renderers[1].settings.mono.band.set(4)
+    described = describeWorkspace(workspace)
+    assert described == ("linked", products)
+    restored = buildWorkspace(
+        "linked", products, list(products), workspace.sessionState()
+    )
+    assert isinstance(restored, LinkedImagesWorkspace)
+    qtbot.addWidget(restored)
+    assert restored.link is Link.PIXEL
+    assert restored.cursorAt == (0, 3.5, 6.5)
+    assert [line.name for line in restored.lines.lines()] == ["Line 1"]
+    assert restored.renderers[1].settings.mono.band.get() == 4
+
+
+def test_the_new_workspace_dialog_offers_the_images_on_one_grid(qtbot, products):
+    other = _product("OTHER", lambda r, c, b: r, transform=Affine(9, 0, 0, 0, -9, 0))
+    dialog = NewLinkedImagesDialog([*products, other])
+    qtbot.addWidget(dialog)
+    assert dialog.chosen() == products  # the first image's grid, ticked
+    dialog.linkBox.setCurrentText(Link.MAP.value)
+    assert dialog.link() is Link.MAP
