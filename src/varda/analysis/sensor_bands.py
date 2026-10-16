@@ -33,6 +33,7 @@ from varda.common.spectral_axis import (
     unitInText,
 )
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+from varda.utilities.resources import resource_path
 
 MIN_COVERAGE = 0.9  # share of a band's response the cube must cover
 _CHUNK = 65_536  # pixels at a time
@@ -87,77 +88,6 @@ def gaussian(name: str, center: float, fwhm: float) -> Band:
     return Band(name, wavelengths, np.exp(-0.5 * ((wavelengths - center) / sigma) ** 2))
 
 
-APPROXIMATE = (
-    "approximate responses from published {}; load the instrument's response "
-    "file for science-grade values"
-)
-SENSORS: dict[str, Sensor] = {
-    sensor.name: sensor
-    for sensor in (
-        Sensor(
-            "MRO CTX",
-            (boxcar("CTX", 500, 800, 20),),
-            APPROXIMATE.format("band edges (Malin et al., 2007)"),
-        ),
-        Sensor(
-            "MRO HiRISE",
-            (
-                boxcar("BG", 400, 580, 20),
-                boxcar("RED", 570, 830, 20),
-                boxcar("NIR", 790, 1000, 20),
-            ),
-            APPROXIMATE.format("band edges (McEwen et al., 2007)"),
-        ),
-        Sensor(
-            "Mars Odyssey THEMIS VIS",
-            tuple(
-                gaussian(f"Band {i + 1} ({c} nm)", c, 50)
-                for i, c in enumerate((425, 540, 654, 749, 860))
-            ),
-            APPROXIMATE.format("band centers, 50 nm wide (Christensen et al., 2004)"),
-        ),
-        Sensor(
-            "Landsat 8-9 OLI",
-            tuple(
-                gaussian(name, center, fwhm)
-                for name, center, fwhm in (
-                    ("Coastal", 443, 16),
-                    ("Blue", 482, 60),
-                    ("Green", 561, 57),
-                    ("Red", 655, 37),
-                    ("NIR", 865, 28),
-                    ("SWIR 1", 1609, 85),
-                    ("SWIR 2", 2201, 187),
-                )
-            ),
-            APPROXIMATE.format("band centers and widths (USGS)"),
-        ),
-        Sensor(
-            "Sentinel-2 MSI",
-            tuple(
-                gaussian(name, center, fwhm)
-                for name, center, fwhm in (
-                    ("B1", 443, 21),
-                    ("B2", 492, 66),
-                    ("B3", 560, 36),
-                    ("B4", 665, 31),
-                    ("B5", 704, 15),
-                    ("B6", 740, 15),
-                    ("B7", 783, 20),
-                    ("B8", 833, 106),
-                    ("B8A", 865, 21),
-                    ("B9", 945, 20),
-                    ("B10", 1374, 31),
-                    ("B11", 1614, 91),
-                    ("B12", 2202, 175),
-                )
-            ),
-            APPROXIMATE.format("band centers and widths (ESA)"),
-        ),
-    )
-}
-
-
 def parseBands(text: str) -> Sensor:
     """Bands typed as center/FWHM, with optional names: ``Red 650/40;
     NIR: 860/30`` (nm, or µm for small values). Gaussian responses."""
@@ -187,12 +117,15 @@ def readResponses(path: str | Path) -> Sensor:
     from its header, e.g. ``wavelength_um``, or from the values) and one
     column of response per band. Each band is normalized to peak 1."""
     path = Path(path)
-    text = path.read_text()
+    lines = path.read_text().splitlines()
+    # "#" lines are notes (the first says where the responses come from)
+    notes = [line.lstrip("#").strip() for line in lines if line.startswith("#")]
+    lines = [line for line in lines if line.strip() and not line.startswith("#")]
     try:
-        dialect = csv.Sniffer().sniff(text.splitlines()[0], delimiters=",;\t ")
+        dialect = csv.Sniffer().sniff(lines[0], delimiters=",;\t ")
     except csv.Error:
         dialect = csv.excel
-    rows = [row for row in csv.reader(text.splitlines(), dialect) if any(row)]
+    rows = [row for row in csv.reader(lines, dialect) if any(row)]
     header, body = rows[0], np.array(rows[1:], dtype=float)
     wavelengths = nanometresFrom(body[:, 0], unitInText(header[0]))
     order = np.argsort(wavelengths)
@@ -205,7 +138,84 @@ def readResponses(path: str | Path) -> Sensor:
             )
     if not bands:
         raise ValueError(f"{path.name} has no response columns.")
-    return Sensor(path.stem, tuple(bands), f"responses from {path.name}")
+    note = notes[0] if notes else f"responses from {path.name}"
+    return Sensor(path.stem, tuple(bands), note)
+
+
+def fromEdges(name: str, points: list[tuple[float, float]]) -> Band:
+    """A band through (wavelength nm, response) points, sampled every nm and
+    interpolated in log response, as a measured passband falls off."""
+    wavelengths, responses = np.array(points, dtype=np.float64).T
+    grid = np.arange(wavelengths.min(), wavelengths.max() + 1.0, 1.0)
+    floor = 1e-4
+    logged = np.interp(grid, wavelengths, np.log(np.maximum(responses, floor)))
+    return Band(name, grid, np.where(np.exp(logged) <= floor, 0.0, np.exp(logged)))
+
+
+def bundled(file: str, name: str) -> Sensor:
+    """A sensor whose measured responses ship with Varda."""
+    sensor = readResponses(resource_path(f"resources/sensor_bands/{file}"))
+    return Sensor(name, sensor.bands, f"measured responses: {sensor.note}")
+
+
+APPROXIMATE = (
+    "approximate responses from published {}; load the instrument's response "
+    "file for science-grade values"
+)
+SENSORS: dict[str, Sensor] = {
+    sensor.name: sensor
+    for sensor in (
+        Sensor(
+            "MRO CTX",
+            # the measured system throughput (filter, optics and CCD): 50%
+            # at 515.5 and 704.7 nm, 1% at 498.2 and 754.7 nm, flat between
+            (
+                fromEdges(
+                    "CTX",
+                    [
+                        (488.0, 1e-4),
+                        (498.2, 0.01),
+                        (515.5, 0.5),
+                        (532.0, 1.0),
+                        (688.0, 1.0),
+                        (704.7, 0.5),
+                        (754.7, 0.01),
+                        (800.0, 1e-3),
+                        (812.0, 1e-4),
+                    ],
+                ),
+            ),
+            "the measured system passband of Bell et al. (2013, Mars 8, 1-14), "
+            "Fig. 6: its 1% and 50% edges, effective wavelength 611 nm, FWHM "
+            "189 nm (the curve itself isn't published as a table)",
+        ),
+        Sensor(
+            "MRO HiRISE",
+            (
+                boxcar("BG", 400, 580, 20),
+                boxcar("RED", 570, 830, 20),
+                boxcar("NIR", 790, 1000, 20),
+            ),
+            APPROXIMATE.format(
+                "half-maximum band edges (McEwen et al., 2007); the measured "
+                "curves are published only as figures"
+            ),
+        ),
+        Sensor(
+            "Mars Odyssey THEMIS VIS",
+            tuple(
+                gaussian(f"Band {i + 1} ({c} nm)", c, 50)
+                for i, c in enumerate((425, 540, 654, 749, 860))
+            ),
+            APPROXIMATE.format("band centers, 50 nm wide (Christensen et al., 2004)"),
+        ),
+        bundled("landsat8_oli.csv", "Landsat 8 OLI"),
+        bundled("landsat9_oli2.csv", "Landsat 9 OLI-2"),
+        bundled("sentinel2a_msi.csv", "Sentinel-2A MSI"),
+        bundled("sentinel2b_msi.csv", "Sentinel-2B MSI"),
+        bundled("sentinel2c_msi.csv", "Sentinel-2C MSI"),
+    )
+}
 
 
 def bandWeights(
@@ -267,8 +277,11 @@ class SensorChoice(LabeledEnum):
     CTX = "MRO CTX"
     HIRISE = "MRO HiRISE"
     THEMIS_VIS = "Mars Odyssey THEMIS VIS"
-    LANDSAT_OLI = "Landsat 8-9 OLI"
-    SENTINEL2_MSI = "Sentinel-2 MSI"
+    LANDSAT8_OLI = "Landsat 8 OLI"
+    LANDSAT9_OLI2 = "Landsat 9 OLI-2"
+    SENTINEL2A_MSI = "Sentinel-2A MSI"
+    SENTINEL2B_MSI = "Sentinel-2B MSI"
+    SENTINEL2C_MSI = "Sentinel-2C MSI"
     CUSTOM = "Custom bands"
 
 
