@@ -68,7 +68,6 @@ from varda.analysis.transforms import (
     InverseTransformAnalysis,
     MnfAnalysis,
     PcaAnalysis,
-    WeightedPcaAnalysis,
 )
 
 # Menu order: categories appear in first-appearance order, entries in list order.
@@ -86,7 +85,6 @@ ANALYSES: list[type[Analysis]] = [
     CustomKernelAnalysis,
     IovfAnalysis,
     PcaAnalysis,
-    WeightedPcaAnalysis,
     MnfAnalysis,
     IcaAnalysis,
     InverseTransformAnalysis,

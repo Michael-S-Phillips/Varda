@@ -408,8 +408,19 @@ class ImageParameter(Parameter[VardaRaster]):
     So, the parameter must be manually given a callable "image provider" after initialization, but before use.
     """
 
-    def __init__(self, name: str, description=None) -> None:
+    def __init__(
+        self,
+        name: str,
+        description=None,
+        *,
+        optional: bool = False,
+        noneLabel: str = "None",
+    ) -> None:
+        """``optional``: None is a choice too (listed first as ``noneLabel``)
+        and the starting one."""
         self.imageProvider: Callable[[], Sequence[VardaRaster]] = lambda: []
+        self.optional = optional
+        self.noneLabel = noneLabel
         default = None
         super().__init__(name, default, description)
 
@@ -420,10 +431,15 @@ class ImageParameter(Parameter[VardaRaster]):
         """
         self.imageProvider = imageProvider
         images = imageProvider()
-        if len(images) > 0:
+        if len(images) > 0 and not self.optional:
             self.set(images[0])
 
     def clone(self) -> ImageParameter:
-        newParam = ImageParameter(self.name, self.description)
+        newParam = ImageParameter(
+            self.name,
+            self.description,
+            optional=self.optional,
+            noneLabel=self.noneLabel,
+        )
         newParam.setProvider(self.imageProvider)
         return newParam
