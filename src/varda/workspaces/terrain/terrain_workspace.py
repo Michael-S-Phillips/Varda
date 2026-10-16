@@ -676,13 +676,20 @@ class TerrainWorkspace(QMainWindow):
         reference = next(
             (r for r in self._references() if r.name == overlay.reference), None
         )
-        demWkt, overlayWkt = wktOf(dem), wktOf(overlay.image)
+        # the image matched: the overlay, or one with its georeferencing
+        image = next(
+            (i for i in self._overlayCandidates() if i.name == overlay.matchWith),
+            overlay.image,
+        )
+        demWkt, overlayWkt = wktOf(dem), wktOf(image)
         width, _ = groundSize(dem)
         pixelMeters = width / dem.width
-        demTransform, overlayTransform = dem.transform, overlay.image.transform
+        demTransform, overlayTransform = dem.transform, image.transform
         model = overlay.alignment.model
-        image = overlay.image
-        self.overlayPanel.showAlignment(overlay, "Aligning…")
+        self.overlayPanel.showAlignment(
+            overlay,
+            "Aligning…" if image is overlay.image else f"Aligning on {image.name}…",
+        )
 
         def work() -> Alignment:
             crs = RasterioCRS.from_wkt(demWkt)
@@ -1459,6 +1466,7 @@ class TerrainWorkspace(QMainWindow):
                     "opacity": o.opacity,
                     "visible": o.visible,
                     "reference": o.reference,
+                    "matchWith": o.matchWith,
                     "alignment": o.alignment.state(),
                     "display": settingsState(o.renderer.settings),
                 }
@@ -1490,6 +1498,7 @@ class TerrainWorkspace(QMainWindow):
                 overlay.opacity = float(saved.get("opacity", overlay.opacity))
                 overlay.visible = bool(saved.get("visible", True))
                 overlay.reference = saved.get("reference", overlay.reference)
+                overlay.matchWith = saved.get("matchWith", "")
                 overlay.alignment = Alignment.fromState(saved.get("alignment", {}))
                 restoreSettings(overlay.renderer.settings, saved.get("display", {}))
                 overlays.append(overlay)

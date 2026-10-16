@@ -11,12 +11,14 @@ from pytestqt.exceptions import TimeoutError as QtTimeoutError
 from pyproj import CRS
 
 from varda.common.di_types import ProjectImages
+from PyQt6.QtCore import QThreadPool
 from PyQt6.QtGui import QColor
 
 from varda.common.entities import VardaRaster
 from varda.lines.line_collection import LineCollection, shareLines, unshareLines
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.utilities.debug import generate_perlin_noise_3d
+from varda.workspaces.terrain.overlay_panel import MATCH_ITSELF
 from varda.workspaces.terrain.terrain_workspace import (
     ELEVATION,
     PLAIN,
@@ -132,6 +134,13 @@ def _offsetOverlay(images, size=(40, 60)):
     )
     images.append(overlay)
     return overlay
+
+
+def _finishBackgroundWork(qtbot):
+    """Let builds still on their way finish before the workspaces go (a
+    worker started within an event loop reaches the pool a tick later)."""
+    qtbot.wait(20)
+    QThreadPool.globalInstance().waitForDone(30000)
 
 
 def test_an_overlay_is_draped_and_auto_aligned(qtbot):
@@ -383,3 +392,48 @@ def test_the_add_lines_menu_offers_lines_open_workspaces_share(workspace, images
         ]
     finally:
         unshareLines(lines)
+
+
+def test_an_alignment_matched_on_another_image_moves_the_overlay(qtbot):
+    # a parameter map with nothing to match on, from the same observation
+    # (same georeferencing) as a simulated scene that matches the ortho
+    rows, cols = 240, 320
+    yy, xx = np.mgrid[0:rows, 0:cols]
+    dem = -1500 + 100 * np.sin(xx / 30.0) * np.cos(yy / 25.0)
+    images = ProjectImages([_image(dem[..., None], "dem")])
+    scene = _offsetOverlay(images, (rows, cols))
+    noise = np.random.default_rng(1).random((*scene.getBands([0]).shape[:2], 1))
+    parameter = VardaRaster(
+        ArrayDataSource(noise.astype(np.float32), transform=scene.transform, crs=CRS_),
+        name="parameter",
+    )
+    images.append(parameter)
+    workspace = TerrainWorkspace(images, images[0])
+    qtbot.addWidget(workspace)
+    panel = workspace.overlayPanel
+    added = panel.add(parameter)
+    assert panel.matchBox.itemText(0) == MATCH_ITSELF
+    assert panel.matchBox.findText("crism") >= 0
+    panel.matchBox.setCurrentText("crism")
+    assert added.matchWith == "crism"
+    workspace.autoAlign(0)
+    qtbot.waitUntil(lambda: added.alignment.points > 0, timeout=30000)
+    moved = added.alignment.correct(np.array([[3000.0, -2400.0]]))[0]
+    assert moved == pytest.approx([3000 - 60, -2400 + 40], abs=4)
+
+    # copy it to another overlay, and keep the choice in the session
+    other = panel.add(scene)
+    assert other.alignment.points == 0
+    panel.list.setCurrentRow(0)
+    panel.copyAlignment()
+    panel.list.setCurrentRow(1)
+    panel.pasteAlignment()
+    assert other.alignment.state() == added.alignment.state()
+    assert other.alignment is not added.alignment
+    described = describeWorkspace(workspace)
+    assert described is not None
+    restored = buildWorkspace(*described, images, workspace.sessionState())
+    assert isinstance(restored, TerrainWorkspace)
+    qtbot.addWidget(restored)
+    assert restored.overlayPanel.overlays[0].matchWith == "crism"
+    _finishBackgroundWork(qtbot)

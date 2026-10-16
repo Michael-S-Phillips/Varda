@@ -40,6 +40,11 @@ can alter results.
     open General Image Analysis workspaces (on any georeferenced image of the
     DEM's body), to drape all or one at a time, with no file in between; a
     **Profiles** panel plots the DEM along the lines.
+  - **Alignment transfer:** **Match using** runs Auto Align on another image
+    with the overlay's georeferencing (e.g. a CTX-like scene simulated from
+    the same CRISM observation) and moves the overlay (e.g. its parameter
+    map) by the result; **Copy** and **Paste** give another overlay the
+    same alignment.
 - **Workspace tabs work like a browser's:** drag them into order (sessions
   keep it), drag one out of the tab bar to open it in its own window, and
   middle-click to close.
