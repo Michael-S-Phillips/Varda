@@ -3,11 +3,15 @@ for block diagrams and 3D printing (STL). No Qt.
 
 Every grid cell whose four corners have heights is solid: two triangles on
 top, two on the base, and a wall on each side that faces an empty cell (no
-data) or the edge. That closes the surface around holes too, so the mesh is
-watertight, as printers need. Where two solid cells touch only at a corner,
-diagonally, the southern one gets its own copy of that corner, so the two
-parts share no edge (the mesh stays manifold). Triangles wind
-counterclockwise seen from outside (normals point out).
+data) or the edge. With smooth edges, a cell with three corners is solid
+too, as the triangle between them, walled along its diagonal, and the
+outline is then relaxed (each point drawn toward its neighbors along it, by
+at most half a cell) so it runs smoothly rather than in 45° steps. Walls stand on every edge of
+the top that no other top triangle shares, which closes the surface around
+holes too, so the mesh is watertight, as printers need. Where parts of the
+surface touch at a single point, each gets its own copy of it, so they share
+no edge (the mesh stays manifold).
+Triangles wind counterclockwise seen from outside (normals point out).
 """
 
 from __future__ import annotations
@@ -36,81 +40,154 @@ def solid(
     zScale: float = 1.0,
     base: float = 0.0,
     floor: float | None = None,
+    smooth: bool = False,
 ) -> Solid:
     """``heights`` (rows, cols; NaN for no data, north row first) as a solid
     ``width`` × ``height`` across (x east, y north, centered on 0). Heights
     are multiplied by ``zScale`` about the lowest one, which sits ``base``
-    above the floor (z = 0 unless ``floor`` is given, in height units)."""
+    above the floor (z = 0 unless ``floor`` is given, in height units);
+    ``smooth`` cuts the edges diagonally."""
     heights = np.asarray(heights, float)
     rows, cols = heights.shape
     finite = np.isfinite(heights)
     low = float(np.nanmin(heights)) if finite.any() else 0.0
-    top = np.where(finite, (heights - low) * zScale + base, 0.0)
+    z = np.where(finite, (heights - low) * zScale + base, 0.0)
     zeroAt = 0.0 if floor is None else (floor - low) * zScale + base
     x = (np.arange(cols) / max(cols - 1, 1) - 0.5) * width
     y = (0.5 - np.arange(rows) / max(rows - 1, 1)) * height
     gx, gy = np.meshgrid(x, y)
-    n = rows * cols
-    vertices = np.concatenate(
+    surface = np.column_stack([gx.ravel(), gy.ravel(), z.ravel()])
+    top = topTriangles(finite, smooth)
+    top, copies = separateFans(top, len(surface))
+    surface = np.concatenate([surface, surface[copies]])
+    count = len(surface)
+    # walls down from every edge of the top that no other top triangle shares
+    p, q = boundaryEdges(top, count)
+    if smooth:
+        point = np.concatenate([np.arange(rows * cols), copies])  # on the grid
+        r, c = point // cols, point % cols
+        border = (r == 0) | (c == 0) | (r == rows - 1) | (c == cols - 1)
+        cell = (width / max(cols - 1, 1), height / max(rows - 1, 1))
+        surface[:, :2] = relaxOutline(surface[:, :2], p, q, border, cell)
+    floorPoints = surface.copy()
+    floorPoints[:, 2] = zeroAt
+    walls = [
+        np.column_stack([q, p, p + count]),
+        np.column_stack([q, p + count, q + count]),
+    ]
+    triangles = np.concatenate([top, top[:, ::-1] + count, *walls]).astype(np.int64)
+    return Solid(np.concatenate([surface, floorPoints]), triangles)
+
+
+def topTriangles(finite: np.ndarray, smooth: bool) -> np.ndarray:
+    """The surface's triangles (grid point indices, counterclockwise from
+    above): two per cell with four corners, one per cell with three when
+    ``smooth``."""
+    rows, cols = finite.shape
+    corners = {  # a b (north), d e (south) of every cell
+        "a": finite[:-1, :-1],
+        "b": finite[:-1, 1:],
+        "d": finite[1:, :-1],
+        "e": finite[1:, 1:],
+    }
+    a = np.arange(rows - 1)[:, None] * cols + np.arange(cols - 1)[None, :]
+    index = {"a": a, "b": a + 1, "d": a + cols, "e": a + cols + 1}
+    full = corners["a"] & corners["b"] & corners["d"] & corners["e"]
+    count = sum(corner.astype(int) for corner in corners.values())
+    three = (count == 3) if smooth else np.zeros_like(full)
+    missing = {k: three & ~corner for k, corner in corners.items()}
+    layout = {  # a triangle: where it's used
+        ("a", "d", "b"): full | missing["e"],
+        ("b", "d", "e"): full | missing["a"],
+        ("a", "d", "e"): missing["b"],
+        ("a", "e", "b"): missing["d"],
+    }
+    return np.concatenate(
         [
-            np.column_stack([gx.ravel(), gy.ravel(), top.ravel()]),
-            np.column_stack([gx.ravel(), gy.ravel(), np.full(n, zeroAt)]),
+            np.column_stack([index[k][used] for k in names])
+            for names, used in layout.items()
         ]
     )
-    # cells with all four corners
-    valid = finite[:-1, :-1] & finite[:-1, 1:] & finite[1:, :-1] & finite[1:, 1:]
-    r, c = np.nonzero(valid)
-    a = r * cols + c  # corners: a b (north), d e (south)
-    b, d = a + 1, a + cols
-    e = d + 1
-    padded = np.pad(valid, 1, constant_values=False)
-    # Pinch points: a grid point whose four cells are solid only diagonally
-    nw, ne = padded[:-1, :-1], padded[:-1, 1:]
-    sw, se = padded[1:, :-1], padded[1:, 1:]
-    pinchSE = nw & se & ~ne & ~sw  # the SE cell's a corner is shared
-    pinchSW = ne & sw & ~nw & ~se  # the SW cell's b corner is shared
-    copies: list[np.ndarray] = []
 
-    def ownCopy(
-        corner: np.ndarray, pinched: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """``corner``'s top and base vertex indices, with the pinched cells'
-        moved to new copies (appended after the 2n grid vertices)."""
-        top, base = corner.copy(), corner + n
-        cells = np.flatnonzero(pinched)
-        if cells.size:
-            start = 2 * n + sum(len(x) for x in copies)
-            copies.extend([vertices[corner[cells]], vertices[corner[cells] + n]])
-            top[cells] = start + np.arange(cells.size)
-            base[cells] = start + cells.size + np.arange(cells.size)
-        return top, base
 
-    aTop, aBase = ownCopy(a, pinchSE[r, c])
-    bTop, bBase = ownCopy(b, pinchSW[r, c + 1])
-    corners = {"a": (aTop, aBase), "b": (bTop, bBase), "d": (d, d + n), "e": (e, e + n)}
-    (aT, aB), (bT, bB), (dT, dB), (eT, eB) = corners.values()
-    pieces = [
-        np.column_stack([aT, dT, bT]),  # top
-        np.column_stack([bT, dT, eT]),
-        np.column_stack([aB, bB, dB]),  # base, facing down
-        np.column_stack([bB, eB, dB]),
-    ]
-    sides = {  # (neighbor offset, first corner, second corner)
-        "north": ((-1, 0), "a", "b"),
-        "south": ((1, 0), "e", "d"),
-        "west": ((0, -1), "d", "a"),
-        "east": ((0, 1), "b", "e"),
-    }
-    for (dr, dc), first, second in sides.values():
-        open_ = ~padded[r + 1 + dr, c + 1 + dc]
-        (pT, pB), (qT, qB) = corners[first], corners[second]
-        pT, pB, qT, qB = pT[open_], pB[open_], qT[open_], qB[open_]
-        pieces.append(np.column_stack([pT, qT, qB]))
-        pieces.append(np.column_stack([pT, qB, pB]))
-    triangles = np.concatenate(pieces).astype(np.int64)
-    if copies:
-        vertices = np.concatenate([vertices, *copies])
-    return Solid(vertices, triangles)
+def relaxOutline(
+    xy: np.ndarray,
+    p: np.ndarray,
+    q: np.ndarray,
+    pinned: np.ndarray,
+    cell: tuple[float, float],
+    rounds: int = 8,
+) -> np.ndarray:
+    """Points of an outline (edges ``p`` → ``q``, one in and one out at
+    each point) moved toward the midpoint of their neighbors along it, by at
+    most half a ``cell`` from where they were; ``pinned`` points stay."""
+    count = len(xy)
+    after, before = np.full(count, -1), np.full(count, -1)
+    after[p], before[q] = q, p
+    moving = p[~pinned[p] & (before[p] >= 0)]
+    start, limit = xy.copy(), np.asarray(cell) / 2
+    out = xy.copy()
+    for _ in range(rounds):
+        middle = (out[before[moving]] + out[after[moving]]) / 2
+        step = out[moving] + 0.5 * (middle - out[moving])
+        out[moving] = np.clip(step, start[moving] - limit, start[moving] + limit)
+    return out
+
+
+def boundaryEdges(triangles: np.ndarray, count: int) -> tuple[np.ndarray, np.ndarray]:
+    """The directed edges (p → q, as the triangles wind) that no other
+    triangle shares, as start and end indices."""
+    p = triangles.ravel()
+    q = np.roll(triangles, -1, axis=1).ravel()
+    edges = p.astype(np.int64) * count + q
+    reverse = q.astype(np.int64) * count + p
+    alone = ~np.isin(edges, reverse)
+    return p[alone], q[alone]
+
+
+def separateFans(triangles: np.ndarray, count: int) -> tuple[np.ndarray, np.ndarray]:
+    """Where separate parts of the surface meet at a single point (the
+    outline passes through it twice), each part after the first gets its own
+    copy of the point, so their walls share no edge. Returns the triangles
+    and, per copy (indices ``count`` on), the point it copies."""
+    p, _ = boundaryEdges(triangles, count)
+    starts, times = np.unique(p, return_counts=True)
+    shared = starts[times > 1]
+    if not shared.size:
+        return triangles, np.zeros(0, np.int64)
+    triangles = triangles.copy()
+    rowsAt: dict[int, list[int]] = {}
+    for row, column in zip(*np.nonzero(np.isin(triangles, shared))):
+        rowsAt.setdefault(int(triangles[row, column]), []).append(int(row))
+    copies: list[int] = []
+    for point, rows in rowsAt.items():
+        # fans: triangles around the point joined through their other corners
+        group = {row: row for row in rows}
+
+        def find(row: int) -> int:
+            while group[row] != row:
+                row = group[row]
+            return row
+
+        byNeighbor: dict[int, int] = {}
+        for row in rows:
+            for other in triangles[row]:
+                other = int(other)
+                if other == point:
+                    continue
+                if other in byNeighbor:
+                    group[find(row)] = find(byNeighbor[other])
+                else:
+                    byNeighbor[other] = row
+        fans: dict[int, list[int]] = {}
+        for row in rows:
+            fans.setdefault(find(row), []).append(row)
+        for fan in list(fans.values())[1:]:
+            copy = count + len(copies)
+            copies.append(point)
+            for row in fan:
+                triangles[row][triangles[row] == point] = copy
+    return triangles, np.asarray(copies, np.int64)
 
 
 def volume(mesh: Solid) -> float:
@@ -140,6 +217,7 @@ def printSolid(
     printWidthMm: float,
     exaggeration: float = 1.0,
     baseMm: float = 3.0,
+    smooth: bool = False,
 ) -> Solid:
     """A solid for printing, in millimeters: ``printWidthMm`` across, heights
     at the same scale times ``exaggeration``, standing on a ``baseMm`` plinth
@@ -151,4 +229,5 @@ def printSolid(
         heightM * mmPerM,
         zScale=mmPerM * exaggeration,
         base=baseMm,
+        smooth=smooth,
     )

@@ -25,6 +25,9 @@ can alter results.
     down to a base; **Export for 3D Printing** saves a watertight STL in
     millimeters (width, exaggeration, base and detail chosen, the printed
     size shown). **Fill gaps** fills no-data voids inside a DEM for both.
+    **Edges** makes the outline smooth (the default: no more staircase
+    sides on tilted footprints), stepped, or trimmed to a rectangle, and
+    **Side color** chooses the walls' color.
   - **Figures:** a north arrow, a scale bar (at the view's center, with the
     exaggeration) and a color bar for elevation colors, on the view and in
     stills; lines from GIS files draped on the surface; and **Export

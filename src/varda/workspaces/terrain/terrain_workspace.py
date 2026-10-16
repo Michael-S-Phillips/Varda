@@ -20,7 +20,7 @@ from pyproj import CRS
 from rasterio.crs import CRS as RasterioCRS
 from rasterio.transform import array_bounds
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox,
     QColorDialog,
@@ -96,6 +96,19 @@ from varda.workspaces.terrain.terrain_view import TerrainView
 PLAIN, ELEVATION = "None (shaded relief)", "Elevation colors"
 DETAIL = {"Low": 512, "Medium": 1024, "High": 2048}
 BACKGROUNDS = {"Dark": "#101418", "Black": "#000000", "White": "#ffffff"}
+EDGES = {
+    "Smooth": "smooth",
+    "Stepped": "stepped",
+    "Trimmed to a rectangle": "rectangle",
+}
+SIDE_COLORS = {
+    "Earth": "#a08e78",
+    "Light gray": "#bdbdbd",
+    "White": "#f0f0f0",
+    "Dark gray": "#4a4d52",
+    "Black": "#16181b",
+}
+CUSTOM = "Custom…"
 STILL_SIZES = {
     "HD (1920 × 1080)": (1920, 1080),
     "4K (3840 × 2160)": (3840, 2160),
@@ -131,6 +144,12 @@ def demLines(layers: Sequence[PageLine], width: int, height: int) -> list[VardaL
                 VardaLine(len(lines), name, layer.color, LineKind.POLYLINE, vertices)
             )
     return lines
+
+
+def swatch(color: str) -> QIcon:
+    pixmap = QPixmap(14, 14)
+    pixmap.fill(QColor(color))
+    return QIcon(pixmap)
 
 
 LEGEND_STOPS = 16  # color bar samples of the color map
@@ -442,6 +461,15 @@ class TerrainWorkspace(QMainWindow):
             "heights around them; no data around the outside stays empty"
         )
         self.fillGaps.toggled.connect(lambda _: self.rebuild())
+        self.edges = QComboBox()
+        self.edges.addItems(list(EDGES))
+        self.edges.setToolTip(
+            "The surface's outline where the data ends: Smooth cuts the cells' "
+            "corners diagonally, Stepped follows the grid cell by cell, and "
+            "Trimmed keeps the largest rectangle with data everywhere, for "
+            "straight sides. For the view and 3D printing alike."
+        )
+        self.edges.currentIndexChanged.connect(lambda _: self._onSettings())
 
         self.exaggeration = QDoubleSpinBox()
         self.exaggeration.setRange(0.1, 50)
@@ -484,6 +512,11 @@ class TerrainWorkspace(QMainWindow):
             "How far below the lowest point the base is (Automatic: a quarter of "
             "the relief); it's exaggerated with the heights"
         )
+        self.sideColor = QComboBox()
+        for name, color in SIDE_COLORS.items():
+            self.sideColor.addItem(swatch(color), name, color)
+        self.sideColor.addItem(CUSTOM, None)
+        self.sideColor.activated.connect(self._onSideColor)
         self.sides.toggled.connect(lambda _: self._onSettings())
         self.baseDepth.valueChanged.connect(lambda _: self._onSettings())
         for box in (self.exaggeration, self.ambient):
@@ -524,6 +557,7 @@ class TerrainWorkspace(QMainWindow):
         form.addRow("Color map:", self.colorMapBox)
         form.addRow("Detail:", self.detailBox)
         form.addRow("", self.fillGaps)
+        form.addRow("Edges:", self.edges)
         form.addRow("Exaggeration:", self.exaggeration)
         form.addRow("Sun azimuth:", self.sunAzimuth)
         form.addRow("Sun elevation:", self.sunElevation)
@@ -532,6 +566,7 @@ class TerrainWorkspace(QMainWindow):
         form.addRow("Background:", self.background)
         form.addRow("", self.sides)
         form.addRow("Base depth:", self.baseDepth)
+        form.addRow("Side color:", self.sideColor)
         annotations = QHBoxLayout()
         for box in (self.northArrow, self.scaleBar, self.colorBar):
             annotations.addWidget(box)
@@ -768,6 +803,8 @@ class TerrainWorkspace(QMainWindow):
             self.background,
             self.sides,
             self.baseDepth,
+            self.sideColor,
+            self.edges,
             self.northArrow,
             self.scaleBar,
             self.colorBar,
@@ -779,7 +816,12 @@ class TerrainWorkspace(QMainWindow):
         self.colorBar.setChecked(self.settings.colorBar)
         self.sides.setChecked(self.settings.sides)
         self.baseDepth.setValue(self.settings.baseDepth)
-        self.form.setRowVisible(self.baseDepth, self.settings.sides)
+        self._showSideColor(self.settings.sideColor)
+        self.edges.setCurrentText(
+            next((n for n, v in EDGES.items() if v == self.settings.edges), "Smooth")
+        )
+        for row in (self.baseDepth, self.sideColor):
+            self.form.setRowVisible(row, self.settings.sides)
         self.exaggeration.setValue(self.settings.exaggeration)
         self.sunAzimuth.setValue(int(self.settings.sunAzimuth) % 360)
         self.sunElevation.setValue(int(self.settings.sunElevation))
@@ -792,7 +834,35 @@ class TerrainWorkspace(QMainWindow):
         for widget in widgets:
             widget.blockSignals(False)
 
+    def _showSideColor(self, color: str) -> None:
+        """Select ``color``'s preset, or show it as a custom color."""
+        index = self.sideColor.findData(color)
+        if index < 0:
+            custom = self.sideColor.count() - 1  # the Custom… item
+            if self.sideColor.count() > len(SIDE_COLORS) + 1:  # an earlier custom
+                self.sideColor.removeItem(len(SIDE_COLORS))
+                custom -= 1
+            self.sideColor.insertItem(custom, swatch(color), color, color)
+            index = custom
+        self.sideColor.setCurrentIndex(index)
+
+    def _onSideColor(self, index: int) -> None:
+        color = self.sideColor.itemData(index)
+        if color is None:  # Custom…
+            chosen = QColorDialog.getColor(
+                QColor(self.settings.sideColor), self, "Side Color"
+            )
+            if not chosen.isValid():
+                self._showSideColor(self.settings.sideColor)
+                return
+            color = chosen.name()
+        self.sideColor.blockSignals(True)
+        self._showSideColor(color)
+        self.sideColor.blockSignals(False)
+        self._onSettings()
+
     def _onSettings(self) -> None:
+        trimmed = self.settings.edges == "rectangle"
         self.settings = attrs.evolve(
             self.settings,
             exaggeration=self.exaggeration.value(),
@@ -803,12 +873,18 @@ class TerrainWorkspace(QMainWindow):
             ambient=self.ambient.value(),
             sides=self.sides.isChecked(),
             baseDepth=self.baseDepth.value(),
+            sideColor=self.sideColor.currentData() or self.settings.sideColor,
+            edges=EDGES[self.edges.currentText()],
             northArrow=self.northArrow.isChecked(),
             scaleBar=self.scaleBar.isChecked(),
             colorBar=self.colorBar.isChecked(),
         )
-        self.form.setRowVisible(self.baseDepth, self.settings.sides)
-        self.view.setSettings(self.settings.toDict())
+        for row in (self.baseDepth, self.sideColor):
+            self.form.setRowVisible(row, self.settings.sides)
+        if (self.settings.edges == "rectangle") != trimmed:
+            self.rebuild()  # trimming changes the surface itself
+        else:
+            self.view.setSettings(self.settings.toDict())
 
     # --- building the page ---------------------------------------------------------------
 
@@ -862,9 +938,10 @@ class TerrainWorkspace(QMainWindow):
         self.status.setText("Building the surface…")
 
         fill = self.fillGaps.isChecked()
+        trim = self.settings.edges == "rectangle"
 
         def work() -> tuple[Terrain, str | None, list[PageOverlay]]:
-            terrain = buildTerrain(dem, band, maxSide, size, fill)
+            terrain = buildTerrain(dem, band, maxSide, size, fill, trim)
             texture = None if rgba is None else pngDataUrl(rgba)
             crs = RasterioCRS.from_wkt(demWkt)
             draped = []
@@ -1335,10 +1412,11 @@ class TerrainWorkspace(QMainWindow):
         band = int(self.bandBox.currentData() or 0)
         size = groundSize(dem)  # here: pyproj objects aren't thread-safe
         fill = self.fillGaps.isChecked()
+        edges = self.settings.edges
         self.status.setText("Building the solid…")
 
         def work() -> int:
-            terrain = buildTerrain(dem, band, detail, size, fill)
+            terrain = buildTerrain(dem, band, detail, size, fill, edges == "rectangle")
             mesh = printSolid(
                 terrain.heights,
                 terrain.widthM,
@@ -1346,6 +1424,7 @@ class TerrainWorkspace(QMainWindow):
                 widthMm,
                 exaggeration,
                 baseMm,
+                smooth=edges != "stepped",
             )
             with open(path, "wb") as f:
                 f.write(stlBytes(mesh))

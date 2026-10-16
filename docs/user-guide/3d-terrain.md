@@ -32,7 +32,14 @@ Views and settings are saved with the session.
 - **Sides (block diagram)** stands the surface on walls down to a flat base,
   like a cut block. **Base depth** is how far below the lowest point the
   base is (Automatic: a quarter of the relief); it's exaggerated with the
-  heights.
+  heights. **Side color** offers earth, light gray, white, dark gray, black
+  or any color (Custom…).
+- **Edges** shapes the outline where the data ends, in the view and in the
+  printed solid: **Smooth** (the default) cuts the grid cells' corners and
+  relaxes the outline, so a DEM whose footprint is tilted on the map gets
+  clean sides; **Stepped** follows the grid cell by cell; **Trimmed to a
+  rectangle** keeps the largest rectangle with data everywhere, for a block
+  with straight sides and square corners.
 - **Fill gaps** (on by default) fills no-data gaps inside the DEM, such as a
   DTM's voids on steep slopes, from the heights around them, so they don't
   show as pits. No data around the outside of the DEM stays empty.

@@ -75,3 +75,45 @@ def test_cells_touching_only_at_a_corner_share_no_edge():
             heights = heights[:, ::-1]
         mesh = solid(heights, 2.0, 2.0, base=1.0)
         assert _watertight(mesh), f"flip={flip}"
+
+
+def test_smooth_edges_cut_the_staircase_diagonally():
+    # data on and below the diagonal: a staircase, or with smooth edges the
+    # triangle it really is (5 × 5 / 2 on 1 × 1 cells)
+    rows, cols = np.mgrid[0:6, 0:6]
+    heights = np.where(cols <= rows, 1.0, np.nan)
+    stepped = solid(heights, 5.0, 5.0, base=1.0)
+    smooth = solid(heights, 5.0, 5.0, base=1.0, smooth=True)
+    assert _watertight(stepped) and _watertight(smooth)
+    assert volume(stepped) == pytest.approx(10.0)
+    assert volume(smooth) == pytest.approx(12.5)
+
+
+@pytest.mark.parametrize("smooth", [False, True])
+def test_ragged_outlines_stay_closed(smooth):
+    # every kind of corner, notch, pinch and island
+    for seed in range(12):
+        rng = np.random.default_rng(seed)
+        heights = rng.random((14, 17)) * 3
+        heights[rng.random(heights.shape) < 0.3] = np.nan
+        mesh = solid(heights, 10.0, 8.0, base=1.0, smooth=smooth)
+        assert _watertight(mesh), f"seed={seed}"
+        assert volume(mesh) > 0
+
+
+def test_smooth_edges_relax_a_sawtooth_outline_into_a_line():
+    # data on one side of a line at 1:2: 45° cuts alone leave a sawtooth
+    rows, cols = np.mgrid[0:21, 0:41]
+    heights = np.where(cols <= 2 * rows, 1.0, np.nan)
+    mesh = solid(heights, 40.0, 20.0, base=1.0, smooth=True)
+    assert _watertight(mesh) and volume(mesh) > 0
+    top = mesh.vertices[: heights.size]
+    x, y = top[:, 0] + 20, 10 - top[:, 1]  # back to columns and rows
+    finite = np.isfinite(heights)
+    padded = np.pad(finite, 1, constant_values=True)
+    edge = finite & ~(
+        padded[:-2, 1:-1] & padded[2:, 1:-1] & padded[1:-1, :-2] & padded[1:-1, 2:]
+    )
+    middle = edge.ravel() & (y > 3) & (y < 17)  # away from the pinned border
+    offset = (x - 2 * y)[middle] / np.sqrt(5)  # across the line, in cells
+    assert np.ptp(offset) < 0.05  # straight: 45° cuts alone leave 0.45

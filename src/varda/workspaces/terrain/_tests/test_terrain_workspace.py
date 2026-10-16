@@ -11,6 +11,8 @@ from pytestqt.exceptions import TimeoutError as QtTimeoutError
 from pyproj import CRS
 
 from varda.common.di_types import ProjectImages
+from PyQt6.QtGui import QColor
+
 from varda.common.entities import VardaRaster
 from varda.lines.line_collection import LineCollection, shareLines, unshareLines
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
@@ -175,6 +177,42 @@ def test_sides_are_a_setting_the_view_gets(workspace):
     assert workspace.settings.sides and workspace.settings.baseDepth == 150
     assert workspace.form.isRowVisible(workspace.baseDepth)
     assert workspace.sessionState()["settings"]["sides"] is True
+
+
+def test_side_colors_and_edges_are_settings(workspace, qtbot, monkeypatch):
+    workspace.sides.setChecked(True)
+    assert workspace.form.isRowVisible(workspace.sideColor)
+    workspace.sideColor.setCurrentText("White")
+    workspace.sideColor.activated.emit(workspace.sideColor.currentIndex())
+    assert workspace.settings.sideColor == "#f0f0f0"
+    # a custom color, from the color dialog
+    monkeypatch.setattr(
+        "varda.workspaces.terrain.terrain_workspace.QColorDialog.getColor",
+        lambda *_: QColor("#123456"),
+    )
+    workspace.sideColor.activated.emit(workspace.sideColor.count() - 1)
+    assert workspace.settings.sideColor == "#123456"
+    assert workspace.sideColor.currentText() == "#123456"
+
+    assert workspace.settings.edges == "smooth"
+    workspace.edges.setCurrentText("Stepped")
+    assert workspace.settings.edges == "stepped"
+    # trimming builds the surface again, a rectangle
+    workspace.terrain = None
+    workspace.edges.setCurrentText("Trimmed to a rectangle")
+    qtbot.waitUntil(lambda: workspace.terrain is not None, timeout=10000)
+    assert workspace.terrain is not None
+    assert np.isfinite(workspace.terrain.heights).all()  # the test DEM is full
+
+    described = describeWorkspace(workspace)
+    assert described is not None
+    restored = buildWorkspace(
+        *described, workspace.projectImages, workspace.sessionState()
+    )
+    assert isinstance(restored, TerrainWorkspace)
+    qtbot.addWidget(restored)
+    assert restored.edges.currentText() == "Trimmed to a rectangle"
+    assert restored.sideColor.currentText() == "#123456"
 
 
 def test_the_print_dialog_shows_the_printed_size(workspace, qtbot):

@@ -17,6 +17,7 @@ const settings = Object.assign(
     sides: false, // a block diagram: walls down to a base
     baseDepth: 0, // below the lowest point, in height units (0: a quarter of the relief)
     sideColor: "#a08e78",
+    edges: "smooth", // the outline: "smooth" (cut diagonally), "stepped" or "rectangle" (trimmed in Varda)
     northArrow: true,
     scaleBar: true, // measured at the view's center (the orbit target)
     colorBar: true, // when the drape is colored by elevation
@@ -73,16 +74,96 @@ for (let r = 0; r < rows; r++) {
     if (!Number.isNaN(z)) { zLow = Math.min(zLow, z); zHigh = Math.max(zHigh, z); }
   }
 }
-// two triangles per cell, leaving out cells that touch no-data
-const indices = [];
-for (let r = 0; r < rows - 1; r++) {
-  for (let c = 0; c < cols - 1; c++) {
-    const a = r * cols + c, b = a + 1, d = a + cols, e = d + 1;
-    if (quantized[a] && quantized[b] && quantized[d] && quantized[e]) {
-      indices.push(a, d, b, b, d, e);
+// Two triangles per cell with four heights; with smooth edges, one per cell
+// with three (the outline steps at 45° rather than in a staircase), as
+// varda/terrain/solid.py builds for printing
+let indices = [];
+function buildIndices(smooth) {
+  indices = [];
+  for (let r = 0; r < rows - 1; r++) {
+    for (let c = 0; c < cols - 1; c++) {
+      const a = r * cols + c, b = a + 1, d = a + cols, e = d + 1;
+      const has = [quantized[a], quantized[b], quantized[d], quantized[e]].map(Boolean);
+      const count = has.filter(Boolean).length;
+      if (count === 4) indices.push(a, d, b, b, d, e);
+      else if (smooth && count === 3) {
+        if (!has[0]) indices.push(b, d, e);
+        else if (!has[1]) indices.push(a, d, e);
+        else if (!has[2]) indices.push(a, e, b);
+        else indices.push(a, d, b);
+      }
     }
   }
 }
+// The surface's outline: its edges that no other triangle shares (a cell's
+// side whose neighbor isn't solid, a three-cornered cell's diagonal), as
+// [p, q, p, q, ...] in the order the triangles wind
+function outline(smooth) {
+  const edges = [];
+  const need = smooth ? 3 : 4; // corners a solid cell has
+  const corners = (r, c) => {
+    const a = r * cols + c;
+    return [quantized[a], quantized[a + 1], quantized[a + cols], quantized[a + cols + 1]].map(Boolean);
+  };
+  const solid = (r, c) => r >= 0 && c >= 0 && r < rows - 1 && c < cols - 1 &&
+    corners(r, c).filter(Boolean).length >= need;
+  for (let r = 0; r < rows - 1; r++) {
+    for (let c = 0; c < cols - 1; c++) {
+      if (!solid(r, c)) continue;
+      const [ha, hb, hd, he] = corners(r, c);
+      const a = r * cols + c, b = a + 1, d = a + cols, e = d + 1;
+      if (ha && hb && !solid(r - 1, c)) edges.push(b, a);
+      if (hd && he && !solid(r + 1, c)) edges.push(d, e);
+      if (ha && hd && !solid(r, c - 1)) edges.push(a, d);
+      if (hb && he && !solid(r, c + 1)) edges.push(e, b);
+      if (!ha) edges.push(b, d);
+      else if (!hb) edges.push(e, a);
+      else if (!hd) edges.push(a, e);
+      else if (!he) edges.push(d, b);
+    }
+  }
+  return edges;
+}
+
+// Smooth edges: each outline point drawn toward its neighbors along the
+// outline, by at most half a cell, so it runs smoothly rather than in 45°
+// steps (points on the grid's border, or where the outline passes twice,
+// stay); as varda/terrain/solid.py does for printing
+const gridPositions = positions.slice();
+function relaxOutline(edges, smooth) {
+  positions.set(gridPositions);
+  if (!smooth) return;
+  const count = rows * cols, after = new Int32Array(count).fill(-1), before = new Int32Array(count).fill(-1);
+  const twice = new Uint8Array(count);
+  for (let k = 0; k < edges.length; k += 2) {
+    const p = edges[k], q = edges[k + 1];
+    if (after[p] >= 0) twice[p] = 1;
+    after[p] = q;
+    before[q] = p;
+  }
+  const moving = [];
+  for (let k = 0; k < edges.length; k += 2) {
+    const p = edges[k], r = Math.floor(p / cols), c = p % cols;
+    if (!twice[p] && before[p] >= 0 && r > 0 && c > 0 && r < rows - 1 && c < cols - 1) moving.push(p);
+  }
+  const limitX = scene.widthM / (cols - 1) / 2, limitY = scene.heightM / (rows - 1) / 2;
+  const next = new Float32Array(moving.length * 2);
+  for (let round = 0; round < 8; round++) {
+    moving.forEach((p, k) => {
+      for (const [axis, limit] of [[0, limitX], [1, limitY]]) {
+        const middle = (positions[3 * before[p] + axis] + positions[3 * after[p] + axis]) / 2;
+        const step = positions[3 * p + axis] + 0.5 * (middle - positions[3 * p + axis]);
+        const start = gridPositions[3 * p + axis];
+        next[2 * k + axis] = Math.min(Math.max(step, start - limit), start + limit);
+      }
+    });
+    moving.forEach((p, k) => { positions[3 * p] = next[2 * k]; positions[3 * p + 1] = next[2 * k + 1]; });
+  }
+}
+
+let outlineEdges = outline(settings.edges !== "stepped");
+buildIndices(settings.edges !== "stepped");
+relaxOutline(outlineEdges, settings.edges !== "stepped");
 const geometry = new THREE.BufferGeometry();
 geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
@@ -142,38 +223,22 @@ const textureReady = Promise.all(textures);
 
 // --- sides (a block diagram) -----------------------------------------------------
 
-// Every cell with four heights is solid; a wall stands on each of its sides
-// that faces an empty cell or the edge (as varda/terrain/solid.py builds
-// for printing)
+// A wall stands on every edge of the outline (as varda/terrain/solid.py
+// builds for printing)
 const sideMaterial = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, side: THREE.DoubleSide });
 let sides = null;
 function buildSides() {
   if (sides) { terrain.remove(sides); sides.geometry.dispose(); sides = null; }
   if (!settings.sides) return;
-  sideMaterial.color.set(settings.sideColor);
-  // a little of its own light: walls facing away from the sun stay readable
-  sideMaterial.emissive.set(settings.sideColor).multiplyScalar(0.25);
   const depth = settings.baseDepth > 0 ? settings.baseDepth : Math.max((zHigh - zLow) * 0.25, 1);
   const baseZ = zLow - depth;
-  const valid = (r, c) => r >= 0 && c >= 0 && r < rows - 1 && c < cols - 1 &&
-    quantized[r * cols + c] && quantized[r * cols + c + 1] &&
-    quantized[(r + 1) * cols + c] && quantized[(r + 1) * cols + c + 1];
   const walls = [];
-  const wall = (i, j) => {
-    const [x1, y1, z1] = [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];
-    const [x2, y2, z2] = [positions[3 * j], positions[3 * j + 1], positions[3 * j + 2]];
-    walls.push(x1, y1, z1, x2, y2, z2, x2, y2, baseZ, x1, y1, z1, x2, y2, baseZ, x1, y1, baseZ);
+  const wall = (p, q) => { // under the surface's edge p → q (as its triangles wind)
+    const [px, py, pz] = [positions[3 * p], positions[3 * p + 1], positions[3 * p + 2]];
+    const [qx, qy, qz] = [positions[3 * q], positions[3 * q + 1], positions[3 * q + 2]];
+    walls.push(qx, qy, qz, px, py, pz, px, py, baseZ, qx, qy, qz, px, py, baseZ, qx, qy, baseZ);
   };
-  for (let r = 0; r < rows - 1; r++) {
-    for (let c = 0; c < cols - 1; c++) {
-      if (!valid(r, c)) continue;
-      const a = r * cols + c, b = a + 1, d = a + cols, e = d + 1;
-      if (!valid(r - 1, c)) wall(a, b);
-      if (!valid(r + 1, c)) wall(e, d);
-      if (!valid(r, c - 1)) wall(d, a);
-      if (!valid(r, c + 1)) wall(b, e);
-    }
-  }
+  for (let k = 0; k < outlineEdges.length; k += 2) wall(outlineEdges[k], outlineEdges[k + 1]);
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(walls, 3));
   geometry.computeVertexNormals();
@@ -264,12 +329,25 @@ function placeSun() {
   sun.shadow.camera.updateProjectionMatrix();
 }
 
-let builtSides = "", builtLines = NaN;
+let builtSides = "", builtLines = NaN, builtSmooth = settings.edges !== "stepped";
 function apply() {
   terrain.scale.z = settings.exaggeration;
   if (settings.exaggeration !== builtLines) { builtLines = settings.exaggeration; buildLines(); }
-  const sideKey = [settings.sides, settings.baseDepth, settings.sideColor].join();
+  const smooth = settings.edges !== "stepped";
+  if (smooth !== builtSmooth) {
+    builtSmooth = smooth;
+    outlineEdges = outline(smooth);
+    buildIndices(smooth);
+    relaxOutline(outlineEdges, smooth);
+    geometry.setIndex(indices);
+    geometry.attributes.position.needsUpdate = true;
+    geometry.computeVertexNormals();
+  }
+  const sideKey = [settings.sides, settings.baseDepth, smooth].join();
   if (sideKey !== builtSides) { builtSides = sideKey; buildSides(); }
+  sideMaterial.color.set(settings.sideColor);
+  // a little of its own light: walls facing away from the sun stay readable
+  sideMaterial.emissive.set(settings.sideColor).multiplyScalar(0.25);
   renderer.shadowMap.enabled = settings.shadows;
   sun.castShadow = settings.shadows;
   material.needsUpdate = true;
