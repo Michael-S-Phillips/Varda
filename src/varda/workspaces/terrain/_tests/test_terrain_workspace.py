@@ -248,3 +248,49 @@ def test_a_flyover_renders_where_webgl_is_available(workspace, qtbot, tmp_path):
     workspace.saveAnimation(str(tmp_path / "orbit.gif"), 4, 90, 10, 160, 100)
     qtbot.waitUntil(lambda: "Saved a 4-frame" in workspace.status.text(), timeout=30000)
     assert (tmp_path / "orbit.gif").read_bytes()[:3] == b"GIF"
+
+
+def test_the_overlay_display_dock_follows_the_selection_and_redraws(
+    workspace, images, qtbot
+):
+    cube = VardaRaster(
+        ArrayDataSource(
+            np.random.default_rng(1).random((30, 40, 6)).astype(np.float32),
+            transform=Affine(20, 0, 200, 0, -20, -100),
+            crs=CRS_,
+        ),
+        name="parameters",
+    )
+    images.append(cube)
+    overlay = workspace.overlayPanel.add(cube)
+    assert workspace.displayDock.isVisibleTo(workspace)
+    assert workspace.overlayDisplay.overlay is overlay
+    assert workspace.overlayDisplay.splitter.count() == 2  # settings, histograms
+    with qtbot.waitSignal(workspace.overlayDisplay.sigChanged, timeout=5000):
+        overlay.renderer.settings.rgb.red.set(4)  # a custom composite
+    workspace.overlayPanel.removeSelected()
+    assert workspace.overlayDisplay.overlay is None
+
+
+def test_an_overlays_display_comes_back_with_the_session(workspace, images, qtbot):
+    cube = VardaRaster(
+        ArrayDataSource(
+            np.random.default_rng(1).random((30, 40, 6)).astype(np.float32),
+            transform=Affine(20, 0, 200, 0, -20, -100),
+            crs=CRS_,
+        ),
+        name="parameters",
+    )
+    images.append(cube)
+    overlay = workspace.overlayPanel.add(cube)
+    rgb = overlay.renderer.settings.rgb
+    rgb.red.set(5)
+    rgb.green.set(2)
+    rgb.blue.set(0)
+    described = describeWorkspace(workspace)
+    assert described is not None
+    restored = buildWorkspace(*described, images, workspace.sessionState())
+    assert isinstance(restored, TerrainWorkspace)
+    qtbot.addWidget(restored)
+    back = restored.overlayPanel.overlays[0].renderer.settings.rgb
+    assert (back.red.get(), back.green.get(), back.blue.get()) == (5, 2, 0)

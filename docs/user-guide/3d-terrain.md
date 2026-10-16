@@ -92,10 +92,15 @@ a CTX DEM say, on top of the surface:
 1. **Add Overlay** lists the loaded, georeferenced images of the DEM's body.
    An overlay starts where its georeferencing puts it; images in another map
    projection are reprojected to the DEM's.
-2. **Display…** sets its bands, stretch and color map as in the image views
-   (for CRISM MTRDR summary products, e.g. OLINDEX3, LCPINDEX2, HCPINDEX2
-   for the MAF composite). **Opacity** and the tick box change the view at
-   once.
+2. The **Overlay Display** panel (it opens when you add an overlay;
+   **Display…** brings it back) sets the selected overlay's mode, bands,
+   stretch and color map as in the image views, with its histograms. Drag a
+   histogram's edges to set the stretch. For a CRISM parameter cube, pick any
+   three parameters for red, green and blue by name (OLINDEX3, LCPINDEX2,
+   HCPINDEX2 for the MAF composite, say). The overlay redraws once you stop
+   changing things. Like any panel, it can be docked beside the view or
+   floated. **Opacity** and the tick box in the Overlays list change the
+   view at once.
 3. **Auto Align** matches the overlay's band with the best signal against
    **Align to**: an image on the DEM's grid (its orthoimage works best) or a
    hillshade of the DEM. It uses the Mosaic workspace's matching (phase
@@ -107,7 +112,8 @@ a CTX DEM say, on top of the surface:
 4. **Shift E, N** moves the overlay by hand, in meters, after the fit;
    **Reset Alignment** returns it to its georeferencing.
 
-Overlays and their alignments are saved with the session, and they're
+Overlays, their display settings and their alignments are saved with the
+session, and they're
 included in stills and exported web pages (with their opacity).
 
 Over Jezero, a CRISM MTRDR (FRT00005850) aligns to the USGS CTX DTM's

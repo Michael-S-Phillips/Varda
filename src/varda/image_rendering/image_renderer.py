@@ -306,17 +306,26 @@ class ImageRenderer(QObject):
             channelParams[channel].set(Vec2(float(lo), float(hi)))
         self.settings.sigParameterChanged.emit(self.settings)
 
-    def getSettingsPanel(self, stretchFrom: bool = False) -> "RendererSettingsPanel":
+    def getSettingsPanel(
+        self, stretchFrom: bool = False, opacity: bool = True
+    ) -> "RendererSettingsPanel":
         """The settings panel; ``stretchFrom`` shows Stretch From, for views
-        that report their windows (``setStretchWindow``)."""
-        return RendererSettingsPanel(self.settings, stretchFrom=stretchFrom)
+        that report their windows (``setStretchWindow``); ``opacity`` the
+        opacity (left out where something else sets it)."""
+        return RendererSettingsPanel(
+            self.settings, stretchFrom=stretchFrom, opacity=opacity
+        )
 
 
 class RendererSettingsPanel(QWidget):
     """Panel for adjusting render settings, generated from the settings' parameters."""
 
     def __init__(
-        self, settings: RendererSettings, parent=None, stretchFrom: bool = False
+        self,
+        settings: RendererSettings,
+        parent=None,
+        stretchFrom: bool = False,
+        opacity: bool = True,
     ):
         super().__init__(parent)
         self.setWindowTitle("Image Render Settings")
@@ -348,7 +357,8 @@ class RendererSettingsPanel(QWidget):
             layout.addWidget(formWidget([settings.stretchFrom], self))
 
         # Opacity (labeled form row)
-        layout.addWidget(formWidget([settings.opacity], self))
+        if opacity:
+            layout.addWidget(formWidget([settings.opacity], self))
 
         self.setLayout(layout)
 
