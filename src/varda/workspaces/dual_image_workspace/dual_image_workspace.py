@@ -58,6 +58,11 @@ from varda.common.parameter_widgets import groupWidget
 logger = logging.getLogger(__name__)
 
 
+# Lines and profiles aren't offered here yet (the two images may be on
+# different pixel grids)
+NO_LINES = ("Line Drawing",)
+
+
 class DisplayMode(Enum):
     SIDE_BY_SIDE = 1
     OVERLAY = 2
@@ -197,8 +202,12 @@ class DualImageWorkspace(QMainWindow):
         self.viewport1 = ImageViewport(self.primaryRenderer, parent=self)
         self.viewport2 = ImageViewport(self.secondaryRenderer, parent=self)
 
-        self.toolManager1 = ToolManager(self.viewport1, self)
-        self.toolManager2 = ToolManager(self.viewport2, self)
+        self.toolManager1 = ToolManager(
+            self.viewport1, self, excludeCategories=NO_LINES
+        )
+        self.toolManager2 = ToolManager(
+            self.viewport2, self, excludeCategories=NO_LINES
+        )
         self.viewport1.addToolBar(self.toolManager1.getToolbar())
         self.viewport2.addToolBar(self.toolManager2.getToolbar())
         # Each side can have its own result laid over it
@@ -324,7 +333,9 @@ class DualImageWorkspace(QMainWindow):
         self.viewport1 = ImageViewport(self.primaryRenderer, self)
         self.viewport1.overlayImage(self.secondaryRenderer)
 
-        self.toolManager1 = ToolManager(self.viewport1, self)
+        self.toolManager1 = ToolManager(
+            self.viewport1, self, excludeCategories=NO_LINES
+        )
         self.viewport1.addToolBar(self.toolManager1.getToolbar())
 
         self.roiDisplayController.registerViewport("overlay", self.viewport1)

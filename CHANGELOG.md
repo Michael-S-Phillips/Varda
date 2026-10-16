@@ -8,6 +8,13 @@ can alter results.
 
 ### Added
 
+- **Lines and profiles** (General Image Analysis): draw straight lines,
+  polylines or freehand lines with **Draw Line**, listed in the new **Lines**
+  tab (rename, recolor, delete, export to GIS files) and saved with the
+  session. The **Profiles** tab plots a band along them, e.g. a topographic
+  profile of a DEM: distance in meters (geodesic for longitude-latitude
+  images), the pointer's spot marked on the image, the vertical
+  exaggeration, and export as CSV, PNG, SVG or PDF.
 - **Overlay colors:** a single-band overlay's **Colors** menu chooses its
   color map (Viridis, Magma, Inferno, Plasma, Cividis, Turbo, Gray or a
   diverging Blue-White-Red), reverses it, and stretches it over the full

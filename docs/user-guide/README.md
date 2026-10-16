@@ -5,6 +5,7 @@ Detailed guides to Varda's features. For an overview, see the
 
 - [Installing Varda](installing.md): downloading a release, running from source, optional extras
 - [Sessions and saving results](sessions-and-saving.md): saving and restoring your work, autosave, exporting images
+- [Lines and profiles](lines-and-profiles.md): drawing lines and plotting topographic and band profiles along them
 - [Image processing tools](image-processing.md): spatial filters, texture, color, class map tools, terrain and geometry
 - [PCA, MNF and ICA](transforms.md): choosing how many components to keep, inverse transforms
 - [Spectral Hourglass](spectral-hourglass.md): finding, identifying and mapping endmembers, preparing a spectral library

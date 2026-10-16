@@ -245,3 +245,68 @@ class PyqtgraphROIOverlay(pg.GraphicsObject):
             )
         self._pen = pg.mkPen(color=(color.red(), color.green(), color.blue()), width=2)
         self._brush = pg.mkBrush(color)
+
+
+class PyqtgraphPolylineOverlay(pg.GraphicsObject):
+    """An open line through points in viewport-local coordinates (a drawn
+    line or profile), a constant width on screen, with a highlight state."""
+
+    _HIGHLIGHT = QColor(255, 255, 0)
+
+    def __init__(
+        self,
+        viewBox: pg.ViewBox,
+        points: Sequence[QPointF],
+        color: QColor,
+        width: float = 2.0,
+        clipTo: Callable[[], QRectF] | None = None,
+    ):
+        super().__init__()
+        self._clipTo = clipTo
+        self._color = color
+        self._width = width
+        self._highlighted = False
+        self._path = QPainterPath()
+        self.setPoints(points)
+        self._hostViewBox = viewBox
+        viewBox.addItem(self, ignoreBounds=True)
+
+    def setPoints(self, points: Sequence[QPointF]) -> None:
+        self.prepareGeometryChange()
+        path = QPainterPath()
+        for index, point in enumerate(points):
+            if index == 0:
+                path.moveTo(point)
+            else:
+                path.lineTo(point)
+        self._path = path
+        self.update()
+
+    def setColor(self, color: QColor) -> None:
+        self._color = color
+        self.update()
+
+    def setHighlighted(self, highlighted: bool) -> None:
+        if self._highlighted != highlighted:
+            self._highlighted = highlighted
+            self.update()
+
+    def remove(self) -> None:
+        self._hostViewBox.removeItem(self)
+
+    def boundingRect(self) -> QRectF:
+        # pad by the pen, in view units, so wide lines aren't clipped
+        rect = self._path.boundingRect()
+        pixel = self.pixelLength(None) or 0.0
+        pad = (self._width + 2) * pixel
+        return rect.adjusted(-pad, -pad, pad, pad)
+
+    def paint(self, painter, option, widget=None) -> None:
+        if self._clipTo is not None:
+            painter.setClipRect(self._clipTo(), Qt.ClipOperation.IntersectClip)
+        color = self._HIGHLIGHT if self._highlighted else self._color
+        pen = pg.mkPen(color, width=self._width * (1.75 if self._highlighted else 1))
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(self._path)

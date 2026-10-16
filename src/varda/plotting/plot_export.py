@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
+import pyqtgraph as pg
 import pyqtgraph.exporters as exporters
 from PyQt6.QtCore import QMarginsF, QRectF, QSizeF
 from PyQt6.QtGui import QPageLayout, QPageSize, QPainter, QPdfWriter
@@ -30,48 +31,66 @@ _UNIT_COLUMN = {
 }
 
 
-def exportPlot(widget: VardaPlotWidget, path: str | Path) -> Path:
-    """Write the plot to ``path``; the suffix picks the format."""
+IMAGE_FILTER = "PNG image (*.png);;SVG vector image (*.svg);;PDF (*.pdf)"
+
+
+def exportImage(plotItem: pg.PlotItem, path: str | Path) -> Path:
+    """Write any pyqtgraph plot as a PNG, SVG or PDF; the suffix picks the
+    format."""
     target = Path(path)
-    writers = {".png": _png, ".svg": _svg, ".pdf": _pdf, ".csv": _csv}
+    writers = {".png": _png, ".svg": _svg, ".pdf": _pdf}
     writer = writers.get(target.suffix.lower())
     if writer is None:
-        raise ValueError(f"Cannot export '{target.suffix}'; use png, svg, pdf or csv.")
-    writer(widget, target)
+        raise ValueError(f"Cannot export '{target.suffix}'; use png, svg or pdf.")
+    writer(plotItem, target)
     return target
 
 
-def _png(widget: VardaPlotWidget, target: Path) -> None:
-    exporter = exporters.ImageExporter(widget.plotItem)
-    width = max(MIN_PNG_WIDTH, int(widget.plotItem.sceneBoundingRect().width() * 3))
+def exportPlot(widget: VardaPlotWidget, path: str | Path) -> Path:
+    """Write the plot to ``path``; the suffix picks the format."""
+    target = Path(path)
+    if target.suffix.lower() == ".csv":
+        _csv(widget, target)
+        return target
+    writers = {".png": _png, ".svg": _svg, ".pdf": _pdf}
+    writer = writers.get(target.suffix.lower())
+    if writer is None:
+        raise ValueError(f"Cannot export '{target.suffix}'; use png, svg, pdf or csv.")
+    writer(widget.plotItem, target)
+    return target
+
+
+def _png(plotItem: pg.PlotItem, target: Path) -> None:
+    exporter = exporters.ImageExporter(plotItem)
+    width = max(MIN_PNG_WIDTH, int(plotItem.sceneBoundingRect().width() * 3))
     exporter.parameters()["width"] = width
     exporter.export(str(target))
 
 
-def _svg(widget: VardaPlotWidget, target: Path) -> None:
+def _svg(plotItem: pg.PlotItem, target: Path) -> None:
     # Qt's own SVG writer: pyqtgraph's SVGExporter calls paint() on PlotDataItem
     # containers, which raises under PyQt6
-    source = widget.plotItem.sceneBoundingRect()
+    source = plotItem.sceneBoundingRect()
     generator = QSvgGenerator()
     generator.setFileName(str(target))
     generator.setSize(source.size().toSize())
     generator.setViewBox(QRectF(0, 0, source.width(), source.height()))
-    generator.setTitle("Varda spectra")
-    _render(widget, generator, QRectF(0, 0, source.width(), source.height()))
+    generator.setTitle("Varda plot")
+    _render(plotItem, generator, QRectF(0, 0, source.width(), source.height()))
 
 
-def _render(widget: VardaPlotWidget, device, targetRect: QRectF) -> None:
+def _render(plotItem: pg.PlotItem, device, targetRect: QRectF) -> None:
     painter = QPainter(device)
     try:
-        scene = widget.plotItem.scene()
+        scene = plotItem.scene()
         if scene is not None:
-            scene.render(painter, targetRect, widget.plotItem.sceneBoundingRect())
+            scene.render(painter, targetRect, plotItem.sceneBoundingRect())
     finally:
         painter.end()
 
 
-def _pdf(widget: VardaPlotWidget, target: Path) -> None:
-    source = widget.plotItem.sceneBoundingRect()
+def _pdf(plotItem: pg.PlotItem, target: Path) -> None:
+    source = plotItem.sceneBoundingRect()
     writer = QPdfWriter(str(target))
     writer.setResolution(PDF_DPI)
     # A page the shape of the plot, 6 inches wide
@@ -81,7 +100,7 @@ def _pdf(widget: VardaPlotWidget, target: Path) -> None:
     writer.setPageLayout(
         QPageLayout(pageSize, QPageLayout.Orientation.Portrait, QMarginsF())
     )
-    _render(widget, writer, QRectF(0, 0, writer.width(), writer.height()))
+    _render(plotItem, writer, QRectF(0, 0, writer.width(), writer.height()))
 
 
 def _csv(widget: VardaPlotWidget, target: Path) -> None:

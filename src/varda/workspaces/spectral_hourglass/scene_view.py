@@ -103,7 +103,10 @@ class SceneView(QWidget):
         if image.bandCount >= 3:
             self.renderer.settings.mode.set(RenderMode.RGB)
         self.viewport = ImageViewport(self.renderer, self)
-        self.toolManager = ToolManager(self.viewport, self)
+        # no lines here: nothing in this workspace takes profiles
+        self.toolManager = ToolManager(
+            self.viewport, self, excludeCategories=("Line Drawing",)
+        )
         toolbar = self.toolManager.getToolbar()
         # Drawing here picks endmember pixels; it makes no ROIs
         for action in toolbar.actions():

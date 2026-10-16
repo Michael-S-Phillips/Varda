@@ -84,6 +84,17 @@ class PointOverlayHandle(OverlayHandle, Protocol):
     def setHighlighted(self, highlighted: bool) -> None: ...
 
 
+class PolylineOverlayHandle(OverlayHandle, Protocol):
+    """An open line (a drawn line or profile) in viewport-local coordinates,
+    a constant width on screen, with a highlight state."""
+
+    def setPoints(self, points: Sequence[QPointF]) -> None: ...
+
+    def setColor(self, color: QColor) -> None: ...
+
+    def setHighlighted(self, highlighted: bool) -> None: ...
+
+
 class ROIOverlayHandle(OverlayHandle, Protocol):
     """A display-only ROI polygon (colored outline + fill) with a highlight state.
 
@@ -217,6 +228,12 @@ class RasterViewport(Protocol):
         self, points: Sequence[QPointF], color: QColor
     ) -> ROIOverlayHandle:
         """Add a display-only ROI polygon overlay; returns a handle to drive it."""
+        ...
+
+    def addPolylineOverlay(
+        self, points: Sequence[QPointF], color: QColor, width: float = 2.0
+    ) -> PolylineOverlayHandle:
+        """Add an open line overlay; returns a handle to drive it."""
         ...
 
     def addPointOverlay(
