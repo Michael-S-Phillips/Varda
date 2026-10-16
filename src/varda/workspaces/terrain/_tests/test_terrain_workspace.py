@@ -5,6 +5,7 @@ not have, so those checks are skipped there)."""
 import numpy as np
 import pytest
 from affine import Affine
+from pytestqt.exceptions import TimeoutError as QtTimeoutError
 from pyproj import CRS
 
 from varda.common.di_types import ProjectImages
@@ -97,7 +98,7 @@ def test_still_sizes(qtbot):
 def test_a_still_renders_where_webgl_is_available(workspace, qtbot, tmp_path):
     try:
         qtbot.waitUntil(lambda: workspace.view.ready, timeout=8000)
-    except AssertionError:
+    except QtTimeoutError:
         pytest.skip("no WebGL in this (offscreen) test run")
     workspace.saveStill(str(tmp_path / "still.png"), 800, 500, transparent=True)
     qtbot.waitUntil(lambda: (tmp_path / "still.png").exists(), timeout=10000)

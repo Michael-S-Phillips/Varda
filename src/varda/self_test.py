@@ -130,7 +130,7 @@ def _terrainView(image: VardaRaster) -> str:
         QApplication.processEvents()
         time.sleep(0.02)
     assert found.get("scene") == "object", "the page has no terrain data"
-    view.deleteLater()
+    TerrainView.releaseAll()  # WebEngine crashes at exit with a page alive
     return f"page loaded; WebGL {outcome.get('webgl', 'not ready in time')}"
 
 

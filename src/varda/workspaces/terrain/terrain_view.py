@@ -11,9 +11,11 @@ import base64
 import json
 import logging
 import tempfile
+import weakref
 from collections.abc import Callable
 from pathlib import Path
 
+from PyQt6 import sip
 from PyQt6.QtCore import QUrl, pyqtSignal
 from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -35,11 +37,25 @@ class _Page(QWebEnginePage):
 
 
 class TerrainView(QWebEngineView):
+    """Every view must be deleted before the application ends: WebEngine
+    (on Linux at least) crashes at exit if a page outlives its profile, so
+    ``releaseAll`` runs at quit."""
+
     sigReady = pyqtSignal()
     sigFailed = pyqtSignal(str)
+    _live: weakref.WeakSet[TerrainView] = weakref.WeakSet()
+
+    @classmethod
+    def releaseAll(cls) -> None:
+        """Delete every view still alive (and its page, a child of it)."""
+        for view in list(cls._live):
+            if not sip.isdeleted(view):
+                sip.delete(view)
+        cls._live.clear()
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+        TerrainView._live.add(self)
         self._page = _Page(self)
         self._page.sigConsole.connect(self._onConsole)
         self.setPage(self._page)
