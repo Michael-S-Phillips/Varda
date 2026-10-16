@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
@@ -48,6 +49,7 @@ from varda.common.observable_list import ObservableList
 from varda.common.palette import classColor
 from varda.common.ui import MutedLabel
 from varda.image_rendering.image_renderer import ImageRenderer, RenderMode
+from varda.image_rendering.render_state import restoreSettings, settingsState
 from varda.image_rendering.stretch_algorithms import LinearPercentileStretch
 from varda.terrain.overlays import (
     Alignment,
@@ -76,6 +78,7 @@ from varda.terrain.scene import (
 from varda.utilities.background import runInBackground
 from varda.workspaces.raster_overlay import COLOR_MAPS, colorMap
 from varda.workspaces.find_data.basemap import imageBody
+from varda.workspaces.terrain.overlay_display import OverlayDisplay
 from varda.workspaces.terrain.overlay_panel import OverlayPanel, TerrainOverlay
 from varda.workspaces.terrain.terrain_view import TerrainView
 
@@ -365,6 +368,12 @@ class TerrainWorkspace(QMainWindow):
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([320, 1100])
         self.setCentralWidget(splitter)
+        self.displayDock = QDockWidget("Overlay Display", self)
+        self.displayDock.setObjectName("overlayDisplay")
+        self.displayDock.setWidget(self.overlayDisplay)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.displayDock)
+        self.displayDock.hide()  # until an overlay is added or Display… is clicked
+        self.resizeDocks([self.displayDock], [380], Qt.Orientation.Horizontal)
 
         self._refreshImages(select=dem)
         if isinstance(projectImages, ObservableList):
@@ -531,6 +540,11 @@ class TerrainWorkspace(QMainWindow):
         self.overlayPanel.sigRebuild.connect(self.rebuild)
         self.overlayPanel.sigLook.connect(self._onOverlayLook)
         self.overlayPanel.sigAlignRequested.connect(self.autoAlign)
+        # The selected overlay's settings and histograms, in a dock
+        self.overlayDisplay = OverlayDisplay()
+        self.overlayDisplay.sigChanged.connect(self.rebuild)
+        self.overlayPanel.sigSelected.connect(self.overlayDisplay.setOverlay)
+        self.overlayPanel.sigDisplayRequested.connect(self._showDisplay)
         self.status = MutedLabel("")
         self.status.setWordWrap(True)
         self.panel = QWidget()
@@ -565,6 +579,10 @@ class TerrainWorkspace(QMainWindow):
     def _references(self) -> list[VardaRaster]:
         dem = self.dem()
         return [] if dem is None else compatibleImages(list(self.projectImages), dem)
+
+    def _showDisplay(self) -> None:
+        self.displayDock.show()
+        self.displayDock.raise_()
 
     def _onOverlayLook(self, index: int, opacity: float, visible: bool) -> None:
         if self.view.ready:
@@ -1222,6 +1240,7 @@ class TerrainWorkspace(QMainWindow):
                     "visible": o.visible,
                     "reference": o.reference,
                     "alignment": o.alignment.state(),
+                    "display": settingsState(o.renderer.settings),
                 }
                 for o in self.overlayPanel.overlays
             ],
@@ -1252,6 +1271,7 @@ class TerrainWorkspace(QMainWindow):
                 overlay.visible = bool(saved.get("visible", True))
                 overlay.reference = saved.get("reference", overlay.reference)
                 overlay.alignment = Alignment.fromState(saved.get("alignment", {}))
+                restoreSettings(overlay.renderer.settings, saved.get("display", {}))
                 overlays.append(overlay)
             self.overlayPanel.setOverlays(overlays)
             self.settings = TerrainSettings.fromDict(state.get("settings", {}))

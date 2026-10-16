@@ -14,8 +14,6 @@ from attrs import define, field
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
-    QDialog,
-    QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
@@ -61,6 +59,8 @@ class OverlayPanel(QWidget):
     sigRebuild = pyqtSignal()
     sigLook = pyqtSignal(int, float, bool)  # overlay, opacity, visible
     sigAlignRequested = pyqtSignal(int)
+    sigSelected = pyqtSignal(object)  # the selected TerrainOverlay, or None
+    sigDisplayRequested = pyqtSignal()  # show the Overlay Display dock
 
     def __init__(
         self,
@@ -94,7 +94,10 @@ class OverlayPanel(QWidget):
         self.opacity.setRange(0, 100)
         self.opacity.valueChanged.connect(self._onOpacity)
         display = QPushButton("Display…")
-        display.setToolTip("Its bands, stretch and color map, as in the image views")
+        display.setToolTip(
+            "Its bands, stretch and color map, with histograms (the Overlay "
+            "Display panel)"
+        )
         display.clicked.connect(self._editDisplay)
         self.referenceBox = QComboBox()
         self.referenceBox.setToolTip(
@@ -172,6 +175,7 @@ class OverlayPanel(QWidget):
         self._addItem(overlay)
         self.list.setCurrentRow(len(self.overlays) - 1)
         self.sigRebuild.emit()
+        self.sigDisplayRequested.emit()  # its bands and stretch, at hand
         return overlay
 
     def _addItem(self, overlay: TerrainOverlay) -> None:
@@ -215,6 +219,7 @@ class OverlayPanel(QWidget):
 
     def showSelected(self) -> None:
         overlay = self.selected()
+        self.sigSelected.emit(overlay)
         self.details.setEnabled(overlay is not None)
         if overlay is None:
             self.alignment.setText("")
@@ -294,15 +299,5 @@ class OverlayPanel(QWidget):
             self.sigAlignRequested.emit(self.list.currentRow())
 
     def _editDisplay(self) -> None:
-        overlay = self.selected()
-        if overlay is None:
-            return
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f"Display: {overlay.image.name}")
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        buttons.rejected.connect(dialog.accept)
-        layout = QVBoxLayout(dialog)
-        layout.addWidget(overlay.renderer.getSettingsPanel())
-        layout.addWidget(buttons)
-        dialog.exec()
-        self.sigRebuild.emit()
+        if self.selected() is not None:
+            self.sigDisplayRequested.emit()

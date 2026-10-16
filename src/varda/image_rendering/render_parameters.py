@@ -114,6 +114,11 @@ class StretchParameter(Parameter[StretchAlgorithm]):
     def optionNames(self) -> list[str]:
         return list(self._instances.keys())
 
+    @property
+    def optionGroups(self) -> dict[str, ParameterGroup]:
+        """Each algorithm's settings, by name."""
+        return dict(self._paramGroups)
+
     def option(self, name: str) -> StretchAlgorithm:
         return self._instances[name]
 
