@@ -51,7 +51,8 @@ can alter results.
   every view and plots every image's spectrum there, each in its own plot
   (a product, its counts, its flags); a line drawn on any view gives every
   image's profile. Made for checking pipeline products, such as MISE's
-  synthetic data, against each other.
+  synthetic data, against each other. Every view and panel is a dock to
+  drag, tab or float, and the Display panel shows each image's histograms.
 - **Bit masks:** **Decode Bit Mask** (Processing → Statistics) turns a
   mask (a pipeline's per-frame exclusions, a QA band) into the number of
   bits set, one bit, or any of several, band by band; in Linked Images a

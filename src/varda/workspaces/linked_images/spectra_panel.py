@@ -18,12 +18,14 @@ from pathlib import Path
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import QRectF
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
-    QCheckBox,
     QFileDialog,
     QHBoxLayout,
+    QMenu,
     QMessageBox,
     QPushButton,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -77,17 +79,25 @@ class LinkedSpectraPanel(QWidget):
             self.curves.append(curve)
             self.bitImages.append(bits)
         # whole-number images can be shown as bits
-        self.bitBoxes: dict[str, QCheckBox] = {}
-        bitsRow = QHBoxLayout()
+        self.bitBoxes: dict[str, QAction] = {}
+        self.bitsButton = QToolButton()
+        self.bitsButton.setText("As Bits")
+        self.bitsButton.setToolTip(
+            "Show whole-number images as bits by wavelength (bit masks)"
+        )
+        self.bitsButton.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        bitsMenu = QMenu(self.bitsButton)
         for index, image in enumerate(self.images):
             if not wholeNumbers(image):
                 continue
-            box = QCheckBox(image.name)
-            box.setChecked(self.asBits[index])
-            box.setToolTip(f"Show {image.name} as bits by wavelength (a bit mask)")
-            box.toggled.connect(lambda on, index=index: self.showAsBits(index, on))
-            self.bitBoxes[image.name] = box
-            bitsRow.addWidget(box)
+            action = bitsMenu.addAction(image.name)
+            assert action is not None
+            action.setCheckable(True)
+            action.setChecked(self.asBits[index])
+            action.toggled.connect(lambda on, index=index: self.showAsBits(index, on))
+            self.bitBoxes[image.name] = action
+        self.bitsButton.setMenu(bitsMenu)
+        self.bitsButton.setVisible(bool(self.bitBoxes))
         self.hint = MutedLabel(
             "Ctrl+click or Ctrl+drag in any view to read every image there."
         )
@@ -97,14 +107,11 @@ class LinkedSpectraPanel(QWidget):
         export.clicked.connect(self._export)
         bottom = QHBoxLayout()
         bottom.addWidget(self.hint, 1)
+        bottom.addWidget(self.bitsButton)
         bottom.addWidget(export)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.layoutWidget, 1)
-        if self.bitBoxes:
-            bitsRow.insertWidget(0, MutedLabel("As bits:"))
-            bitsRow.addStretch()
-            layout.addLayout(bitsRow)
         layout.addLayout(bottom)
 
     def showAsBits(self, index: int, on: bool) -> None:

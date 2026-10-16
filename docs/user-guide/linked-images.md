@@ -30,8 +30,8 @@ grid already ticked. Choose two or more, and how to link them:
   pipeline's per-frame exclusions (bit *i* set where frame *i* of a stack
   was left out) become a chart of which frames were left out at each
   wavelength, titled with how many. Whole-number images named like masks
-  (EXCLUDE, MASK, BITS, QA, quality) start that way; the **As bits** boxes
-  switch any whole-number image. **Processing → Statistics → Decode Bit
+  (EXCLUDE, MASK, BITS, QA, quality) start that way; the **As Bits** button
+  switches any whole-number image. **Processing → Statistics → Decode Bit
   Mask** turns a mask into images: the number of bits set, one bit, or any
   of several.
 - **Draw Line** in any view draws a line on all of them, and the **Linked
@@ -39,8 +39,18 @@ grid already ticked. Choose two or more, and how to link them:
   each). The **Lines** panel renames, recolors, deletes and exports lines;
   selecting lines shows only their profiles. See
   [Lines and profiles](lines-and-profiles.md).
-- The **Display** panel sets each image's bands, stretch and color map.
+- The **Display** panel sets each image's bands, stretch and color map,
+  with its histograms below.
 - **Crop** makes a cropped copy of the image it's used on.
+
+## Arranging the windows
+
+Every view and panel is a window of its own inside the workspace: drag one
+by its title to put it beside, above or below another, drop it on another
+to share a tab, or float it (its title bar's button) and put it on a second
+screen. The views start in a grid, with Display and Lines on the left and
+the spectra and profiles on the right. Views can't be closed, so none gets
+lost; panels can, and drawing a line brings Linked Profiles back.
 
 The images, the link, the cursor, the lines and each image's display
 settings are saved with the session.
