@@ -49,7 +49,12 @@ def bandLabel(image: VardaRaster, band: int) -> str:
 class ProfilePlotWidget(QWidget):
     sigCursor = pyqtSignal(object)  # image px (2,) of the hovered sample, or None
 
-    def __init__(self, image: VardaRaster, parent: QWidget | None = None):
+    def __init__(
+        self,
+        image: VardaRaster,
+        parent: QWidget | None = None,
+        emptyText: str = "Draw a line with Draw Line to see its profile.",
+    ):
         super().__init__(parent)
         self.image = image
         self.lines: list[VardaLine] = []
@@ -94,7 +99,7 @@ class ProfilePlotWidget(QWidget):
         layout.addLayout(top)
         layout.addWidget(self.plot, 1)
         layout.addLayout(bottom)
-        self.empty = MutedLabel("Draw a line with Draw Line to see its profile.")
+        self.empty = MutedLabel(emptyText)
         layout.addWidget(self.empty)
         self._replot()
 

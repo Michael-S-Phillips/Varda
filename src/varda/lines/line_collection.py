@@ -1,8 +1,13 @@
 """Lines drawn on an image: straight lines, polylines and freehand lines, in
-image pixel coordinates, with a name and color. No Qt."""
+image pixel coordinates, with a name and color. No Qt.
+
+Workspaces share their lines (``shareLines``) so that others can use them:
+the 3D Terrain workspace drapes them over a DEM."""
 
 from __future__ import annotations
 
+import weakref
+from collections.abc import Iterable
 from pathlib import Path
 
 import attrs
@@ -125,13 +130,16 @@ class LineCollection:
                 color=entry.get("color"),
             )
 
-    def toFile(self, path: str | Path, image: VardaRaster) -> None:
-        """GIS lines: map coordinates (in the image's CRS) when it is
-        georeferenced, pixel coordinates otherwise."""
-        path = Path(path)
-        driver = _DRIVERS.get(path.suffix.lower())
-        if driver is None:
-            raise ValueError(f"Unsupported file type: {path.suffix}")
+    def toFrame(
+        self, image: VardaRaster, fids: Iterable[int] | None = None
+    ) -> gpd.GeoDataFrame:
+        """The lines (all, or ``fids``) as GIS lines: map coordinates (in the
+        image's CRS) when it is georeferenced, pixel coordinates otherwise."""
+        lines = (
+            list(self._lines.values())
+            if fids is None
+            else [self._lines[fid] for fid in fids]
+        )
         georeferenced = image.hasGeospatialData
         geometries = [
             LineString(
@@ -139,18 +147,44 @@ class LineCollection:
                 if georeferenced
                 else line.vertices
             )
-            for line in self._lines.values()
+            for line in lines
         ]
-        lengths = [line.length(image) for line in self._lines.values()]
-        frame = gpd.GeoDataFrame(
+        lengths = [line.length(image) for line in lines]
+        return gpd.GeoDataFrame(
             {
-                "name": [line.name for line in self._lines.values()],
-                "kind": [line.kind.value for line in self._lines.values()],
-                "color": [line.color for line in self._lines.values()],
+                "name": [line.name for line in lines],
+                "kind": [line.kind.value for line in lines],
+                "color": [line.color for line in lines],
                 "length": [length for length, _ in lengths],
                 "units": [units for _, units in lengths],
             },
             geometry=geometries,
             crs=image.crs if georeferenced else None,
         )
-        frame.to_file(path, driver=driver)
+
+    def toFile(self, path: str | Path, image: VardaRaster) -> None:
+        """The lines as a GIS file (see ``toFrame``)."""
+        path = Path(path)
+        driver = _DRIVERS.get(path.suffix.lower())
+        if driver is None:
+            raise ValueError(f"Unsupported file type: {path.suffix}")
+        self.toFrame(image).to_file(path, driver=driver)
+
+
+# Lines that workspaces offer to others, with the image they're drawn on
+_shared: weakref.WeakKeyDictionary[LineCollection, VardaRaster] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def shareLines(collection: LineCollection, image: VardaRaster) -> None:
+    _shared[collection] = image
+
+
+def unshareLines(collection: LineCollection) -> None:
+    _shared.pop(collection, None)
+
+
+def sharedLines() -> list[tuple[VardaRaster, LineCollection]]:
+    """Shared collections that have lines, with their images."""
+    return [(image, lines) for lines, image in _shared.items() if len(lines)]

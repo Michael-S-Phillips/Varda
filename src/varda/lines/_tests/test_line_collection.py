@@ -8,7 +8,13 @@ from pyproj import CRS
 
 from varda.common.entities import VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
-from varda.lines.line_collection import LineCollection, LineKind
+from varda.lines.line_collection import (
+    LineCollection,
+    LineKind,
+    shareLines,
+    sharedLines,
+    unshareLines,
+)
 
 
 def _image(georeferenced=True) -> VardaRaster:
@@ -65,3 +71,24 @@ def test_lines_export_as_gis_lines_in_map_coordinates(tmp_path):
     assert list(frame["name"]) == ["Profile A"]
     assert frame.geometry[0].coords[:] == [(1000.0, 5000.0), (1060.0, 4920.0)]
     assert frame["length"][0] == pytest.approx(100.0) and frame["units"][0] == "m"
+
+
+def test_one_lines_map_coordinates_for_other_workspaces():
+    lines = LineCollection()
+    lines.addLine([[0, 0], [3, 4]], name="A")
+    b = lines.addLine([[1, 1], [2, 2]], name="B")
+    frame = lines.toFrame(_image(), [b])
+    assert list(frame["name"]) == ["B"]
+    assert frame.geometry[0].coords[:] == [(1020.0, 4980.0), (1040.0, 4960.0)]
+
+
+def test_workspaces_share_their_lines_until_they_close():
+    image, lines, empty = _image(), LineCollection(), LineCollection()
+    shareLines(lines, image)
+    shareLines(empty, image)
+    assert all(shared is not lines for _, shared in sharedLines())  # no lines yet
+    lines.addLine([[0, 0], [3, 4]])
+    assert (image, lines) in sharedLines()
+    assert all(shared is not empty for _, shared in sharedLines())
+    unshareLines(lines)
+    assert all(shared is not lines for _, shared in sharedLines())

@@ -13,7 +13,9 @@ from collections.abc import MutableSequence, Sequence
 from pathlib import Path
 
 import attrs
+import geopandas as gpd
 import numpy as np
+import shapely
 from pyproj import CRS
 from rasterio.crs import CRS as RasterioCRS
 from rasterio.transform import array_bounds
@@ -35,10 +37,12 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMenu,
     QPushButton,
     QScrollArea,
     QSpinBox,
     QSplitter,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -49,6 +53,13 @@ from varda.common.observable_list import ObservableList
 from varda.common.palette import classColor
 from varda.common.ui import MutedLabel
 from varda.image_rendering.image_renderer import ImageRenderer, RenderMode
+from varda.lines.line_collection import (
+    LineCollection,
+    LineKind,
+    VardaLine,
+    sharedLines,
+)
+from varda.plotting.profile_plot import ProfilePlotWidget
 from varda.image_rendering.render_state import restoreSettings, settingsState
 from varda.image_rendering.stretch_algorithms import LinearPercentileStretch
 from varda.terrain.overlays import (
@@ -64,7 +75,7 @@ from varda.terrain.overlays import drape as drapeOverlay
 from varda.terrain.animation import FORMATS as ANIMATION_FORMATS
 from varda.terrain.animation import writeAnimation
 from varda.terrain.solid import printSolid, stlBytes
-from varda.terrain.vectors import PageLine, readLines
+from varda.terrain.vectors import PageLine, placeLines, readLines
 from varda.terrain.scene import (
     Legend,
     PageOverlay,
@@ -92,6 +103,7 @@ STILL_SIZES = {
     "Square (3000 × 3000)": (3000, 3000),
 }
 MAX_STILL = 16384  # px on a side: WebGL's canvas limit
+MAX_PROFILES = 20  # curves in the Profiles panel (a file of contacts has hundreds)
 
 
 def wktOf(image: VardaRaster) -> str:
@@ -104,6 +116,21 @@ def mapBounds(image: VardaRaster) -> tuple[float, float, float, float]:
     """(west, south, east, north) in the image's map units."""
     west, south, east, north = array_bounds(image.height, image.width, image.transform)
     return float(west), float(south), float(east), float(north)
+
+
+def demLines(layers: Sequence[PageLine], width: int, height: int) -> list[VardaLine]:
+    """Layers of lines (fractions of the DEM's extent) as lines in its pixel
+    coordinates, one per path, to profile."""
+    lines = []
+    for layer in layers:
+        for i, path in enumerate(layer.paths):
+            uv = np.asarray(path, float)
+            name = layer.name if len(layer.paths) == 1 else f"{layer.name} {i + 1}"
+            vertices = np.column_stack([uv[:, 0] * width, (1 - uv[:, 1]) * height])
+            lines.append(
+                VardaLine(len(lines), name, layer.color, LineKind.POLYLINE, vertices)
+            )
+    return lines
 
 
 LEGEND_STOPS = 16  # color bar samples of the color map
@@ -350,7 +377,8 @@ class TerrainWorkspace(QMainWindow):
         # the last built page's parts, for Export Web Page
         self._texture: str | None = None
         self._legend: Legend | None = None
-        self.lineLayers: list[tuple[str, PageLine]] = []  # (file, its lines)
+        # (where they come from: a file or lines kept in the session; the lines)
+        self.lineLayers: list[tuple[dict, PageLine]] = []
         self._overlays: list[PageOverlay] = []
         self._restoring = False
 
@@ -374,6 +402,12 @@ class TerrainWorkspace(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.displayDock)
         self.displayDock.hide()  # until an overlay is added or Display… is clicked
         self.resizeDocks([self.displayDock], [380], Qt.Orientation.Horizontal)
+        # The DEM along the lines
+        self.profilePlot: ProfilePlotWidget | None = None
+        self.profileDock = QDockWidget("Profiles", self)
+        self.profileDock.setObjectName("profiles")
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.profileDock)
+        self.profileDock.hide()  # until lines are added
 
         self._refreshImages(select=dem)
         if isinstance(projectImages, ObservableList):
@@ -518,18 +552,24 @@ class TerrainWorkspace(QMainWindow):
         exports.addWidget(animation)
         self.lineList = QListWidget()
         self.lineList.setToolTip(
-            "Lines from GIS files, draped on the surface; tick to show, "
-            "double-click to change the color"
+            "Lines draped on the surface, with their DEM profiles in the "
+            "Profiles panel; tick to show, double-click to change the color"
         )
         self.lineList.setMaximumHeight(90)
+        self.lineList.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        self.lineList.itemSelectionChanged.connect(self._updateProfiles)
         self.lineList.itemChanged.connect(self._onLineItem)
         self.lineList.itemDoubleClicked.connect(self._recolorLine)
-        addLines = QPushButton("Add Lines…")
+        addLines = QToolButton()
+        addLines.setText("Add Lines")
         addLines.setToolTip(
-            "A vector file (GeoJSON, GeoPackage, shapefile, KML): a traverse, "
-            "mapped contacts, lines exported from the Lines tab"
+            "Lines drawn in an image workspace (Draw Line), or a vector file "
+            "(GeoJSON, GeoPackage, shapefile, KML): a traverse, mapped contacts"
         )
-        addLines.clicked.connect(self._chooseLines)
+        addLines.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.addLinesMenu = QMenu(addLines)
+        self.addLinesMenu.aboutToShow.connect(self._fillLinesMenu)
+        addLines.setMenu(self.addLinesMenu)
         removeLines = QPushButton("Remove")
         removeLines.clicked.connect(self._removeLines)
         lineButtons = QHBoxLayout()
@@ -1008,70 +1048,171 @@ class TerrainWorkspace(QMainWindow):
         if path:
             self.addLines(path)
 
+    def _fillLinesMenu(self) -> None:
+        """From a file, or the lines of an open image workspace on this body."""
+        menu = self.addLinesMenu
+        menu.clear()
+        menu.addAction("From a File…", self._chooseLines)
+        dem = self.dem()
+        body = imageBody(dem) if dem is not None else None
+        shared = [
+            (image, lines)
+            for image, lines in sharedLines()
+            if image.hasGeospatialData and imageBody(image) == body
+        ]
+        if shared:
+            menu.addSection("Drawn in a workspace")
+        for image, lines in shared:
+            sub = menu.addMenu(image.name)
+            assert sub is not None
+            sub.addAction(
+                f"All Lines ({len(lines)})",
+                lambda image=image, lines=lines: self.addWorkspaceLines(image, lines),
+            )
+            sub.addSeparator()
+            for line in lines.lines():
+                sub.addAction(
+                    line.name,
+                    lambda image=image, lines=lines, fid=line.fid: (
+                        self.addWorkspaceLines(image, lines, [fid])
+                    ),
+                )
+
     def addLines(
         self, path: str, color: str | None = None, visible: bool = True
     ) -> bool:
         """Drape a vector file's lines; False (with a message) if they can't be."""
+        return self.addLineLayers([({"path": path}, color, visible)])
+
+    def addWorkspaceLines(
+        self,
+        image: VardaRaster,
+        lines: LineCollection,
+        fids: list[int] | None = None,
+    ) -> bool:
+        """Drape lines drawn on another image (all, or ``fids``), each in its
+        own color. They are copied: the session keeps them in map coordinates."""
+        frame = lines.toFrame(image, fids)
+        wkt = wktOf(image)
+        return self.addLineLayers(
+            [
+                (
+                    {
+                        "name": name,
+                        "crs": wkt,
+                        "paths": [np.asarray(geometry.coords)[:, :2].tolist()],
+                    },
+                    color,
+                    True,
+                )
+                for name, color, geometry in zip(
+                    frame["name"], frame["color"], frame.geometry
+                )
+            ]
+        )
+
+    def addLineLayers(self, layers: list[tuple[dict, str | None, bool]]) -> bool:
+        """Drape layers of lines: (source, color, visible), a source being a
+        file (``path``) or lines kept in the session (``name``, ``crs`` as
+        WKT, ``paths`` in its map units). False (with a message) if any can't be."""
         dem = self.dem()
         if dem is None or not dem.hasGeospatialData:
             self.status.setText("Lines need a georeferenced DEM.")
             return False
-        color = color or classColor(len(self.lineLayers) + 3)
-        try:
-            line = readLines(path, CRS.from_user_input(dem.crs), mapBounds(dem), color)
-        except Exception as error:  # unreadable files, or lines off the DEM
-            self.status.setText(f"{Path(path).name}: {error}")
-            return False
-        self.lineLayers.append((path, attrs.evolve(line, visible=visible)))
+        placed = True
+        for source, color, visible in layers:
+            color = color or classColor(len(self.lineLayers) + 3)
+            try:
+                line = self._placeLines(dem, source, color)
+            except Exception as error:  # unreadable files, or lines off the DEM
+                name = Path(source["path"]).name if "path" in source else source["name"]
+                self.status.setText(f"{name}: {error}")
+                placed = False
+                continue
+            self.lineLayers.append((source, attrs.evolve(line, visible=visible)))
         self._showLineList()
+        if self.lineLayers and not self._restoring:
+            self.profileDock.show()
         self.rebuild()
-        return True
+        return placed
+
+    @staticmethod
+    def _placeLines(dem: VardaRaster, source: dict, color: str) -> PageLine:
+        crs, bounds = CRS.from_user_input(dem.crs), mapBounds(dem)
+        if "path" in source:
+            return readLines(source["path"], crs, bounds, color)
+        frame = gpd.GeoDataFrame(
+            geometry=[shapely.LineString(path) for path in source["paths"]],
+            crs=source.get("crs"),
+        )
+        return placeLines(frame, crs, bounds, color, source["name"])
 
     def _rereadLines(self) -> None:
         """Place the lines again on a new DEM (dropping those off it)."""
         layers, self.lineLayers = self.lineLayers, []
         dem = self.dem()
-        for path, line in layers:
+        for source, line in layers:
             if dem is None or not dem.hasGeospatialData:
                 break
             try:
-                moved = readLines(
-                    path, CRS.from_user_input(dem.crs), mapBounds(dem), line.color
-                )
+                moved = self._placeLines(dem, source, line.color)
             except Exception:  # not on this DEM
                 continue
-            self.lineLayers.append((path, attrs.evolve(moved, visible=line.visible)))
+            self.lineLayers.append((source, attrs.evolve(moved, visible=line.visible)))
         self._showLineList()
 
     def _showLineList(self) -> None:
         self.lineList.blockSignals(True)
         self.lineList.clear()
-        for path, line in self.lineLayers:
+        for source, line in self.lineLayers:
             item = QListWidgetItem(line.name)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(
                 Qt.CheckState.Checked if line.visible else Qt.CheckState.Unchecked
             )
             item.setForeground(QColor(line.color))
-            item.setToolTip(path)
+            item.setToolTip(source.get("path", "Drawn in a workspace"))
             self.lineList.addItem(item)
         self.lineList.blockSignals(False)
+        self._updateProfiles()
+
+    def _updateProfiles(self) -> None:
+        """The DEM along the selected lines (or every shown one when none is
+        selected), on the DEM's pixel grid."""
+        dem = self.dem()
+        if dem is None:
+            return
+        if self.profilePlot is None or self.profilePlot.image is not dem:
+            self.profilePlot = ProfilePlotWidget(
+                dem, emptyText="Add lines to see the DEM's profile along them."
+            )
+            self.profileDock.setWidget(self.profilePlot)
+        rows = {self.lineList.row(item) for item in self.lineList.selectedItems()}
+        chosen = [
+            line
+            for row, (_, line) in enumerate(self.lineLayers)
+            if (row in rows if rows else line.visible)
+        ]
+        self.profilePlot.setLines(
+            demLines(chosen, dem.width, dem.height)[:MAX_PROFILES]
+        )
 
     def _onLineItem(self, item: QListWidgetItem) -> None:
         row = self.lineList.row(item)
-        path, line = self.lineLayers[row]
+        source, line = self.lineLayers[row]
         visible = item.checkState() == Qt.CheckState.Checked
-        self.lineLayers[row] = (path, attrs.evolve(line, visible=visible))
+        self.lineLayers[row] = (source, attrs.evolve(line, visible=visible))
+        self._updateProfiles()
         if self.view.ready:
             look = json.dumps({"visible": visible})
             self.view.evaluate(f"window.viewer.setLines({row}, {look})", lambda _: None)
 
     def _recolorLine(self, item: QListWidgetItem) -> None:
         row = self.lineList.row(item)
-        path, line = self.lineLayers[row]
+        source, line = self.lineLayers[row]
         color = QColorDialog.getColor(QColor(line.color), self, f"Color of {line.name}")
         if color.isValid():
-            self.lineLayers[row] = (path, attrs.evolve(line, color=color.name()))
+            self.lineLayers[row] = (source, attrs.evolve(line, color=color.name()))
             self._showLineList()
             self.rebuild()
 
@@ -1250,8 +1391,8 @@ class TerrainWorkspace(QMainWindow):
             "settings": self.settings.toDict(),
             "views": dict(self.views),
             "lines": [
-                {"path": path, "color": line.color, "visible": line.visible}
-                for path, line in self.lineLayers
+                {**source, "color": line.color, "visible": line.visible}
+                for source, line in self.lineLayers
             ],
             "camera": self._camera,
         }
@@ -1292,10 +1433,20 @@ class TerrainWorkspace(QMainWindow):
             self.form.setRowVisible(
                 self.colorMapBox, self.drapeBox.currentData() == ELEVATION
             )
-            for saved in state.get("lines", []):
-                self.addLines(
-                    saved["path"], saved.get("color"), saved.get("visible", True)
-                )
+            self.addLineLayers(
+                [
+                    (
+                        {
+                            k: v
+                            for k, v in saved.items()
+                            if k not in ("color", "visible")
+                        },
+                        saved.get("color"),
+                        saved.get("visible", True),
+                    )
+                    for saved in state.get("lines", [])
+                ]
+            )
             for name, camera in state.get("views", {}).items():
                 self._keepView(name, camera)
             self._camera = state.get("camera")

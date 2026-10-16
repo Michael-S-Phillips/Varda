@@ -12,6 +12,7 @@ from pyproj import CRS
 
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
+from varda.lines.line_collection import LineCollection, shareLines, unshareLines
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.utilities.debug import generate_perlin_noise_3d
 from varda.workspaces.terrain.terrain_workspace import (
@@ -294,3 +295,53 @@ def test_an_overlays_display_comes_back_with_the_session(workspace, images, qtbo
     qtbot.addWidget(restored)
     back = restored.overlayPanel.overlays[0].renderer.settings.rgb
     assert (back.red.get(), back.green.get(), back.blue.get()) == (5, 2, 0)
+
+
+def test_lines_drawn_in_another_workspace_are_draped_with_profiles(
+    workspace, images, qtbot
+):
+    # lines drawn on the orthoimage (its pixels), as an image workspace has them
+    lines = LineCollection()
+    lines.addLine([[5, 5], [55, 35]], name="Across", color="#ff0000")
+    lines.addLine([[30, 2], [30, 38]], name="Down", color="#00ff00")
+    workspace.addWorkspaceLines(images[1], lines)
+    assert [line.name for _, line in workspace.lineLayers] == ["Across", "Down"]
+    assert [line.color for _, line in workspace.lineLayers] == ["#ff0000", "#00ff00"]
+    across = workspace.lineLayers[0][1]
+    np.testing.assert_allclose(across.paths[0], [(5 / 60, 35 / 40), (55 / 60, 5 / 40)])
+
+    # their DEM profiles: the peak (-1300) is crossed by "Down" at x = 30
+    profiles = workspace.profilePlot.profiles
+    assert len(profiles) == 2
+    assert max(np.nanmax(p.values) for p in profiles.values()) == pytest.approx(
+        -1300, abs=5
+    )
+
+    # one line on its own, and the session keeps them without that workspace
+    workspace.addWorkspaceLines(images[1], lines, [lines.lines()[1].fid])
+    assert len(workspace.lineLayers) == 3
+    described = describeWorkspace(workspace)
+    assert described is not None
+    restored = buildWorkspace(*described, images, workspace.sessionState())
+    assert isinstance(restored, TerrainWorkspace)
+    qtbot.addWidget(restored)
+    assert [line.name for _, line in restored.lineLayers] == ["Across", "Down", "Down"]
+    np.testing.assert_allclose(restored.lineLayers[0][1].paths[0], across.paths[0])
+
+
+def test_the_add_lines_menu_offers_lines_open_workspaces_share(workspace, images):
+    lines = LineCollection()
+    lines.addLine([[5, 5], [55, 35]], name="Across")
+    shareLines(lines, images[1])
+    try:
+        workspace._fillLinesMenu()
+        menus = {a.text(): a.menu() for a in workspace.addLinesMenu.actions()}
+        assert "From a File…" in menus
+        sub = menus["ortho"]
+        assert sub is not None
+        assert [a.text() for a in sub.actions() if a.text()] == [
+            "All Lines (1)",
+            "Across",
+        ]
+    finally:
+        unshareLines(lines)

@@ -4,7 +4,7 @@ marked on every view, and kept with the session."""
 import numpy as np
 
 from varda.image_rendering.raster_view.viewport_tools.line_tools import LineDrawTool
-from varda.lines.line_collection import LineKind
+from varda.lines.line_collection import LineKind, sharedLines
 from varda.utilities.debug import generate_random_image
 from varda.workspaces.general_image_analysis import (
     GeneralImageAnalysisConfig,
@@ -53,3 +53,12 @@ def test_lines_come_back_with_the_session(qtbot):
     restored = buildWorkspace("general", [image], [image], state)
     qtbot.addWidget(restored)
     assert [line.name for line in restored.lineCollection.lines()] == ["Rim"]
+
+
+def test_its_lines_are_offered_to_other_workspaces_until_it_closes(qtbot):
+    image = generate_random_image((20, 20, 10))
+    workflow = _workflow(qtbot, image)
+    workflow.lineCollection.addLine([[1, 1], [10, 10]], name="Rim")
+    assert (image, workflow.lineCollection) in sharedLines()
+    workflow.close()
+    assert all(lines is not workflow.lineCollection for _, lines in sharedLines())

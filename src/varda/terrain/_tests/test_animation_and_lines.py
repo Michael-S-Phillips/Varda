@@ -8,7 +8,7 @@ from PIL import Image
 from pyproj import CRS
 
 from varda.terrain.animation import writeAnimation
-from varda.terrain.vectors import readLines
+from varda.terrain.vectors import placeLines, readLines
 
 MARS_EQC = CRS.from_user_input("+proj=eqc +R=3389500 +units=m +no_defs")
 
@@ -66,3 +66,12 @@ def test_lines_that_miss_the_dem_are_an_error_for_the_user(tmp_path):
     frame.to_file(tmp_path / "far.gpkg")
     with pytest.raises(ValueError, match="crosses the DEM"):
         readLines(tmp_path / "far.gpkg", MARS_EQC, (0, 0, 1000, 1000), "#f00")
+
+
+def test_lines_in_memory_are_placed_the_same_way():
+    frame = gpd.GeoDataFrame(
+        geometry=[shapely.LineString([(2500, 2500), (7500, 5000)])], crs=MARS_EQC
+    )
+    line = placeLines(frame, MARS_EQC, (0, 0, 10000, 10000), "#f00", "Rim")
+    assert line.name == "Rim" and line.color == "#f00"
+    np.testing.assert_allclose(line.paths[0], [(0.25, 0.25), (0.75, 0.5)])

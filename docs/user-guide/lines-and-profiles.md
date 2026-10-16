@@ -19,6 +19,9 @@ Each line is shown on every view in its color. In the Lines tab you can
 rename a line (double-click its name), change its color (double-click the
 swatch), delete lines, and export them as GeoJSON, GeoPackage or a
 shapefile, in the image's map coordinates. Lines are saved with the session.
+On a georeferenced image, a 3D Terrain workspace can drape them over a DEM
+(its **Add Lines** menu lists the open workspaces' lines; see
+[3D Terrain](3d-terrain.md)).
 
 ## Profiles
 

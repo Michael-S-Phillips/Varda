@@ -1,5 +1,5 @@
 """Lines from GIS files (a rover traverse, mapped contacts, Varda's own
-exported lines) placed on a 3D terrain: as positions over the DEM's extent,
+exported lines) or from another workspace placed on a 3D terrain: as positions over the DEM's extent,
 for the viewer to drape. No Qt.
 
 Coordinates in longitude and latitude are taken as degrees on the DEM's body
@@ -78,7 +78,18 @@ def readLines(
 ) -> PageLine:
     """A vector file's lines over a DEM (``bounds`` in its map units), as
     fractions of its extent. Parts entirely off the DEM are dropped."""
-    frame = gpd.read_file(path)
+    try:
+        return placeLines(
+            gpd.read_file(path), demCrs, bounds, color, name or Path(path).stem
+        )
+    except ValueError as error:
+        raise ValueError(f"No line in {Path(path).name} crosses the DEM.") from error
+
+
+def placeLines(
+    frame: gpd.GeoDataFrame, demCrs: CRS, bounds: Bounds, color: str, name: str
+) -> PageLine:
+    """A frame's lines over a DEM, as ``readLines`` places a file's."""
     west, south, east, north = bounds
     kept = []
     for points in toDemCoordinates(frame, demCrs):
@@ -88,5 +99,5 @@ def readLines(
         if len(points) >= 2 and inside.any():
             kept.append(tuple((float(a), float(b)) for a, b in zip(u, v)))
     if not kept:
-        raise ValueError(f"No line in {Path(path).name} crosses the DEM.")
-    return PageLine(name or Path(path).stem, color, tuple(kept))
+        raise ValueError(f"{name} doesn't cross the DEM.")
+    return PageLine(name, color, tuple(kept))

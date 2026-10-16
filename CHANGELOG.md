@@ -33,6 +33,10 @@ can alter results.
     parameters of a cube by name), stretch and color map, with histograms
     whose stretch ranges can be dragged, in a dockable panel; these
     settings are now saved with the session.
+  - **Lines from other workspaces:** **Add Lines** lists the lines drawn in
+    open General Image Analysis workspaces (on any georeferenced image of the
+    DEM's body), to drape all or one at a time, with no file in between; a
+    **Profiles** panel plots the DEM along the lines.
 - **Lines and profiles** (General Image Analysis): draw straight lines,
   polylines or freehand lines with **Draw Line**, listed in the new **Lines**
   tab (rename, recolor, delete, export to GIS files) and saved with the

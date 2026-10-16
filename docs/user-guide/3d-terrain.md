@@ -46,16 +46,28 @@ Views and settings are saved with the session.
 
 ## Lines
 
-**Add Lines…** drapes a vector file's lines over the surface: a rover
-traverse, mapped contacts, or lines exported from the Lines tab of General
-Image Analysis (GeoJSON, GeoPackage, shapefile, KML). Polygons show as their
+**Add Lines** drapes lines over the surface. Lines drawn with Draw Line in an
+open General Image Analysis workspace are listed under its image's name
+(any georeferenced image of the DEM's body, not only the DEM): add all of
+them or one line at a time, each keeping its name and color. They're copied
+in, so later edits in that workspace don't change them, and the session
+keeps them even after that workspace is closed.
+
+**From a File…** reads a vector file instead: a rover traverse or mapped
+contacts (GeoJSON, GeoPackage, shapefile, KML). Polygons show as their
 outlines. Longitude and latitude are taken as degrees on the DEM's body
 (planetary GeoJSON files always claim Earth's), and other map projections
 are converted to the DEM's. GeoJSON can't store a Mars map projection, so a
 GeoJSON whose "degrees" are really projected coordinates is read in the
 DEM's projection; a GeoPackage keeps the projection and is the safer choice.
 Tick a layer to show or hide it; double-click it to change its color. Lines
-follow the exaggeration and are saved with the session (as their files).
+follow the exaggeration and are saved with the session (files as their
+paths).
+
+The **Profiles** panel (below the view) plots the DEM along the selected
+lines, or along every shown line when none is selected, with the same
+readout, vertical exaggeration and CSV or image export as the Profiles tab
+of General Image Analysis (see [Lines and profiles](lines-and-profiles.md)).
 
 ## Figures and web pages
 
