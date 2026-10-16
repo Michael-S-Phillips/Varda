@@ -17,6 +17,9 @@ const settings = Object.assign(
     sides: false, // a block diagram: walls down to a base
     baseDepth: 0, // below the lowest point, in height units (0: a quarter of the relief)
     sideColor: "#a08e78",
+    northArrow: true,
+    scaleBar: true, // measured at the view's center (the orbit target)
+    colorBar: true, // when the drape is colored by elevation
   },
   scene.settings || {}
 );
@@ -180,6 +183,62 @@ function buildSides() {
   terrain.add(sides); // follows the exaggeration
 }
 
+// --- lines draped on the surface (a traverse, mapped contacts) ------------------------
+
+// Height at (u, v), fractions of the DEM's extent (v north), between grid
+// points; NaN off the data
+function heightAt(u, v) {
+  const x = u * (cols - 1), y = (1 - v) * (rows - 1);
+  const c = Math.min(Math.max(Math.floor(x), 0), cols - 2), r = Math.min(Math.max(Math.floor(y), 0), rows - 2);
+  const fx = x - c, fy = y - r;
+  const at = (rr, cc) => quantized[rr * cols + cc] ? positions[3 * (rr * cols + cc) + 2] : NaN;
+  return at(r, c) * (1 - fx) * (1 - fy) + at(r, c + 1) * fx * (1 - fy) +
+    at(r + 1, c) * (1 - fx) * fy + at(r + 1, c + 1) * fx * fy;
+}
+
+const lineLayers = (scene.lines || []).map((layer) => {
+  const group = new THREE.Group();
+  group.visible = layer.visible ?? true;
+  world.add(group);
+  // a little of their own light, so their color reads in shadow too
+  const material = new THREE.MeshStandardMaterial({ color: layer.color, roughness: 0.6 });
+  material.emissive.set(layer.color).multiplyScalar(0.35);
+  return { layer, group, material };
+});
+
+function buildLines() {
+  const step = 1 / Math.max(cols, rows); // about a grid cell between samples
+  const lift = extent * 0.0015, radius = extent * 0.0025;
+  for (const { layer, group, material } of lineLayers) {
+    for (const child of [...group.children]) { group.remove(child); child.geometry.dispose(); }
+    for (const path of layer.paths) {
+      // densify, follow the surface, and split where there's no data
+      let run = [];
+      const flush = () => {
+        if (run.length >= 2) {
+          const curve = new THREE.CatmullRomCurve3(run, false, "centripetal");
+          const tube = new THREE.TubeGeometry(curve, run.length * 2, radius * (layer.width ?? 1), 6, false);
+          const mesh = new THREE.Mesh(tube, material);
+          mesh.castShadow = true;
+          group.add(mesh);
+        }
+        run = [];
+      };
+      for (let i = 0; i + 1 < path.length; i++) {
+        const [u0, v0] = path[i], [u1, v1] = path[i + 1];
+        const n = Math.max(1, Math.ceil(Math.hypot(u1 - u0, v1 - v0) / step));
+        for (let k = (i === 0 ? 0 : 1); k <= n; k++) {
+          const u = u0 + (u1 - u0) * k / n, v = v0 + (v1 - v0) * k / n;
+          const z = heightAt(u, v);
+          if (Number.isNaN(z) || u < 0 || u > 1 || v < 0 || v > 1) { flush(); continue; }
+          run.push(new THREE.Vector3((u - 0.5) * scene.widthM, (v - 0.5) * scene.heightM, z * settings.exaggeration + lift));
+        }
+      }
+      flush();
+    }
+  }
+}
+
 // --- light ----------------------------------------------------------------
 
 const sun = new THREE.DirectionalLight(0xffffff, 2.6);
@@ -205,9 +264,10 @@ function placeSun() {
   sun.shadow.camera.updateProjectionMatrix();
 }
 
-let builtSides = "";
+let builtSides = "", builtLines = NaN;
 function apply() {
   terrain.scale.z = settings.exaggeration;
+  if (settings.exaggeration !== builtLines) { builtLines = settings.exaggeration; buildLines(); }
   const sideKey = [settings.sides, settings.baseDepth, settings.sideColor].join();
   if (sideKey !== builtSides) { builtSides = sideKey; buildSides(); }
   renderer.shadowMap.enabled = settings.shadows;
@@ -243,9 +303,106 @@ function resize() {
 }
 window.addEventListener("resize", resize);
 
+// --- annotations: north arrow, scale bar, color bar, exaggeration -----------------
+
+const annotations = document.createElement("canvas");
+annotations.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none";
+container.appendChild(annotations);
+
+function niceLength(meters) {
+  const power = 10 ** Math.floor(Math.log10(meters));
+  for (const m of [5, 2, 1]) if (m * power <= meters) return m * power;
+  return power;
+}
+function lengthLabel(meters) {
+  return meters >= 1000 ? `${+(meters / 1000).toPrecision(3)} km` : `${+meters.toPrecision(3)} m`;
+}
+function inkColor() {
+  // dark ink on a light background, light ink otherwise
+  const c = new THREE.Color(settings.background);
+  return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b > 0.6 ? "#1b1b1b" : "#f2f2f2";
+}
+
+// Draw them on a 2D context the size of the view (or of a still); ``k``
+// scales them, so a still looks like the view at any size
+function drawAnnotations(ctx, w, h, k) {
+  ctx.clearRect(0, 0, w, h);
+  const ink = inkColor(), margin = 20 * k;
+  ctx.font = `${13 * k}px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif`;
+  ctx.fillStyle = ink;
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 1.5 * k;
+  const target = controls.target;
+  const toScreen = (v) => {
+    const p = v.clone().project(camera);
+    return [(p.x + 1) / 2 * w, (1 - p.y) / 2 * h];
+  };
+  if (settings.scaleBar) {
+    // ground distance across the screen at the orbit target
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).setZ(0).normalize();
+    const [x0] = toScreen(target), [x1] = toScreen(target.clone().addScaledVector(right, extent * 0.1));
+    const pixelsPerMeter = Math.abs(x1 - x0) / (extent * 0.1);
+    if (pixelsPerMeter > 0 && Number.isFinite(pixelsPerMeter)) {
+      const meters = niceLength((w * 0.16) / pixelsPerMeter);
+      const bar = meters * pixelsPerMeter, barH = 6 * k;
+      const right_ = w - margin, bottom = h - margin;
+      ctx.fillRect(right_ - bar, bottom - barH, bar / 2, barH);
+      ctx.strokeRect(right_ - bar, bottom - barH, bar, barH);
+      ctx.textAlign = "right";
+      ctx.fillText(lengthLabel(meters), right_, bottom - barH - 6 * k);
+      if (settings.exaggeration !== 1) {
+        ctx.fillText(`Vertical exaggeration ${+settings.exaggeration.toFixed(2)}×`, right_, bottom - barH - 24 * k);
+      }
+    }
+  } else if (settings.exaggeration !== 1) {
+    ctx.textAlign = "right";
+    ctx.fillText(`Vertical exaggeration ${+settings.exaggeration.toFixed(2)}×`, w - margin, h - margin);
+  }
+  if (settings.northArrow) {
+    // which way north (+y) points on screen at the target
+    const [ax, ay] = toScreen(target), [bx, by] = toScreen(target.clone().add(new THREE.Vector3(0, extent * 0.05, 0)));
+    const angle = Math.atan2(bx - ax, -(by - ay));
+    const cx = margin + 18 * k, cy = h - margin - 26 * k, r = 16 * k;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0, -r); ctx.lineTo(r * 0.55, r * 0.7); ctx.lineTo(0, r * 0.35); ctx.lineTo(-r * 0.55, r * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.textAlign = "center";
+    const lx = cx + Math.sin(angle) * (r + 10 * k), ly = cy - Math.cos(angle) * (r + 10 * k);
+    ctx.fillText("N", lx, ly + 5 * k);
+  }
+  const legend = scene.legend;
+  if (settings.colorBar && legend) {
+    const barW = 14 * k, barH = Math.min(h * 0.35, 220 * k);
+    const x = w - margin - barW, y = margin + 18 * k;
+    const gradient = ctx.createLinearGradient(0, y + barH, 0, y);
+    legend.colors.forEach((color, i) => gradient.addColorStop(i / (legend.colors.length - 1), color));
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, barW, barH);
+    ctx.strokeRect(x, y, barW, barH);
+    ctx.fillStyle = ink;
+    ctx.textAlign = "right";
+    ctx.fillText(legend.label, x + barW, y - 8 * k);
+    ctx.fillText(`${Math.round(legend.high)}`, x - 6 * k, y + 10 * k);
+    ctx.fillText(`${Math.round(legend.low)}`, x - 6 * k, y + barH);
+  }
+}
+
+function drawViewAnnotations() {
+  const ratio = window.devicePixelRatio || 1;
+  const w = Math.round(container.clientWidth * ratio), h = Math.round(container.clientHeight * ratio);
+  if (annotations.width !== w || annotations.height !== h) { annotations.width = w; annotations.height = h; }
+  drawAnnotations(annotations.getContext("2d"), w, h, ratio);
+}
+
 function frame() {
   controls.update();
   renderer.render(world, camera);
+  drawViewAnnotations();
   requestAnimationFrame(frame);
 }
 
@@ -271,6 +428,30 @@ window.viewer = {
     controls.update();
   },
   home,
+  // A flyover: the camera circles the target; orbitStill renders the frame
+  // ``degrees`` round from where it was at orbitBegin
+  orbitBegin() {
+    this._orbit = { position: camera.position.clone(), target: controls.target.clone() };
+  },
+  orbitStill(degrees, width, height) {
+    const { position, target } = this._orbit;
+    const offset = position.clone().sub(target).applyAxisAngle(new THREE.Vector3(0, 0, 1), THREE.MathUtils.degToRad(degrees));
+    camera.position.copy(target).add(offset);
+    controls.target.copy(target);
+    camera.lookAt(target);
+    return this.still(width, height, false);
+  },
+  orbitEnd() {
+    if (!this._orbit) return;
+    camera.position.copy(this._orbit.position);
+    controls.target.copy(this._orbit.target);
+    controls.update();
+    this._orbit = null;
+  },
+  setLines(index, changes) {
+    const layer = lineLayers[index];
+    if (layer && "visible" in changes) layer.group.visible = changes.visible;
+  },
   setOverlay(index, changes) {
     const overlay = overlays[index];
     if (!overlay) return;
@@ -288,7 +469,19 @@ window.viewer = {
     camera.updateProjectionMatrix();
     if (transparent) renderer.setClearColor(0x000000, 0);
     renderer.render(world, camera);
-    const url = renderer.domElement.toDataURL("image/png");
+    // the frame and its annotations, scaled as they look in the view
+    const still = document.createElement("canvas");
+    still.width = width;
+    still.height = height;
+    const ctx = still.getContext("2d");
+    ctx.drawImage(renderer.domElement, 0, 0);
+    const k = width / Math.max(container.clientWidth, 1);
+    const overlay = document.createElement("canvas");
+    overlay.width = width;
+    overlay.height = height;
+    drawAnnotations(overlay.getContext("2d"), width, height, k);
+    ctx.drawImage(overlay, 0, 0);
+    const url = still.toDataURL("image/png");
     renderer.setClearColor(new THREE.Color(settings.background), 1);
     renderer.setPixelRatio(ratio);
     renderer.setSize(size.x, size.y);

@@ -5,8 +5,12 @@ stills, and a self-contained web page to share."""
 
 from __future__ import annotations
 
+import base64
 import json
+import shutil
+import tempfile
 from collections.abc import MutableSequence, Sequence
+from pathlib import Path
 
 import attrs
 import numpy as np
@@ -14,8 +18,10 @@ from pyproj import CRS
 from rasterio.crs import CRS as RasterioCRS
 from rasterio.transform import array_bounds
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QColorDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -39,9 +45,9 @@ from PyQt6.QtWidgets import (
 from varda.common.entities import VardaRaster
 from varda.common.grid import compatibleImages
 from varda.common.observable_list import ObservableList
+from varda.common.palette import classColor
 from varda.common.ui import MutedLabel
 from varda.image_rendering.image_renderer import ImageRenderer, RenderMode
-from varda.image_rendering.render_parameters import StretchParameter
 from varda.image_rendering.stretch_algorithms import LinearPercentileStretch
 from varda.terrain.overlays import (
     Alignment,
@@ -53,8 +59,12 @@ from varda.terrain.overlays import (
     toProjection,
 )
 from varda.terrain.overlays import drape as drapeOverlay
+from varda.terrain.animation import FORMATS as ANIMATION_FORMATS
+from varda.terrain.animation import writeAnimation
 from varda.terrain.solid import printSolid, stlBytes
+from varda.terrain.vectors import PageLine, readLines
 from varda.terrain.scene import (
+    Legend,
     PageOverlay,
     Terrain,
     TerrainSettings,
@@ -93,10 +103,21 @@ def mapBounds(image: VardaRaster) -> tuple[float, float, float, float]:
     return float(west), float(south), float(east), float(north)
 
 
+LEGEND_STOPS = 16  # color bar samples of the color map
+
+
 def drapeRgba(image: VardaRaster, elevation: str | None = None) -> np.ndarray:
     """An image as RGBA (no data transparent): its usual rendering, or for
     ``elevation`` (a color map name) its first band through that map,
     stretched 2-98 %."""
+    return renderDrape(image, elevation)[0]
+
+
+def renderDrape(
+    image: VardaRaster, elevation: str | None = None
+) -> tuple[np.ndarray, Legend | None]:
+    """``drapeRgba``, and for ``elevation`` the color bar that goes with it
+    (the map's colors over the stretch's range)."""
     renderer = ImageRenderer(image=image)
     renderer.transparentNoData = True
     settings = renderer.settings
@@ -113,8 +134,13 @@ def drapeRgba(image: VardaRaster, elevation: str | None = None) -> np.ndarray:
         percentile.config.highPercent.set(98)
         settings.stretch.selectByName("Linear Percentile")
     rgba = np.asarray(renderer.render())
-    settings.stretch.selectByName(StretchParameter.DEFAULT_NAME)  # leave no trace
-    return rgba
+    legend = None
+    if elevation is not None:
+        low, high = (float(np.ravel(v)[0]) for v in renderer.getMinMaxValues())
+        lut = colorMap(elevation).getLookupTable(0, 1, LEGEND_STOPS, alpha=False)
+        colors = tuple("#%02x%02x%02x" % tuple(int(c) for c in rgb[:3]) for rgb in lut)
+        legend = Legend(colors, low, high)
+    return rgba, legend
 
 
 class StillDialog(QDialog):
@@ -157,6 +183,72 @@ class StillDialog(QDialog):
 
     def stillSize(self) -> tuple[int, int]:
         return self.widthBox.value(), self.heightBox.value()
+
+
+ANIMATION_SIZES = {
+    "HD (1280 × 720)": (1280, 720),
+    "Full HD (1920 × 1080)": (1920, 1080),
+    "Square (1080 × 1080)": (1080, 1080),
+}
+
+
+class AnimationDialog(QDialog):
+    """A flyover's frames, sweep, speed, size and format."""
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("Export Animation")
+        self.framesBox = QSpinBox()
+        self.framesBox.setRange(12, 1440)
+        self.framesBox.setValue(180)
+        self.degreesBox = QSpinBox()
+        self.degreesBox.setRange(10, 360)
+        self.degreesBox.setValue(360)
+        self.degreesBox.setSuffix("°")
+        self.degreesBox.setToolTip("How far round the camera goes")
+        self.fpsBox = QComboBox()
+        self.fpsBox.addItems(["24", "30", "60"])
+        self.fpsBox.setCurrentText("30")
+        self.sizeBox = QComboBox()
+        self.sizeBox.addItems(list(ANIMATION_SIZES))
+        self.formatBox = QComboBox()
+        self.formatBox.addItems(list(ANIMATION_FORMATS))
+        self.formatBox.setToolTip(
+            "WebP is smaller and sharper than GIF; PNG frames go into a video editor"
+        )
+        self.length = MutedLabel("")
+        for box in (self.framesBox,):
+            box.valueChanged.connect(lambda _: self._showLength())
+        self.fpsBox.currentTextChanged.connect(lambda _: self._showLength())
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form = QFormLayout(self)
+        form.addRow("Frames:", self.framesBox)
+        form.addRow("Sweep:", self.degreesBox)
+        form.addRow("Frames per second:", self.fpsBox)
+        form.addRow("Size:", self.sizeBox)
+        form.addRow("Format:", self.formatBox)
+        form.addRow(self.length)
+        form.addRow(buttons)
+        self._showLength()
+
+    def _showLength(self) -> None:
+        seconds = self.framesBox.value() / float(self.fpsBox.currentText())
+        self.length.setText(f"{seconds:.1f} seconds long.")
+
+    def choices(self) -> tuple[int, float, float, tuple[int, int], str]:
+        """(frames, degrees, fps, (width, height), suffix; "" for PNG frames)."""
+        return (
+            self.framesBox.value(),
+            float(self.degreesBox.value()),
+            float(self.fpsBox.currentText()),
+            ANIMATION_SIZES[self.sizeBox.currentText()],
+            ANIMATION_FORMATS[self.formatBox.currentText()],
+        )
 
 
 PRINT_DETAIL = {"Draft (256)": 256, "Standard (512)": 512, "Fine (1024)": 1024}
@@ -254,6 +346,8 @@ class TerrainWorkspace(QMainWindow):
         self._building = 0  # the latest build (older results are dropped)
         # the last built page's parts, for Export Web Page
         self._texture: str | None = None
+        self._legend: Legend | None = None
+        self.lineLayers: list[tuple[str, PageLine]] = []  # (file, its lines)
         self._overlays: list[PageOverlay] = []
         self._restoring = False
 
@@ -325,6 +419,16 @@ class TerrainWorkspace(QMainWindow):
         self.ambient.setToolTip("Light from the sky, which lifts the shadows")
         self.background = QComboBox()
         self.background.addItems(list(BACKGROUNDS))
+        self.northArrow = QCheckBox("North arrow")
+        self.scaleBar = QCheckBox("Scale bar")
+        self.scaleBar.setToolTip(
+            "Ground distance at the view's center (a perspective view has no "
+            "single scale); with the vertical exaggeration"
+        )
+        self.colorBar = QCheckBox("Color bar")
+        self.colorBar.setToolTip("For the elevation colors drape")
+        for box in (self.northArrow, self.scaleBar, self.colorBar):
+            box.toggled.connect(lambda _: self._onSettings())
         self.sides = QCheckBox("Sides (block diagram)")
         self.sides.setToolTip("Walls from the surface down to a base, as a cut block")
         self.baseDepth = QDoubleSpinBox()
@@ -385,6 +489,10 @@ class TerrainWorkspace(QMainWindow):
         form.addRow("Background:", self.background)
         form.addRow("", self.sides)
         form.addRow("Base depth:", self.baseDepth)
+        annotations = QHBoxLayout()
+        for box in (self.northArrow, self.scaleBar, self.colorBar):
+            annotations.addWidget(box)
+        form.addRow("Show:", annotations)
         self._showSettings()
         viewButtons = QHBoxLayout()
         for button in (saveView, deleteView, home):
@@ -395,6 +503,30 @@ class TerrainWorkspace(QMainWindow):
         exportRow.addWidget(web)
         exports.addLayout(exportRow)
         exports.addWidget(printButton)
+        animation = QPushButton("Export Animation…")
+        animation.setToolTip("A flyover: the camera circles the view's center")
+        animation.clicked.connect(self.exportAnimation)
+        exports.addWidget(animation)
+        self.lineList = QListWidget()
+        self.lineList.setToolTip(
+            "Lines from GIS files, draped on the surface; tick to show, "
+            "double-click to change the color"
+        )
+        self.lineList.setMaximumHeight(90)
+        self.lineList.itemChanged.connect(self._onLineItem)
+        self.lineList.itemDoubleClicked.connect(self._recolorLine)
+        addLines = QPushButton("Add Lines…")
+        addLines.setToolTip(
+            "A vector file (GeoJSON, GeoPackage, shapefile, KML): a traverse, "
+            "mapped contacts, lines exported from the Lines tab"
+        )
+        addLines.clicked.connect(self._chooseLines)
+        removeLines = QPushButton("Remove")
+        removeLines.clicked.connect(self._removeLines)
+        lineButtons = QHBoxLayout()
+        lineButtons.addWidget(addLines)
+        lineButtons.addWidget(removeLines)
+        lineButtons.addStretch()
         self.overlayPanel = OverlayPanel(self._overlayCandidates, self._references)
         self.overlayPanel.sigRebuild.connect(self.rebuild)
         self.overlayPanel.sigLook.connect(self._onOverlayLook)
@@ -406,6 +538,9 @@ class TerrainWorkspace(QMainWindow):
         layout.addLayout(form)
         layout.addWidget(QLabel("<b>Overlays</b>"))
         layout.addWidget(self.overlayPanel)
+        layout.addWidget(QLabel("<b>Lines</b>"))
+        layout.addWidget(self.lineList)
+        layout.addLayout(lineButtons)
         layout.addWidget(QLabel("<b>Views</b>"))
         layout.addWidget(self.viewList, 1)
         layout.addLayout(viewButtons)
@@ -530,6 +665,7 @@ class TerrainWorkspace(QMainWindow):
         self.form.setRowVisible(self.bandBox, dem is not None and dem.bandCount > 1)
         self.bandBox.blockSignals(False)
         self._refreshDrapes()
+        self._rereadLines()
         self.rebuild()
 
     def _refreshDrapes(self) -> None:
@@ -574,9 +710,15 @@ class TerrainWorkspace(QMainWindow):
             self.background,
             self.sides,
             self.baseDepth,
+            self.northArrow,
+            self.scaleBar,
+            self.colorBar,
         )
         for widget in widgets:
             widget.blockSignals(True)
+        self.northArrow.setChecked(self.settings.northArrow)
+        self.scaleBar.setChecked(self.settings.scaleBar)
+        self.colorBar.setChecked(self.settings.colorBar)
         self.sides.setChecked(self.settings.sides)
         self.baseDepth.setValue(self.settings.baseDepth)
         self.form.setRowVisible(self.baseDepth, self.settings.sides)
@@ -603,6 +745,9 @@ class TerrainWorkspace(QMainWindow):
             ambient=self.ambient.value(),
             sides=self.sides.isChecked(),
             baseDepth=self.baseDepth.value(),
+            northArrow=self.northArrow.isChecked(),
+            scaleBar=self.scaleBar.isChecked(),
+            colorBar=self.colorBar.isChecked(),
         )
         self.form.setRowVisible(self.baseDepth, self.settings.sides)
         self.view.setSettings(self.settings.toDict())
@@ -626,17 +771,14 @@ class TerrainWorkspace(QMainWindow):
         build = self._building
         band = int(self.bandBox.currentData() or 0)
         drape = self.drapeBox.currentData()
+        rgba, self._legend = None, None
         try:  # rendering the drape uses Qt-side objects: here, on the GUI thread
-            rgba = (
-                None
-                if drape == PLAIN
-                else drapeRgba(dem, self.colorMapBox.currentText())
-                if drape == ELEVATION
-                else drapeRgba(drape)
-            )
+            if drape == ELEVATION:
+                rgba, self._legend = renderDrape(dem, self.colorMapBox.currentText())
+            elif drape != PLAIN:
+                rgba = drapeRgba(drape)
         except Exception as error:  # a broken image shouldn't break the workspace
             self.status.setText(f"The drape couldn't be drawn: {error}")
-            rgba = None
         maxSide = DETAIL[self.detailBox.currentText()]
         title = dem.name
         # pyproj objects aren't thread-safe: what needs them is taken here
@@ -709,7 +851,14 @@ class TerrainWorkspace(QMainWindow):
         self._texture, self._overlays = texture, overlays
         self.view.showPage(
             pageHtml(
-                terrain, texture, self.settings, self._camera, title, overlays=overlays
+                terrain,
+                texture,
+                self.settings,
+                self._camera,
+                title,
+                overlays=overlays,
+                legend=self._legend,
+                lines=[line for _, line in self.lineLayers],
             )
         )
 
@@ -815,11 +964,194 @@ class TerrainWorkspace(QMainWindow):
             for o in self._overlays
         ]
         html = pageHtml(
-            terrain, self._texture, self.settings, camera, title, True, overlays
+            terrain,
+            self._texture,
+            self.settings,
+            camera,
+            title,
+            True,
+            overlays,
+            self._legend,
+            [line for _, line in self.lineLayers],
         )
         with open(path, "w", encoding="utf-8") as f:
             f.write(html)
         self.status.setText(f"Saved an interactive web page to {path}.")
+
+    # --- lines ------------------------------------------------------------------------
+
+    def _chooseLines(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Add Lines",
+            "",
+            "Vector files (*.geojson *.json *.gpkg *.shp *.kml *.fgb);;All files (*)",
+        )
+        if path:
+            self.addLines(path)
+
+    def addLines(
+        self, path: str, color: str | None = None, visible: bool = True
+    ) -> bool:
+        """Drape a vector file's lines; False (with a message) if they can't be."""
+        dem = self.dem()
+        if dem is None or not dem.hasGeospatialData:
+            self.status.setText("Lines need a georeferenced DEM.")
+            return False
+        color = color or classColor(len(self.lineLayers) + 3)
+        try:
+            line = readLines(path, CRS.from_user_input(dem.crs), mapBounds(dem), color)
+        except Exception as error:  # unreadable files, or lines off the DEM
+            self.status.setText(f"{Path(path).name}: {error}")
+            return False
+        self.lineLayers.append((path, attrs.evolve(line, visible=visible)))
+        self._showLineList()
+        self.rebuild()
+        return True
+
+    def _rereadLines(self) -> None:
+        """Place the lines again on a new DEM (dropping those off it)."""
+        layers, self.lineLayers = self.lineLayers, []
+        dem = self.dem()
+        for path, line in layers:
+            if dem is None or not dem.hasGeospatialData:
+                break
+            try:
+                moved = readLines(
+                    path, CRS.from_user_input(dem.crs), mapBounds(dem), line.color
+                )
+            except Exception:  # not on this DEM
+                continue
+            self.lineLayers.append((path, attrs.evolve(moved, visible=line.visible)))
+        self._showLineList()
+
+    def _showLineList(self) -> None:
+        self.lineList.blockSignals(True)
+        self.lineList.clear()
+        for path, line in self.lineLayers:
+            item = QListWidgetItem(line.name)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(
+                Qt.CheckState.Checked if line.visible else Qt.CheckState.Unchecked
+            )
+            item.setForeground(QColor(line.color))
+            item.setToolTip(path)
+            self.lineList.addItem(item)
+        self.lineList.blockSignals(False)
+
+    def _onLineItem(self, item: QListWidgetItem) -> None:
+        row = self.lineList.row(item)
+        path, line = self.lineLayers[row]
+        visible = item.checkState() == Qt.CheckState.Checked
+        self.lineLayers[row] = (path, attrs.evolve(line, visible=visible))
+        if self.view.ready:
+            look = json.dumps({"visible": visible})
+            self.view.evaluate(f"window.viewer.setLines({row}, {look})", lambda _: None)
+
+    def _recolorLine(self, item: QListWidgetItem) -> None:
+        row = self.lineList.row(item)
+        path, line = self.lineLayers[row]
+        color = QColorDialog.getColor(QColor(line.color), self, f"Color of {line.name}")
+        if color.isValid():
+            self.lineLayers[row] = (path, attrs.evolve(line, color=color.name()))
+            self._showLineList()
+            self.rebuild()
+
+    def _removeLines(self) -> None:
+        row = self.lineList.currentRow()
+        if 0 <= row < len(self.lineLayers):
+            del self.lineLayers[row]
+            self._showLineList()
+            self.rebuild()
+
+    # --- animation ----------------------------------------------------------------------
+
+    def exportAnimation(self) -> None:
+        if not self.view.ready:
+            return
+        dialog = AnimationDialog(self)
+        if not dialog.exec():
+            return
+        frames, degrees, fps, (width, height), suffix = dialog.choices()
+        if suffix:
+            path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Animation",
+                f"{self.windowTitle()}{suffix}",
+                f"Animation (*{suffix})",
+            )
+        else:
+            path = QFileDialog.getExistingDirectory(self, "Folder for the Frames")
+        if path:
+            self.saveAnimation(path, frames, degrees, fps, width, height)
+
+    def saveAnimation(
+        self,
+        path: str,
+        frames: int,
+        degrees: float,
+        fps: float,
+        width: int,
+        height: int,
+    ) -> None:
+        """Render an orbit frame by frame, then write it to ``path``: an
+        animated .webp or .gif, or (a folder) numbered PNG frames."""
+        target = Path(path)
+        folder = (
+            target
+            if target.is_dir()
+            else Path(tempfile.mkdtemp(prefix="varda-flyover-"))
+        )
+        written: list[Path] = []
+        self.view.evaluate("window.viewer.orbitBegin()", lambda _: None)
+
+        def render(index: int) -> None:
+            if index == frames:
+                self.view.evaluate("window.viewer.orbitEnd()", lambda _: None)
+                finish()
+                return
+            self.status.setText(f"Rendering frame {index + 1} of {frames}…")
+            angle = degrees * index / frames
+            self.view.evaluate(
+                f"window.viewer.orbitStill({angle}, {int(width)}, {int(height)})",
+                lambda url, index=index: keep(index, url),
+            )
+
+        def keep(index: int, url) -> None:
+            if not isinstance(url, str) or "," not in url:
+                self.view.evaluate("window.viewer.orbitEnd()", lambda _: None)
+                self.status.setText("The animation couldn't be rendered.")
+                return
+            frame = folder / f"frame_{index:04d}.png"
+            frame.write_bytes(base64.b64decode(url.split(",", 1)[1]))
+            written.append(frame)
+            render(index + 1)
+
+        def finish() -> None:
+            if target.is_dir():
+                self.status.setText(f"Saved {len(written)} frames to {target}.")
+                return
+            self.status.setText("Writing the animation…")
+
+            def work() -> Path:
+                try:
+                    return writeAnimation(written, target, fps)
+                finally:
+                    shutil.rmtree(folder, ignore_errors=True)
+
+            runInBackground(
+                work,
+                lambda out: self.status.setText(
+                    f"Saved a {len(written)}-frame animation to {out}."
+                ),
+                lambda error: self.status.setText(
+                    f"The animation couldn't be saved: {error}"
+                ),
+                description="Writing an animation",
+                owner=self,
+            )
+
+        render(0)
 
     def exportForPrinting(self) -> None:
         dem = self.dem()
@@ -898,6 +1230,10 @@ class TerrainWorkspace(QMainWindow):
             "fillGaps": self.fillGaps.isChecked(),
             "settings": self.settings.toDict(),
             "views": dict(self.views),
+            "lines": [
+                {"path": path, "color": line.color, "visible": line.visible}
+                for path, line in self.lineLayers
+            ],
             "camera": self._camera,
         }
 
@@ -936,6 +1272,10 @@ class TerrainWorkspace(QMainWindow):
             self.form.setRowVisible(
                 self.colorMapBox, self.drapeBox.currentData() == ELEVATION
             )
+            for saved in state.get("lines", []):
+                self.addLines(
+                    saved["path"], saved.get("color"), saved.get("visible", True)
+                )
             for name, camera in state.get("views", {}).items():
                 self._keepView(name, camera)
             self._camera = state.get("camera")

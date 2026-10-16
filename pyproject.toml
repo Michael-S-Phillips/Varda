@@ -131,6 +131,8 @@ source_modules = [
     "varda.terrain.scene",
     "varda.terrain.overlays",
     "varda.terrain.solid",
+    "varda.terrain.vectors",
+    "varda.terrain.animation",
 ]
 forbidden_modules = ["PyQt6"]
 ignore_imports = [

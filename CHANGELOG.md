@@ -25,6 +25,10 @@ can alter results.
     down to a base; **Export for 3D Printing** saves a watertight STL in
     millimeters (width, exaggeration, base and detail chosen, the printed
     size shown). **Fill gaps** fills no-data voids inside a DEM for both.
+  - **Figures:** a north arrow, a scale bar (at the view's center, with the
+    exaggeration) and a color bar for elevation colors, on the view and in
+    stills; lines from GIS files draped on the surface; and **Export
+    Animation**, a flyover as an animated WebP, a GIF or PNG frames.
 - **Lines and profiles** (General Image Analysis): draw straight lines,
   polylines or freehand lines with **Draw Line**, listed in the new **Lines**
   tab (rename, recolor, delete, export to GIS files) and saved with the

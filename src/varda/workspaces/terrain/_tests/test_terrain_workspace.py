@@ -2,8 +2,10 @@
 web page export (rendering itself needs WebGL, which offscreen test runs may
 not have, so those checks are skipped there)."""
 
+import geopandas as gpd
 import numpy as np
 import pytest
+import shapely
 from affine import Affine
 from pytestqt.exceptions import TimeoutError as QtTimeoutError
 from pyproj import CRS
@@ -15,6 +17,7 @@ from varda.utilities.debug import generate_perlin_noise_3d
 from varda.workspaces.terrain.terrain_workspace import (
     ELEVATION,
     PLAIN,
+    AnimationDialog,
     PrintDialog,
     StillDialog,
     TerrainWorkspace,
@@ -191,3 +194,57 @@ def test_the_stl_export_writes_a_closed_solid(workspace, qtbot, tmp_path):
     data = path.read_bytes()
     count = int.from_bytes(data[80:84], "little")
     assert count > 1000 and len(data) == 84 + 50 * count
+
+
+def test_elevation_colors_come_with_a_color_bar(workspace, qtbot):
+    workspace.drapeBox.setCurrentText(ELEVATION)
+    qtbot.waitUntil(lambda: workspace._legend is not None, timeout=10000)
+    legend = workspace._legend
+    assert len(legend.colors) == 16 and legend.low < legend.high
+    workspace.drapeBox.setCurrentText(PLAIN)
+    qtbot.waitUntil(lambda: workspace._legend is None, timeout=10000)
+
+
+def test_lines_from_a_file_are_draped_and_come_back_with_the_session(
+    workspace, images, qtbot, tmp_path
+):
+    traverse = gpd.GeoDataFrame(
+        geometry=[shapely.LineString([(100, -100), (1100, -700)])], crs=CRS_
+    )
+    traverse.to_file(tmp_path / "traverse.gpkg")
+    assert workspace.addLines(str(tmp_path / "traverse.gpkg"))
+    ((path, line),) = workspace.lineLayers
+    assert line.name == "traverse" and workspace.lineList.count() == 1
+    assert not workspace.addLines(str(tmp_path / "missing.gpkg"))  # a message, no crash
+    described = describeWorkspace(workspace)
+    assert described is not None
+    restored = buildWorkspace(*described, images, workspace.sessionState())
+    assert isinstance(restored, TerrainWorkspace)
+    qtbot.addWidget(restored)
+    assert [line.name for _, line in restored.lineLayers] == ["traverse"]
+
+
+def test_the_animation_dialog_says_how_long_it_runs(qtbot):
+    dialog = AnimationDialog()
+    qtbot.addWidget(dialog)
+    dialog.framesBox.setValue(90)
+    dialog.fpsBox.setCurrentText("30")
+    assert dialog.length.text() == "3.0 seconds long."
+    frames, degrees, fps, size, suffix = dialog.choices()
+    assert (frames, degrees, fps, size, suffix) == (
+        90,
+        360.0,
+        30.0,
+        (1280, 720),
+        ".webp",
+    )
+
+
+def test_a_flyover_renders_where_webgl_is_available(workspace, qtbot, tmp_path):
+    try:
+        qtbot.waitUntil(lambda: workspace.view.ready, timeout=8000)
+    except QtTimeoutError:
+        pytest.skip("no WebGL in this (offscreen) test run")
+    workspace.saveAnimation(str(tmp_path / "orbit.gif"), 4, 90, 10, 160, 100)
+    qtbot.waitUntil(lambda: "Saved a 4-frame" in workspace.status.text(), timeout=30000)
+    assert (tmp_path / "orbit.gif").read_bytes()[:3] == b"GIF"
