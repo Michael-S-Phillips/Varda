@@ -186,3 +186,10 @@ def test_every_view_and_panel_is_a_dock_and_display_has_histograms(workspace):
     panels = {d.windowTitle() for d in workspace.dockManager.dockWidgetsMap().values()}
     assert {"Display", "Lines", "Linked Spectra", "Linked Profiles"} <= panels
     assert [h.imageRenderer for h in workspace.histograms] == workspace.renderers
+
+
+def test_each_spectrum_plot_pans_and_zooms_on_its_own(workspace):
+    workspace.placeCursor(0, 4.5, 2.5)
+    first, second = (p.getViewBox() for p in workspace.spectra.plots[:2])
+    first.setXRange(2.0, 3.0, padding=0)
+    assert second.viewRange()[0] != pytest.approx([2.0, 3.0])
