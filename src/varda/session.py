@@ -9,15 +9,12 @@ and are reported back to the caller instead.
 from __future__ import annotations
 
 import json
-import tempfile
 import zipfile
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 
 import attrs
 
-from varda.common.expressions import words
-from varda.image_loading.raster_writer import writeRaster
 from varda.common.entities import VardaRaster
 from varda.rois.roi_json import roisToJson
 from varda.workspaces.workspace_kinds import describeWorkspace
@@ -143,6 +140,27 @@ def readSession(path: str | Path) -> SessionState:
         """Relative paths are relative to the session file."""
         return imagePath if Path(imagePath).is_absolute() else str(folder / imagePath)
 
+    def resolvedExtra(extra: dict) -> dict:
+        resolvedState = resolvedFiles(extra)
+        assert isinstance(resolvedState, dict)
+        return resolvedState
+
+    def resolvedFiles(value: object) -> object:
+        """A workspace's state with relative ``"path"`` entries (files a
+        package carries) resolved like the images."""
+        if isinstance(value, dict):
+            return {
+                key: (
+                    resolved(item)
+                    if key == "path" and isinstance(item, str)
+                    else resolvedFiles(item)
+                )
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [resolvedFiles(item) for item in value]
+        return value
+
     return SessionState(
         tuple(resolved(p) for p in document["images"]),
         tuple(
@@ -150,7 +168,7 @@ def readSession(path: str | Path) -> SessionState:
                 entry["kind"],
                 tuple(resolved(p) for p in entry["images"]),
                 entry.get("rois", {}),
-                entry.get("extra", {}),
+                resolvedExtra(entry.get("extra", {})),
             )
             for entry in document["workspaces"]
         ),
@@ -175,37 +193,6 @@ def _upgrade(document: dict, path: str | Path) -> dict:
 BUNDLE_SUFFIX = ".varda.zip"
 BUNDLE_SESSION_NAME = "session.varda"
 BUNDLE_DATA_FOLDER = "data"
-
-
-def saveSessionBundle(
-    images: Sequence[VardaRaster], workspaces: Iterable[object], path: str | Path
-) -> Path:
-    """A self-contained session: one zip holding the session and, as ENVI
-    files, every image that existed only in memory (analysis results).
-    Images opened from files stay referenced where they are."""
-    target = Path(path)
-    if not target.name.endswith(BUNDLE_SUFFIX):
-        target = target.with_name(
-            target.name.removesuffix(SESSION_SUFFIX) + BUNDLE_SUFFIX
-        )
-    with tempfile.TemporaryDirectory() as folder:
-        root = Path(folder)
-        data = root / BUNDLE_DATA_FOLDER
-        data.mkdir()
-        written: dict[int, str] = {}
-        for index, image in enumerate(images):
-            if not image.filePath:
-                stem = words(image.name) or f"image_{index + 1}"
-                written[id(image)] = str(
-                    writeRaster(image, data / f"{index + 1:02d}_{stem}.img")
-                )
-        capture = captureSession(images, workspaces, written)
-        writeSession(capture.state, root / BUNDLE_SESSION_NAME, relativeTo=root)
-        with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
-            for file in sorted(root.rglob("*")):
-                if file.is_file():
-                    archive.write(file, file.relative_to(root).as_posix())
-    return target
 
 
 def openSessionBundle(bundle: str | Path, folder: str | Path) -> Path:

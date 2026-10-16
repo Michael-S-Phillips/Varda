@@ -14,12 +14,36 @@ workspaces in the tabs' order.
 images (by path), the open workspaces and their ROIs. **File → Open Session…**
 (⌘O) loads the images and reopens the workspaces alongside whatever is already
 open. Images that exist only in memory (analysis results you have not
-exported) are left out, so export them first, or save a session bundle
-(`.varda.zip`), which carries them along.
+exported) are left out, so export them first, or package the project.
 
 Varda also autosaves the session every three minutes and on quit (to
 `autosave.varda` in its app-data folder, next to the logs). After a crash,
 **File → Restore Last Session** brings it back.
+
+## Sharing a project
+
+**File → Package Project…** puts the whole project into one `.varda.zip`
+that anyone with Varda can open on their own computer (**File → Open
+Session…**), as a packaged Illustrator document can be:
+
+- the session: workspaces, their settings, ROIs and lines;
+- every image file, with the files that belong to it (an ENVI header, a PDS
+  label, GDAL's `.aux.xml`, world files), under their own names, so the
+  pointers inside them still work;
+- the other files workspaces use, such as a 3D Terrain workspace's line
+  files;
+- analysis results that exist only in memory, as ENVI files;
+- `manifest.json`: the Varda version, the date, where each image came from,
+  and every file's size and SHA-256 checksum, so a reader of your paper can
+  check they're working with the same data.
+
+Varda works out the size first. A package over 1 GB asks before it's
+written, since it takes a while to write and many services limit how
+large a shared file can be; it won't start if the disk lacks the room.
+Files a workspace uses that can no longer be found are listed and left out.
+Writing happens in the background, with its progress shown. The files are
+compressed lightly: the four MISE example products (352 MB) package to
+166 MB in a few seconds.
 
 ## Saving results
 

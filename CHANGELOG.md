@@ -75,6 +75,13 @@ can alter results.
   file, or typed center/FWHM bands. CRISM reflectance as a CTX scene aligns
   to a CTX orthoimage near the known offset, where the cube's own bands
   land kilometers off.
+- **Package Project** (File → Package Project…, replacing Save Session
+  (Self-Contained)): one `.varda.zip` with everything a project needs to
+  open on another computer: the session, every image with its companion
+  files (ENVI headers, PDS labels, `.aux.xml`, world files), files
+  workspaces use, results held in memory, and a manifest of every file's
+  size and SHA-256 with the Varda version, for replicability. Packages over
+  1 GB ask first; it's written in the background.
 - **Subset with a preview** (Processing → Geometry → Subset): drag a box
   on the image to choose the part to keep, and drag ranges on the box's
   mean spectrum to choose the bands; both stay in step with the typed rows,

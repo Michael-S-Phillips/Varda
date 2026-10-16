@@ -4,7 +4,7 @@ from pathlib import Path
 
 from app_model.types import Action, MenuRule, StandardKeyBinding
 from PyQt6.QtCore import QStandardPaths, Qt
-from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox
+from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox, QProgressDialog
 
 from varda._actions._menu_ids import MenuGroup, MenuId
 from varda.common.di_types import ProjectImages
@@ -12,21 +12,27 @@ from varda.context_keys import EXPR_HAS_IMAGES
 from varda.image_loading import ImageLoadingService
 from varda.image_loading.export_image_dialog import ExportImageDialog
 from varda.maingui import MainGUI
+from varda.project_package import (
+    capturePackage,
+    formatBytes,
+    planPackage,
+    writePackage,
+)
 from varda.session import (
     BUNDLE_SUFFIX,
     SESSION_FILE_FILTER,
     captureSession,
     openSessionBundle,
     readSession,
-    saveSessionBundle,
     writeSession,
 )
+from varda.utilities.background import onMainThread, runInBackground
 from varda.session_autosave import defaultAutosavePath
 from varda.session_restore import RestoreReport, SessionRestorer
 
 logger = logging.getLogger(__name__)
 
-BUNDLE_FILE_FILTER = f"Self-contained Varda session (*{BUNDLE_SUFFIX})"
+BUNDLE_FILE_FILTER = f"Packaged Varda project (*{BUNDLE_SUFFIX})"
 OPEN_SESSION_FILE_FILTER = f"Varda sessions (*.varda *{BUNDLE_SUFFIX})"
 
 
@@ -61,34 +67,75 @@ def saveSession(images: ProjectImages, mainGui: MainGUI) -> None:
             mainGui,
             "Some images were left out",
             "These images exist only in memory, so the session cannot refer to "
-            "them. Export them first, or use Save Session (Self-Contained) to "
-            "keep them inside the session:\n" + "\n".join(capture.unsavedImages),
+            "them. Export them first, or use Package Project to keep them "
+            "inside a package:\n" + "\n".join(capture.unsavedImages),
         )
 
 
-def saveSessionSelfContained(images: ProjectImages, mainGui: MainGUI) -> None:
-    """Save the session as one zip that also holds every result that exists
-    only in memory (as ENVI files), so it can be reopened anywhere."""
+def packageProject(images: ProjectImages, mainGui: MainGUI) -> None:
+    """Package the whole project into one .varda.zip that opens on any
+    computer with Varda: the session, every image with its companion files,
+    the files workspaces use, results held in memory and a manifest."""
+    plan = planPackage(list(images), mainGui.childWindows)
+    size = formatBytes(plan.totalBytes)
+    notes = []
+    if plan.isLarge:
+        notes.append(
+            f"The package will be about {size}: it may take a while to write, "
+            "and to share (many services limit file sizes)."
+        )
+    if plan.missing:
+        notes.append(
+            "These files a workspace uses can't be found and will be left out:\n"
+            + "\n".join(plan.missing)
+        )
+    if notes:
+        answer = QMessageBox.warning(
+            mainGui,
+            "Package Project",
+            "\n\n".join(notes) + "\n\nPackage the project anyway?",
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Ok:
+            return
     path, _ = QFileDialog.getSaveFileName(
-        mainGui, "Save Session (Self-Contained)", "", BUNDLE_FILE_FILTER
+        mainGui, f"Package Project (about {size})", "", BUNDLE_FILE_FILTER
     )
     if not path:
         return
-    QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-    try:
-        written = saveSessionBundle(list(images), mainGui.childWindows, path)
-    except (OSError, ValueError) as error:
-        QMessageBox.critical(mainGui, "Cannot save session", str(error))
-        return
-    finally:
-        QApplication.restoreOverrideCursor()
-    inMemory = sum(1 for image in images if not image.filePath)
-    logger.info("Self-contained session saved to %s", written)
-    QMessageBox.information(
-        mainGui,
-        "Session saved",
-        f"Saved {written.name}, including {inMemory} result(s) that existed "
-        "only in memory. Images opened from files are referenced where they are.",
+    state = capturePackage(plan, list(images), mainGui.childWindows)
+    progress = QProgressDialog("Packaging the project…", "", 0, 100, mainGui)
+    progress.setWindowTitle("Package Project")
+    progress.setCancelButton(None)
+    progress.setWindowModality(Qt.WindowModality.WindowModal)
+    progress.setMinimumDuration(0)
+    progress.setValue(0)
+
+    def report(percent: int, message: str) -> None:
+        progress.setValue(percent)
+        progress.setLabelText(message)
+
+    def done(written: Path) -> None:
+        progress.close()
+        logger.info("Project packaged to %s", written)
+        QMessageBox.information(
+            mainGui,
+            "Project packaged",
+            f"Saved {written.name} ({formatBytes(written.stat().st_size)}). Anyone "
+            "with Varda can open it with File → Open Session; its manifest lists "
+            "every file with its checksum.",
+        )
+
+    def failed(error: Exception) -> None:
+        progress.close()
+        QMessageBox.critical(mainGui, "Cannot package the project", str(error))
+
+    runInBackground(
+        lambda: writePackage(plan, state, path, onMainThread(report)),
+        done,
+        failed,
+        description="Packaging a project",
+        owner=mainGui,
     )
 
 
@@ -189,10 +236,14 @@ FILE_ACTIONS: list[Action] = [
         keybindings=[StandardKeyBinding.Save.to_keybinding_rule()],
     ),
     Action(
-        id="varda.file.save_session_self_contained",
-        title="Save Session (Self-Contained)…",
-        tooltip="One zip with the session and every result that exists only in memory",
-        callback=saveSessionSelfContained,
+        id="varda.file.package_project",
+        title="Package Project…",
+        tooltip=(
+            "One zip with everything: the session, every image and its companion "
+            "files, results held in memory, and a manifest of checksums, to open "
+            "on any computer with Varda"
+        ),
+        callback=packageProject,
         enablement=EXPR_HAS_IMAGES,
         menus=[MenuRule(id=MenuId.FILE, group=MenuGroup.FILE_SESSION, order=3)],
     ),
