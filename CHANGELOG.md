@@ -6,6 +6,8 @@ can alter results.
 
 ## Unreleased
 
+## 0.9.0 (2026-10-16)
+
 ### Added
 
 - **3D Terrain workspace** (Workspace → New 3D Terrain Workspace): a DEM as
