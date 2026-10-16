@@ -3,7 +3,8 @@ pixel (products of one pipeline on one grid: a result, its sample counts,
 its flags) or by map location (images on different grids). The views pan
 and zoom together; one cursor (Ctrl+click or Ctrl+drag in any view) shows
 every image's spectrum there, stacked; a line drawn on any view gives every
-image's profile along it.
+image's profile along it. Every view and panel is a dock that can be
+dragged anywhere, tabbed or floated.
 
 Lines are kept in the first image's coordinates and placed on each image
 through the link."""
@@ -16,19 +17,19 @@ from collections.abc import MutableSequence, Sequence
 
 import numpy as np
 from PyQt6.QtCore import QObject, QPointF, QRect, QRectF, Qt
+import PyQt6Ads as ads
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
-    QDockWidget,
     QFormLayout,
-    QGridLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QScrollArea,
     QSplitter,
     QStackedWidget,
     QVBoxLayout,
@@ -37,7 +38,9 @@ from PyQt6.QtWidgets import (
 
 from varda.common.entities import VardaRaster
 from varda.common.grid import compatibleImages
+from varda.common.ui import VardaDockWidget
 from varda.image_rendering.image_renderer import ImageRenderer
+from varda.image_rendering.new_histogram_view import NewHistogramView
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
 from varda.image_rendering.raster_view.viewport_tools.crop_tool import CropTool
 from varda.image_rendering.raster_view.viewport_tools.line_tools import LineDrawTool
@@ -109,9 +112,7 @@ class LinkedImagesWorkspace(QMainWindow):
         self.viewports = [ImageViewport(r, parent=self) for r in self.renderers]
         self.toolManagers = []
         self.crosshairs = []
-        grid = QGridLayout()
-        columns = math.ceil(math.sqrt(len(self.images)))
-        for index, (image, viewport) in enumerate(zip(self.images, self.viewports)):
+        for index, viewport in enumerate(self.viewports):
             manager = ToolManager(
                 viewport,
                 self,
@@ -125,28 +126,27 @@ class LinkedImagesWorkspace(QMainWindow):
             crosshair = viewport.addCrosshair(CURSOR_COLOR)
             crosshair.setVisible(False)
             self.crosshairs.append(crosshair)
-            tile = QWidget()
-            tileLayout = QVBoxLayout(tile)
-            tileLayout.setContentsMargins(2, 2, 2, 2)
-            tileLayout.addWidget(QLabel(f"<b>{image.name}</b>"))
-            tileLayout.addWidget(viewport, 1)
-            grid.addWidget(tile, index // columns, index % columns)
-        central = QWidget()
-        central.setLayout(grid)
-        self.setCentralWidget(central)
         self.viewLink = ViewGroupLink(self.viewports, self.images, link, self)
 
         # The cursor's spectra, every image's
         self.spectra = LinkedSpectraPanel(self.images)
-        self.spectraDock = self._dock("Linked Spectra", self.spectra, "spectra")
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.spectraDock)
 
-        # Each image's display settings
+        # Each image's display settings, with its histograms
         self.displayChoice = QComboBox()
         self.displayStack = QStackedWidget()
+        self.histograms = []
         for image, renderer in zip(self.images, self.renderers):
             self.displayChoice.addItem(image.name)
-            self.displayStack.addWidget(renderer.getSettingsPanel())
+            settings = QScrollArea()
+            settings.setWidget(renderer.getSettingsPanel())
+            settings.setWidgetResizable(True)
+            histogram = NewHistogramView(renderer)
+            self.histograms.append(histogram)
+            page = QSplitter(Qt.Orientation.Vertical)
+            page.addWidget(settings)
+            page.addWidget(histogram)
+            page.setSizes([320, 240])
+            self.displayStack.addWidget(page)
         self.displayChoice.currentIndexChanged.connect(
             self.displayStack.setCurrentIndex
         )
@@ -154,8 +154,6 @@ class LinkedImagesWorkspace(QMainWindow):
         displayLayout = QVBoxLayout(display)
         displayLayout.addWidget(self.displayChoice)
         displayLayout.addWidget(self.displayStack, 1)
-        self.displayDock = self._dock("Display", display, "display")
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.displayDock)
 
         # Lines: kept on the first image, placed on each through the link
         self.lines = LineCollection()
@@ -175,26 +173,61 @@ class LinkedImagesWorkspace(QMainWindow):
         for image, plot in zip(self.images, self.profilePlots):
             plot.plotItem.setTitle(image.name, size="9pt")
             profiles.addWidget(plot)
-        self.linesDock = self._dock("Lines", self.lineManager, "lines")
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.linesDock)
-        self.tabifyDockWidget(self.displayDock, self.linesDock)
-        self.displayDock.raise_()
-        self.profilesDock = self._dock("Linked Profiles", profiles, "profiles")
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.profilesDock)
-        self.tabifyDockWidget(self.spectraDock, self.profilesDock)
-        self.spectraDock.raise_()
-        # the views get the most room
-        self.resizeDocks(
-            [self.displayDock, self.spectraDock], [280, 420], Qt.Orientation.Horizontal
-        )
+
+        self._arrange(display, profiles)
         self.lines.sigCollectionChanged.connect(self._placeLines)
         self.lineManager.sigSelectionChanged.connect(lambda _: self._showProfiles())
 
-    def _dock(self, title: str, widget: QWidget, name: str) -> QDockWidget:
-        dock = QDockWidget(title, self)
-        dock.setObjectName(name)
-        dock.setWidget(widget)
-        return dock
+    def _arrange(self, display: QWidget, profiles: QWidget) -> None:
+        """Every view and panel is a dock: drag one by its title to put it
+        anywhere, tab it with another or float it. They start with the views
+        in a grid, Display and Lines on the left, Spectra and Profiles on the
+        right."""
+        self.dockManager = ads.CDockManager(self)
+        self.viewDocks: list[VardaDockWidget] = []
+        columns = math.ceil(math.sqrt(len(self.images)))
+        areas = []
+        for index, (image, viewport) in enumerate(zip(self.images, self.viewports)):
+            dock = VardaDockWidget(image.name).withWidget(viewport)
+            # a view stays in the workspace (moved or floated, not closed)
+            dock.setFeature(ads.CDockWidget.DockWidgetFeature.DockWidgetClosable, False)
+            self.viewDocks.append(dock)
+            if index == 0:
+                area = self.dockManager.addDockWidget(
+                    ads.DockWidgetArea.CenterDockWidgetArea, dock
+                )
+            elif index < columns:  # along the first row
+                area = self.dockManager.addDockWidget(
+                    ads.DockWidgetArea.RightDockWidgetArea, dock, areas[index - 1]
+                )
+            else:  # below the view above
+                area = self.dockManager.addDockWidget(
+                    ads.DockWidgetArea.BottomDockWidgetArea,
+                    dock,
+                    areas[index - columns],
+                )
+            areas.append(area)
+        self.displayDock = VardaDockWidget("Display").withWidget(display)
+        self.linesDock = VardaDockWidget("Lines").withWidget(self.lineManager)
+        self.spectraDock = VardaDockWidget("Linked Spectra").withWidget(self.spectra)
+        self.profilesDock = VardaDockWidget("Linked Profiles").withWidget(profiles)
+        left = self.dockManager.addDockWidget(
+            ads.DockWidgetArea.LeftDockWidgetArea, self.displayDock
+        )
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea, self.linesDock, left
+        )
+        right = self.dockManager.addDockWidget(
+            ads.DockWidgetArea.RightDockWidgetArea, self.spectraDock
+        )
+        self.dockManager.addDockWidget(
+            ads.DockWidgetArea.CenterDockWidgetArea, self.profilesDock, right
+        )
+        self.displayDock.setAsCurrentTab()
+        self.spectraDock.setAsCurrentTab()
+        root = self.dockManager.rootSplitter()
+        if root is not None and root.count() == 3:
+            root.setSizes([280, 1000, 420])  # the views get the most room
 
     # --- the cursor -----------------------------------------------------------------
 
@@ -237,8 +270,8 @@ class LinkedImagesWorkspace(QMainWindow):
         )[1]
         fid = self.lines.addLine(onFirst, kind)
         self.lineManager.select([fid])
-        self.profilesDock.show()
-        self.profilesDock.raise_()
+        self.profilesDock.toggleView(True)
+        self.profilesDock.setAsCurrentTab()
         return fid
 
     def _placeLines(self) -> None:

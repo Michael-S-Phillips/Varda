@@ -171,3 +171,18 @@ def test_a_bit_mask_shows_as_bits_by_wavelength(qtbot, products):
     assert not panel.asBits[1]
     _, values = panel.curves[1].getData()
     assert values[0] == 0b1000000000000000101
+
+
+def test_every_view_and_panel_is_a_dock_and_display_has_histograms(workspace):
+    import PyQt6Ads as ads
+
+    assert [d.windowTitle() for d in workspace.viewDocks] == [
+        "AGGREGATE",
+        "COUNT",
+        "FLAGS",
+    ]
+    closable = ads.CDockWidget.DockWidgetFeature.DockWidgetClosable
+    assert not any(d.features().value & closable.value for d in workspace.viewDocks)
+    panels = {d.windowTitle() for d in workspace.dockManager.dockWidgetsMap().values()}
+    assert {"Display", "Lines", "Linked Spectra", "Linked Profiles"} <= panels
+    assert [h.imageRenderer for h in workspace.histograms] == workspace.renderers
