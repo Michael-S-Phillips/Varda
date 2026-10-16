@@ -6,6 +6,7 @@ Detailed guides to Varda's features. For an overview, see the
 - [Installing Varda](installing.md): downloading a release, running from source, optional extras
 - [Sessions and saving results](sessions-and-saving.md): saving and restoring your work, autosave, exporting images
 - [3D Terrain](3d-terrain.md): DEMs in 3D with draped images, figures and interactive web pages
+- [Linked Images](linked-images.md): any number of images linked by pixel or map location, with every image's spectrum and profile at once
 - [Lines and profiles](lines-and-profiles.md): drawing lines and plotting topographic and band profiles along them
 - [Image processing tools](image-processing.md): spatial filters, texture, color, class map tools, terrain and geometry
 - [PCA, MNF and ICA](transforms.md): choosing how many components to keep, inverse transforms

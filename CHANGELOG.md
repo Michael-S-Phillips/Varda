@@ -45,6 +45,13 @@ can alter results.
     the same CRISM observation) and moves the overlay (e.g. its parameter
     map) by the result; **Copy** and **Paste** give another overlay the
     same alignment.
+- **Linked Images workspace** (Workspace → New Linked Images Workspace…):
+  any number of images side by side, linked by pixel or by map location,
+  panning and zooming together. Ctrl+click or Ctrl+drag puts one cursor on
+  every view and plots every image's spectrum there, each in its own plot
+  (a product, its counts, its flags); a line drawn on any view gives every
+  image's profile. Made for checking pipeline products, such as MISE's
+  synthetic data, against each other.
 - **Convolve to Sensor Bands** (Processing → Spectral Parameters): a cube
   with wavelengths in another sensor's bands, each weighted by its spectral
   response (bad bands and no-data left out, uncovered bands skipped):

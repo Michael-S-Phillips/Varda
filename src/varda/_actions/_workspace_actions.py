@@ -12,6 +12,10 @@ from varda.workspaces.general_image_analysis import (
 from varda.workspaces.find_data.find_data_workspace import FindDataWorkspace
 from varda.workspaces.mosaic.new_mosaic_dialog import NewMosaicDialog
 from varda.workspaces.terrain.terrain_workspace import TerrainWorkspace
+from varda.workspaces.linked_images.linked_images_workspace import (
+    LinkedImagesWorkspace,
+    NewLinkedImagesDialog,
+)
 from varda.workspaces.spectral_hourglass.new_hourglass_dialog import (
     NewSpectralHourglassDialog,
 )
@@ -52,6 +56,16 @@ def newFindDataWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
 
 def newTerrainWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
     mainGui.addTab(TerrainWorkspace(images))
+
+
+def newLinkedImagesWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
+    dialog = NewLinkedImagesDialog(images, parent=mainGui)
+    dialog.accepted.connect(
+        lambda: mainGui.addTab(
+            LinkedImagesWorkspace(dialog.chosen(), images, dialog.link())
+        )
+    )
+    openOwnedDialog(dialog)
 
 
 def duplicateCurrentWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
@@ -124,6 +138,17 @@ WORKSPACE_ACTIONS: list[Action] = [
         callback=newTerrainWorkspace,
         enablement=EXPR_HAS_IMAGES,
         menus=[MenuRule(id=MenuId.WORKSPACE, group=MenuGroup.WORKSPACE_NEW, order=6)],
+    ),
+    Action(
+        id="varda.workspace.new_linked",
+        title="New Linked Images Workspace…",
+        tooltip=(
+            "View any number of images together, linked by pixel or map location: "
+            "one cursor shows every image's spectrum, a line every image's profile"
+        ),
+        callback=newLinkedImagesWorkspace,
+        enablement=EXPR_HAS_IMAGES,
+        menus=[MenuRule(id=MenuId.WORKSPACE, group=MenuGroup.WORKSPACE_NEW, order=7)],
     ),
     Action(
         id="varda.workspace.duplicate",

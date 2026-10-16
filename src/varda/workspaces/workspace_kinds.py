@@ -22,6 +22,10 @@ from varda.workspaces.general_image_analysis import (
 )
 from varda.workspaces.find_data.find_data_workspace import FindDataWorkspace
 from varda.workspaces.terrain.terrain_workspace import TerrainWorkspace
+from varda.workspaces.linked_images.linked_images_workspace import (
+    LinkedImagesWorkspace,
+)
+from varda.workspaces.linked_images.linking import Link
 from varda.workspaces.mosaic.mosaic_workspace import MosaicWorkspace
 from varda.workspaces.spectral_hourglass.hourglass_workspace import (
     SpectralHourglassWorkspace,
@@ -45,6 +49,8 @@ def describeWorkspace(workspace: object) -> tuple[str, list[VardaRaster]] | None
         return "find_data", []
     if isinstance(workspace, TerrainWorkspace):
         return "terrain", workspace.sessionImages()
+    if isinstance(workspace, LinkedImagesWorkspace):
+        return "linked", list(workspace.images)
     return None
 
 
@@ -83,6 +89,13 @@ def buildWorkspace(
         workspace = TerrainWorkspace(projectImages, images[0])
         workspace.restoreSessionState(dict(extra or {}), images[1:])
         return workspace
+    if kind == "linked" and len(images) >= 2:
+        state = dict(extra or {})
+        workspace = LinkedImagesWorkspace(
+            images, projectImages, Link[state.get("link", Link.PIXEL.name)]
+        )
+        workspace.restoreSessionState(state)
+        return workspace
     logger.warning("Unknown workspace kind %r; skipped", kind)
     return None
 
@@ -94,6 +107,8 @@ def displayRenderers(workspace: object) -> list[ImageRenderer]:
         return [workspace.imageRenderer]
     if isinstance(workspace, DualImageWorkspace):
         return [workspace.primaryRenderer, workspace.secondaryRenderer]
+    if isinstance(workspace, LinkedImagesWorkspace):
+        return list(workspace.renderers)
     return []
 
 

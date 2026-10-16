@@ -2,7 +2,7 @@ from typing import Optional, Type
 
 from PyQt6.QtCore import QObject, pyqtSignal, QEvent
 from PyQt6.QtWidgets import QToolBar
-from PyQt6.QtGui import QActionGroup
+from PyQt6.QtGui import QAction, QActionGroup
 
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
@@ -25,13 +25,17 @@ class ToolManager(QObject):
         viewport: ImageViewport,
         parent=None,
         excludeCategories: tuple[str, ...] = (),
+        excludeTools: tuple[Type[ViewportTool], ...] = (),
     ):
-        """``excludeCategories``: tool categories this viewport has no use for."""
+        """``excludeCategories`` and ``excludeTools``: tool categories and
+        tools this viewport has no use for."""
         super().__init__(parent)
         self.excludeCategories = excludeCategories
+        self.excludeTools = excludeTools
         self.viewport = viewport
         self.viewport.installEventFilter(self)
         self.activeTool: Optional[ViewportTool] = None
+        self.toolActions: dict[Type[ViewportTool], QAction] = {}
         self.toolRegistry = ToolRegistry()
         self.toolBar = self._createToolbar()
 
@@ -47,6 +51,13 @@ class ToolManager(QObject):
         self.activeTool = toolClass(self.viewport, parent=self)
         self.activeTool.activate()
         self.sigToolActivated.emit(self.activeTool)
+
+    def select(self, toolClass: Type[ViewportTool]) -> None:
+        """Turn a tool on as its toolbar button would (the button shows it)."""
+        action = self.toolActions.get(toolClass)
+        if action is not None:
+            action.setChecked(True)
+        self.activateTool(toolClass)
 
     def deactivateCurrentTool(self):
         """Deactivate the currently active tool."""
@@ -89,14 +100,20 @@ class ToolManager(QObject):
         )
 
         for category in categories:
+            # Get tools in this category
+            tools = [
+                tool
+                for tool in self.toolRegistry.getToolsByCategory(category)
+                if tool not in self.excludeTools
+            ]
+            if not tools:
+                continue
+
             # Add separator between categories
             if currentCategory is not None:
                 toolbar.addSeparator()
 
             currentCategory = category
-
-            # Get tools in this category
-            tools = self.toolRegistry.getToolsByCategory(category)
 
             # Sort tools by name for consistent order
             tools.sort(key=lambda t: t.toolName)
@@ -109,6 +126,7 @@ class ToolManager(QObject):
                 )
                 actionGroup.addAction(action)
                 toolbar.addAction(action)
+                self.toolActions[toolClass] = action
 
         return toolbar
 

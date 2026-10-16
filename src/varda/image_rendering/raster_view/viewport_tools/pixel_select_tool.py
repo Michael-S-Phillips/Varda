@@ -29,6 +29,7 @@ class PixelSelectTool(ViewportTool):
     """
 
     sigPixelSelected = pyqtSignal(QPointF)
+    sigPixelDragged = pyqtSignal(QPointF)  # each pixel passed while Ctrl-dragging
 
     # Tool metadata
     toolName = "Pixel Select"
@@ -79,6 +80,7 @@ class PixelSelectTool(ViewportTool):
         if event.action == PointerAction.MOVE:
             if self.isDragging:
                 self._updateCrosshair(event, emitSignal=False)
+                self.sigPixelDragged.emit(event.imagePos)
                 return True
             return False
         if event.action == PointerAction.RELEASE:
