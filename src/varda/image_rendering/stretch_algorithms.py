@@ -96,7 +96,8 @@ def normalize_numba(image, minVals, maxVals):
             "minVals and maxVals must have the same number of channels as the image"
         )
 
-    out = np.empty_like(image)
+    # fractions: an integer output (from a DN image) would truncate them to 0
+    out = np.empty(image.shape, dtype=np.float32)
     h, w, c = image.shape
 
     for i in prange(h):
