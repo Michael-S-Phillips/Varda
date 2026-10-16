@@ -131,6 +131,10 @@ can alter results.
 
 ### Fixed
 
+- **Stretches on whole-number images** (DN products such as MISE's int16
+  aggregate): dragging a histogram's stretch range, and the Linear,
+  Square Root and Logarithmic Percentile stretches, turned the image
+  black, as the stretched fractions were stored as integers (all 0).
 - A product file that can't be downloaded (e.g. a catalog's broken link,
   404) no longer stops the product's other files: they download, the product
   is marked failed with the reason, and each missing file says "not
