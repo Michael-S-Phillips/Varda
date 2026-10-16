@@ -1,6 +1,7 @@
 """Packaged projects: one ``.varda.zip`` holding everything a session needs,
 so that anyone with Varda can open the project on their own computer, as a
-packaged Illustrator document can be. No Qt.
+packaged Illustrator document can be. No widgets: ``writePackage`` runs
+on a worker thread.
 
 Inside: the session (``session.varda``, its paths relative to the package),
 every image file with its companions (an ENVI header, a PDS label, GDAL's
