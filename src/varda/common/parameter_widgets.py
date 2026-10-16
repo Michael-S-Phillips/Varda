@@ -467,12 +467,21 @@ class ImageParameterWidget(QWidget):
     def __init__(self, param: ImageParameter, parent: QWidget | None = None):
         super().__init__(parent)
         self.param = param
-        self.imageList = param.imageProvider()
-        assert len(self.imageList) != 0, (
+        images = list(param.imageProvider())
+        assert images or param.optional, (
             "Image Parameter requires at least 1 available image!"
         )
+        # an optional parameter's first choice is None
+        self.imageList: list[VardaRaster | None] = (
+            [None, *images] if param.optional else list(images)
+        )
         self.comboBox = QComboBox(self)
-        self.comboBox.addItems([image.name for image in self.imageList])
+        self.comboBox.addItems(
+            [
+                param.noneLabel if image is None else image.name
+                for image in self.imageList
+            ]
+        )
         # Show the parameter's current value (it may have been set before
         # the widget existed) before wiring user changes back to it.
         self._showValue(param.get())

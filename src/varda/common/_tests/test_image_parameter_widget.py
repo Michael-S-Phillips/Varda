@@ -44,3 +44,23 @@ def test_syncing_the_widget_does_not_re_emit_the_parameter(qapp, param, images):
     param.set(images[1])
     assert changes == [images[1]]  # once from set(), not again from the combo
     assert widget.comboBox.currentIndex() == 1
+
+
+def test_an_optional_image_starts_as_none_and_can_go_back_to_it(qapp, images):
+    param = ImageParameter("Weights", optional=True, noneLabel="None (unweighted)")
+    param.setProvider(lambda: images)
+    assert param.get() is None  # not the first image
+    widget = ImageParameterWidget(param)
+    assert widget.comboBox.itemText(0) == "None (unweighted)"
+    widget.comboBox.setCurrentIndex(2)
+    assert param.get() is images[1]
+    widget.comboBox.setCurrentIndex(0)
+    assert param.get() is None
+    assert param.clone().optional
+
+
+def test_an_optional_image_works_with_nothing_to_choose(qapp):
+    param = ImageParameter("Weights", optional=True)
+    param.setProvider(lambda: [])
+    widget = ImageParameterWidget(param)  # no images is fine when optional
+    assert widget.comboBox.count() == 1 and param.get() is None

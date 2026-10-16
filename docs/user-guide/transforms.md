@@ -15,23 +15,33 @@ component and attach the eigenvalues and inverse to the result.
 The first N components are ticked by default. Untick any (for example
 component 1, to drop albedo) or type a range such as `3-19, 22`.
 
-## Weighted PCA
+## Wavelengths and weights
 
-**Transforms → Weighted PCA** is PCA in which each value counts by its
-weight, taken from another image on the same grid: per band (an image with
-the same bands) or per pixel (one band). **Weights Are** says whether the
-image holds weights, such as the number of samples behind each value, or
-uncertainties σ (weighted 1/σ²).
+PCA, MNF and ICA each choose what goes in:
+
+- **Wavelengths** (from, to) keeps the bands in that range, as the Spectral
+  Hourglass does; drop noisy ranges such as detector edges or water bands.
+  Bands marked bad in the image are always left out. Inverse Transform then
+  rebuilds just those bands.
+- **Weights** (optional; none by default) gives each value a weight from
+  another image on the same grid: per band (an image with the same bands)
+  or per pixel (one band). **Weights Are** says whether that image holds
+  weights, such as the number of frames behind each value, or uncertainties
+  σ (weighted 1/σ²).
 
 Values with no weight change nothing: they don't bend the components, and
 each pixel's scores are fitted to its weighted values only. Missing values
-and bad bands have no weight. Make the weights with Band Math from a
-pipeline's products, and leave out flagged values by weighting them 0. For
-MISE's products, whose COUNT is the number of frames left out of a stack of
-20 and whose FLAG05 marks values with more than 5 left out, that's
-`(20 - COUNT) * (FLAG05 == 0)`. With equal weights it is ordinary PCA.
+have no weight. Make the weights with Band Math from a pipeline's
+products, leaving out flagged values by weighting them 0. For MISE's
+products, whose COUNT is the number of frames left out of a stack of 20
+and whose FLAG05 marks values with more than 5 left out, that's
+`(20 - COUNT) * (FLAG05 == 0)`. With equal weights each transform is the
+ordinary one.
 
-The covariance is the weighted one of Delchambre (2015, *MNRAS* 446,
-3545). Each pixel's scores are a small fit, so Weighted PCA starts at 10
-components rather than all of them. The result works with the Eigenvalue
-Plot and Inverse Transform like the others.
+The weighted covariance is Delchambre's (2015, *MNRAS* 446, 3545). MNF
+estimates the noise from neighbor differences weighted as both of their
+values are, and keeps that estimate positive by blending it with its
+diagonal when needed. ICA whitens with the weighted PCA. Each pixel's
+scores are a small fit, so weighting takes longer with more components:
+about 2 seconds for 40 components of a 320 × 300 × 421-band cube, a couple
+of minutes for all of them.

@@ -58,11 +58,14 @@ can alter results.
   bits set, one bit, or any of several, band by band; in Linked Images a
   mask shows as bits by wavelength at the cursor. On MISE's example
   products, EXCLUDE's set bits reproduce COUNT exactly.
-- **Weighted PCA** (Processing → Transforms): PCA with a weight per value
-  from another image on the same grid (sample counts, or uncertainties as
-  1/σ²); values with no weight (flagged, missing, bad bands) move neither
-  the components nor a pixel's scores. Delchambre's (2015) weighted
-  covariance, with each pixel's scores a weighted least-squares fit.
+- **Wavelengths and weights for PCA, MNF and ICA** (Processing →
+  Transforms): each takes a wavelength range (as the Spectral Hourglass
+  does; bands marked bad are always left out) and, optionally, weights: an
+  image on the same grid giving each value a weight (frames used, or
+  uncertainties as 1/σ²). Values with no weight (flagged, missing) move
+  neither the components nor a pixel's scores: Delchambre's (2015)
+  weighted covariance, with each pixel's scores a weighted least-squares
+  fit (MNF's noise from weighted neighbor differences).
 - **Convolve to Sensor Bands** (Processing → Spectral Parameters): a cube
   with wavelengths in another sensor's bands, each weighted by its spectral
   response (bad bands and no-data left out, uncovered bands skipped):

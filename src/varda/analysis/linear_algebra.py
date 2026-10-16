@@ -154,46 +154,68 @@ def pca(X: np.ndarray, components: int) -> TransformResult:
     )
 
 
-def weightedPca(X: np.ndarray, W: np.ndarray, components: int) -> TransformResult:
-    """Principal components of the rows of ``X`` with a weight per value
-    (``W``, same shape; e.g. sample counts or inverse variances). NaN values
-    and negative weights count as weight 0.
-
-    The weighted covariance is (W∘X)ᵀ(W∘X) ./ WᵀW about the weighted mean
-    (Delchambre 2015, MNRAS 446, 3545), so the scale of the weights doesn't
-    matter; each row's scores are the weighted least-squares fit of the
-    components to that row, so values without weight don't move them."""
-    n, bands = X.shape
-    k = min(components, bands)
-    if n < 2 or n < k:
-        raise ValueError(f"Weighted PCA needs at least {max(k, 2)} samples, got {n}")
+def _withWeights(X: np.ndarray, W: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """X with missing values as 0, and W with those (and negative or missing
+    weights) as weight 0."""
     finite = np.isfinite(X)
     W = np.where(finite & np.isfinite(W), np.clip(W, 0, None), 0.0)
-    X = np.where(finite, X, 0.0)
+    return np.where(finite, X, 0.0), W
+
+
+def weightedCovariance(X: np.ndarray, W: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """The weighted mean and covariance of the rows of ``X`` (a weight per
+    value): (W∘X)ᵀ(W∘X) ./ WᵀW about the weighted mean (Delchambre 2015,
+    MNRAS 446, 3545), so the scale of the weights doesn't matter."""
+    X, W = _withWeights(X, W)
+    bands = X.shape[1]
     totals = W.sum(axis=0)
     mean = (W * X).sum(axis=0) / np.where(totals > 0, totals, 1)
     products, pairs = np.zeros((bands, bands)), np.zeros((bands, bands))
-    for start in range(0, n, _CHUNK_ROWS):
+    for start in range(0, X.shape[0], _CHUNK_ROWS):
         w = W[start : start + _CHUNK_ROWS]
         weighted = w * (X[start : start + _CHUNK_ROWS] - mean)
         products += weighted.T @ weighted
         pairs += w.T @ w
-    covariance = products / np.where(pairs > 0, pairs, 1)
-    eigenvalues, eigenvectors = np.linalg.eigh(covariance)  # ascending
-    order = np.argsort(eigenvalues)[::-1][:k]
-    eigenvalues, vectors = eigenvalues[order], eigenvectors[:, order]
-    total = float(np.trace(covariance))
+    return mean, products / np.where(pairs > 0, pairs, 1)
+
+
+def weightedScores(
+    X: np.ndarray, W: np.ndarray, mean: np.ndarray, inverse: np.ndarray
+) -> np.ndarray:
+    """Each row's scores on a basis (``inverse``, (k, bands): data ≈ scores
+    @ inverse + mean), fitted to its weighted values by least squares, so
+    values without weight don't move them."""
+    X, W = _withWeights(X, W)
+    n, bands = X.shape
+    k = inverse.shape[0]
+    basis = inverse.T  # (bands, k)
     scores = np.empty((n, k))
     ridge = 1e-12 * np.eye(k)  # rows weighted in fewer than k bands
     rows = max(1, 2**24 // (bands * k))  # (rows, bands, k) at a time
     for start in range(0, n, rows):
         w = W[start : start + rows]
-        weightedVectors = w[:, :, None] * vectors  # (rows, bands, k)
-        normal = weightedVectors.transpose(0, 2, 1) @ vectors + ridge
-        right = (w * (X[start : start + rows] - mean)) @ vectors
+        normal = (w[:, :, None] * basis).transpose(0, 2, 1) @ basis + ridge
+        right = (w * (X[start : start + rows] - mean)) @ basis
         scores[start : start + rows] = np.linalg.solve(normal, right[..., None])[..., 0]
+    return scores
+
+
+def weightedPca(X: np.ndarray, W: np.ndarray, components: int) -> TransformResult:
+    """Principal components of the rows of ``X`` with a weight per value
+    (``W``, same shape; e.g. frames used or inverse variances): the weighted
+    covariance's eigenvectors, and each row's scores fitted to its weighted
+    values. NaN values and negative weights count as weight 0."""
+    n, bands = X.shape
+    k = min(components, bands)
+    if n < 2 or n < k:
+        raise ValueError(f"Weighted PCA needs at least {max(k, 2)} samples, got {n}")
+    mean, covariance = weightedCovariance(X, W)
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)  # ascending
+    order = np.argsort(eigenvalues)[::-1][:k]
+    eigenvalues, vectors = eigenvalues[order], eigenvectors[:, order]
+    total = float(np.trace(covariance))
     return TransformResult(
-        scores=scores,
+        scores=weightedScores(X, W, mean, vectors.T),
         loadings=vectors,
         explainedVariance=eigenvalues / total if total > 0 else np.zeros(k),
         eigenvalues=eigenvalues,
@@ -229,11 +251,27 @@ def _neighbourDifferences(
     return (data[b] - data[a])[pairs] / np.sqrt(2.0)
 
 
+def _neighbourDifferenceWeights(
+    weights: np.ndarray, valid: np.ndarray, dr: int, dc: int
+) -> np.ndarray:
+    """The weight of each neighbor difference: w₁w₂ / (w₁ + w₂), the inverse
+    variance of a difference of values weighted by inverse variance (0 if
+    either has none)."""
+    rows, cols = valid.shape
+    a = (slice(0, rows - dr), slice(0, cols - dc))
+    b = (slice(dr, rows), slice(dc, cols))
+    pairs = valid[a] & valid[b]
+    wa, wb = weights[a][pairs], weights[b][pairs]
+    total = wa + wb
+    return np.where(total > 0, wa * wb / np.where(total > 0, total, 1), 0.0)
+
+
 def noiseCovariance(
     cube,
     valid: np.ndarray,
     method: NoiseEstimate = NoiseEstimate.HORIZONTAL,
     region: np.ndarray | None = None,
+    weights: np.ndarray | None = None,
 ) -> np.ndarray:
     """The noise covariance for MNF.
 
@@ -243,6 +281,8 @@ def noiseCovariance(
     sensor's noise varies (e.g. vertical for along-track striping).
     ``HOMOGENEOUS_REGION`` uses the covariance within ``region`` (a mask of a
     uniform area, such as a dark or flat ROI), where all variation is noise.
+    With ``weights`` (a weight per value, like the cube) the covariance is
+    the weighted one, each difference weighted as both its values are.
     """
     data = np.asarray(cube, dtype=np.float64)
     if method is NoiseEstimate.HOMOGENEOUS_REGION:
@@ -251,28 +291,84 @@ def noiseCovariance(
                 "A homogeneous region (mask) is needed for this noise estimate"
             )
         samples = data[region & valid]
-    elif method is NoiseEstimate.AVERAGED:
-        samples = np.concatenate(
-            [
-                _neighbourDifferences(data, valid, *_NEIGHBOUR_OFFSETS[m])
-                for m in (NoiseEstimate.HORIZONTAL, NoiseEstimate.VERTICAL)
-            ]
-        )
+        sampleWeights = None if weights is None else weights[region & valid]
     else:
-        samples = _neighbourDifferences(data, valid, *_NEIGHBOUR_OFFSETS[method])
+        directions = (
+            [NoiseEstimate.HORIZONTAL, NoiseEstimate.VERTICAL]
+            if method is NoiseEstimate.AVERAGED
+            else [method]
+        )
+        offsets = [_NEIGHBOUR_OFFSETS[d] for d in directions]
+        samples = np.concatenate(
+            [_neighbourDifferences(data, valid, *o) for o in offsets]
+        )
+        sampleWeights = (
+            None
+            if weights is None
+            else np.concatenate(
+                [_neighbourDifferenceWeights(weights, valid, *o) for o in offsets]
+            )
+        )
     if samples.shape[0] < 2:
         raise ValueError("Too few valid pixels to estimate noise")
+    if sampleWeights is not None:
+        return shrunkToPositive(weightedCovariance(samples, sampleWeights)[1])
     return _covariance(samples, samples.mean(axis=0))
 
 
-def mnf(X: np.ndarray, noiseCov: np.ndarray, components: int) -> TransformResult:
+def shrunkToPositive(covariance: np.ndarray, floor: float = 1e-3) -> np.ndarray:
+    """A covariance blended with its diagonal just enough that its smallest
+    eigenvalue is at least ``floor`` times the mean variance. A weighted
+    covariance normalizes each pair of bands over the values both have, so
+    it can come out with negative eigenvalues; whitening by it (MNF) would
+    blow those directions up. The diagonal (the variances) is always
+    positive, so some blend works."""
+    diagonal = np.diag(np.diag(covariance))
+    target = floor * float(np.mean(np.diag(covariance)))
+
+    def smallest(share: float) -> float:
+        return float(np.linalg.eigvalsh((1 - share) * covariance + share * diagonal)[0])
+
+    if smallest(0.0) >= target:
+        return covariance
+    low, high = 0.0, 1.0
+    for _ in range(30):  # bisection on the share of the diagonal
+        middle = (low + high) / 2
+        low, high = (low, middle) if smallest(middle) >= target else (middle, high)
+    return (1 - high) * covariance + high * diagonal
+
+
+def mnf(
+    X: np.ndarray,
+    noiseCov: np.ndarray,
+    components: int,
+    weights: np.ndarray | None = None,
+) -> TransformResult:
     """Minimum Noise Fraction: PCA of the noise-whitened data, so components
-    are ordered by signal-to-noise rather than by variance."""
+    are ordered by signal-to-noise rather than by variance. With ``weights``
+    (a weight per value) the signal covariance is the weighted one and each
+    row's scores are fitted to its weighted values."""
     noiseValues, noiseVectors = np.linalg.eigh(noiseCov)
     floor = max(noiseValues.max(), 1e-300) * 1e-10  # guard near-singular noise
     noiseValues = np.maximum(noiseValues, floor)
     whitening = noiseVectors @ np.diag(noiseValues**-0.5) @ noiseVectors.T
     unwhitening = noiseVectors @ np.diag(noiseValues**0.5) @ noiseVectors.T
+    if weights is not None:
+        mean, covariance = weightedCovariance(X, weights)
+        signal = whitening @ covariance @ whitening
+        values, vectors = np.linalg.eigh(signal)
+        order = np.argsort(values)[::-1][: min(components, X.shape[1])]
+        values, vectors = values[order], vectors[:, order]
+        inverse = vectors.T @ unwhitening
+        total = float(np.trace(signal))
+        return TransformResult(
+            scores=weightedScores(X, weights, mean, inverse),
+            loadings=whitening @ vectors,
+            explainedVariance=values / total if total > 0 else np.zeros(len(values)),
+            eigenvalues=values,
+            mean=mean,
+            inverse=inverse,
+        )
     mean = X.mean(axis=0)
     whitened = pca((X - mean) @ whitening, components)
     return TransformResult(
@@ -291,18 +387,23 @@ def fastIca(
     maxIterations: int = 200,
     tolerance: float = 1e-5,
     seed: int = 0,
+    weights: np.ndarray | None = None,
 ) -> TransformResult:
-    """FastICA (parallel, logcosh contrast) on PCA-whitened data.
+    """FastICA (parallel, logcosh contrast) on PCA-whitened data (weighted
+    PCA with ``weights``, a weight per value).
 
     ``scores`` are unit-variance independent sources ordered by how much of the
     data's variance each explains; ``loadings`` is the mixing matrix in band
     space (bands, k), so ``X - mean ~ scores @ loadings.T``.
     """
     n = X.shape[0]
-    mean = X.mean(axis=0)
-    whitened = pca(X, components)
+    whitened = (
+        pca(X, components) if weights is None else weightedPca(X, weights, components)
+    )
+    mean = whitened.mean
     k = whitened.scores.shape[1]
-    Z = whitened.scores / np.sqrt(whitened.scores.var(axis=0, ddof=1))
+    spread = np.sqrt(whitened.scores.var(axis=0, ddof=1))
+    Z = whitened.scores / spread
 
     rng = np.random.default_rng(seed)
     W = _symmetricDecorrelation(rng.normal(size=(k, k)))
@@ -317,7 +418,10 @@ def fastIca(
             break
 
     sources = Z @ W.T
-    mixing, *_ = np.linalg.lstsq(sources, X - mean, rcond=None)  # (k, bands)
+    if weights is None:
+        mixing, *_ = np.linalg.lstsq(sources, X - mean, rcond=None)  # (k, bands)
+    else:  # Z = sources @ W (W is orthogonal), and X - mean ≈ Z·spread @ inverse
+        mixing = W @ np.diag(spread) @ whitened.inverse
     # Unit-variance sources: each one's share of the variance is its mixing
     # vector's squared norm. Order the components by it, largest first.
     variance = np.sum(mixing**2, axis=1)
