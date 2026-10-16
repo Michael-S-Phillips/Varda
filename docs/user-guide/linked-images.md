@@ -26,6 +26,14 @@ grid already ticked. Choose two or more, and how to link them:
   Images with the same wavelengths share the horizontal axis. **Ctrl+drag**
   updates the spectra as you go. Bad bands and no-data values show as gaps.
   **Export…** saves the spectra at the cursor as CSV.
+- A **bit mask** shows as bits by wavelength instead of a number: a
+  pipeline's per-frame exclusions (bit *i* set where frame *i* of a stack
+  was left out) become a chart of which frames were left out at each
+  wavelength, titled with how many. Whole-number images named like masks
+  (EXCLUDE, MASK, BITS, QA, quality) start that way; the **As bits** boxes
+  switch any whole-number image. **Processing → Statistics → Decode Bit
+  Mask** turns a mask into images: the number of bits set, one bit, or any
+  of several.
 - **Draw Line** in any view draws a line on all of them, and the **Linked
   Profiles** panel plots each image's profile along it (pick the band for
   each). The **Lines** panel renames, recolors, deletes and exports lines;

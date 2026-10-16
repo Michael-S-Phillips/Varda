@@ -52,6 +52,11 @@ can alter results.
   (a product, its counts, its flags); a line drawn on any view gives every
   image's profile. Made for checking pipeline products, such as MISE's
   synthetic data, against each other.
+- **Bit masks:** **Decode Bit Mask** (Processing → Statistics) turns a
+  mask (a pipeline's per-frame exclusions, a QA band) into the number of
+  bits set, one bit, or any of several, band by band; in Linked Images a
+  mask shows as bits by wavelength at the cursor. On MISE's example
+  products, EXCLUDE's set bits reproduce COUNT exactly.
 - **Weighted PCA** (Processing → Transforms): PCA with a weight per value
   from another image on the same grid (sample counts, or uncertainties as
   1/σ²); values with no weight (flagged, missing, bad bands) move neither

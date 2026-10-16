@@ -8,6 +8,7 @@ from varda.analysis.classification import (
     MlpClassificationAnalysis,
     VitClassificationAnalysis,
 )
+from varda.analysis.bit_masks import DecodeBitMaskAnalysis
 from varda.analysis.continuum import ContinuumRemovalAnalysis
 from varda.analysis.sensor_bands import SensorBandsAnalysis
 from varda.analysis.detection import (
@@ -94,6 +95,7 @@ ANALYSES: list[type[Analysis]] = [
     SaturationStretchAnalysis,
     SpectralEntropyAnalysis,
     SpatialEntropyAnalysis,
+    DecodeBitMaskAnalysis,
     LocalStatisticsAnalysis,
     CooccurrenceTextureAnalysis,
     SpectralDerivativeAnalysis,

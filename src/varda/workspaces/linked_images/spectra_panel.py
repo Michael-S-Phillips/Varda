@@ -1,17 +1,25 @@
 """Linked spectra: one plot per image, stacked, each showing that image's
 spectrum where the linked cursor is. Products of one pipeline (a result,
 its sample counts, its flags) have different units, so each gets its own
-vertical axis; images with the same spectral axis share the horizontal one."""
+vertical axis; images with the same spectral axis share the horizontal one.
+
+A bit mask (a pipeline's per-frame exclusions: bit i set where frame i was
+left out) reads better as bits than as a number: such images show as a
+chart of bits by wavelength, which is the default for whole-number images
+named like masks and can be switched for any whole-number image."""
 
 from __future__ import annotations
 
 import csv
+import re
 from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
 import pyqtgraph as pg
+from PyQt6.QtCore import QRectF
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QFileDialog,
     QHBoxLayout,
     QMessageBox,
@@ -23,7 +31,19 @@ from PyQt6.QtWidgets import (
 from varda.common.entities import VardaRaster
 from varda.common.palette import classColor
 from varda.common.ui import MutedLabel
-from varda.workspaces.linked_images.linking import LinkedSpectrum, spectrumAt
+from varda.workspaces.linked_images.linking import (
+    LinkedSpectrum,
+    bitPlanes,
+    highestBit,
+    spectrumAt,
+)
+
+MASK_NAMES = re.compile(r"exclu|mask|bits|\bqa\b|quality", re.IGNORECASE)
+BIT_COLORS = np.array([[24, 24, 28, 255], [255, 212, 0, 255]], np.uint8)
+
+
+def wholeNumbers(image: VardaRaster) -> bool:
+    return bool(np.issubdtype(image.dtype, np.integer))
 
 
 class LinkedSpectraPanel(QWidget):
@@ -36,14 +56,38 @@ class LinkedSpectraPanel(QWidget):
         self.layoutWidget.setCentralItem(stack)
         self.plots: list[pg.PlotItem] = []
         self.curves: list[pg.PlotDataItem] = []
+        self.bitImages: list[pg.ImageItem] = []
+        self.bitWidths = [1] * len(self.images)  # bits shown, growing as needed
+        self.asBits = [
+            wholeNumbers(image) and bool(MASK_NAMES.search(image.name))
+            for image in self.images
+        ]
+        self._positions: list[np.ndarray] = []
         for row, image in enumerate(self.images):
             plot = pg.PlotItem()
             stack.addItem(plot, row=row, col=0)
             plot.setTitle(image.name, size="9pt")
             plot.showGrid(x=True, y=True, alpha=0.2)
             curve = plot.plot(pen=pg.mkPen(classColor(row), width=1.5))
+            bits = pg.ImageItem(axisOrder="row-major")
+            bits.setLookupTable(BIT_COLORS)
+            bits.setLevels((0, 1))
+            plot.addItem(bits)
             self.plots.append(plot)
             self.curves.append(curve)
+            self.bitImages.append(bits)
+        # whole-number images can be shown as bits
+        self.bitBoxes: dict[str, QCheckBox] = {}
+        bitsRow = QHBoxLayout()
+        for index, image in enumerate(self.images):
+            if not wholeNumbers(image):
+                continue
+            box = QCheckBox(image.name)
+            box.setChecked(self.asBits[index])
+            box.setToolTip(f"Show {image.name} as bits by wavelength (a bit mask)")
+            box.toggled.connect(lambda on, index=index: self.showAsBits(index, on))
+            self.bitBoxes[image.name] = box
+            bitsRow.addWidget(box)
         self.hint = MutedLabel(
             "Ctrl+click or Ctrl+drag in any view to read every image there."
         )
@@ -57,28 +101,64 @@ class LinkedSpectraPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.layoutWidget, 1)
+        if self.bitBoxes:
+            bitsRow.insertWidget(0, MutedLabel("As bits:"))
+            bitsRow.addStretch()
+            layout.addLayout(bitsRow)
         layout.addLayout(bottom)
+
+    def showAsBits(self, index: int, on: bool) -> None:
+        self.asBits[index] = on
+        if self._positions:
+            self.showAt(self._positions)
 
     def showAt(self, positions: Sequence[np.ndarray]) -> None:
         """Each image's spectrum at its position (image coordinates)."""
+        self._positions = list(positions)
         axes: dict[str, pg.PlotItem] = {}
         for i, (image, point) in enumerate(zip(self.images, positions)):
             x, y = (float(v) for v in np.asarray(point).reshape(-1)[:2])
             spectrum = spectrumAt(image, x, y)
             self.spectra[i] = spectrum
             plot, curve = self.plots[i], self.curves[i]
+            bits = self.bitImages[i]
             if spectrum is None:
                 curve.setData([], [])
+                bits.setVisible(False)
                 plot.setTitle(f"{image.name}: off the image", size="9pt")
                 continue
-            curve.setData(spectrum.displayAxis, spectrum.values, connect="finite")
-            plot.setTitle(f"{image.name} ({int(x)}, {int(y)})", size="9pt")
+            title = f"{image.name} ({int(x)}, {int(y)})"
+            if self.asBits[i]:
+                curve.setData([], [])
+                title += self._showBits(i, spectrum)
+            else:
+                bits.setVisible(False)
+                curve.setData(spectrum.displayAxis, spectrum.values, connect="finite")
+                plot.setLabel("left", "")
+            plot.setTitle(title, size="9pt")
             plot.setLabel("bottom", spectrum.axisLabel)
             # plots on the same spectral axis pan and zoom together
             first = axes.setdefault(spectrum.axisLabel, plot)
             plot.getViewBox().setXLink(
                 first.getViewBox() if first is not plot else None
             )
+
+    def _showBits(self, index: int, spectrum: LinkedSpectrum) -> str:
+        """Draw a spectrum of bit masks as bits by wavelength; returns how
+        many bits are set, for the title."""
+        width = max(self.bitWidths[index], highestBit(spectrum.values))
+        self.bitWidths[index] = width
+        planes = bitPlanes(spectrum.values, width)
+        axis = spectrum.displayAxis
+        step = float(np.median(np.diff(axis))) if axis.size > 1 else 1.0
+        bits = self.bitImages[index]
+        bits.setImage(planes, levels=(0, 1), autoLevels=False)
+        bits.setRect(QRectF(axis[0] - step / 2, -0.5, step * axis.size, width))
+        bits.setVisible(True)
+        self.plots[index].setLabel("left", "Bit")
+        values = int(np.isfinite(planes[0]).sum())
+        count = int(np.nansum(planes))
+        return f": {count} bits set, {count / max(values, 1):.1f} per band"
 
     def _export(self) -> None:
         if not any(s is not None for s in self.spectra):

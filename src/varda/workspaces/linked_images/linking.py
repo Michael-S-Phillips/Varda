@@ -84,3 +84,24 @@ def spectrumAt(image: VardaRaster, x: float, y: float) -> LinkedSpectrum | None:
         values,
         f"Wavelength ({model.label})",
     )
+
+
+def bitPlanes(values: np.ndarray, width: int) -> np.ndarray:
+    """A spectrum of bit masks as (``width`` bits, bands): 1 where a bit is
+    set, 0 where not, NaN for missing values (no data, bad bands)."""
+    values = np.asarray(values, dtype=np.float64)
+    missing = ~np.isfinite(values)
+    masks = np.where(missing, 0, values).astype(np.uint64)
+    planes = (
+        (masks[None, :] >> np.arange(width, dtype=np.uint64)[:, None]) & 1
+    ).astype(np.float64)
+    planes[:, missing] = np.nan
+    return planes
+
+
+def highestBit(values: np.ndarray) -> int:
+    """How many bits the largest finite value needs (at least 1)."""
+    finite = np.asarray(values, dtype=np.float64)
+    finite = finite[np.isfinite(finite)]
+    largest = int(finite.max()) if finite.size else 0
+    return max(largest.bit_length(), 1)
