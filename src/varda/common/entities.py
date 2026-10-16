@@ -27,7 +27,9 @@ from pyproj import CRS, Transformer
 from pyproj.exceptions import CRSError
 
 from varda.common.deprecation import warnDeprecated
-from varda.common.spectral_axis import BandModel, bandModelFor
+from psygnal import Signal
+
+from varda.common.spectral_axis import BBL_KEY, FWHM_KEY, BandModel, bandModelFor
 from varda.utilities.proj_lock import PROJ_LOCK
 from shapely.geometry.base import BaseGeometry
 
@@ -37,15 +39,74 @@ if TYPE_CHECKING:
     from varda.image_loading.data_sources import DataSource
 
 
+# Metadata the user can edit in Varda (Image Properties), per band or single
+EDITABLE_PER_BAND = ("wavelengths", "bandNames", "fwhm", "bbl")
+EDITABLE_SINGLE = ("nodata", "wavelengthUnits", "description")
+
+
 class VardaRaster:
     """Primary raster image entity in Varda.
 
     Wraps a DataSource for data access and holds application-level metadata.
+    Metadata edited in Varda (``setMetadataOverrides``) takes the place of
+    the file's; reads then give the edited no-data value as NaN.
     """
+
+    sigMetadataChanged = Signal()  # an edit of the name or metadata
 
     def __init__(self, dataSource: DataSource, name: str | None = None):
         self._dataSource = dataSource
         self._name = name
+        self._overrides: dict = {}
+
+    # --- Edited metadata ---
+
+    @property
+    def metadataOverrides(self) -> dict:
+        """The metadata edited in Varda (keys of ``EDITABLE_PER_BAND`` and
+        ``EDITABLE_SINGLE``), a copy."""
+        return dict(self._overrides)
+
+    def setMetadataOverrides(self, overrides: dict, name: str | None = None) -> None:
+        """Replace the edited metadata (``{}`` goes back to the file's) and,
+        with ``name``, the name; everything showing the image is told."""
+        for key, value in overrides.items():
+            if key not in EDITABLE_PER_BAND + EDITABLE_SINGLE:
+                raise ValueError(f"{key!r} isn't metadata Varda can edit.")
+            if key in EDITABLE_PER_BAND and len(value) != self.bandCount:
+                raise ValueError(
+                    f"{key} needs a value for each of the {self.bandCount} bands, "
+                    f"not {len(value)}."
+                )
+        self._overrides = dict(overrides)
+        if name:
+            self._name = name
+        for cached in ("bandModel", "raster"):
+            self.__dict__.pop(cached, None)
+        self.sigMetadataChanged.emit()
+
+    def _readEdited(
+        self, bandIndices: npt.ArrayLike | None, window: tuple | None
+    ) -> np.ndarray:
+        """The raw values with the edited no-data value (not the file's) as
+        NaN, as file reads give no-data; whole numbers become float where
+        some are no-data."""
+        raw = self._dataSource.getData(bandIndices, window, masked=False)
+        values = np.asarray(np.ma.getdata(raw))
+        nodata = self._overrides["nodata"]
+        if nodata is None or np.isnan(nodata):
+            return values
+        hit = values == nodata
+        if not hit.any():
+            return values
+        if values.dtype.kind != "f":
+            values = values.astype(
+                np.float32 if values.dtype.itemsize <= 2 else np.float64
+            )
+        else:
+            values = values.copy()
+        values[hit] = np.nan
+        return values
 
     # alternate constructor
     @classmethod
@@ -76,6 +137,8 @@ class VardaRaster:
         Returns:
             Array with shape (height, width, n_bands).
         """
+        if "nodata" in self._overrides:
+            return self._readEdited(bandIndices, None)
         return self._dataSource.getBands(bandIndices)
 
     def getData(
@@ -89,6 +152,8 @@ class VardaRaster:
         Returns:
             Array with shape (height, width, bands).
         """
+        if masked and "nodata" in self._overrides:
+            return self._readEdited(bandIndices, window)
         return self._dataSource.getData(bandIndices, window, masked=masked)
 
     def __getitem__(self, key) -> np.ndarray:
@@ -182,19 +247,23 @@ class VardaRaster:
 
     @property
     def nodata(self) -> float | None:
-        return self._dataSource.nodata
+        return self._overrides.get("nodata", self._dataSource.nodata)
 
     @property
     def wavelengths(self) -> np.ndarray:
+        if "wavelengths" in self._overrides:
+            return np.asarray(self._overrides["wavelengths"], dtype=np.float64)
         return self._dataSource.wavelengths
 
     @property
     def wavelengthsType(self) -> type:
+        if "wavelengths" in self._overrides:
+            return float
         return self._dataSource.wavelengthsType
 
     @property
     def wavelengthUnits(self) -> str:
-        return self._dataSource.wavelengthUnits
+        return self._overrides.get("wavelengthUnits", self._dataSource.wavelengthUnits)
 
     @cached_property
     def bandModel(self) -> BandModel:
@@ -211,7 +280,7 @@ class VardaRaster:
 
     @property
     def bandNames(self) -> list[str]:
-        return self._dataSource.bandNames
+        return list(self._overrides.get("bandNames", self._dataSource.bandNames))
 
     @property
     def defaultBands(self) -> np.ndarray:
@@ -239,7 +308,19 @@ class VardaRaster:
 
     @property
     def extraMetadata(self) -> dict:
-        return self._dataSource.extraMetadata
+        metadata = self._dataSource.extraMetadata
+        if "fwhm" not in self._overrides and "bbl" not in self._overrides:
+            return metadata
+        metadata = dict(metadata)
+        if "fwhm" in self._overrides:
+            metadata[FWHM_KEY] = list(self._overrides["fwhm"])
+        if "bbl" in self._overrides:
+            metadata[BBL_KEY] = list(self._overrides["bbl"])
+        return metadata
+
+    @property
+    def description(self) -> str:
+        return self._overrides.get("description", self._dataSource.description)
 
     @property
     def dataSource(self) -> DataSource:

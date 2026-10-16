@@ -124,3 +124,23 @@ def test_missing_images_are_reported_and_their_workspaces_skipped(qtbot):
     (report,) = blocker.args
     assert report.failed == ("/data/gone.img",)
     assert report.workspaces == 1
+
+
+def test_metadata_edited_in_varda_comes_back_with_the_session(qtbot, tmp_path):
+    from varda.session import captureSession, readSession, writeSession
+
+    a = _image("a", "/data/a.img")
+    a.setMetadataOverrides({"nodata": 0.0, "wavelengthUnits": "nm"}, name="scene")
+    path = writeSession(captureSession([a], []).state, tmp_path / "s.varda")
+    state = readSession(path)
+    assert state.metadata["/data/a.img"]["overrides"]["wavelengthUnits"] == "nm"
+
+    fresh = _image("a", "/data/a.img")  # as loaded from the file again
+    images = ProjectImages()
+    restorer = SessionRestorer(
+        images, FakeMainGui(), loadImage=_fakeLoader({"/data/a.img": fresh})
+    )
+    with qtbot.waitSignal(restorer.sigFinished, timeout=10_000):
+        restorer.restore(state)
+    assert fresh.name == "scene" and fresh.nodata == 0.0
+    assert fresh.wavelengthUnits == "nm"

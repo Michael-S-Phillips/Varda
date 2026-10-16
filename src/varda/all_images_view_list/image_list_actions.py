@@ -16,7 +16,9 @@ from PyQt6.QtWidgets import QMessageBox
 
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
+from varda.common.observable_list import ObservableList
 from varda.common.ui import openOwnedDialog
+from varda.all_images_view_list.image_properties_dialog import ImagePropertiesDialog
 from varda.image_loading.export_image_dialog import ExportImageDialog
 from varda.maingui import MainGUI
 from varda.workspaces.dual_image_workspace import NewDualImageWorkspaceDialog
@@ -82,7 +84,17 @@ def _exportImage(
     ExportImageDialog(list(images), image=ctx.images[0], parent=mainGui).open()
 
 
+def _showProperties(
+    ctx: ImageListClickContext, images: ProjectImages, mainGui: MainGUI
+) -> None:
+    dialog = ImagePropertiesDialog(ctx.images[0], parent=mainGui)
+    if isinstance(images, ObservableList):  # a new name shows in the list
+        dialog.accepted.connect(images.refresh)
+    openOwnedDialog(dialog)
+
+
 EXPORT_IMAGE_ID = "varda.image_list.export_image"
+PROPERTIES_ID = "varda.image_list.properties"
 REMOVE_IMAGES_ID = "varda.image_list.remove_images"
 
 
@@ -156,6 +168,13 @@ def _removeImages(
 
 
 IMAGE_LIST_ACTIONS: list[Action] = [
+    Action(
+        id=PROPERTIES_ID,
+        title="Properties…",
+        tooltip="The image's metadata: name, no-data value, wavelengths, band names",
+        callback=_showProperties,
+        menus=[MenuRule(id=IMAGE_LIST_CONTEXT_MENU_ID, group="8_properties", order=1)],
+    ),
     Action(
         id=EXPORT_IMAGE_ID,
         title="Export Image…",

@@ -79,6 +79,12 @@ class SessionRestorer(QObject):
         self._loadImage(path, onSuccess, onFailure)
 
     def _openWorkspaces(self) -> None:
+        for path, entry in self._state.metadata.items():  # edited in Varda
+            image = self._byPath(path)
+            if image is not None:
+                image.setMetadataOverrides(
+                    entry.get("overrides", {}), entry.get("name")
+                )
         count = 0
         for workspace in self._state.workspaces:
             images = [self._byPath(path) for path in workspace.images]

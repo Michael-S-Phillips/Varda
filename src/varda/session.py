@@ -42,6 +42,8 @@ class WorkspaceState:
 class SessionState:
     images: tuple[str, ...] = attrs.field(converter=tuple)  # file paths in list order
     workspaces: tuple[WorkspaceState, ...] = attrs.field(converter=tuple)
+    # path -> {"name": ..., "overrides": {...}}: metadata edited in Varda
+    metadata: dict = attrs.field(factory=dict)
 
 
 @attrs.frozen
@@ -86,8 +88,13 @@ def captureSession(
                 sessionState() if callable(sessionState) else {},
             )
         )
+    edited = {
+        pathOf[id(image)]: {"name": image.name, "overrides": image.metadataOverrides}
+        for image in images
+        if id(image) in pathOf and image.metadataOverrides
+    }
     return SessionCapture(
-        SessionState(tuple(pathOf.values()), tuple(states)), tuple(unsaved)
+        SessionState(tuple(pathOf.values()), tuple(states), edited), tuple(unsaved)
     )
 
 
@@ -124,6 +131,7 @@ def writeSession(
         "version": _VERSION,
         "images": [stored(p) for p in state.images],
         "workspaces": workspaces,
+        "metadata": {stored(p): entry for p, entry in state.metadata.items()},
     }
     target.write_text(json.dumps(document, indent=2))
     return target
@@ -172,6 +180,7 @@ def readSession(path: str | Path) -> SessionState:
             )
             for entry in document["workspaces"]
         ),
+        {resolved(p): entry for p, entry in document.get("metadata", {}).items()},
     )
 
 

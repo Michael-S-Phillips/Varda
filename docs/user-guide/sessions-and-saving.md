@@ -20,6 +20,28 @@ Varda also autosaves the session every three minutes and on quit (to
 `autosave.varda` in its app-data folder, next to the logs). After a crash,
 **File → Restore Last Session** brings it back.
 
+## Image properties
+
+Right-click an image in the Image List and choose **Properties…** to see
+what it is (file, format, size, data type, map projection, pixel size) and
+to edit the metadata Varda reads from it:
+
+- its **name**;
+- the **no-data value**: the value that marks pixels without data, such as
+  a fill value of -999 or 65535 that the file never declared (`nan` for
+  NaN, empty for none). Pixels with that value are then left out of the
+  display, statistics and analyses like any no-data;
+- the **wavelength unit** and the **description**;
+- per band: the **name**, **wavelength** and **FWHM**, and whether it's
+  **good** (bands not ticked are left out of analyses, as ENVI's bad bands
+  list does). **Fill Wavelengths** numbers many bands at once from a start
+  and a step.
+
+Edits take effect at once in every view and are kept in sessions and
+packaged projects; **Reset to the File's** drops them. For an ENVI image,
+**Also save into the ENVI header** writes them into its `.hdr` (backed up
+first as `.hdr.bak`), so other software sees them too.
+
 ## Sharing a project
 
 **File → Package Project…** puts the whole project into one `.varda.zip`

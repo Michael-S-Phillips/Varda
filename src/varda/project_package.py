@@ -273,6 +273,7 @@ def writePackage(
                 )
                 for w in state.workspaces
             ),
+            {str(root / inside.get(p, p)): e for p, e in state.metadata.items()},
         )
         session = writeSession(packaged, root / BUNDLE_SESSION_NAME, relativeTo=root)
 
