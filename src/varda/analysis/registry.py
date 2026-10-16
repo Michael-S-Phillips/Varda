@@ -9,6 +9,7 @@ from varda.analysis.classification import (
     VitClassificationAnalysis,
 )
 from varda.analysis.continuum import ContinuumRemovalAnalysis
+from varda.analysis.sensor_bands import SensorBandsAnalysis
 from varda.analysis.detection import (
     AceAnalysis,
     LocalRxAnalysis,
@@ -73,6 +74,7 @@ ANALYSES: list[type[Analysis]] = [
     BandParametersAnalysis,
     BandMathAnalysis,
     ContinuumRemovalAnalysis,
+    SensorBandsAnalysis,
     SmoothingAnalysis,
     SharpeningAnalysis,
     EdgeDetectionAnalysis,

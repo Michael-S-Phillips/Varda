@@ -45,6 +45,13 @@ can alter results.
     the same CRISM observation) and moves the overlay (e.g. its parameter
     map) by the result; **Copy** and **Paste** give another overlay the
     same alignment.
+- **Convolve to Sensor Bands** (Processing → Spectral Parameters): a cube
+  with wavelengths in another sensor's bands, each weighted by its spectral
+  response (bad bands and no-data left out, uncovered bands skipped):
+  approximate built-in CTX, HiRISE, THEMIS VIS, Landsat 8-9 OLI and
+  Sentinel-2 MSI bands, a response file, or typed center/FWHM bands. CRISM
+  reflectance as a CTX scene aligns to a CTX orthoimage where the cube's own
+  bands don't.
 - **Workspace tabs work like a browser's:** drag them into order (sessions
   keep it), drag one out of the tab bar to open it in its own window, and
   middle-click to close.
