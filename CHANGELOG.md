@@ -52,6 +52,11 @@ can alter results.
   (a product, its counts, its flags); a line drawn on any view gives every
   image's profile. Made for checking pipeline products, such as MISE's
   synthetic data, against each other.
+- **Weighted PCA** (Processing → Transforms): PCA with a weight per value
+  from another image on the same grid (sample counts, or uncertainties as
+  1/σ²); values with no weight (flagged, missing, bad bands) move neither
+  the components nor a pixel's scores. Delchambre's (2015) weighted
+  covariance, with each pixel's scores a weighted least-squares fit.
 - **Convolve to Sensor Bands** (Processing → Spectral Parameters): a cube
   with wavelengths in another sensor's bands, each weighted by its spectral
   response (bad bands and no-data left out, uncovered bands skipped):

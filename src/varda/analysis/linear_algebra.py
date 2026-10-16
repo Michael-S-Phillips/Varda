@@ -154,6 +154,54 @@ def pca(X: np.ndarray, components: int) -> TransformResult:
     )
 
 
+def weightedPca(X: np.ndarray, W: np.ndarray, components: int) -> TransformResult:
+    """Principal components of the rows of ``X`` with a weight per value
+    (``W``, same shape; e.g. sample counts or inverse variances). NaN values
+    and negative weights count as weight 0.
+
+    The weighted covariance is (W∘X)ᵀ(W∘X) ./ WᵀW about the weighted mean
+    (Delchambre 2015, MNRAS 446, 3545), so the scale of the weights doesn't
+    matter; each row's scores are the weighted least-squares fit of the
+    components to that row, so values without weight don't move them."""
+    n, bands = X.shape
+    k = min(components, bands)
+    if n < 2 or n < k:
+        raise ValueError(f"Weighted PCA needs at least {max(k, 2)} samples, got {n}")
+    finite = np.isfinite(X)
+    W = np.where(finite & np.isfinite(W), np.clip(W, 0, None), 0.0)
+    X = np.where(finite, X, 0.0)
+    totals = W.sum(axis=0)
+    mean = (W * X).sum(axis=0) / np.where(totals > 0, totals, 1)
+    products, pairs = np.zeros((bands, bands)), np.zeros((bands, bands))
+    for start in range(0, n, _CHUNK_ROWS):
+        w = W[start : start + _CHUNK_ROWS]
+        weighted = w * (X[start : start + _CHUNK_ROWS] - mean)
+        products += weighted.T @ weighted
+        pairs += w.T @ w
+    covariance = products / np.where(pairs > 0, pairs, 1)
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)  # ascending
+    order = np.argsort(eigenvalues)[::-1][:k]
+    eigenvalues, vectors = eigenvalues[order], eigenvectors[:, order]
+    total = float(np.trace(covariance))
+    scores = np.empty((n, k))
+    ridge = 1e-12 * np.eye(k)  # rows weighted in fewer than k bands
+    rows = max(1, 2**24 // (bands * k))  # (rows, bands, k) at a time
+    for start in range(0, n, rows):
+        w = W[start : start + rows]
+        weightedVectors = w[:, :, None] * vectors  # (rows, bands, k)
+        normal = weightedVectors.transpose(0, 2, 1) @ vectors + ridge
+        right = (w * (X[start : start + rows] - mean)) @ vectors
+        scores[start : start + rows] = np.linalg.solve(normal, right[..., None])[..., 0]
+    return TransformResult(
+        scores=scores,
+        loadings=vectors,
+        explainedVariance=eigenvalues / total if total > 0 else np.zeros(k),
+        eigenvalues=eigenvalues,
+        mean=mean,
+        inverse=vectors.T,
+    )
+
+
 class NoiseEstimate(Enum):
     """How MNF estimates the noise covariance."""
 

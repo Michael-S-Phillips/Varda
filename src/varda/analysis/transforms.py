@@ -28,11 +28,19 @@ from varda.analysis.linear_algebra import (
     noiseCovariance,
     pca,
     suggestedComponents,
+    weightedPca,
     unflatten,
 )
 from varda.analysis.rasters import readCube
 from varda.common.entities import VardaRaster
-from varda.common.parameter import EnumParameter, IntParameter, MultiChoiceParameter
+from varda.common.grid import compatibleImages
+from varda.common.parameter import (
+    EnumParameter,
+    ImageParameter,
+    IntParameter,
+    LabeledEnum,
+    MultiChoiceParameter,
+)
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
 TRANSFORM_METADATA_KEY = "transform"
@@ -94,6 +102,12 @@ class _ComponentAnalysis(Analysis):
         result = self._transform(cube, X, valid, components)
 
         reportProgress(90, "building image")
+        return self._resultRaster(image, result, valid)
+
+    def _resultRaster(
+        self, image: VardaRaster, result: TransformResult, valid: np.ndarray
+    ) -> VardaRaster:
+        """The component images, with what Inverse Transform needs."""
         names = self._bandNames(result)
         data = unflatten(result.scores, valid).astype(np.float32)
         source = ArrayDataSource(
@@ -136,6 +150,87 @@ class PcaAnalysis(_ComponentAnalysis):
     def _bandNames(self, result):
         return [
             f"PC {i + 1} ({100 * share:.1f}%)"
+            for i, share in enumerate(result.explainedVariance)
+        ]
+
+
+class WeightKind(LabeledEnum):
+    WEIGHTS = "Weights (e.g. sample counts)"
+    INVERSE_VARIANCE = "Uncertainties σ (weight 1/σ²)"
+
+
+class WeightedPcaAnalysis(_ComponentAnalysis):
+    analysisId = "weighted_pca"
+    name = "Weighted PCA"
+    description = (
+        "PCA in which each value counts by its weight from another image on the "
+        "same grid: per band (the same bands) or per pixel (one band), such as "
+        "sample counts or uncertainties. Values with no weight, missing values "
+        "and bad bands move neither the components nor a pixel's scores, so "
+        "flagged values can be left out by weighting them 0 (Band Math: "
+        "COUNT * (FLAGS == 0)). Equal weights give ordinary PCA."
+    )
+    suffix = "WPCA"
+    components = _componentsParameter()
+    weights = ImageParameter(
+        "Weights", "An image on the same grid with one band or the same bands"
+    )
+    weightKind = EnumParameter("Weights Are", WeightKind)
+
+    def prepareFor(self, image: VardaRaster) -> None:
+        super().prepareFor(image)
+        self.components.set(min(10, image.bandCount))  # each pixel is a fit
+        current = self.weights.get()
+        candidates = self._candidates(image)
+        self.weights.setProvider(lambda: self._candidates(image))
+        if current in candidates:
+            self.weights.set(current)
+
+    def _candidates(self, image: VardaRaster) -> list[VardaRaster]:
+        return [
+            other
+            for other in compatibleImages(list(self.context.images), image)
+            if other.bandCount in (1, image.bandCount)
+        ]
+
+    def unavailableReason(self, image: VardaRaster) -> str:
+        if not self._candidates(image):
+            return (
+                "Open a weights image on this image's grid first (e.g. sample "
+                "counts), with one band or the same bands."
+            )
+        return ""
+
+    def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
+        weightsImage = self.weights.get()
+        if weightsImage is None or weightsImage not in self._candidates(image):
+            raise ValueError(self.unavailableReason(image) or "Choose the weights.")
+        reportProgress(0, "reading image")
+        cube = np.array(image.getData(), dtype=np.float64)
+        model = image.bandModel
+        if model.noData is not None:
+            cube[cube == model.noData] = np.nan
+        if model.badBands.size == cube.shape[2]:
+            cube[:, :, model.badBands] = np.nan  # no weight
+        weights = np.array(weightsImage.getData(), dtype=np.float64)
+        if weightsImage.nodata is not None:
+            weights[weights == weightsImage.nodata] = 0
+        if self.weightKind.get() is WeightKind.INVERSE_VARIANCE:
+            with np.errstate(divide="ignore"):
+                weights = 1 / weights**2  # σ = 0 is no weight, below
+        weights = np.broadcast_to(weights, cube.shape)
+        X = cube.reshape(-1, cube.shape[2])
+        W = np.where(np.isfinite(weights), weights, 0).reshape(X.shape)
+        valid = ((W > 0) & np.isfinite(X)).any(axis=1)
+        components = min(int(self.components.value), image.bandCount)
+        reportProgress(20, "computing components")
+        result = weightedPca(X[valid], W[valid], components)
+        reportProgress(90, "building image")
+        return self._resultRaster(image, result, valid.reshape(cube.shape[:2]))
+
+    def _bandNames(self, result):
+        return [
+            f"WPC {i + 1} ({100 * share:.1f}%)"
             for i, share in enumerate(result.explainedVariance)
         ]
 

@@ -79,7 +79,7 @@ class NeedsRoisAnalysis(Analysis):
         return image
 
 
-def test_dialog_hands_the_workspace_rois_to_the_analysis(qtbot):
+def test_dialog_hands_the_workspace_rois_and_images_to_the_analysis(qtbot):
     from varda.analysis.analysis import AnalysisContext
     from varda.rois.roi_collection import ROICollection
 
@@ -90,7 +90,9 @@ def test_dialog_hands_the_workspace_rois_to_the_analysis(qtbot):
     )
     qtbot.addWidget(dialog)
 
-    assert dialog.selectedAnalysis().context == AnalysisContext(rois=rois)
+    assert dialog.selectedAnalysis().context == AnalysisContext(
+        rois=rois, images=images
+    )
 
 
 def test_dialog_blocks_an_analysis_that_needs_rois_when_there_are_none(qtbot):
