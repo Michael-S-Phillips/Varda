@@ -11,6 +11,7 @@ from varda.workspaces.general_image_analysis import (
 )
 from varda.workspaces.find_data.find_data_workspace import FindDataWorkspace
 from varda.workspaces.mosaic.new_mosaic_dialog import NewMosaicDialog
+from varda.workspaces.terrain.terrain_workspace import TerrainWorkspace
 from varda.workspaces.spectral_hourglass.new_hourglass_dialog import (
     NewSpectralHourglassDialog,
 )
@@ -47,6 +48,10 @@ def newMosaicWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
 
 def newFindDataWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
     mainGui.addTab(FindDataWorkspace(images))
+
+
+def newTerrainWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
+    mainGui.addTab(TerrainWorkspace(images))
 
 
 def duplicateCurrentWorkspace(images: ProjectImages, mainGui: MainGUI) -> None:
@@ -108,6 +113,17 @@ WORKSPACE_ACTIONS: list[Action] = [
         ),
         callback=newFindDataWorkspace,
         menus=[MenuRule(id=MenuId.WORKSPACE, group=MenuGroup.WORKSPACE_NEW, order=5)],
+    ),
+    Action(
+        id="varda.workspace.new_terrain",
+        title="New 3D Terrain Workspace",
+        tooltip=(
+            "Show a DEM in 3D with shaded relief, elevation colors or an image "
+            "draped on it; export high-resolution stills and interactive web pages"
+        ),
+        callback=newTerrainWorkspace,
+        enablement=EXPR_HAS_IMAGES,
+        menus=[MenuRule(id=MenuId.WORKSPACE, group=MenuGroup.WORKSPACE_NEW, order=6)],
     ),
     Action(
         id="varda.workspace.duplicate",

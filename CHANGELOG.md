@@ -8,6 +8,13 @@ can alter results.
 
 ### Added
 
+- **3D Terrain workspace** (Workspace → New 3D Terrain Workspace): a DEM as
+  a lit surface with soft shadows, draped with shaded relief, elevation
+  colors or an image on its grid (e.g. a DTM's orthoimage); vertical
+  exaggeration, sun azimuth and elevation, saved camera views, stills up to
+  16384 px (transparent background optional), and **Export Web Page**: a
+  self-contained interactive HTML file for any browser. Built on three.js in
+  Qt WebEngine, which Varda now includes.
 - **Lines and profiles** (General Image Analysis): draw straight lines,
   polylines or freehand lines with **Draw Line**, listed in the new **Lines**
   tab (rename, recolor, delete, export to GIS files) and saved with the

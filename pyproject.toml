@@ -12,7 +12,9 @@ authors = [{"name" = "Michael Phillips", "email" = "phillipsm@arizona.edu"},
            {"name" = "Hamad Ayaz", "email" = "hamadayaz@arizona.edu"}]
 
 dependencies = [
-    "PyQt6>=6.7.1", # ; sys_platform != 'linux' -- old modification so linux users could use system pyqt6 install. but it's hard to get it to work
+    "PyQt6>=6.10,<6.11", # WebEngine must match PyQt6's minor version
+    # The 3D terrain view is a three.js page in Qt WebEngine
+    "PyQt6-WebEngine>=6.10,<6.11",
     "numpy>=2.1.1",
     "matplotlib>=3.9.2",
     "spectral>=0.24,<0.26", # used only through analysis/_spy.py
@@ -126,6 +128,7 @@ source_modules = [
     "varda.catalogs",
     "varda.lines.profile",
     "varda.lines.line_collection",
+    "varda.terrain.scene",
 ]
 forbidden_modules = ["PyQt6"]
 ignore_imports = [

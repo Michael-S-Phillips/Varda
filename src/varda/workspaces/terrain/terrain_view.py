@@ -1,0 +1,114 @@
+"""The 3D view: Varda's three.js terrain page in a Qt WebEngine view.
+
+The page is self-contained (``terrain.scene.pageHtml``): it is written to a
+temporary file and loaded, and the same file is what Export Web Page saves.
+Settings, the camera and stills go through small JavaScript calls; the page
+reports that it is ready (or that WebGL is missing) on its console."""
+
+from __future__ import annotations
+
+import base64
+import json
+import logging
+import tempfile
+from collections.abc import Callable
+from pathlib import Path
+
+from PyQt6.QtCore import QUrl, pyqtSignal
+from PyQt6.QtWebEngineCore import QWebEnginePage
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWidgets import QWidget
+
+logger = logging.getLogger(__name__)
+
+READY, ERROR = "varda:ready", "varda:error "
+
+
+class _Page(QWebEnginePage):
+    sigConsole = pyqtSignal(str)
+
+    def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):  # noqa: N802 (Qt's name)
+        if message.startswith("varda:"):
+            self.sigConsole.emit(message)
+        elif level == QWebEnginePage.JavaScriptConsoleMessageLevel.ErrorMessageLevel:
+            logger.warning("3D view: %s (line %s)", message, lineNumber)
+
+
+class TerrainView(QWebEngineView):
+    sigReady = pyqtSignal()
+    sigFailed = pyqtSignal(str)
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self._page = _Page(self)
+        self._page.sigConsole.connect(self._onConsole)
+        self.setPage(self._page)
+        # removed with the view (TemporaryDirectory cleans up when collected)
+        self._folder = tempfile.TemporaryDirectory(prefix="varda-3d-")
+        self.pagePath = Path(self._folder.name) / "terrain.html"
+        self.ready = False
+
+    def showPage(self, html: str) -> None:
+        """Load a viewer page (``pageHtml``); sigReady once it has drawn."""
+        self.ready = False
+        self.pagePath.write_text(html, encoding="utf-8")
+        self.load(QUrl.fromLocalFile(str(self.pagePath)))
+
+    def _onConsole(self, message: str) -> None:
+        if message == READY:
+            self.ready = True
+            self.sigReady.emit()
+        elif message.startswith(ERROR):
+            self.sigFailed.emit(message.removeprefix(ERROR))
+
+    def _call(self, script: str, callback: Callable | None = None) -> None:
+        if callback is None:
+            self._page.runJavaScript(script)
+        else:
+            self._page.runJavaScript(script, callback)
+
+    def setSettings(self, settings: dict) -> None:
+        if self.ready:
+            self._call(f"window.viewer.set({json.dumps(settings)})")
+
+    def camera(self, callback: Callable[[dict | None], None]) -> None:
+        """The camera (position, target, fov), or None before the page is ready."""
+        if not self.ready:
+            callback(None)
+            return
+        self._call("window.viewer.getCamera()", callback)
+
+    def setCamera(self, view: dict) -> None:
+        if self.ready:
+            self._call(f"window.viewer.setCamera({json.dumps(view)})")
+
+    def home(self) -> None:
+        if self.ready:
+            self._call("window.viewer.home()")
+
+    def still(
+        self,
+        width: int,
+        height: int,
+        transparent: bool,
+        callback: Callable[[bytes | None], None],
+    ) -> None:
+        """A PNG of the view at ``width`` × ``height`` (None if it failed)."""
+
+        def done(url) -> None:
+            if not isinstance(url, str) or "," not in url:
+                callback(None)
+                return
+            callback(base64.b64decode(url.split(",", 1)[1]))
+
+        if not self.ready:
+            callback(None)
+            return
+        self._call(
+            f"window.viewer.still({int(width)}, {int(height)}, {json.dumps(transparent)})",
+            done,
+        )
+
+    def evaluate(self, script: str, callback: Callable) -> None:
+        """Run JavaScript in the page; ``callback`` gets its result."""
+        self._call(script, callback)
