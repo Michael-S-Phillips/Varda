@@ -69,10 +69,12 @@ can alter results.
 - **Convolve to Sensor Bands** (Processing → Spectral Parameters): a cube
   with wavelengths in another sensor's bands, each weighted by its spectral
   response (bad bands and no-data left out, uncovered bands skipped):
-  approximate built-in CTX, HiRISE, THEMIS VIS, Landsat 8-9 OLI and
-  Sentinel-2 MSI bands, a response file, or typed center/FWHM bands. CRISM
-  reflectance as a CTX scene aligns to a CTX orthoimage where the cube's own
-  bands don't.
+  the measured responses of Landsat 8 OLI, Landsat 9 OLI-2 and
+  Sentinel-2A/B/C MSI (NASA/USGS and ESA, bundled), CTX's measured passband
+  (Bell et al. 2013), approximate HiRISE and THEMIS VIS bands, a response
+  file, or typed center/FWHM bands. CRISM reflectance as a CTX scene aligns
+  to a CTX orthoimage near the known offset, where the cube's own bands
+  land kilometers off.
 - **Subset with a preview** (Processing → Geometry → Subset): drag a box
   on the image to choose the part to keep, and drag ranges on the box's
   mean spectrum to choose the bands; both stay in step with the typed rows,

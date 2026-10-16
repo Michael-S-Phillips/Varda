@@ -43,14 +43,25 @@ band's spectral response. Bad bands and no-data values are left out. A band
 the cube covers less than 90% of (HiRISE BG below CRISM's first band, say)
 is skipped, and the result's description lists it.
 
-Built in: MRO CTX, MRO HiRISE (BG, RED, NIR), Mars Odyssey THEMIS VIS,
-Landsat 8-9 OLI and Sentinel-2 MSI. These are approximations (boxcars from
-published band edges, or Gaussians from published centers and widths),
-close enough to make a scene for matching. For values that matter, choose
-**Custom bands** and give the sensor's response file: a CSV with a header
-row, then wavelength (`wavelength_um` or `wavelength_nm` in the header
-names the unit) and one column of response per band. Custom bands can also
-be typed as center/FWHM in nm: `Red 650/40; NIR 860/30`.
+Built in:
+
+- **Landsat 8 OLI, Landsat 9 OLI-2, Sentinel-2A, -2B and -2C MSI:** the
+  measured spectral responses published by NASA/USGS and ESA (via the
+  pyspectral collection; see `resources/sensor_bands/README.md`).
+- **MRO CTX:** the measured system passband (filter, optics and CCD) of
+  Bell et al. (2013): 50% of peak at 515.5 and 704.7 nm, 1% at 498.2 and
+  754.7 nm, effective wavelength 611 nm. That paper shows the curve as a
+  figure rather than a table, so Varda builds it from those edges.
+- **MRO HiRISE (BG, RED, NIR) and Mars Odyssey THEMIS VIS:** approximations
+  from the half-maximum band edges (McEwen et al. 2007) and band centers,
+  as their measured curves are published only as figures.
+
+The result's description says which kind each is. For another sensor, or a
+curve of your own, choose **Custom bands** and give a response file: a CSV
+with a header row, then wavelength (`wavelength_um` or `wavelength_nm` in
+the header names the unit) and one column of response per band (lines
+starting with `#` are notes). Custom bands can also be typed as center/FWHM
+in nm: `Red 650/40; NIR 860/30`.
 
 A use: **aligning a hyperspectral product to a camera.** A CRISM parameter
 map has little texture to match against CTX, but CRISM reflectance
@@ -58,10 +69,13 @@ convolved to the CTX band looks like CTX. In a 3D Terrain workspace, add the
 parameter map as an overlay, set **Match using** to the CTX-like scene and
 click **Auto Align**: the alignment found for the scene moves the parameter
 map (see [3D Terrain](3d-terrain.md)). Over Jezero, matching CRISM's own
-best band against the CTX orthoimage finds one false match; the CTX-like
-scene finds ten tie points, RMS 11 m. (CTX's band, 500-800 nm, lies in
-CRISM's VNIR detector, so use joined or VNIR data rather than an IR-only
-cube.)
+best band against the CTX orthoimage lands 15 km off; the CTX-like scene
+lands within about 50 m of the known offset (160 m west, 340 m north),
+though with few tie points, so check the alignment and adjust it by hand
+if needed. CTX's band (515-705 nm at half power) lies in CRISM's VNIR
+detector, so use joined or VNIR data rather than an IR-only cube; note
+that CRISM's MTRDR has no bands from 631 to 710 nm, so the scene misses
+part of the CTX band (the result's coverage says how much).
 
 ## Bit masks (Statistics)
 

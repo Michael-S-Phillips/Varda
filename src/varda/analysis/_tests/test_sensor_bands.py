@@ -63,12 +63,12 @@ def test_bad_bands_and_missing_values_are_left_out():
 
 def test_bands_the_cube_does_not_cover_are_reported_and_skipped():
     values, coverage = convolve(
-        _cube(np.full(WL.size, 0.3)), WL, SENSORS["Landsat 8-9 OLI"]
+        _cube(np.full(WL.size, 0.3)), WL, SENSORS["Landsat 8 OLI"]
     )
-    names = [b.name for b in SENSORS["Landsat 8-9 OLI"].bands]
+    names = [b.name for b in SENSORS["Landsat 8 OLI"].bands]
     covered = dict(zip(names, coverage))
-    assert covered["Red"] > 0.95 and covered["SWIR 1"] == 0
-    assert np.isnan(values[:, :, names.index("SWIR 1")]).all()
+    assert covered["B4 Red"] > 0.95 and covered["B6 SWIR 1"] == 0
+    assert np.isnan(values[:, :, names.index("B6 SWIR 1")]).all()
 
 
 def test_bands_typed_as_centers_and_widths_or_read_from_a_file(tmp_path):
@@ -128,3 +128,38 @@ def test_custom_bands_and_nothing_covered():
     analysis.custom.set("")
     with pytest.raises(ValueError, match="Custom Bands"):
         analysis.run(_image(), lambda *_: None)
+
+
+@pytest.mark.parametrize(
+    "sensor, band, center",
+    [
+        ("Landsat 8 OLI", "B4 Red", 654.6),  # USGS: 654.6 nm
+        ("Landsat 9 OLI-2", "B5 NIR", 864.6),
+        ("Sentinel-2A MSI", "B4", 664.6),  # ESA: 664.6 nm
+        ("Sentinel-2B MSI", "B8A", 864.0),
+        ("Sentinel-2C MSI", "B11", 1610.0),
+    ],
+)
+def test_bundled_responses_are_the_measured_ones(sensor, band, center):
+    found = {b.name: b for b in SENSORS[sensor].bands}[band]
+    assert found.center == pytest.approx(center, abs=2.5)
+    assert "measured" in SENSORS[sensor].note and "CC-BY" in SENSORS[sensor].note
+
+
+def test_ctx_follows_its_measured_passband():
+    (ctx,) = SENSORS["MRO CTX"].bands
+    half = ctx.wavelengths[ctx.response >= 0.5]
+    # Bell et al. (2013): 50% at 515.5 and 704.7 nm, effective 611.1 nm
+    assert half.min() == pytest.approx(515.5, abs=1)
+    assert half.max() == pytest.approx(704.7, abs=1)
+    assert ctx.center == pytest.approx(611.1, abs=3)
+    onePercent = ctx.wavelengths[ctx.response >= 0.01]
+    assert onePercent.min() == pytest.approx(498.2, abs=1.5)
+    assert onePercent.max() == pytest.approx(754.7, abs=1.5)
+
+
+def test_notes_in_a_response_file_are_skipped_and_kept(tmp_path):
+    path = tmp_path / "camera.csv"
+    path.write_text("# from the camera team\nwavelength_nm,Pan\n500,0\n600,1\n700,0\n")
+    sensor = readResponses(path)
+    assert sensor.note == "from the camera team" and sensor.bands[0].name == "Pan"
