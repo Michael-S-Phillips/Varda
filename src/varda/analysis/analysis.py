@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import ClassVar
 
 import attrs
@@ -36,6 +36,8 @@ class AnalysisContext:
     """What the workspace offers an analysis beyond the image itself."""
 
     rois: ROICollection | None = None
+    # the project's images, for analyses that use another one (weights, say)
+    images: Sequence[VardaRaster] = ()
 
 
 class Analysis(ParameterGroup):

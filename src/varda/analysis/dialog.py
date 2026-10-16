@@ -59,7 +59,7 @@ class RunAnalysisDialog(QDialog):
         # analysis's dialog: no picker, its name as the title.
         self.setWindowTitle(analysis.name if analysis is not None else "Run Analysis")
         self._analyses = list(analyses)
-        self._context = AnalysisContext(rois=rois)
+        self._context = AnalysisContext(rois=rois, images=images)
         # One instance per analysis class, so settings persist while switching
         self._instances: dict[type[Analysis], Analysis] = {}
         if instance is not None:
