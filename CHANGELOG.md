@@ -21,6 +21,10 @@ can alter results.
     hillshade (the Mosaic workspace's matching; translation by default, up to
     polynomial and thin-plate-spline warps) and a manual shift in meters.
     Saved with the session and included in stills and web pages.
+  - **Block diagrams and 3D printing:** **Sides** stands the surface on walls
+    down to a base; **Export for 3D Printing** saves a watertight STL in
+    millimeters (width, exaggeration, base and detail chosen, the printed
+    size shown). **Fill gaps** fills no-data voids inside a DEM for both.
 - **Lines and profiles** (General Image Analysis): draw straight lines,
   polylines or freehand lines with **Draw Line**, listed in the new **Lines**
   tab (rename, recolor, delete, export to GIS files) and saved with the

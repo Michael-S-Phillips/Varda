@@ -20,6 +20,7 @@ from pathlib import Path
 import attrs
 import numpy as np
 from attrs import asdict, define, frozen
+from scipy import ndimage
 from PIL import Image
 from pyproj import CRS
 
@@ -41,6 +42,7 @@ class Terrain:
     widthM: float  # ground size of the grid, west to east
     heightM: float  # and south to north
     step: int  # DEM pixels per grid cell
+    filled: int = 0  # grid points of gaps inside the data that were filled
 
     @property
     def zRange(self) -> tuple[float, float]:
@@ -56,6 +58,11 @@ class TerrainSettings:
     shadows: bool = True
     background: str = "#101418"
     ambient: float = 0.35
+    sides: bool = False  # a block diagram: walls down to a base
+    baseDepth: float = (
+        0.0  # below the lowest point (height units; 0: a quarter of the relief)
+    )
+    sideColor: str = "#a08e78"
 
     def toDict(self) -> dict:
         return asdict(self)
@@ -104,11 +111,34 @@ def groundSize(image: VardaRaster) -> tuple[float, float]:
     return width * factor, height * factor
 
 
+def fillGaps(heights: np.ndarray, smoothing: int = 4) -> tuple[np.ndarray, int]:
+    """Gaps of no data enclosed by data (a DTM's voids on steep slopes, say)
+    filled from the nearest heights and smoothed; no data around the outside
+    stays. Returns the heights and how many points were filled."""
+    valid = np.isfinite(heights)
+    gaps = ndimage.binary_fill_holes(valid) & ~valid
+    count = int(gaps.sum())
+    if not count:
+        return heights, 0
+    nearest = ndimage.distance_transform_edt(
+        ~valid, return_distances=False, return_indices=True
+    )
+    filled = heights.copy()
+    filled[gaps] = heights[tuple(index[gaps] for index in nearest)]
+    for _ in range(smoothing):  # soften the nearest-value terraces
+        mean = ndimage.uniform_filter(np.where(np.isfinite(filled), filled, 0), 3)
+        filled[gaps] = mean[gaps] / np.maximum(
+            ndimage.uniform_filter(np.isfinite(filled).astype(float), 3)[gaps], 1e-9
+        )
+    return filled.astype(heights.dtype), count
+
+
 def buildTerrain(
     dem: VardaRaster,
     band: int = 0,
     maxSide: int = MAX_SIDE,
     size: tuple[float, float] | None = None,
+    fill: bool = True,
 ) -> Terrain:
     """``dem``'s ``band`` as a terrain grid at most ``maxSide`` vertices on a
     side. ``size`` is its ``groundSize``: pass it when building on a worker
@@ -121,7 +151,11 @@ def buildTerrain(
         data = np.where(data == nodata, np.nan, data)
     step = max(1, math.ceil(max(data.shape) / maxSide))
     widthM, heightM = size if size is not None else groundSize(dem)
-    return Terrain(_blockMean(data, step), widthM, heightM, step)
+    heights = _blockMean(data, step)
+    filled = 0
+    if fill:
+        heights, filled = fillGaps(heights)
+    return Terrain(heights, widthM, heightM, step, filled)
 
 
 def quantize(heights: np.ndarray) -> tuple[np.ndarray, float, float]:

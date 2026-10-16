@@ -53,6 +53,7 @@ from varda.terrain.overlays import (
     toProjection,
 )
 from varda.terrain.overlays import drape as drapeOverlay
+from varda.terrain.solid import printSolid, stlBytes
 from varda.terrain.scene import (
     PageOverlay,
     Terrain,
@@ -158,6 +159,84 @@ class StillDialog(QDialog):
         return self.widthBox.value(), self.heightBox.value()
 
 
+PRINT_DETAIL = {"Draft (256)": 256, "Standard (512)": 512, "Fine (1024)": 1024}
+
+
+class PrintDialog(QDialog):
+    """The print's size, exaggeration, plinth and detail, with the size it
+    will come out."""
+
+    def __init__(
+        self, terrain: Terrain, exaggeration: float, parent: QWidget | None = None
+    ):
+        super().__init__(parent)
+        self.setWindowTitle("Export for 3D Printing")
+        self.terrain = terrain
+        self.widthBox = QDoubleSpinBox()
+        self.widthBox.setRange(10, 2000)
+        self.widthBox.setValue(150)
+        self.widthBox.setSuffix(" mm")
+        self.widthBox.setToolTip("Across, west to east")
+        self.exaggerationBox = QDoubleSpinBox()
+        self.exaggerationBox.setRange(0.1, 100)
+        self.exaggerationBox.setSingleStep(0.5)
+        self.exaggerationBox.setValue(exaggeration)
+        self.exaggerationBox.setSuffix(" ×")
+        self.baseBox = QDoubleSpinBox()
+        self.baseBox.setRange(0.5, 100)
+        self.baseBox.setValue(3)
+        self.baseBox.setSuffix(" mm")
+        self.baseBox.setToolTip("The plinth below the lowest point")
+        self.detailBox = QComboBox()
+        self.detailBox.addItems(list(PRINT_DETAIL))
+        self.detailBox.setCurrentText("Standard (512)")
+        self.detailBox.setToolTip(
+            "Points on the longer side; printers rarely resolve more"
+        )
+        self.sizeLabel = MutedLabel("")
+        for box in (self.widthBox, self.exaggerationBox, self.baseBox):
+            box.valueChanged.connect(lambda _: self._showSize())
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form = QFormLayout(self)
+        form.addRow("Width:", self.widthBox)
+        form.addRow("Exaggeration:", self.exaggerationBox)
+        form.addRow("Base:", self.baseBox)
+        form.addRow("Detail:", self.detailBox)
+        form.addRow(self.sizeLabel)
+        form.addRow(buttons)
+        self._showSize()
+
+    def printedSize(self) -> tuple[float, float, float]:
+        """(width, depth, height) in mm."""
+        width = self.widthBox.value()
+        mmPerM = width / self.terrain.widthM
+        low, high = self.terrain.zRange
+        height = (
+            high - low
+        ) * mmPerM * self.exaggerationBox.value() + self.baseBox.value()
+        return width, self.terrain.heightM * mmPerM, height
+
+    def _showSize(self) -> None:
+        width, depth, height = self.printedSize()
+        self.sizeLabel.setText(
+            f"Prints {width:.0f} × {depth:.0f} × {height:.1f} mm (W × D × H)."
+        )
+
+    def choices(self) -> tuple[float, float, float, int]:
+        """(width mm, exaggeration, base mm, grid points on the longer side)."""
+        return (
+            self.widthBox.value(),
+            self.exaggerationBox.value(),
+            self.baseBox.value(),
+            PRINT_DETAIL[self.detailBox.currentText()],
+        )
+
+
 class TerrainWorkspace(QMainWindow):
     def __init__(
         self,
@@ -219,6 +298,13 @@ class TerrainWorkspace(QMainWindow):
         self.detailBox.setCurrentText("Medium")
         self.detailBox.setToolTip("How finely the surface follows the DEM")
         self.detailBox.currentIndexChanged.connect(lambda _: self.rebuild())
+        self.fillGaps = QCheckBox("Fill gaps")
+        self.fillGaps.setChecked(True)
+        self.fillGaps.setToolTip(
+            "Fill no-data gaps inside the DEM (voids on steep slopes) from the "
+            "heights around them; no data around the outside stays empty"
+        )
+        self.fillGaps.toggled.connect(lambda _: self.rebuild())
 
         self.exaggeration = QDoubleSpinBox()
         self.exaggeration.setRange(0.1, 50)
@@ -239,7 +325,20 @@ class TerrainWorkspace(QMainWindow):
         self.ambient.setToolTip("Light from the sky, which lifts the shadows")
         self.background = QComboBox()
         self.background.addItems(list(BACKGROUNDS))
-        self._showSettings()
+        self.sides = QCheckBox("Sides (block diagram)")
+        self.sides.setToolTip("Walls from the surface down to a base, as a cut block")
+        self.baseDepth = QDoubleSpinBox()
+        self.baseDepth.setRange(0, 1e5)
+        self.baseDepth.setDecimals(0)
+        self.baseDepth.setSingleStep(50)
+        self.baseDepth.setSuffix(" m")
+        self.baseDepth.setSpecialValueText("Automatic")
+        self.baseDepth.setToolTip(
+            "How far below the lowest point the base is (Automatic: a quarter of "
+            "the relief); it's exaggerated with the heights"
+        )
+        self.sides.toggled.connect(lambda _: self._onSettings())
+        self.baseDepth.valueChanged.connect(lambda _: self._onSettings())
         for box in (self.exaggeration, self.ambient):
             box.valueChanged.connect(lambda _: self._onSettings())
         for box in (self.sunAzimuth, self.sunElevation):
@@ -265,6 +364,11 @@ class TerrainWorkspace(QMainWindow):
             "or to publish with a paper"
         )
         web.clicked.connect(self.exportWebPage)
+        printButton = QPushButton("Export for 3D Printing…")
+        printButton.setToolTip(
+            "Save the terrain as a closed solid (STL) with sides and a base, to print"
+        )
+        printButton.clicked.connect(self.exportForPrinting)
 
         self.form = form = QFormLayout()
         form.addRow("DEM:", self.demBox)
@@ -272,18 +376,25 @@ class TerrainWorkspace(QMainWindow):
         form.addRow("Drape:", self.drapeBox)
         form.addRow("Color map:", self.colorMapBox)
         form.addRow("Detail:", self.detailBox)
+        form.addRow("", self.fillGaps)
         form.addRow("Exaggeration:", self.exaggeration)
         form.addRow("Sun azimuth:", self.sunAzimuth)
         form.addRow("Sun elevation:", self.sunElevation)
         form.addRow("", self.shadows)
         form.addRow("Sky light:", self.ambient)
         form.addRow("Background:", self.background)
+        form.addRow("", self.sides)
+        form.addRow("Base depth:", self.baseDepth)
+        self._showSettings()
         viewButtons = QHBoxLayout()
         for button in (saveView, deleteView, home):
             viewButtons.addWidget(button)
-        exports = QHBoxLayout()
-        exports.addWidget(still)
-        exports.addWidget(web)
+        exports = QVBoxLayout()
+        exportRow = QHBoxLayout()
+        exportRow.addWidget(still)
+        exportRow.addWidget(web)
+        exports.addLayout(exportRow)
+        exports.addWidget(printButton)
         self.overlayPanel = OverlayPanel(self._overlayCandidates, self._references)
         self.overlayPanel.sigRebuild.connect(self.rebuild)
         self.overlayPanel.sigLook.connect(self._onOverlayLook)
@@ -461,9 +572,14 @@ class TerrainWorkspace(QMainWindow):
             self.shadows,
             self.ambient,
             self.background,
+            self.sides,
+            self.baseDepth,
         )
         for widget in widgets:
             widget.blockSignals(True)
+        self.sides.setChecked(self.settings.sides)
+        self.baseDepth.setValue(self.settings.baseDepth)
+        self.form.setRowVisible(self.baseDepth, self.settings.sides)
         self.exaggeration.setValue(self.settings.exaggeration)
         self.sunAzimuth.setValue(int(self.settings.sunAzimuth) % 360)
         self.sunElevation.setValue(int(self.settings.sunElevation))
@@ -477,14 +593,18 @@ class TerrainWorkspace(QMainWindow):
             widget.blockSignals(False)
 
     def _onSettings(self) -> None:
-        self.settings = TerrainSettings(
+        self.settings = attrs.evolve(
+            self.settings,
             exaggeration=self.exaggeration.value(),
             sunAzimuth=self.sunAzimuth.value(),
             sunElevation=self.sunElevation.value(),
             shadows=self.shadows.isChecked(),
             background=BACKGROUNDS[self.background.currentText()],
             ambient=self.ambient.value(),
+            sides=self.sides.isChecked(),
+            baseDepth=self.baseDepth.value(),
         )
+        self.form.setRowVisible(self.baseDepth, self.settings.sides)
         self.view.setSettings(self.settings.toDict())
 
     # --- building the page ---------------------------------------------------------------
@@ -541,8 +661,10 @@ class TerrainWorkspace(QMainWindow):
                 self.status.setText(f"{overlay.image.name} couldn't be drawn: {error}")
         self.status.setText("Building the surface…")
 
+        fill = self.fillGaps.isChecked()
+
         def work() -> tuple[Terrain, str | None, list[PageOverlay]]:
-            terrain = buildTerrain(dem, band, maxSide, size)
+            terrain = buildTerrain(dem, band, maxSide, size, fill)
             texture = None if rgba is None else pngDataUrl(rgba)
             crs = RasterioCRS.from_wkt(demWkt)
             draped = []
@@ -600,6 +722,11 @@ class TerrainWorkspace(QMainWindow):
             f"{self.terrain.widthM / 1000:.3g} × {self.terrain.heightM / 1000:.3g} km, "
             f"heights {low:.0f} to {high:.0f}; a {cols} × {rows} grid"
             + (f" (every {self.terrain.step} pixels)" if self.terrain.step > 1 else "")
+            + (
+                f"; {self.terrain.filled:,} points of gaps filled"
+                if self.terrain.filled
+                else ""
+            )
         )
         self.view.setSettings(self.settings.toDict())  # changed while it loaded
 
@@ -694,6 +821,55 @@ class TerrainWorkspace(QMainWindow):
             f.write(html)
         self.status.setText(f"Saved an interactive web page to {path}.")
 
+    def exportForPrinting(self) -> None:
+        dem = self.dem()
+        if dem is None or self.terrain is None:
+            return
+        dialog = PrintDialog(self.terrain, self.settings.exaggeration, self)
+        if not dialog.exec():
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export for 3D Printing", f"{dem.name}.stl", "STL solid (*.stl)"
+        )
+        if path:
+            self.savePrint(path, *dialog.choices())
+
+    def savePrint(
+        self, path: str, widthMm: float, exaggeration: float, baseMm: float, detail: int
+    ) -> None:
+        """Write a closed solid of the DEM (millimeters) to ``path`` as STL."""
+        dem = self.dem()
+        if dem is None:
+            return
+        band = int(self.bandBox.currentData() or 0)
+        size = groundSize(dem)  # here: pyproj objects aren't thread-safe
+        fill = self.fillGaps.isChecked()
+        self.status.setText("Building the solid…")
+
+        def work() -> int:
+            terrain = buildTerrain(dem, band, detail, size, fill)
+            mesh = printSolid(
+                terrain.heights,
+                terrain.widthM,
+                terrain.heightM,
+                widthMm,
+                exaggeration,
+                baseMm,
+            )
+            with open(path, "wb") as f:
+                f.write(stlBytes(mesh))
+            return len(mesh.triangles)
+
+        runInBackground(
+            work,
+            lambda count: self.status.setText(
+                f"Saved a solid of {count:,} triangles to {path}."
+            ),
+            lambda error: self.status.setText(f"The solid couldn't be saved: {error}"),
+            description="Writing an STL",
+            owner=self,
+        )
+
     # --- sessions ------------------------------------------------------------------------
 
     def sessionImages(self) -> list[VardaRaster]:
@@ -719,6 +895,7 @@ class TerrainWorkspace(QMainWindow):
             ],
             "colorMap": self.colorMapBox.currentText(),
             "detail": self.detailBox.currentText(),
+            "fillGaps": self.fillGaps.isChecked(),
             "settings": self.settings.toDict(),
             "views": dict(self.views),
             "camera": self._camera,
@@ -747,6 +924,7 @@ class TerrainWorkspace(QMainWindow):
             self.bandBox.setCurrentIndex(max(index, 0))
             self.colorMapBox.setCurrentText(state.get("colorMap", "Viridis"))
             self.detailBox.setCurrentText(state.get("detail", "Medium"))
+            self.fillGaps.setChecked(bool(state.get("fillGaps", True)))
             choice = state.get("drape", ELEVATION)
             target = drape if choice == "image" else choice
             for i in range(self.drapeBox.count()):

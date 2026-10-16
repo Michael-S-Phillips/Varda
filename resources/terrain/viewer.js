@@ -14,6 +14,9 @@ const settings = Object.assign(
     shadows: true,
     background: "#101418",
     ambient: 0.35,
+    sides: false, // a block diagram: walls down to a base
+    baseDepth: 0, // below the lowest point, in height units (0: a quarter of the relief)
+    sideColor: "#a08e78",
   },
   scene.settings || {}
 );
@@ -134,6 +137,49 @@ const overlays = (scene.overlays || []).map((overlay, index) => {
 });
 const textureReady = Promise.all(textures);
 
+// --- sides (a block diagram) -----------------------------------------------------
+
+// Every cell with four heights is solid; a wall stands on each of its sides
+// that faces an empty cell or the edge (as varda/terrain/solid.py builds
+// for printing)
+const sideMaterial = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, side: THREE.DoubleSide });
+let sides = null;
+function buildSides() {
+  if (sides) { terrain.remove(sides); sides.geometry.dispose(); sides = null; }
+  if (!settings.sides) return;
+  sideMaterial.color.set(settings.sideColor);
+  // a little of its own light: walls facing away from the sun stay readable
+  sideMaterial.emissive.set(settings.sideColor).multiplyScalar(0.25);
+  const depth = settings.baseDepth > 0 ? settings.baseDepth : Math.max((zHigh - zLow) * 0.25, 1);
+  const baseZ = zLow - depth;
+  const valid = (r, c) => r >= 0 && c >= 0 && r < rows - 1 && c < cols - 1 &&
+    quantized[r * cols + c] && quantized[r * cols + c + 1] &&
+    quantized[(r + 1) * cols + c] && quantized[(r + 1) * cols + c + 1];
+  const walls = [];
+  const wall = (i, j) => {
+    const [x1, y1, z1] = [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];
+    const [x2, y2, z2] = [positions[3 * j], positions[3 * j + 1], positions[3 * j + 2]];
+    walls.push(x1, y1, z1, x2, y2, z2, x2, y2, baseZ, x1, y1, z1, x2, y2, baseZ, x1, y1, baseZ);
+  };
+  for (let r = 0; r < rows - 1; r++) {
+    for (let c = 0; c < cols - 1; c++) {
+      if (!valid(r, c)) continue;
+      const a = r * cols + c, b = a + 1, d = a + cols, e = d + 1;
+      if (!valid(r - 1, c)) wall(a, b);
+      if (!valid(r + 1, c)) wall(e, d);
+      if (!valid(r, c - 1)) wall(d, a);
+      if (!valid(r, c + 1)) wall(b, e);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(walls, 3));
+  geometry.computeVertexNormals();
+  sides = new THREE.Mesh(geometry, sideMaterial);
+  sides.castShadow = true;
+  sides.receiveShadow = true;
+  terrain.add(sides); // follows the exaggeration
+}
+
 // --- light ----------------------------------------------------------------
 
 const sun = new THREE.DirectionalLight(0xffffff, 2.6);
@@ -159,8 +205,11 @@ function placeSun() {
   sun.shadow.camera.updateProjectionMatrix();
 }
 
+let builtSides = "";
 function apply() {
   terrain.scale.z = settings.exaggeration;
+  const sideKey = [settings.sides, settings.baseDepth, settings.sideColor].join();
+  if (sideKey !== builtSides) { builtSides = sideKey; buildSides(); }
   renderer.shadowMap.enabled = settings.shadows;
   sun.castShadow = settings.shadows;
   material.needsUpdate = true;
