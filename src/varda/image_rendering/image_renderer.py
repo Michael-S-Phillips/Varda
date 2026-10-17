@@ -144,6 +144,14 @@ class ImageRenderer(QObject):
         # Overlays leave no-data pixels see-through instead of opaque black
         self.transparentNoData = False
         self.settings.sigParameterChanged.connect(self._onSettingsChanged)
+        self.image.sigMetadataChanged.connect(self._onImageEdited)
+
+    def _onImageEdited(self) -> None:
+        """The image's metadata changed (a no-data value, say): read again."""
+        self._rawBandData = self._rgb8 = self._stretchedData = None
+        self._rawKey = self._sample = self._sampleKey = None
+        self.cachedRender = None
+        self.sigShouldRefresh.emit()
 
     def _onSettingsChanged(self, *args) -> None:
         # Each signal is one parameter change; if opacity moved, that was it

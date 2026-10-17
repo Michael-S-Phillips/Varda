@@ -23,6 +23,10 @@ class ObservableList[T](QObject, MutableSequence[T], metaclass=_QObjectSequenceM
     def _changed(self) -> None:
         self.sigDataChanged.emit(self._items.copy())
 
+    def refresh(self) -> None:
+        """Tell listeners an item changed in place (an image was renamed)."""
+        self._changed()
+
     @overload
     def __getitem__(self, index: int) -> T: ...
     @overload

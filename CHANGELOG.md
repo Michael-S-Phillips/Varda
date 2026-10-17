@@ -6,6 +6,16 @@ can alter results.
 
 ## Unreleased
 
+### Added
+
+- **Image Properties** (right-click an image in the Image List →
+  Properties…): see an image's file, format, size and map projection, and
+  edit its name, no-data value (define one the file never declared, e.g.
+  -999), wavelength unit, description, and each band's name, wavelength,
+  FWHM and good/bad flag. Edits apply at once everywhere and are kept in
+  sessions and packages; for ENVI images they can be saved into the header
+  (backed up first).
+
 ## 0.9.0 (2026-10-16)
 
 ### Added
