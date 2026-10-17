@@ -208,7 +208,7 @@ class DisplacementField:
     dy: np.ndarray
     quality: np.ndarray
     transform: Affine  # field pixel (col, row) → map; pixels sit on the tile centers
-    phaseSnr: np.ndarray | None = None
+    phaseSnr: np.ndarray
 
 
 # (reference pixel, moving pixel, quality, band, phase-plane SNR or NaN)

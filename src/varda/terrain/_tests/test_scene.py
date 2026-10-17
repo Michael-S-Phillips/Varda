@@ -202,9 +202,11 @@ def test_a_terrain_knows_which_points_were_filled():
     assert terrain.filledMask is not None and terrain.filledMask.sum() == 12
     assert terrain.filledMask[8:11, 10:14].all()
     unfilled = buildTerrain(_dem(_gappy()), fill=False)
-    assert unfilled.filled == 0 and not unfilled.filledMask.any()
+    assert unfilled.filled == 0
+    assert unfilled.filledMask is not None and not unfilled.filledMask.any()
     # trimming drops filled points outside the rectangle from the mask
     trimmed = buildTerrain(_dem(_gappy()), trim=True)
+    assert trimmed.filledMask is not None
     assert not (trimmed.filledMask & ~np.isfinite(trimmed.heights)).any()
 
 
@@ -215,6 +217,7 @@ def test_the_page_carries_the_filled_points():
     assert filled["count"] == 12 and filled["method"] == FILL_METHOD
     bits = np.frombuffer(base64.b64decode(filled["mask"]), np.uint8)
     mask = np.unpackbits(bits)[: terrain.heights.size].reshape(terrain.heights.shape)
+    assert terrain.filledMask is not None
     assert np.array_equal(mask.astype(bool), terrain.filledMask)
     clean = buildTerrain(_dem(np.ones((5, 5))))
     assert (

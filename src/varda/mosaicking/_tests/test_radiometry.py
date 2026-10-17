@@ -15,6 +15,7 @@ from varda.mosaicking.radiometry import (
     Correction,
     LinearMode,
     RadiometryMethod,
+    RadiometryQuality,
     balance,
 )
 from varda.mosaicking.render import renderMosaic
@@ -151,10 +152,15 @@ def test_corrections_survive_a_session_and_reset():
     )
 
 
+def _quality(quality: RadiometryQuality | None) -> RadiometryQuality:
+    assert quality is not None
+    return quality
+
+
 def test_the_fit_quality_is_reported_per_image_and_band():
     project = _project()
     result = balance(project, RadiometryMethod.GLOBAL, LinearMode.BOTH, held={0})
-    quality = result.quality
+    quality = _quality(result.quality)
     assert set(quality.fits) == {1, 2}  # held images aren't fitted
     for fit in quality.fits.values():
         assert fit.rms.shape == fit.samples.shape == (BANDS,)
@@ -174,7 +180,7 @@ def test_the_rms_is_in_data_units():
     project = MosaicProject([a, b])
     result = balance(project, RadiometryMethod.REFERENCE, LinearMode.BOTH, held={0})
     # B's noise, divided by its gain once corrected
-    assert np.allclose(result.quality.fits[1].rms, 0.005, rtol=0.25)
+    assert np.allclose(_quality(result.quality).fits[1].rms, 0.005, rtol=0.25)
 
 
 @pytest.mark.parametrize(
@@ -186,7 +192,7 @@ def test_bands_without_enough_samples_are_listed(method):
     b[:, :, 2] = np.nan  # no band 3 anywhere in B
     project = MosaicProject([_strip(scene[:, 0:80], 0, "A"), _strip(b, 60, "B")])
     result = balance(project, method, LinearMode.BOTH, held={0})
-    fit = result.quality.fits[1]
+    fit = _quality(result.quality).fits[1]
     assert fit.defaulted == (2,) and fit.samples[2] == 0
     assert result.corrections[1].gain[2] == 1 and result.corrections[1].offset[2] == 0
     assert "band 3" in result.message
@@ -195,7 +201,9 @@ def test_bands_without_enough_samples_are_listed(method):
 def test_histogram_matching_reports_its_agreement_too():
     project = _project(gamma=True)
     result = balance(project, RadiometryMethod.HISTOGRAM, LinearMode.BOTH, held={0})
-    overlap = next(o for o in result.quality.overlaps if (o.first, o.second) == (0, 1))
+    overlap = next(
+        o for o in _quality(result.quality).overlaps if (o.first, o.second) == (0, 1)
+    )
     assert np.all(overlap.after < overlap.before)
 
 
@@ -208,9 +216,10 @@ def test_the_quality_survives_a_session_and_is_cleared():
     assert state["radiometry"]["quality"]["fits"]
     other = _project()
     other.restore(state)
+    restored = _quality(other.radiometryQuality)
     assert np.allclose(
-        other.radiometryQuality.fits[1].rms, project.radiometryQuality.fits[1].rms
+        restored.fits[1].rms, _quality(project.radiometryQuality).fits[1].rms
     )
-    assert len(other.radiometryQuality.overlaps) == 2
+    assert len(restored.overlaps) == 2
     other.clearRadiometry()
     assert other.radiometryQuality is None

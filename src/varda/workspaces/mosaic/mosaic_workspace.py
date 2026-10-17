@@ -575,14 +575,15 @@ def displacementRaster(
         "Match quality",
         "Phase-plane SNR",
     ]
-    snr = (
-        displacement.phaseSnr
-        if displacement.phaseSnr is not None
-        else np.full_like(displacement.quality, np.nan)
-    )
     source = ArrayDataSource(
         np.stack(
-            [displacement.dx, displacement.dy, displacement.quality, snr], axis=2
+            [
+                displacement.dx,
+                displacement.dy,
+                displacement.quality,
+                displacement.phaseSnr,
+            ],
+            axis=2,
         ).astype(np.float32),
         wavelengths=np.array(names),
         wavelengthUnits="",
