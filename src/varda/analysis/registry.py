@@ -13,6 +13,7 @@ from varda.analysis.continuum import ContinuumRemovalAnalysis
 from varda.analysis.image_math import (
     ApplyMaskAnalysis,
     ImageArithmeticAnalysis,
+    RoiToMaskAnalysis,
     ThresholdToMaskAnalysis,
 )
 from varda.analysis.sensor_bands import SensorBandsAnalysis
@@ -81,6 +82,7 @@ ANALYSES: list[type[Analysis]] = [
     BandMathAnalysis,
     ImageArithmeticAnalysis,
     ThresholdToMaskAnalysis,
+    RoiToMaskAnalysis,
     ApplyMaskAnalysis,
     ContinuumRemovalAnalysis,
     SensorBandsAnalysis,
