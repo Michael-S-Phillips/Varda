@@ -76,6 +76,7 @@ from varda.terrain.animation import writeAnimation
 from varda.terrain.solid import printSolid, stlBytes
 from varda.terrain.vectors import PageLine, placeLines, readLines
 from varda.terrain.scene import (
+    FILL_METHOD,
     Legend,
     PageOverlay,
     Terrain,
@@ -344,6 +345,13 @@ class PrintDialog(QDialog):
             "Points on the longer side; printers rarely resolve more"
         )
         self.sizeLabel = MutedLabel("")
+        self.filledNote = MutedLabel(
+            f"The surface has {terrain.filled:,} points of filled gaps: invented "
+            "heights, not measured. The print fills its own grid the same way "
+            "and names how many points in the STL's header."
+        )
+        self.filledNote.setWordWrap(True)
+        self.filledNote.setVisible(terrain.filled > 0)
         for box in (self.widthBox, self.exaggerationBox, self.baseBox):
             box.valueChanged.connect(lambda _: self._showSize())
         buttons = QDialogButtonBox(
@@ -358,6 +366,7 @@ class PrintDialog(QDialog):
         form.addRow("Base:", self.baseBox)
         form.addRow("Detail:", self.detailBox)
         form.addRow(self.sizeLabel)
+        form.addRow(self.filledNote)
         form.addRow(buttons)
         self._showSize()
 
@@ -468,6 +477,13 @@ class TerrainWorkspace(QMainWindow):
             "heights around them; no data around the outside stays empty"
         )
         self.fillGaps.toggled.connect(lambda _: self.rebuild())
+        self.showFilled = QCheckBox("Show filled gaps")
+        self.showFilled.setToolTip(
+            "Tint the surface where gaps were filled: those heights are "
+            "invented (interpolated), not measured"
+        )
+        self.showFilled.setEnabled(False)  # until a surface has filled gaps
+        self.showFilled.toggled.connect(lambda _: self._onSettings())
         self.edges = QComboBox()
         self.edges.addItems(list(EDGES))
         self.edges.setToolTip(
@@ -572,6 +588,7 @@ class TerrainWorkspace(QMainWindow):
         form.addRow("Color map:", self.colorMapBox)
         form.addRow("Detail:", self.detailBox)
         form.addRow("", self.fillGaps)
+        form.addRow("", self.showFilled)
         form.addRow("Edges:", self.edges)
         form.addRow("Exaggeration:", self.exaggeration)
         form.addRow("Height unit:", self.heightUnit)
@@ -847,9 +864,11 @@ class TerrainWorkspace(QMainWindow):
             self.northArrow,
             self.scaleBar,
             self.colorBar,
+            self.showFilled,
         )
         for widget in widgets:
             widget.blockSignals(True)
+        self.showFilled.setChecked(self.settings.showFilled)
         self.northArrow.setChecked(self.settings.northArrow)
         self.scaleBar.setChecked(self.settings.scaleBar)
         self.colorBar.setChecked(self.settings.colorBar)
@@ -930,6 +949,7 @@ class TerrainWorkspace(QMainWindow):
             northArrow=self.northArrow.isChecked(),
             scaleBar=self.scaleBar.isChecked(),
             colorBar=self.colorBar.isChecked(),
+            showFilled=self.showFilled.isChecked(),
         )
         for row in (self.baseDepth, self.sideColor):
             self.form.setRowVisible(row, self.settings.sides)
@@ -1042,6 +1062,7 @@ class TerrainWorkspace(QMainWindow):
         if build != self._building:
             return  # a newer build is on its way
         self.terrain = terrain
+        self.showFilled.setEnabled(terrain.filled > 0)
         self._texture, self._overlays = texture, overlays
         self.view.showPage(
             pageHtml(
@@ -1481,7 +1502,7 @@ class TerrainWorkspace(QMainWindow):
         metersPerHeightUnit = self.settings.metersPerHeightUnit
         self.status.setText("Building the solid…")
 
-        def work() -> int:
+        def work() -> tuple[int, int]:
             terrain = buildTerrain(dem, band, detail, size, fill, edges == "rectangle")
             mesh = printSolid(
                 terrain.heights,
@@ -1495,15 +1516,25 @@ class TerrainWorkspace(QMainWindow):
                 rows=terrain.rows,
                 metersPerHeightUnit=metersPerHeightUnit,
             )
+            note = f"{terrain.filled} gap points filled" if terrain.filled else ""
             with open(path, "wb") as f:
-                f.write(stlBytes(mesh))
-            return len(mesh.triangles)
+                f.write(stlBytes(mesh, note))
+            return len(mesh.triangles), terrain.filled
+
+        def done(counts: tuple[int, int]) -> None:
+            triangles, filled = counts
+            self.status.setText(
+                f"Saved a solid of {triangles:,} triangles to {path}"
+                + (
+                    f"; {filled:,} points of gaps filled (invented heights)."
+                    if filled
+                    else "."
+                )
+            )
 
         runInBackground(
             work,
-            lambda count: self.status.setText(
-                f"Saved a solid of {count:,} triangles to {path}."
-            ),
+            done,
             lambda error: self.status.setText(f"The solid couldn't be saved: {error}"),
             description="Writing an STL",
             owner=self,
@@ -1537,6 +1568,11 @@ class TerrainWorkspace(QMainWindow):
             "colorMap": self.colorMapBox.currentText(),
             "detail": self.detailBox.currentText(),
             "fillGaps": self.fillGaps.isChecked(),
+            # how many grid points of the surface have invented heights
+            "filled": {
+                "count": 0 if self.terrain is None else self.terrain.filled,
+                "method": FILL_METHOD,
+            },
             "settings": self.settings.toDict(),
             "views": dict(self.views),
             "lines": [

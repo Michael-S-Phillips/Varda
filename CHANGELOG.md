@@ -78,6 +78,11 @@ can alter results.
   names the image and band matched (its wavelength or name, and its SNR)
   and the tie points' median phase-plane SNR, and the overlay's saved
   alignment records them.
+- **3D terrain marks filled gaps:** **Show filled gaps** tints the points
+  whose heights Fill gaps invented, in the view, stills and exported web
+  pages (whose panel and data also give the count, the method and a mask of
+  them). Sessions record the count and method; Export for 3D Printing
+  states the count in its dialog, its status line and the STL's header.
 
 ### Changed
 

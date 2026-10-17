@@ -14,6 +14,7 @@ from varda.catalogs.bodies import RADII_M, geographicCrs
 from varda.common.entities import VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.terrain.scene import (
+    FILL_METHOD,
     TerrainSettings,
     buildTerrain,
     fillGaps,
@@ -104,8 +105,8 @@ def test_gaps_inside_the_data_are_filled_but_the_outside_stays_empty():
     heights = (xx * 2.0).astype(np.float32)
     heights[10:14, 15:20] = np.nan  # a void on a slope
     heights[:, :3] = np.nan  # no data around the outside
-    filled, count = fillGaps(heights)
-    assert count == 20
+    filled, mask = fillGaps(heights)
+    assert mask.sum() == 20 and mask[10:14, 15:20].all()
     assert np.isfinite(filled[10:14, 15:20]).all() and np.isnan(filled[:, :3]).all()
     assert filled[12, 17] == pytest.approx(34, abs=3)  # follows the slope
 
@@ -186,3 +187,47 @@ def test_the_vertical_unit_a_crs_declares(crs, unit):
 )
 def test_map_units_are_labeled(crs, unit):
     assert mapUnit(CRS.from_user_input(crs)) == unit
+
+
+def _gappy() -> np.ndarray:
+    heights = np.ones((20, 30), np.float32)
+    heights[8:11, 10:14] = np.nan  # a void inside
+    heights[:, :2] = np.nan  # no data outside
+    return heights
+
+
+def test_a_terrain_knows_which_points_were_filled():
+    terrain = buildTerrain(_dem(_gappy()))
+    assert terrain.filled == 12
+    assert terrain.filledMask is not None and terrain.filledMask.sum() == 12
+    assert terrain.filledMask[8:11, 10:14].all()
+    unfilled = buildTerrain(_dem(_gappy()), fill=False)
+    assert unfilled.filled == 0 and not unfilled.filledMask.any()
+    # trimming drops filled points outside the rectangle from the mask
+    trimmed = buildTerrain(_dem(_gappy()), trim=True)
+    assert not (trimmed.filledMask & ~np.isfinite(trimmed.heights)).any()
+
+
+def test_the_page_carries_the_filled_points():
+    terrain = buildTerrain(_dem(_gappy()))
+    data = _sceneData(pageHtml(terrain, None, TerrainSettings()))
+    filled = data["filled"]
+    assert filled["count"] == 12 and filled["method"] == FILL_METHOD
+    bits = np.frombuffer(base64.b64decode(filled["mask"]), np.uint8)
+    mask = np.unpackbits(bits)[: terrain.heights.size].reshape(terrain.heights.shape)
+    assert np.array_equal(mask.astype(bool), terrain.filledMask)
+    clean = buildTerrain(_dem(np.ones((5, 5))))
+    assert (
+        _sceneData(pageHtml(clean, None, TerrainSettings()))["filled"]["mask"] is None
+    )
+
+
+def test_filled_points_are_hidden_unless_asked_and_the_page_says_so():
+    assert TerrainSettings().showFilled is False
+    terrain = buildTerrain(_dem(_gappy()))
+    page = pageHtml(terrain, None, TerrainSettings(), panel=True)
+    assert 'data-setting="showFilled"' in page and "12 points" in page
+    clean = pageHtml(
+        buildTerrain(_dem(np.ones((5, 5)))), None, TerrainSettings(), panel=True
+    )
+    assert 'data-setting="showFilled"' not in clean

@@ -149,3 +149,11 @@ def test_heights_in_kilometers_print_as_tall_as_in_meters():
     meters = printSolid(xx * 100.0, 29000, 19000, 150)
     kilometers = printSolid(xx * 0.1, 29000, 19000, 150, metersPerHeightUnit=1000.0)
     assert kilometers.vertices == pytest.approx(meters.vertices)
+
+
+def test_the_stl_header_can_say_how_it_was_made():
+    mesh = solid(np.ones((3, 3)), 2.0, 2.0, base=1.0)
+    header = stlBytes(mesh, note="12 gap points filled")[:80]
+    assert header.startswith(b"Varda terrain solid; 12 gap points filled")
+    assert len(stlBytes(mesh, note="x" * 200)) == len(stlBytes(mesh))
+    assert not stlBytes(mesh, note="x" * 200)[:80].startswith(b"solid")

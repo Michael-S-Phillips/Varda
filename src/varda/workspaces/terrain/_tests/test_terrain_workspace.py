@@ -17,6 +17,7 @@ from PyQt6.QtGui import QColor
 from varda.common.entities import VardaRaster
 from varda.lines.line_collection import LineCollection, shareLines, unshareLines
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+from varda.terrain.scene import FILL_METHOD
 from varda.utilities.debug import generate_perlin_noise_3d
 from varda.workspaces.terrain.overlay_panel import MATCH_ITSELF
 from varda.workspaces.terrain.terrain_workspace import (
@@ -522,3 +523,43 @@ def test_an_alignment_matched_on_another_image_moves_the_overlay(qtbot):
     qtbot.addWidget(restored)
     assert restored.overlayPanel.overlays[0].matchWith == "crism"
     _finishBackgroundWork(qtbot)
+
+
+@pytest.fixture
+def gappy(qtbot):
+    """A workspace on a DEM with a void inside it."""
+    rows, cols = 40, 60
+    yy, xx = np.mgrid[0:rows, 0:cols]
+    dem = -1500 + 200 * np.exp(-((xx - 30) ** 2 + (yy - 20) ** 2) / 100.0)
+    dem[18:22, 28:33] = np.nan
+    images = ProjectImages([_image(dem[..., None], "dem")])
+    widget = TerrainWorkspace(images)
+    qtbot.addWidget(widget)
+    qtbot.waitUntil(lambda: widget.terrain is not None, timeout=10000)
+    return widget
+
+
+def test_filled_gaps_can_be_shown_and_are_recorded(gappy, qtbot):
+    assert gappy.terrain.filled == 20
+    assert not gappy.settings.showFilled
+    gappy.showFilled.setChecked(True)
+    assert gappy.settings.showFilled
+    state = gappy.sessionState()
+    assert state["settings"]["showFilled"] is True
+    assert state["filled"] == {"count": 20, "method": FILL_METHOD}
+    gappy.fillGaps.setChecked(False)
+    qtbot.waitUntil(lambda: gappy.terrain.filled == 0, timeout=10000)
+    assert gappy.sessionState()["filled"]["count"] == 0
+    assert not gappy.showFilled.isEnabled()
+
+
+def test_the_print_says_how_many_points_were_filled(gappy, qtbot, tmp_path):
+    dialog = PrintDialog(gappy.terrain, 1.0)
+    qtbot.addWidget(dialog)
+    assert "20 points" in dialog.filledNote.text()
+    assert dialog.filledNote.isVisibleTo(dialog)
+    path = tmp_path / "dem.stl"
+    gappy.savePrint(str(path), 120.0, 1.0, 3.0, 256)
+    qtbot.waitUntil(lambda: "Saved a solid" in gappy.status.text(), timeout=10000)
+    assert "20 points of gaps filled" in gappy.status.text()
+    assert b"20 gap points filled" in path.read_bytes()[:80]
