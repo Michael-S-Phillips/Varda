@@ -145,7 +145,7 @@ def test_spectral_derivative_covers_only_the_good_bands():
 def test_pixel_purity_projects_only_good_bands(monkeypatch):
     seen = []
 
-    def fakePpi(X, iterations, threshold, progress=None):
+    def fakePpi(X, iterations, threshold, progress=None, **kwargs):
         seen.append(X)
         return np.zeros(X.shape[0])
 
@@ -168,7 +168,8 @@ def test_patch_classifiers_train_on_good_bands(monkeypatch, analysisClass):
         @staticmethod
         def trainAndClassify(cube, valid, rows, cols, y, classes, spec, progress):
             seen.append(cube.shape[2])
-            return np.full((int(valid.sum()), classes), 1 / classes), 0.0
+            probabilities = np.full((int(valid.sum()), classes), 1 / classes)
+            return probabilities, {"finalLoss": 0.0, "device": "cpu", "torch": "test"}
 
     monkeypatch.setattr(classification, "TORCH_AVAILABLE", True)
     monkeypatch.setattr(classification, "torch_job", FakeJob)
