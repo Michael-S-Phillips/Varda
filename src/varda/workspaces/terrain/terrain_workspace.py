@@ -65,6 +65,7 @@ from varda.terrain.overlays import (
     align,
     asRaster,
     bandArray,
+    bandLabel,
     bestBand,
     hillshade,
     toProjection,
@@ -714,11 +715,20 @@ class TerrainWorkspace(QMainWindow):
             else:
                 referenceData = bandArray(reference, 0)
             fixed = asRaster(referenceData[..., None], demTransform, crs, "reference")
-            band = bandArray(image, bestBand(image))  # the overlay's
+            band, snr = bestBand(image)  # the overlay's
             moved, movedTransform = toProjection(
-                band[..., None], overlayTransform, overlayWkt, demWkt
+                bandArray(image, band)[..., None], overlayTransform, overlayWkt, demWkt
             )
-            return align(fixed, asRaster(moved, movedTransform, crs, image.name), model)
+            alignment = align(
+                fixed, asRaster(moved, movedTransform, crs, image.name), model
+            )
+            return attrs.evolve(
+                alignment,
+                matchedOn=image.name,
+                band=band,
+                bandLabel=bandLabel(image, band),
+                bandSnr=snr,
+            )
 
         def done(alignment: Alignment) -> None:
             overlay.alignment = alignment

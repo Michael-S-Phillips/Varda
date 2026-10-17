@@ -161,6 +161,11 @@ def test_an_overlay_is_draped_and_auto_aligned(qtbot):
     qtbot.waitUntil(lambda: added.alignment.points > 0, timeout=30000)
     moved = added.alignment.correct(np.array([[3000.0, -2400.0]]))[0]
     assert moved == pytest.approx([3000 - 60, -2400 + 40], abs=4)
+    # which band was matched is shown and recorded
+    assert added.alignment.matchedOn == "crism" and added.alignment.band is not None
+    assert added.alignment.bandLabel in workspace.overlayPanel.alignment.text()
+    saved = workspace.sessionState()["overlays"][0]["alignment"]
+    assert saved["band"] == added.alignment.band and saved["matchedOn"] == "crism"
 
 
 def test_overlays_come_back_from_a_session(workspace, images, qtbot):

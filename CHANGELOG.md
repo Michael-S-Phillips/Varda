@@ -74,6 +74,10 @@ can alter results.
   exported source map's metadata and provenance list, per class, the
   image's transform, tie points (enabled and kept), RMS in pixels and
   median phase-plane SNR.
+- **3D terrain overlays show what Auto Align matched:** the Overlays panel
+  names the image and band matched (its wavelength or name, and its SNR)
+  and the tie points' median phase-plane SNR, and the overlay's saved
+  alignment records them.
 
 ### Changed
 

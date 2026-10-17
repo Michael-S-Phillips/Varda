@@ -12,6 +12,8 @@ from varda.terrain.overlays import (
     AlignmentError,
     align,
     asRaster,
+    bandLabel,
+    bestBand,
     drape,
     hillshade,
     toProjection,
@@ -42,6 +44,7 @@ def test_auto_align_recovers_a_georeferencing_error():
     corrected = alignment.correct(np.array([[1000.0, 2000.0]]))[0]
     assert corrected == pytest.approx([1000 - 60, 2000 + 40], abs=1.0)
     assert alignment.points >= 3 and alignment.rms < 2
+    assert 0 < alignment.phaseSnr <= 1  # the median of the refined points
 
 
 def test_nothing_in_common_is_an_error_for_the_user():
@@ -100,3 +103,26 @@ def test_a_hillshade_lights_slopes_facing_the_sun():
     shade = hillshade(ramp, 1.0, azimuth=270, altitude=45)
     facing = hillshade(-ramp, 1.0, azimuth=270, altitude=45)
     assert shade.mean() > facing.mean()
+
+
+def test_the_matched_band_is_named_and_recorded():
+    rng = np.random.default_rng(0)
+    cube = np.stack(
+        [_scene() + rng.normal(scale=s, size=(400, 400)) for s in (0.5, 0.01, 0.3)],
+        axis=2,
+    )
+    image = asRaster(cube, Affine(10, 0, 0, 0, -10, 4000), MARS, "cube")
+    band, snr = bestBand(image)
+    assert band == 1 and snr > 1
+    assert bandLabel(image, band) == "band 2"
+    alignment = Alignment(
+        band=band, bandLabel="band 2", bandSnr=snr, matchedOn="cube", phaseSnr=0.9
+    )
+    restored = Alignment.fromState(alignment.state())
+    assert (restored.band, restored.bandLabel, restored.matchedOn) == (
+        1,
+        "band 2",
+        "cube",
+    )
+    assert restored.bandSnr == pytest.approx(snr) and restored.phaseSnr == 0.9
+    assert np.isnan(Alignment.fromState(Alignment().state()).bandSnr)

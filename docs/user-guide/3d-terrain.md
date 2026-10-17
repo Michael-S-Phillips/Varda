@@ -141,7 +141,10 @@ a CTX DEM say, on top of the surface:
    affine, projective, polynomial or a thin-plate spline for warped ones.
    The panel reports the tie points the fit kept and their RMS residual,
    in the DEM's map units and labeled with them (m for a DEM projected in
-   meters, ° for a geographic one).
+   meters, ° for a geographic one), the image and band matched (with the
+   band's wavelength, or its name, and its SNR) and the tie points' median
+   phase-plane SNR. All of it is saved with the overlay's alignment in the
+   session.
    **Match using** chooses the image that is matched: the overlay itself,
    or another loaded image with the same georeferencing. A parameter map
    often has little texture to match, but a scene made from the same
@@ -182,9 +185,9 @@ or analyses, not from the 3D surface.
   whether shadows were cast, the drape and its stretch or color map, any
   overlays and how they were aligned, and whether gaps were filled.
 - For an overlay: the reference it was aligned to (an image, or the DEM
-  hillshade), the matched image, the model, the tie points kept and their
-  RMS, and any manual shift. Varda matches on the band with the best SNR
-  and doesn't show which band that was.
+  hillshade), the matched image and band (both shown in the panel), the
+  model, the tie points kept, their RMS and median phase-plane SNR, and any
+  manual shift.
 
 How the surface is made, beyond the panel's settings:
 
@@ -197,7 +200,7 @@ How the surface is made, beyond the panel's settings:
 | Drape | The image's own rendering with a 2–98 % linear stretch (also for elevation colors, whose color bar shows that range), resized to at most 8192 px a side (Lanczos). |
 | Lighting defaults | Sun azimuth 315°, elevation 35°, sky light 0.35, shadows on, exaggeration 1. |
 | Overlays | Reprojected to the DEM's projection with bilinear resampling, at about their own resolution; textures at most 8192 px a side. |
-| Overlay Auto Align | Matches the overlay's highest-SNR band, reprojected as above, against band 1 of the reference (or a hillshade of the band shown, its heights converted to meters by the height unit: sun azimuth 315°, elevation 45°), with the Mosaic workspace's matching (see [Mosaicking](mosaicking.md#reporting-your-results)). The fit leaves out points more than 1 pixel (of the reprojected overlay) off. |
+| Overlay Auto Align | Matches the overlay's highest-SNR band (SNR as in [Mosaicking](mosaicking.md#what-to-state); the band and its SNR are shown and saved), reprojected as above, against band 1 of the reference (or a hillshade of the band shown, its heights converted to meters by the height unit: sun azimuth 315°, elevation 45°), with the Mosaic workspace's matching (see [Mosaicking](mosaicking.md#reporting-your-results)). The fit leaves out points more than 1 pixel (of the reprojected overlay) off. |
 | Height unit | Heights × 1 (m), 1000 (km) or 0.3048 (ft) give meters; the exaggeration multiplies the result. |
 | Smooth edges | Outline points move toward their neighbors, by at most half a grid cell. |
 | Vector files | Geographic coordinates beyond ±360° longitude or ±90° latitude are taken to be in the DEM's projection already. |
@@ -235,7 +238,9 @@ How the surface is made, beyond the panel's settings:
   overlay agrees with the reference, in the DEM's map units (as labeled).
   The overlay is only as well placed
   as the reference: report the reference's own geolocation accuracy. A
-  manual shift isn't part of the RMS.
+  manual shift isn't part of the RMS. The median phase-plane SNR (0–1; see
+  [Mosaicking](mosaicking.md#uncertainty-and-quality)) says how cleanly the
+  tiles matched; it's blank when the matching fell back to features.
 - **Draped images are for display.** The drape and overlays are stretched,
   resampled (bilinear) and, when large, downsampled. Don't read values from
   them.
