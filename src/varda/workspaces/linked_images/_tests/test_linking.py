@@ -12,6 +12,7 @@ from varda.workspaces.linked_images.linking import (
     Link,
     bitPlanes,
     highestBit,
+    linkWarnings,
     linkedPoints,
     spectrumAt,
 )
@@ -88,3 +89,29 @@ def test_a_spectrum_of_bit_masks_becomes_bits_by_band():
     )
     assert np.isnan(planes[:, 2]).all()
     assert highestBit(values) == 3 and highestBit(np.array([np.nan])) == 1
+
+
+def test_a_spectrum_says_what_its_axis_is():
+    image = _image(wavelengths=np.array([1.0, 2.0, 3.0, 4.0]), wavelengthUnits="µm")
+    spectrum = spectrumAt(image, 0.5, 0.5)
+    assert spectrum is not None and spectrum.axisUnit == "µm"
+    plain = spectrumAt(_image(), 0.5, 0.5)
+    assert plain is not None and plain.axisUnit == "band"
+
+
+def test_linking_by_map_warns_about_images_without_georeferencing():
+    mapped = _image(Affine(20, 0, 1000, 0, -20, 5000), name="mapped")
+    plain = _image(name="plain")
+    (warning,) = linkWarnings([mapped, plain], Link.MAP)
+    assert "plain" in warning and "pixel" in warning
+    assert linkWarnings([mapped, mapped], Link.MAP) == []
+
+
+def test_linking_by_pixel_warns_about_images_on_other_grids():
+    a = _image(Affine(20, 0, 1000, 0, -20, 5000), name="a")
+    same = _image(Affine(20, 0, 1000, 0, -20, 5000), name="same")
+    shifted = _image(Affine(20, 0, 1100, 0, -20, 5000), name="shifted")
+    smaller = _image(Affine(20, 0, 1000, 0, -20, 5000), shape=(10, 30, 4), name="small")
+    assert linkWarnings([a, same], Link.PIXEL) == []
+    (warning,) = linkWarnings([a, same, shifted, smaller], Link.PIXEL)
+    assert "a's grid: shifted, small (" in warning

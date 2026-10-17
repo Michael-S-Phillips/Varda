@@ -150,6 +150,7 @@ class IntParameterWidget(QWidget):
             .binding(self.valueChanged)
             .build()
         )
+        self.spinBox.setSingleStep(param.step)
         self.unitLabel = QLabel(param.units) if param.units is not None else None
         if param.range is not None:
             self.slider = (
@@ -160,6 +161,7 @@ class IntParameterWidget(QWidget):
                 .binding(self.valueChanged)
                 .build()
             )
+            self.slider.setSingleStep(param.step)
         else:
             self.slider = None
         self.setLayout(

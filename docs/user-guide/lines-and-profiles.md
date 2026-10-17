@@ -47,7 +47,12 @@ wide), SVG or PDF for a figure. The CSV's columns are `line` (its name),
 `distance_m` (or `distance_px`), `x_px` and `y_px` (the image position, with
 pixel corners at whole numbers, so a pixel's center is at .5), `map_x` and
 `map_y` (in the image's map units, for georeferenced images), and the value,
-headed with the band's name; no data is left empty.
+headed with the band's name; no data is left empty. Above the columns, lines
+starting with `#` record the Varda version, the image's name and file, its
+CRS (name, EPSG code if any, and full WKT), the distance unit and how it
+was measured, and the band with its unit when Varda knows it (results of
+Varda's analyses carry one; most files don't). Spreadsheets and pandas
+(`comment="#"`) skip or read these lines.
 
 ## Reporting your results
 
@@ -74,7 +79,7 @@ How profiles are sampled:
 | Geographic distance | The sum of geodesic distances between successive samples on the CRS's own ellipsoid or sphere (pyproj's `Geod.inv`, which uses Karney's algorithm). The path is the line as drawn on the image, straight in longitude and latitude, not a great circle. |
 | Projected distance | The sum of straight-line distances between samples in map coordinates, converted to meters with the CRS's unit. |
 | Freehand lines | Douglas–Peucker simplification, tolerance 0.75 pixels. |
-| CSV precision | Distances to 6 significant digits, map coordinates to 6 decimals, pixel positions to 3 decimals, values to 10 significant digits. |
+| CSV precision | Distances and map coordinates in full (the shortest decimal that reads back as the same 64-bit number), pixel positions to 3 decimals, values to 10 significant digits. |
 
 ### Uncertainty and quality
 
@@ -93,8 +98,9 @@ How profiles are sampled:
   pyproj, say) or profile a copy of the image in longitude and latitude.
 - **Distances are only as good as the georeferencing.** See
   [Reporting results from Varda](reporting-results.md#precision-is-not-accuracy).
-- **The CSV doesn't say which image or CRS it came from.** Note them, and
-  the image's units, alongside the file.
+- **The CSV's header records the image and CRS** but not, for most
+  images, the values' unit: note it alongside the file when the header
+  says it isn't recorded.
 - **The vertical exaggeration** shown under the plot is the plot's aspect
   ratio, right only when values are in meters. It's for figure captions,
   not a measurement.

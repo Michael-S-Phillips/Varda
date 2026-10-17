@@ -236,15 +236,22 @@ class PurityPage(QWidget):
         self.threshold.setSingleStep(0.5)
         self.threshold.setValue(DEFAULT_PPI_THRESHOLD)
         self.threshold.setToolTip("In MNF units (noise sigmas); 2-3 is typical")
+        self.seed = QSpinBox()
+        self.seed.setRange(0, 2**31 - 1)
+        self.seed.setToolTip(
+            "Picks the random skewers: the same seed and total iterations give "
+            "the same counts"
+        )
         self.runButton = _primary("Run PPI")
-        self.runButton.clicked.connect(
-            lambda: run(self.iterations.value(), self.threshold.value(), False)
-        )
+        self.runButton.clicked.connect(lambda: self._run(run, False))
         self.moreButton = QPushButton("Run More")
-        self.moreButton.setToolTip("Add more iterations to the current counts")
-        self.moreButton.clicked.connect(
-            lambda: run(self.iterations.value(), self.threshold.value(), True)
+        self.moreButton.setToolTip(
+            "Add more iterations of the same seed to the current counts (only "
+            "while the threshold, seed and MNF components are unchanged)"
         )
+        self.moreButton.clicked.connect(lambda: self._run(run, True))
+        self.threshold.valueChanged.connect(self.refresh)
+        self.seed.valueChanged.connect(self.refresh)
         self.minCount = QSpinBox()
         self.minCount.setRange(1, 1_000_000)
         self.minCount.setValue(model.minCount)
@@ -261,6 +268,7 @@ class PurityPage(QWidget):
         form = QFormLayout()
         form.addRow("Iterations", self.iterations)
         form.addRow("Threshold", self.threshold)
+        form.addRow("Seed", self.seed)
         buttons = QHBoxLayout()
         buttons.addWidget(self.runButton)
         buttons.addWidget(self.moreButton)
@@ -289,15 +297,22 @@ class PurityPage(QWidget):
             )
         self.refresh()
 
+    def _run(self, run, resume: bool) -> None:
+        run(self.iterations.value(), self.threshold.value(), self.seed.value(), resume)
+
     def refresh(self) -> None:
-        self.moreButton.setEnabled(self.model.ppi is not None)
-        if self.model.ppi is None:
+        ppi = self.model.ppi
+        self.moreButton.setEnabled(
+            self.model.canRunMore(self.threshold.value(), self.seed.value())
+        )
+        if ppi is None:
             return
-        counts = self.model.ppi.counts
         candidates = self.model.candidatePixels().size
+        seed = "unknown seed" if ppi.seed is None else f"seed {ppi.seed}"
         self.summary.setText(
-            f"{self.model.ppiIterations:,} iterations: {int((counts > 0).sum()):,} pixels "
-            f"were ever extreme; {candidates:,} go to the n-D view."
+            f"{ppi.iterations:,} iterations ({seed}, threshold {ppi.threshold:g}): "
+            f"{int((ppi.counts > 0).sum()):,} pixels were ever extreme; "
+            f"{candidates:,} go to the n-D view."
         )
 
 

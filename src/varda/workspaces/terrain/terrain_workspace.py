@@ -83,8 +83,10 @@ from varda.terrain.scene import (
     TerrainSettings,
     buildTerrain,
     groundSize,
+    mapUnit,
     pageHtml,
     pngDataUrl,
+    verticalUnit,
 )
 from varda.utilities.background import runInBackground
 from varda.workspaces.raster_overlay import COLOR_MAPS, colorMap
@@ -96,6 +98,7 @@ from varda.workspaces.terrain.terrain_view import TerrainView
 PLAIN, ELEVATION = "None (shaded relief)", "Elevation colors"
 DETAIL = {"Low": 512, "Medium": 1024, "High": 2048}
 BACKGROUNDS = {"Dark": "#101418", "Black": "#000000", "White": "#ffffff"}
+HEIGHT_UNIT_NAMES = {"Meters": "m", "Kilometers": "km", "Feet": "ft"}
 EDGES = {
     "Smooth": "smooth",
     "Stepped": "stepped",
@@ -308,16 +311,23 @@ class PrintDialog(QDialog):
     will come out."""
 
     def __init__(
-        self, terrain: Terrain, exaggeration: float, parent: QWidget | None = None
+        self,
+        terrain: Terrain,
+        exaggeration: float,
+        metersPerHeightUnit: float = 1.0,
+        parent: QWidget | None = None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Export for 3D Printing")
         self.terrain = terrain
+        self.metersPerHeightUnit = metersPerHeightUnit
         self.widthBox = QDoubleSpinBox()
         self.widthBox.setRange(10, 2000)
         self.widthBox.setValue(150)
         self.widthBox.setSuffix(" mm")
-        self.widthBox.setToolTip("Across, west to east")
+        self.widthBox.setToolTip(
+            "Across, west to east (between the outermost grid points)"
+        )
         self.exaggerationBox = QDoubleSpinBox()
         self.exaggerationBox.setRange(0.1, 100)
         self.exaggerationBox.setSingleStep(0.5)
@@ -355,12 +365,13 @@ class PrintDialog(QDialog):
     def printedSize(self) -> tuple[float, float, float]:
         """(width, depth, height) in mm."""
         width = self.widthBox.value()
-        mmPerM = width / self.terrain.widthM
+        columns, rows = self.terrain.columns, self.terrain.rows
+        span = float(np.ptp(columns)) or 1.0
+        mmPerM = width / (self.terrain.widthM * span)
         low, high = self.terrain.zRange
-        height = (
-            high - low
-        ) * mmPerM * self.exaggerationBox.value() + self.baseBox.value()
-        return width, self.terrain.heightM * mmPerM, height
+        height = (high - low) * self.metersPerHeightUnit * mmPerM
+        height = height * self.exaggerationBox.value() + self.baseBox.value()
+        return width, self.terrain.heightM * float(np.ptp(rows)) * mmPerM, height
 
     def _showSize(self) -> None:
         width, depth, height = self.printedSize()
@@ -475,6 +486,14 @@ class TerrainWorkspace(QMainWindow):
         self.exaggeration.setRange(0.1, 50)
         self.exaggeration.setSingleStep(0.5)
         self.exaggeration.setSuffix(" ×")
+        self.heightUnit = QComboBox()
+        self.heightUnit.addItems(list(HEIGHT_UNIT_NAMES))
+        self.heightUnit.setToolTip(
+            "The unit of the DEM's heights, converted to meters (the ground's "
+            "unit) for the view, the exaggeration and 3D printing; set from the "
+            "DEM's vertical CRS when it declares one, otherwise meters"
+        )
+        self.heightUnit.currentIndexChanged.connect(lambda _: self._onSettings())
         self.sunAzimuth = QSpinBox()
         self.sunAzimuth.setRange(0, 359)
         self.sunAzimuth.setWrapping(True)
@@ -559,6 +578,7 @@ class TerrainWorkspace(QMainWindow):
         form.addRow("", self.fillGaps)
         form.addRow("Edges:", self.edges)
         form.addRow("Exaggeration:", self.exaggeration)
+        form.addRow("Height unit:", self.heightUnit)
         form.addRow("Sun azimuth:", self.sunAzimuth)
         form.addRow("Sun elevation:", self.sunElevation)
         form.addRow("", self.shadows)
@@ -684,6 +704,8 @@ class TerrainWorkspace(QMainWindow):
         demWkt, overlayWkt = wktOf(dem), wktOf(image)
         width, _ = groundSize(dem)
         pixelMeters = width / dem.width
+        demBand = int(self.bandBox.currentData() or 0)
+        metersPerHeightUnit = self.settings.metersPerHeightUnit
         demTransform, overlayTransform = dem.transform, image.transform
         model = overlay.alignment.model
         self.overlayPanel.showAlignment(
@@ -694,12 +716,12 @@ class TerrainWorkspace(QMainWindow):
         def work() -> Alignment:
             crs = RasterioCRS.from_wkt(demWkt)
             if reference is None:  # a hillshade of the DEM
-                heights = bandArray(dem, 0)
+                heights = bandArray(dem, demBand) * metersPerHeightUnit
                 referenceData = hillshade(heights, pixelMeters)
             else:
                 referenceData = bandArray(reference, 0)
             fixed = asRaster(referenceData[..., None], demTransform, crs, "reference")
-            band = bandArray(image, bestBand(image))
+            band = bandArray(image, bestBand(image))  # the overlay's
             moved, movedTransform = toProjection(
                 band[..., None], overlayTransform, overlayWkt, demWkt
             )
@@ -764,6 +786,12 @@ class TerrainWorkspace(QMainWindow):
                 )
         self.form.setRowVisible(self.bandBox, dem is not None and dem.bandCount > 1)
         self.bandBox.blockSignals(False)
+        crs = CRS.from_user_input(dem.crs) if dem is not None and dem.crs else None
+        self.overlayPanel.setMapUnit(mapUnit(crs) if crs is not None else "px")
+        if not self._restoring:  # the DEM's own vertical unit, or meters
+            unit = (verticalUnit(crs) if crs is not None else None) or "m"
+            self.settings = attrs.evolve(self.settings, heightUnit=unit)
+            self._showSettings()
         self._refreshDrapes()
         self._rereadLines()
         self.rebuild()
@@ -803,6 +831,7 @@ class TerrainWorkspace(QMainWindow):
     def _showSettings(self) -> None:
         widgets = (
             self.exaggeration,
+            self.heightUnit,
             self.sunAzimuth,
             self.sunElevation,
             self.shadows,
@@ -830,6 +859,17 @@ class TerrainWorkspace(QMainWindow):
         for row in (self.baseDepth, self.sideColor):
             self.form.setRowVisible(row, self.settings.sides)
         self.exaggeration.setValue(self.settings.exaggeration)
+        self.heightUnit.setCurrentText(
+            next(
+                (
+                    n
+                    for n, u in HEIGHT_UNIT_NAMES.items()
+                    if u == self.settings.heightUnit
+                ),
+                "Meters",
+            )
+        )
+        self.baseDepth.setSuffix(f" {self.settings.heightUnit}")
         self.sunAzimuth.setValue(int(self.settings.sunAzimuth) % 360)
         self.sunElevation.setValue(int(self.settings.sunElevation))
         self.shadows.setChecked(self.settings.shadows)
@@ -870,9 +910,11 @@ class TerrainWorkspace(QMainWindow):
 
     def _onSettings(self) -> None:
         trimmed = self.settings.edges == "rectangle"
+        unit = self.settings.heightUnit
         self.settings = attrs.evolve(
             self.settings,
             exaggeration=self.exaggeration.value(),
+            heightUnit=HEIGHT_UNIT_NAMES[self.heightUnit.currentText()],
             sunAzimuth=self.sunAzimuth.value(),
             sunElevation=self.sunElevation.value(),
             shadows=self.shadows.isChecked(),
@@ -888,8 +930,11 @@ class TerrainWorkspace(QMainWindow):
         )
         for row in (self.baseDepth, self.sideColor):
             self.form.setRowVisible(row, self.settings.sides)
+        self.baseDepth.setSuffix(f" {self.settings.heightUnit}")
         if (self.settings.edges == "rectangle") != trimmed:
             self.rebuild()  # trimming changes the surface itself
+        elif self.settings.heightUnit != unit:
+            self.rebuild()  # the color bar's label
         else:
             self.view.setSettings(self.settings.toDict())
 
@@ -915,7 +960,11 @@ class TerrainWorkspace(QMainWindow):
         rgba, self._legend = None, None
         try:  # rendering the drape uses Qt-side objects: here, on the GUI thread
             if drape == ELEVATION:
-                rgba, self._legend = renderDrape(dem, self.colorMapBox.currentText())
+                rgba, legend = renderDrape(dem, self.colorMapBox.currentText())
+                if legend is not None:
+                    unit = self.settings.heightUnit
+                    legend = attrs.evolve(legend, label=f"Elevation ({unit})")
+                self._legend = legend
             elif drape != PLAIN:
                 rgba = drapeRgba(drape)
         except Exception as error:  # a broken image shouldn't break the workspace
@@ -1011,7 +1060,8 @@ class TerrainWorkspace(QMainWindow):
         rows, cols = self.terrain.heights.shape
         self.status.setText(
             f"{self.terrain.widthM / 1000:.3g} × {self.terrain.heightM / 1000:.3g} km, "
-            f"heights {low:.0f} to {high:.0f}; a {cols} × {rows} grid"
+            f"heights {low:.6g} to {high:.6g} {self.settings.heightUnit}; "
+            f"a {cols} × {rows} grid"
             + (f" (every {self.terrain.step} pixels)" if self.terrain.step > 1 else "")
             + (
                 f"; {self.terrain.filled:,} points of gaps filled"
@@ -1400,7 +1450,12 @@ class TerrainWorkspace(QMainWindow):
         dem = self.dem()
         if dem is None or self.terrain is None:
             return
-        dialog = PrintDialog(self.terrain, self.settings.exaggeration, self)
+        dialog = PrintDialog(
+            self.terrain,
+            self.settings.exaggeration,
+            self.settings.metersPerHeightUnit,
+            self,
+        )
         if not dialog.exec():
             return
         path, _ = QFileDialog.getSaveFileName(
@@ -1420,6 +1475,7 @@ class TerrainWorkspace(QMainWindow):
         size = groundSize(dem)  # here: pyproj objects aren't thread-safe
         fill = self.fillGaps.isChecked()
         edges = self.settings.edges
+        metersPerHeightUnit = self.settings.metersPerHeightUnit
         self.status.setText("Building the solid…")
 
         def work() -> int:
@@ -1432,6 +1488,9 @@ class TerrainWorkspace(QMainWindow):
                 exaggeration,
                 baseMm,
                 smooth=edges != "stepped",
+                columns=terrain.columns,
+                rows=terrain.rows,
+                metersPerHeightUnit=metersPerHeightUnit,
             )
             with open(path, "wb") as f:
                 f.write(stlBytes(mesh))

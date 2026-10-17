@@ -33,6 +33,14 @@ class Solid:
         return self.vertices[self.triangles]
 
 
+def blockCenters(pixels: int, step: int) -> np.ndarray:
+    """Where the points of a grid averaged from ``step`` × ``step`` blocks of
+    a side ``pixels`` long stand: each block's center, as a fraction of the
+    side (the last block may be partial)."""
+    starts = np.arange(0, pixels, step)
+    return (starts + np.minimum(starts + step, pixels)) / (2.0 * pixels)
+
+
 def solid(
     heights: np.ndarray,
     width: float,
@@ -41,20 +49,30 @@ def solid(
     base: float = 0.0,
     floor: float | None = None,
     smooth: bool = False,
+    columns: np.ndarray | None = None,
+    rows: np.ndarray | None = None,
 ) -> Solid:
     """``heights`` (rows, cols; NaN for no data, north row first) as a solid
-    ``width`` × ``height`` across (x east, y north, centered on 0). Heights
-    are multiplied by ``zScale`` about the lowest one, which sits ``base``
-    above the floor (z = 0 unless ``floor`` is given, in height units);
-    ``smooth`` cuts the edges diagonally."""
+    over an extent ``width`` × ``height`` (x east, y north, centered on 0).
+    ``columns`` and ``rows`` place the points, as fractions of the extent
+    from its west and north edges (``blockCenters``); without them the points
+    span the extent edge to edge. Heights are multiplied by ``zScale`` about
+    the lowest one, which sits ``base`` above the floor (z = 0 unless
+    ``floor`` is given, in height units); ``smooth`` cuts the edges
+    diagonally."""
     heights = np.asarray(heights, float)
-    rows, cols = heights.shape
+    rowCount, cols = heights.shape
     finite = np.isfinite(heights)
     low = float(np.nanmin(heights)) if finite.any() else 0.0
     z = np.where(finite, (heights - low) * zScale + base, 0.0)
     zeroAt = 0.0 if floor is None else (floor - low) * zScale + base
-    x = (np.arange(cols) / max(cols - 1, 1) - 0.5) * width
-    y = (0.5 - np.arange(rows) / max(rows - 1, 1)) * height
+    if columns is None:
+        columns = np.arange(cols) / max(cols - 1, 1)
+    if rows is None:
+        rows = np.arange(rowCount) / max(rowCount - 1, 1)
+    columns, rows = np.asarray(columns, float), np.asarray(rows, float)
+    x = (columns - 0.5) * width
+    y = (0.5 - rows) * height
     gx, gy = np.meshgrid(x, y)
     surface = np.column_stack([gx.ravel(), gy.ravel(), z.ravel()])
     top = topTriangles(finite, smooth)
@@ -64,10 +82,13 @@ def solid(
     # walls down from every edge of the top that no other top triangle shares
     p, q = boundaryEdges(top, count)
     if smooth:
-        point = np.concatenate([np.arange(rows * cols), copies])  # on the grid
+        point = np.concatenate([np.arange(rowCount * cols), copies])  # on the grid
         r, c = point // cols, point % cols
-        border = (r == 0) | (c == 0) | (r == rows - 1) | (c == cols - 1)
-        cell = (width / max(cols - 1, 1), height / max(rows - 1, 1))
+        border = (r == 0) | (c == 0) | (r == rowCount - 1) | (c == cols - 1)
+        cell = (
+            width * (columns[1] - columns[0] if cols > 1 else 1.0),
+            height * (rows[1] - rows[0] if rowCount > 1 else 1.0),
+        )
         surface[:, :2] = relaxOutline(surface[:, :2], p, q, border, cell)
     floorPoints = surface.copy()
     floorPoints[:, 2] = zeroAt
@@ -218,16 +239,24 @@ def printSolid(
     exaggeration: float = 1.0,
     baseMm: float = 3.0,
     smooth: bool = False,
+    columns: np.ndarray | None = None,
+    rows: np.ndarray | None = None,
+    metersPerHeightUnit: float = 1.0,
 ) -> Solid:
-    """A solid for printing, in millimeters: ``printWidthMm`` across, heights
-    at the same scale times ``exaggeration``, standing on a ``baseMm`` plinth
-    below the lowest point."""
-    mmPerM = printWidthMm / widthM
+    """A solid for printing, in millimeters: ``printWidthMm`` across (from
+    the westernmost to the easternmost point), heights (in units of
+    ``metersPerHeightUnit`` meters) at the same scale times
+    ``exaggeration``, standing on a ``baseMm`` plinth below the lowest
+    point. ``columns`` and ``rows`` place the points as in ``solid``."""
+    span = 1.0 if columns is None else float(np.ptp(columns)) or 1.0
+    mmPerM = printWidthMm / (widthM * span)
     return solid(
         heights,
-        printWidthMm,
+        widthM * mmPerM,
         heightM * mmPerM,
-        zScale=mmPerM * exaggeration,
+        zScale=mmPerM * metersPerHeightUnit * exaggeration,
         base=baseMm,
         smooth=smooth,
+        columns=columns,
+        rows=rows,
     )

@@ -64,7 +64,7 @@ def test_csv_has_every_sample_with_its_map_position(plot, tmp_path):
     plot.setLines(_line([[0.5, 15], [10.5, 15]]))
     plot.exportTo(tmp_path / "profile.csv")
     with open(tmp_path / "profile.csv") as f:
-        rows = list(csv.reader(f))
+        rows = list(csv.reader(line for line in f if not line.startswith("#")))
     assert rows[0] == [
         "line",
         "distance_m",
@@ -78,6 +78,26 @@ def test_csv_has_every_sample_with_its_map_position(plot, tmp_path):
     assert float(rows[-1][1]) == pytest.approx(200) and float(
         rows[-1][-1]
     ) == pytest.approx(20)
+
+
+def test_csv_says_where_its_numbers_come_from(qtbot, tmp_path):
+    # far enough that 6 significant figures would round the distance
+    widget = ProfilePlotWidget(_dem(pixel=20000.0))
+    qtbot.addWidget(widget)
+    widget.setLines(_line([[0.5, 15], [50.5 + 1e-4, 15]]))
+    widget.exportTo(tmp_path / "profile.csv")
+    text = (tmp_path / "profile.csv").read_text()
+    comments = [line for line in text.splitlines() if line.startswith("#")]
+    header = "\n".join(comments)
+    assert "Varda" in header and "image: dem" in header
+    assert "CRS:" in header and "CRS WKT:" in header
+    assert "Equidistant Cylindrical" in header
+    assert "distance unit: m" in header and "Elevation" in header
+    rows = list(csv.reader(line for line in text.splitlines() if line[:1] != "#"))
+    assert rows[0][1] == "distance_m"
+    last = float(rows[-1][1])
+    assert last == pytest.approx(1_000_002.0, abs=0.01)  # not 1.00000e+06
+    assert last != round(last, -1)
 
 
 def test_an_image_export_writes_a_png(plot, tmp_path):

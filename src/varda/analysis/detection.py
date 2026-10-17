@@ -22,7 +22,7 @@ from scipy.ndimage import uniform_filter
 from varda.analysis import _spy
 from varda.analysis.analysis import ProgressCallback
 from varda.analysis.classification import _requireRois, _RoiTrainingAnalysis
-from varda.analysis.rasters import readCube, singleBandRaster
+from varda.analysis.rasters import readGoodBands, singleBandRaster
 from varda.analysis.analysis import Analysis
 from varda.common.entities import VardaRaster
 from varda.common.parameter import IntParameter, MultiChoiceParameter
@@ -30,6 +30,7 @@ from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
 CATEGORY = "Target Detection"
 BLOCK_PIXELS = 65_536
+MAX_OUTER_WINDOW = 101
 
 
 def _inBlocks(
@@ -71,7 +72,7 @@ class RxAnalysis(Analysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
-        cube, valid = readCube(image)
+        cube, valid, _ = readGoodBands(image)
         X = cube[valid]
         reportProgress(15, "background statistics")
         detector = _spy.RX(background=_spy.backgroundStats(X))
@@ -95,21 +96,36 @@ class LocalRxAnalysis(Analysis):
         "finds small targets that differ from their neighborhood."
     )
 
+    # Odd sizes only (step 2), and the outer window at least two pixels wider
+    # than the inner one: the values recorded are the values used.
     innerWindow = IntParameter(
-        "Inner Window", 3, range=(1, 31), description="Guard window (pixels, odd)"
+        "Inner Window",
+        3,
+        range=(1, 31),
+        description="Guard window (pixels, odd)",
+        step=2,
     )
     outerWindow = IntParameter(
         "Outer Window",
         15,
-        range=(3, 101),
-        description="Background window (pixels, odd)",
+        range=(3, MAX_OUTER_WINDOW),
+        description="Background window (pixels, odd, at least inner + 2)",
+        step=2,
     )
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.innerWindow.sigParameterChanged.connect(self._nestWindows)
+        self._nestWindows(self.innerWindow.get())
+
+    def _nestWindows(self, inner: int) -> None:
+        self.outerWindow.setRange((int(inner) + 2, MAX_OUTER_WINDOW))
+
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
-        inner = int(self.innerWindow.value) | 1
-        outer = max(int(self.outerWindow.value) | 1, inner + 2)
+        inner = int(self.innerWindow.value)
+        outer = int(self.outerWindow.value)
         reportProgress(0, "reading image")
-        cube, valid = readCube(image)
+        cube, valid, _ = readGoodBands(image)
         filled = np.where(valid[:, :, None], cube, np.nanmean(cube[valid], axis=0))
         reportProgress(20, "local background")
         sumOuter = (
@@ -160,7 +176,7 @@ class _TargetDetection(_RoiTrainingAnalysis):
         if not names:
             raise ValueError("Tick at least one target ROI class.")
         reportProgress(0, "reading image")
-        cube, valid = readCube(image)
+        cube, valid, _ = readGoodBands(image)
         X = cube[valid]
         stats = _spy.backgroundStats(X)
         bands = []
@@ -199,7 +215,15 @@ class AceAnalysis(_TargetDetection):
     rois = _targetParameter()
 
     def _detector(self, target, stats):
-        return _spy.ACE(target, background=stats)
+        ace = _spy.ACE(target, background=stats)
+
+        def score(X: np.ndarray) -> np.ndarray:
+            # A pixel at the background mean has no direction (0/0): it is
+            # nothing like the target, so it scores 0.
+            with np.errstate(invalid="ignore"):
+                return np.nan_to_num(np.asarray(ace(X)), nan=0.0)
+
+        return score
 
 
 class MatchedFilterAnalysis(_TargetDetection):

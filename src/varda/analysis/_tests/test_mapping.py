@@ -111,3 +111,28 @@ def test_ppi_analysis_counts_extreme_pixels():
     ppi = result.getData()[:, :, 0]
     assert result.bandNames == ["PPI"]
     assert np.isnan(ppi[0, 0]) and np.nanmax(ppi) > 0
+
+
+def _ppi(image, seed=None):
+    analysis = PixelPurityAnalysis()
+    analysis.prepareFor(image)
+    analysis.components.set(3)
+    analysis.iterations.set(500)
+    analysis.threshold.set(0.01)
+    if seed is not None:
+        analysis.seed.set(seed)
+    return analysis.run(image, lambda p, m: None)
+
+
+def test_ppi_analysis_is_reproducible_from_its_seed():
+    image, _ = _scene()
+    assert PixelPurityAnalysis().seed.value == 0
+    first = _ppi(image).getData()
+    np.testing.assert_array_equal(_ppi(image).getData(), first)
+    assert not np.array_equal(_ppi(image, seed=7).getData(), first, equal_nan=True)
+
+
+def test_ppi_analysis_describes_its_seed_and_iterations():
+    image, _ = _scene()
+    description = _ppi(image, seed=7).dataSource.description
+    assert "500 iterations" in description and "seed 7" in description

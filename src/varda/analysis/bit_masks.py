@@ -75,7 +75,10 @@ class DecodeBitMaskAnalysis(Analysis):
         raw = np.asarray(image.getData())
         nodata = image.bandModel.noData
         missing = raw == nodata if nodata is not None else np.zeros(raw.shape, bool)
-        mask = raw.astype(np.uint64)
+        # Signed values are the same bits read as unsigned of the same width
+        # (int16 -1 is 16 bits set), not sign-extended to 64 bits
+        native = raw.astype(raw.dtype.newbyteorder("="), copy=False)
+        mask = native.view(f"u{raw.dtype.itemsize}").astype(np.uint64)
         width = raw.dtype.itemsize * 8
         choice = self.output.get()
         reportProgress(40, "decoding bits")

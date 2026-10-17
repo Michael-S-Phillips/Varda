@@ -13,10 +13,13 @@ re-running" when you change an earlier choice:
    the components in the scene overlay to see where they turn to noise.
 3. **Pixel Purity** — PPI counts how often each pixel is extreme in random
    projections; the top pixels with at least **Min. PPI count** (2,000 pixels
-   with a count of 1 or more, by default) go to the n-D view. **Run More**
-   adds iterations to the current counts; use **Run PPI** instead if you have
-   changed the threshold or the number of components (see
-   [below](#reporting-your-results)).
+   with a count of 1 or more, by default) go to the n-D view. **Seed**
+   (default 0) picks the random projections: the same seed and total
+   iterations give the same counts. **Run More** adds the next iterations of
+   the same seed to the current counts, so 10,000 iterations and then 10,000
+   more equal one run of 20,000. It's available only while the threshold,
+   seed and number of components are those of the current counts; after a
+   change, use **Run PPI** (see [below](#reporting-your-results)).
 4. **Endmembers** — in the **n-D Visualizer**, press Play to tour the
    candidates through the kept MNF dimensions. Drag a lasso around a corner
    of the cloud to add it to the active endmember (Shift-drag removes);
@@ -95,9 +98,12 @@ covers them too; where they differ, it says so.
   band count and usable pixel count are on the Prepare page.
 - **MNF:** the number of components kept, and that the noise was estimated
   from horizontal neighbor differences (below).
-- **PPI:** the threshold, the **total** iterations (the Pixel Purity page
-  shows them, e.g. "20,000 iterations: …", after any **Run More**), and the
-  candidate rule (**Min. PPI count**, **Max. pixels in n-D view**).
+- **PPI:** the threshold, the seed, the **total** iterations (the Pixel
+  Purity page shows them, e.g. "20,000 iterations (seed 0, threshold 2.5):
+  …", after any **Run More**), and the candidate rule (**Min. PPI count**,
+  **Max. pixels in n-D view**). The seed and total iterations, with the same
+  prepared data, MNF components and threshold, reproduce the counts exactly
+  (in this version of Varda).
 - **Endmembers:** how you chose them (lasso in the n-D view, **Suggest**,
   drawn on the image), and each class's pixel count (the **Pixels**
   column). Each endmember spectrum is the mean of its pixels in the
@@ -113,15 +119,19 @@ Hourglass results (the MNF, PPI and map images, and MTMF detections) carry
 a full provenance record (see [Reporting results from
 Varda](reporting-results.md)): the wavelength window and the bands kept,
 IOVF on or off and its settings, the MNF noise estimate and the components
-computed and kept, the PPI iterations, threshold and candidate rule (and
-its seed, empty when the run had none), every endmember's name, identification and
-pixels, and the map method and its setting; MTMF detections add their
+computed and kept, the PPI iterations, threshold, seed and candidate rule,
+every endmember's name, identification and pixels, and the map method and
+its setting; MTMF detections add their
 thresholds and the map they came from. Exported files keep it. Also:
 
 - **Save Workflow…** writes a JSON file with the image's name and path, the
-  wavelength window, IOVF on or off, the kept components, the PPI settings,
-  counts and total iterations, the endmember classes with their pixels, and
-  the excluded library spectra. It doesn't keep the library chosen, the
+  wavelength window, IOVF on or off, the kept components, the Pixel Purity
+  page's settings (`ppi`: iterations per run, threshold, seed, candidate
+  rule), the counts with the settings that made them (`ppiCounts`: total
+  iterations, threshold, seed, components), the endmember classes with
+  their pixels, and the excluded library spectra. Workflows saved before
+  Varda recorded the seed load with an unknown seed, and **Run More** is
+  off for their counts. It doesn't keep the library chosen, the
   **Only** window or the map settings.
 - **Save…** (endmember table) keeps each class's name, color,
   identification and pixel list. Pixels are 0-based flat indices (row ×
@@ -142,10 +152,10 @@ Settings that aren't in the workspace:
 | Step | Setting |
 | --- | --- |
 | Prepare | Bands marked bad in the header are dropped; a pixel's no-data bands are filled by linear interpolation along its spectrum, and pixels missing more than half their good bands are left out |
-| IOVF | Window 7 rows × 5 columns × 5 bands; reference spectrum a 19-band running median, then a Savitzky–Golay smooth (9 bands, cubic); two-sided Grubbs test at α = 0.125 (0.05 for edge windows under 45 voxels); a voxel is replaced with 5 or more votes; stops when a round replaces under 1% of the first round's voxels, or after 200 rounds |
+| IOVF | Window 7 rows × 5 columns × 5 bands; reference spectrum a 19-band running median, then a Savitzky–Golay smooth (9 bands, cubic); two-sided Grubbs test at α = 0.125 (0.05 for edge windows under 45 voxels); a voxel is replaced with 5 or more votes, by the Gaussian-weighted mean of its unflagged, valid neighbors (weights renormalized over them; the reference value when none is left); stops when a round replaces under 1% of the first round's voxels, or after 200 rounds |
 | MNF | Noise covariance from differences between each pixel and the next one in its row, divided by √2 (Green et al. 1988); every component is computed |
 | Suggested components | Those with an MNF eigenvalue above 2 (eigenvalues are about SNR + 1), but no more than the elbow of the eigenvalue curve (the point of the log curve farthest from the line joining its ends); at least 1 |
-| PPI | Skewers are random unit vectors (normalized Gaussian draws); a pixel scores once per skewer if its projection is within the threshold of either end. The seed is random and not recorded |
+| PPI | Skewers are random unit vectors (normalized Gaussian draws) from numpy's PCG64 generator, drawn in blocks of 1,024 (block *b* seeded from the seed and *b*), so skewer *i* depends only on the seed, *i* and the number of components; a pixel scores once per skewer if its projection is within the threshold of either end |
 | Suggest | Corners found by successive projection (ATGP-style, after Ren & Chang 2003), starting from the candidate farthest from the centroid; each candidate joins its nearest corner if within 0.2 × the shortest corner-to-corner distance, others stay unassigned |
 | Identify | Library resampled to the image's bands with a Gaussian band response when the header gives FWHM, otherwise linearly interpolated at band centers; library spectra overlapping fewer than 5 bands are skipped |
 | Unmixing (fully constrained) | Exact for up to 10 endmembers (every subset of endmembers is solved); above 10, ADMM with simplex projection (Duchi et al. 2008), up to 2,000 iterations, stopping when abundances change by less than 10⁻⁶ |
@@ -154,32 +164,34 @@ Settings that aren't in the workspace:
 
 **The Processing menu versions** differ as follows:
 
-- They read every band. Bad bands are filled by interpolation and kept,
-  not dropped, and there's no wavelength window or IOVF unless you ran
-  them first.
+- They read every good band: bands marked bad in the header are left out,
+  as here. There's no wavelength window or IOVF unless you ran them first.
 - Each endmember is a ROI class's mean over the union of its ROIs.
 - **Pixel Purity Index (PPI)** runs on the leading **Bands Used** (default
-  10) of any image. Its **Threshold** (default 2.5) is in that image's data
-  units: noise sigmas only for an MNF result.
-- **MTMF** computes its own MNF from all bands with the horizontal noise
+  10) good bands of any image, with **Iterations** (default 10,000, 100 to
+  1,000,000) and **Seed** (default 0, as in the workspace). Its **Threshold**
+  (default 2.5) is in that image's data units: noise sigmas only for an MNF
+  result.
+- **MTMF** computes its own MNF from all good bands with the horizontal noise
   estimate (not selectable), keeping **MNF Components** (default 10).
 - Their results do carry the full Processing record (settings, input,
   Varda version).
 
 ### Uncertainty and quality
 
-- **PPI is random and not reproducible.** Its seed isn't set or recorded,
-  so a second run gives different counts and can change which pixels
-  become candidates. A count is a sampled frequency: for a pixel that is
-  extreme with probability *p*, a count from *N* skewers has a standard
-  deviation of √(*N p* (1 − *p*)). Report the total iterations and keep
-  the pixel lists (endmember **Save…** or **Save Workflow…**); they, not
-  the counts, are what later steps used. To check stability, start over
-  from Pixel Purity, run again, and compare the candidates.
-- **Run More adds to the existing counts as they are.** If you changed the
-  threshold or the kept components in between, the counts mix two
-  settings, and only the last threshold is recorded. Use **Run PPI** after
-  any change.
+- **PPI is random, but reproducible from its seed.** The same seed, total
+  iterations, threshold and MNF components on the same prepared data give
+  the same counts; a different seed gives different counts and can change
+  which pixels become candidates. A count is a sampled frequency: for a
+  pixel that is extreme with probability *p*, a count from *N* skewers has
+  a standard deviation of √(*N p* (1 − *p*)). Report the seed and total
+  iterations, and keep the pixel lists (endmember **Save…** or **Save
+  Workflow…**); they, not the counts, are what later steps used. To check
+  stability, run again with another seed and compare the candidates.
+- **Run More continues the same run.** It adds the next skewers of the same
+  seed, so the counts always come from one threshold, one seed and one set
+  of components. Changing any of them turns **Run More** off until you
+  **Run PPI** again.
 - **The MNF eigenvalues** are about SNR + 1 under the noise estimate, so 1
   is pure noise. The horizontal estimate assumes the scene is smooth from
   one pixel to the next and the noise isn't correlated between neighbors;

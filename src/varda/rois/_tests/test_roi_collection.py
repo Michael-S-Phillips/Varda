@@ -382,7 +382,14 @@ class TestSpectralStatistics:
         fid = collection.addROI(poly, "roi", RED, ROIMode.RECTANGLE)
         image = _make_fake_image_with_data(20, 20, 3, fill_value=5.0)
         stats = collection.getROIStatistics(fid, image)
-        assert set(stats.keys()) == {"mean", "std", "min", "max", "pixel_count"}
+        assert set(stats.keys()) == {
+            "mean",
+            "std",
+            "min",
+            "max",
+            "pixel_count",
+            "valid_count",
+        }
         assert stats["pixel_count"] > 0
         np.testing.assert_array_almost_equal(stats["min"], [5.0, 5.0, 5.0])
         np.testing.assert_array_almost_equal(stats["max"], [5.0, 5.0, 5.0])

@@ -16,7 +16,7 @@ from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
 from varda.common.parameter import FloatParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
-from PyQt6.QtCore import QRectF
+from PyQt6.QtCore import QDate, QRectF
 
 from varda.workspaces.find_data.find_data_workspace import AREA_BOX, FindDataWorkspace
 from varda.workspaces.find_data.map_view import ADD, REMOVE, REPLACE
@@ -115,6 +115,17 @@ def test_the_filters_and_dates_reach_the_catalog(workspace, qtbot):
     assert query.bbox == pytest.approx((77.5, 18.0, 78.5, 19.0))
     assert query.start is not None and query.end is None
     assert [p.id for p in workspace.results.products] == ["obs_b"]
+
+
+def test_the_to_date_includes_the_whole_day(workspace, qtbot):
+    workspace.fromCheck.setChecked(True)
+    workspace.fromDate.setDate(QDate(2010, 1, 5))
+    workspace.toCheck.setChecked(True)
+    workspace.toDate.setDate(QDate(2010, 1, 5))
+    query = workspace.query()
+    assert query is not None
+    assert query.start == datetime(2010, 1, 5, tzinfo=timezone.utc)
+    assert query.end == datetime(2010, 1, 5, 23, 59, 59, 999999, tzinfo=timezone.utc)
 
 
 def test_clicking_a_footprint_selects_it_and_shows_it(workspace, qtbot):

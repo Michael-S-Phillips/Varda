@@ -73,3 +73,19 @@ def test_requires_a_context_with_rois():
     analysis = MlpClassificationAnalysis()
     with pytest.raises(ValueError, match="ROIs"):
         analysis.run(_twoRegionImage(), lambda p, m: None)
+
+
+def test_the_mlp_is_reproducible_from_its_seed():
+    image = _twoRegionImage()
+    analysis = _analysis(_rois())
+    analysis.epochs.set(5)
+    assert analysis.seed.value == 0
+    first = analysis.run(image, lambda p, m: None).getData()
+    np.testing.assert_array_equal(
+        analysis.run(image, lambda p, m: None).getData(), first
+    )
+    analysis.seed.set(3)
+    other = analysis.run(image, lambda p, m: None)
+    assert not np.array_equal(other.getData(), first, equal_nan=True)
+    assert other.extraMetadata["seed"] == 3
+    assert "seed 3" in other.dataSource.description

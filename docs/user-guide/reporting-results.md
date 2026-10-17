@@ -104,10 +104,13 @@ Note these yourself:
   keeps the ROIs, with the results.
 - **Edits to the input** made in Image Properties (no-data value,
   wavelengths, bad bands) aren't part of a result's record.
-- **Random seeds** that a run didn't fix. The record's PPI `seed` is empty
-  (null) when the run had none, so two runs differ (see [Spectral
-  Hourglass](spectral-hourglass.md)). Report the number of iterations, and
-  the pixel lists you kept (they're in the record).
+- **Runs from Varda 0.9.0 and earlier** of the Pixel Purity Index and the
+  CNN and ViT classifiers used random numbers that weren't recorded, so
+  they can't be repeated exactly. These processes now have a **Seed**
+  setting (0 by default), recorded with their other settings; the CNN and
+  ViT can still differ slightly between devices (CPU, CUDA, MPS) and
+  PyTorch versions, which their records name (see
+  [Classification](classification.md)).
 - **Results kept only in memory** aren't in a session: export them, or
   [package the project](sessions-and-saving.md#sharing-a-project).
 - **Display stretches** and other view settings aren't part of any result

@@ -28,6 +28,12 @@ class TerrainOutput(LabeledEnum):
     ROUGHNESS = "Roughness (mean height difference to neighbors)"
 
 
+def hasPixelSize(image: VardaRaster) -> bool:
+    """Whether the image's georeferencing gives a pixel size (otherwise
+    distances are in pixels)."""
+    return not image.transform.is_identity
+
+
 def pixelSize(image: VardaRaster) -> tuple[float, float]:
     """Ground size of a pixel along columns and rows (1, 1 if not georeferenced)."""
     transform = image.transform
@@ -122,8 +128,13 @@ class TerrainAnalysis(Analysis):
         index = bandIndex(image, int(self.band.value))
         reportProgress(0, "reading elevation")
         elevation, missing = fillGaps(readBand(image, index))
-        elevation = elevation * float(self.zFactor.value)
+        zFactor = float(self.zFactor.value)
+        elevation = elevation * zFactor
+        zUnits = "elevation units" + (
+            f" × {zFactor:g} (Z Factor)" if zFactor != 1.0 else ""
+        )
         dx, dy = pixelSize(image)
+        perPixel = not hasPixelSize(image)
         # Which way is east and north on the grid: up is north unless a map
         # projection says otherwise (a south-up or mirrored transform)
         transform = image.transform
@@ -137,7 +148,8 @@ class TerrainAnalysis(Analysis):
         slope, aspect = slopeAspect(east, north)
         match output:
             case TerrainOutput.SLOPE:
-                values, units = slope, "degrees"
+                values = slope
+                units = "degrees (rise per pixel)" if perPixel else "degrees"
             case TerrainOutput.ASPECT:
                 values, units = aspect, "degrees"
             case TerrainOutput.HILLSHADE:
@@ -155,7 +167,8 @@ class TerrainAnalysis(Analysis):
                 d2y = (
                     np.roll(elevation, -1, 0) - 2 * elevation + np.roll(elevation, 1, 0)
                 ) / dy**2
-                values, units = -(d2x + d2y), "per unit"
+                values = -(d2x + d2y)
+                units = f"{zUnits} per pixel²" if perPixel else "per unit"
                 values[[0, -1], :] = values[:, [0, -1]] = (
                     np.nan
                 )  # no neighbors past the edge
@@ -170,7 +183,7 @@ class TerrainAnalysis(Analysis):
                     for x in (-1, 0, 1)
                     if (y, x) != (0, 0)
                 ]
-                values, units = np.mean(differences, axis=0), "elevation units"
+                values, units = np.mean(differences, axis=0), zUnits
         values = np.asarray(values, dtype=np.float64)
         values[missing] = np.nan
         label = output.value.split(" (")[0]
@@ -180,5 +193,13 @@ class TerrainAnalysis(Analysis):
             name=f"{image.name} {label.lower()}",
             bandName=label,
             units=units,
-            description=f"{label} from band {index + 1} of {image.name}",
+            description=f"{label} from band {index + 1} of {image.name}"
+            + (f" (Z Factor {zFactor:g})" if zFactor != 1.0 else "")
+            + (
+                ". The image has no georeferencing, so distances are in "
+                "pixels: gradients are per pixel, not per map unit, and "
+                "slope treats one pixel as one unit of elevation (× Z Factor)."
+                if perPixel
+                else ""
+            ),
         )

@@ -239,7 +239,9 @@ class EdgeDetectionAnalysis(BandwiseAnalysis):
                     / 6.0
                 )
             case EdgeMethod.SCHARR:
-                return filters.scharr(band)
+                # scikit-image's Scharr is the RMS of its two derivatives,
+                # each 2 across a unit ramp: /√2 is per pixel
+                return filters.scharr(band) / np.sqrt(2.0)
             case EdgeMethod.ROBERTS:
                 return filters.roberts(band)
             case EdgeMethod.LAPLACIAN:
