@@ -5,6 +5,8 @@ where the chosen ones fit."""
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime, timezone
+from pathlib import Path
 
 import numpy as np
 import pyqtgraph as pg
@@ -14,6 +16,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QDialog,
+    QFileDialog,
     QFormLayout,
     QHeaderView,
     QLabel,
@@ -33,6 +36,7 @@ from varda.analysis.fatt import (
     rankTargets,
     resampleLibrary,
     sampleSpectra,
+    writeRanking,
 )
 from varda.analysis.fatt_map import (
     THRESHOLD_UNIT,
@@ -60,12 +64,21 @@ from varda.common.ui import (
 )
 from varda.rois.roi_collection import ROICollection
 from varda.utilities.background import runInBackground
+from varda.version import vardaVersion
 
 WHOLE_IMAGE = "Whole image"
 _COLUMNS = ["Map", "Target", "nRMSE (×10⁻⁴)", "Angle (°)"]
 _PASS_COLOR = QColor("#2e7d32")
 TARGET_PEN = pg.mkPen("#e53935", width=2)
 FIT_PEN = pg.mkPen("#1e88e5", width=2, style=Qt.PenStyle.DashLine)
+
+
+def _ordinal(n: int) -> str:
+    """1 -> "1st", 2 -> "2nd", 3 -> "3rd", 11 -> "11th"."""
+    suffix = (
+        "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    )
+    return f"{n}{suffix}"
 
 
 class FattDialog(QDialog):
@@ -91,6 +104,7 @@ class FattDialog(QDialog):
         self._targets: tuple[list[LibrarySpectrum], np.ndarray] | None = None
         self._fits: list[TargetFit] = []
         self._roiClass: str | None = None  # the analyzed ROI class, if any
+        self._analysisSettings: dict[str, object] = {}  # for the CSV export
 
         # --- settings ---
         self.imageParam = ImageParameter("Image", "The image to analyze")
@@ -212,6 +226,11 @@ class FattDialog(QDialog):
         self.mapButton.setToolTip(
             "Map where the ticked targets fit, in small moving windows (DAFA/TT)"
         )
+        self.exportButton = ButtonBuilder("Export Table…").onClick(self.exportRanking)
+        self.exportButton.setToolTip(
+            "Save the ranked targets (nRMSE and angle) as CSV, with the settings"
+        )
+        self.exportButton.setEnabled(False)
         note = MutedLabel(
             "FATT finds candidates, not detections: confirm a target, e.g. with "
             "ratioed spectra, before reporting it."
@@ -226,6 +245,7 @@ class FattDialog(QDialog):
                 .withWidget(QLabel("Threshold"))
                 .withWidget(parameterWidget(self.threshold))
                 .withStretch()
+                .withWidget(self.exportButton)
                 .withWidget(self.mapButton)
                 .withWidget(ButtonBuilder("Close").onClick(self.close))
             )
@@ -286,6 +306,23 @@ class FattDialog(QDialog):
             return
         method = FactorMethod(self.method.get())
         self._roiClass = self.source.currentData()
+        stride = int(self.stride.get())
+        self._analysisSettings = {
+            "Image": f"{image.name} ({image.filePath or 'held in memory'})",
+            "Spectra": (
+                f"ROI class {self._roiClass}"
+                if self._roiClass is not None
+                else "whole image, every pixel"
+                if stride == 1
+                else f"whole image, every {_ordinal(stride)} pixel of every "
+                f"{_ordinal(stride)} row"
+            ),
+            "Wavelengths": (
+                f"{self.minWavelength.get():g}–{self.maxWavelength.get():g} nm "
+                f"({len(bands)} bands)"
+            ),
+            "Decomposition": method.value,
+        }
         self.analyzeButton.setEnabled(False)
         self.statusLabel.setText(f"Analyzing {image.name}…")
 
@@ -310,6 +347,9 @@ class FattDialog(QDialog):
         self.analyzeButton.setEnabled(True)
         self.factors = factors
         self._analyzed = (image, bands)
+        self._analysisSettings["Spectra"] = (
+            f"{self._analysisSettings['Spectra']}: {count} spectra"
+        )
         self._targets = None
         suggestion = (
             "Hysime's signal subspace"
@@ -375,9 +415,37 @@ class FattDialog(QDialog):
         self._colorRows()
         self._applyFilter()
         self._updateMapButton()
+        self.exportButton.setEnabled(bool(self._fits))
         if self._fits:
             self.table.selectRow(0)
             self._showFit(0)
+
+    def rankingSettings(self) -> dict[str, object]:
+        """What the current ranking was made with, for its export."""
+        return {
+            **self._analysisSettings,
+            "Factors": int(self.factorCount.get()),
+            "Library": self.picker.libraryName() or "given",
+            "Threshold": f"{self.threshold.get():g} × 10⁻⁴ nRMSE",
+            "Made with": f"Varda {vardaVersion()}",
+            "Exported": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+
+    def saveRanking(self, path: str | Path) -> None:
+        writeRanking(
+            path,
+            self._fits,
+            self.rankingSettings(),
+            ticked=self.tickedNames(),
+            threshold=float(self.threshold.get()) * THRESHOLD_UNIT,
+        )
+
+    def exportRanking(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export FATT Ranking", "fatt_ranking.csv", "CSV (*.csv)"
+        )
+        if path:
+            self.saveRanking(path)
 
     def _colorRows(self) -> None:
         threshold = float(self.threshold.get()) * THRESHOLD_UNIT

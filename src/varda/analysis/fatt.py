@@ -24,8 +24,10 @@ Pure numpy; spectra are (pixels, bands) arrays.
 
 from __future__ import annotations
 
+import csv
 import os
-from collections.abc import Sequence
+from collections.abc import Collection, Mapping, Sequence
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 import attrs
@@ -223,6 +225,44 @@ def rankTargets(
         for spectrum, target, fit in zip(spectra, targets, fits, strict=True)
     ]
     return sorted(results, key=lambda f: f.nrmse)
+
+
+RANKING_COLUMNS = ("rank", "target", "nrmse", "angle_deg", "ticked", "fits")
+
+
+def writeRanking(
+    path: str | Path,
+    fits: Sequence[TargetFit],
+    settings: Mapping[str, object],
+    *,
+    ticked: Collection[str] = (),
+    threshold: float | None = None,
+) -> None:
+    """The ranked targets as CSV, best first, after ``#`` lines giving the
+    settings that made the ranking. ``nrmse`` is unitless (the window shows
+    it ×10⁻⁴); ``angle_deg`` is the spectral angle between a target and its
+    fit; ``fits`` says whether nRMSE is below ``threshold`` (empty without)."""
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        f.write("# Varda FATT ranking (target transformation of library spectra)\n")
+        for key, value in settings.items():
+            f.write(f"# {key}: {value}\n")
+        f.write(
+            "# nrmse: normalized RMSE of Lin, Tarnas et al. (2021), unitless; "
+            "angle_deg: spectral angle between the target and its fit\n"
+        )
+        writer = csv.writer(f)
+        writer.writerow(RANKING_COLUMNS)
+        for rank, fit in enumerate(fits, start=1):
+            writer.writerow(
+                [
+                    rank,
+                    fit.spectrum.name,
+                    f"{fit.nrmse:.6g}",
+                    f"{np.degrees(fit.angle):.4f}",
+                    str(fit.spectrum.name in ticked).lower(),
+                    "" if threshold is None else str(fit.nrmse < threshold).lower(),
+                ]
+            )
 
 
 def fitLibrary(
