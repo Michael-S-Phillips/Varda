@@ -564,14 +564,25 @@ def displacementRaster(
     matching: dict | None = None,
 ) -> VardaRaster:
     """A displacement field as an image: east and north displacement (map
-    units) and match quality, on the tile grid over the overlap; ``matching``
+    units), match quality and phase-plane SNR (0-1, NaN where no tile was
+    refined by the phase-plane fit), on the tile grid over the overlap; ``matching``
     is how Auto Align matched (``matchParameters``), for its provenance."""
     moving = project.input(displacement.movingKey).image.name
     reference = project.input(displacement.referenceKey).image.name
-    names = ["East displacement", "North displacement", "Match quality"]
+    names = [
+        "East displacement",
+        "North displacement",
+        "Match quality",
+        "Phase-plane SNR",
+    ]
+    snr = (
+        displacement.phaseSnr
+        if displacement.phaseSnr is not None
+        else np.full_like(displacement.quality, np.nan)
+    )
     source = ArrayDataSource(
         np.stack(
-            [displacement.dx, displacement.dy, displacement.quality], axis=2
+            [displacement.dx, displacement.dy, displacement.quality, snr], axis=2
         ).astype(np.float32),
         wavelengths=np.array(names),
         wavelengthUnits="",

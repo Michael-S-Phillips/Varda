@@ -57,6 +57,13 @@ can alter results.
   Varda version), and results made from it name it as their source.
 - **FATT → Export Table…** saves the ranked targets (nRMSE, angle) as CSV,
   with the settings that made the ranking.
+- **Mosaic Auto Align keeps the phase-plane SNR:** each tie point refined
+  by the phase-plane fit (Leprince et al. 2007) now carries its SNR (0-1)
+  beside its match quality, in a **Phase SNR** column of the tie-point
+  table, as each band's median in the Auto Align results, in the recipe
+  (sessions, the mosaic's metadata and provenance) and as a fourth band of
+  the Displacement Field. Points without refinement (manual, ORB, SIFT,
+  LoFTR, ASP) have none and show it blank.
 
 ### Changed
 

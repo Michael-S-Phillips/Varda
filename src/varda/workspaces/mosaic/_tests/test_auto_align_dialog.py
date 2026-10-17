@@ -90,7 +90,10 @@ def test_the_displacement_field_joins_the_images(workspace, qtbot):
         "East displacement",
         "North displacement",
         "Match quality",
+        "Phase-plane SNR",
     ]
+    snr = field.getData()[:, :, 3]
+    assert np.nanmax(snr) <= 1 and np.isfinite(snr).any()
     east = field.getData()[:, :, 0]
     assert np.isclose(np.nanmedian(east), SHIFT[0] * PIXEL, atol=0.1 * PIXEL)
     record = field.extraMetadata["provenance"]
@@ -108,3 +111,27 @@ def test_the_automatic_points_survive_a_session(workspace, qtbot):
     reopened.restoreSessionState(state)
     points = reopened.project.tiePointsOf(1)
     assert points and all(p.auto for p in points)
+
+
+def _column(table, name):
+    headers = [table.horizontalHeaderItem(c).text() for c in range(table.columnCount())]
+    return headers.index(name)
+
+
+def test_the_phase_snr_is_shown_per_point_and_per_band(workspace, qtbot):
+    dialog = _align(workspace, qtbot)
+    table = workspace.tiePanel.table
+    column = _column(table, "Phase SNR")
+    point = workspace.tiePanel._points()[0]
+    assert table.item(0, column).text() == f"{point.phaseSnr:.2f}"
+    bandColumn = _column(dialog.bands, "Phase SNR")
+    value = float(dialog.bands.item(0, bandColumn).text())
+    assert 0 < value <= 1
+    assert "Median phase-plane SNR" in dialog.summary.text()
+
+
+def test_points_without_a_phase_snr_show_it_blank(workspace, qtbot):
+    workspace.project.addTiePoint(1, (5, 5), 0, (85, 5))
+    workspace.tiePanel.refresh()
+    table = workspace.tiePanel.table
+    assert table.item(0, _column(table, "Phase SNR")).text() == ""

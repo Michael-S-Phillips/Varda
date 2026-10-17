@@ -110,3 +110,15 @@ def test_old_sessions_still_load():
     ]
     project.restore(state)
     assert not project.tiePoints[0].auto and project.tiePoints[0].band is None
+
+
+def test_the_phase_snr_survives_a_session():
+    project = _project()
+    project.addTiePoint(1, (1, 2), 0, (3, 4), auto=True, quality=0.9, phaseSnr=0.8)
+    project.addTiePoint(1, (5, 6), 0, (7, 8), auto=True, quality=0.9)
+    state = project.state()
+    assert state["tiePoints"][1]["phaseSnr"] is None  # NaN isn't JSON
+    restored = _project()
+    restored.restore(state)
+    assert restored.tiePoints[0].phaseSnr == 0.8
+    assert np.isnan(restored.tiePoints[1].phaseSnr)

@@ -54,16 +54,21 @@ it overlaps, and fits them:
    **outlier threshold** (1 px of the moving image by default) are left out and shown in red.
    Manual tie points are never left out.
 
-The results list each band's SNR, its points, how many the fit kept and
-their RMS (in the moving image's pixels).
+The results list each band's SNR, its points, how many the fit kept, their
+RMS (in the moving image's pixels) and their median **phase SNR** (the
+phase-plane fit's SNR, below), and the summary gives the median phase SNR
+over all points. The tie-point table shows each point's **Quality** and
+**Phase SNR**.
 A band whose points disagree (an atmospheric band or a detector artifact,
 say) shows up with a high RMS or few kept points: untick it to fit without
 it. Running Auto Align again replaces the image's automatic tie points and
 keeps the manual ones; **Delete Automatic** removes them.
 
 **Add Displacement Field to Images** adds the tile shifts as an image: east
-and north displacement (map units) and match quality, tile by tile over the
-overlap, as COSI-Corr produces. It's useful beyond mosaicking, for example
+and north displacement (map units), match quality and phase-plane SNR, tile
+by tile over the overlap, as COSI-Corr produces (each the median over the
+matched bands; NaN where no tile matched, and the SNR band is NaN
+throughout without sub-pixel refinement). It's useful beyond mosaicking, for example
 to look for change or deformation between two dates.
 
 ### By hand
@@ -200,7 +205,8 @@ for what applies to every process.
 - How each image was aligned: the transform model, how the tie points were
   found (phase correlation with or without sub-pixel refinement, ORB, SIFT,
   LoFTR, ASP `image_align`, or by hand), the bands matched on, the outlier
-  threshold, and how many points the fit kept and their RMS.
+  threshold, how many points the fit kept and their RMS, and (with
+  sub-pixel refinement) their median phase SNR.
 - The radiometric balance (method and fit), the seam method, any blending,
   and the export's resampling and pixel size.
 
@@ -215,7 +221,7 @@ Settings Auto Align uses that aren't in the dialog:
 | Tiles dropped | Correlation coefficient of the two tiles, once aligned, below 0.6 |
 | Fallback to features | **Auto** switches to ORB when phase correlation gives fewer than 6 points (800 keypoints, ratio test 0.8, cross-checked) |
 | RANSAC | 99.9 % confidence; for a thin-plate spline, outliers are found with a cubic (or quadratic) polynomial at 3 × the threshold, then the spline is fitted to the rest |
-| Displacement field | Each tile's shift is the median over the matched bands |
+| Displacement field | Each tile's shift, quality and phase SNR is the median over the matched bands |
 
 Radiometric balancing reads each overlap at up to 100,000 co-located pixels
 (nearest neighbor); an overlap with fewer than 50 doesn't count. The
@@ -248,6 +254,18 @@ smooth warps.
   coefficient of the two tiles once aligned (0 to 1). SIFT and LoFTR points
   carry their matcher's own confidence, which isn't comparable to it; ORB
   and ASP points have none.
+- **Phase SNR** (0 to 1) is the phase-plane fit's own measure of
+  agreement (Leprince et al. 2007): with Q the normalized cross-power
+  spectrum of the two tiles, W the frequency mask and d the fitted shift,
+  SNR = 1 − Σ W·|Q − exp(j ω·d)|² / (4 Σ W). It is 1 when the tiles'
+  phase difference is exactly a pure shift and falls as noise, change or
+  local distortion break that; COSI-Corr reports the same quantity. It is
+  recorded only for points refined by the phase-plane fit (Auto Align with
+  **Sub-pixel refinement**): manual, ORB, SIFT, LoFTR and ASP points, and
+  phase-correlation points without refinement, have none (blank in the
+  table, `null` in the recipe). Low-SNR points are the first to suspect;
+  Varda doesn't drop points by SNR, so report the median SNR alongside the
+  RMS.
 - **Residual units.** Each point's residual in the table is in map units
   (meters in a projected CRS, degrees in a geographic one). The RMS values
   are in the moving image's pixels.

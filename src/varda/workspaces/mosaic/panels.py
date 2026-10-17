@@ -36,8 +36,31 @@ from varda.workspaces.mosaic.views import OUTLIER_COLOR, ImagePointView
 
 
 # Rows are numbered by the vertical header; pixels are (col, row)
-COLUMNS = ["Reference", "Moving", "Source", "Quality", "Residual (px)", "Use"]
+COLUMNS = [
+    "Reference",
+    "Moving",
+    "Source",
+    "Quality",
+    "Phase SNR",
+    "Residual (px)",
+    "Use",
+]
+COLUMN_TIPS = {
+    "Quality": "The tiles' correlation once aligned (0-1); for learned or SIFT "
+    "features, the matcher's confidence",
+    "Phase SNR": "The phase-plane fit's SNR (0-1, Leprince et al. 2007): how "
+    "well the tiles' phase difference fits a pure shift. Blank when the "
+    "point wasn't refined by it (manual, feature, ASP points)",
+}
 USE_COLUMN = COLUMNS.index("Use")
+
+
+def headerTips(table: QTableWidget, tips: dict[str, str]) -> None:
+    """Tooltips on a table's column headers, by header text."""
+    for column in range(table.columnCount()):
+        item = table.horizontalHeaderItem(column)
+        if item is not None and item.text() in tips:
+            item.setToolTip(tips[item.text()])
 
 
 def _kind(point: TiePoint) -> str:
@@ -189,6 +212,7 @@ class TiePointPanel(QWidget):
         self.hint.setWordWrap(True)
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
+        headerTips(self.table, COLUMN_TIPS)
         self.table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
         )
@@ -258,6 +282,7 @@ class TiePointPanel(QWidget):
                 if point.auto and point.band is not None
                 else ("Auto" if point.auto else "Manual"),
                 "" if np.isnan(point.quality) else f"{point.quality:.2f}",
+                "" if np.isnan(point.phaseSnr) else f"{point.phaseSnr:.2f}",
                 "" if np.isnan(point.residual) else f"{point.residual / size:.2f}",
             ]
             for column, text in enumerate(cells):
