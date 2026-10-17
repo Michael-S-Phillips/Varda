@@ -53,15 +53,22 @@ Views and settings are saved with the session.
   with straight sides and square corners.
 - **Fill gaps** (on by default) fills no-data gaps inside the DEM, such as a
   DTM's voids on steep slopes, from the heights around them, so they don't
-  show as pits. No data around the outside of the DEM stays empty.
+  show as pits. No data around the outside of the DEM stays empty. The
+  filled heights are invented: **Show filled gaps** tints those points
+  magenta in the view (and in stills, animations and the exported web
+  page; it tints the surface and its drape, so lower an opaque overlay's
+  opacity to see it there), and the status line gives how many there are.
 - **Export for 3D Printing…** saves the terrain as a closed solid in STL,
   the format slicers (Cura, PrusaSlicer, Bambu Studio and others) open.
   Choose the **width** in millimeters (between the outermost grid points),
   the **exaggeration**, the **base**
   under the lowest point (3 mm by default), and the **detail** (points on
   the longer side; 512 suits most printers). The dialog shows the size it
-  will print. The solid is watertight, with sides around any gaps left
-  unfilled, so it's ready to slice.
+  will print, and how many points of the surface are filled gaps. The
+  solid is watertight, with sides around any gaps left unfilled, so it's
+  ready to slice. STL has no place for a per-point mask, so the print's
+  own count of filled points (on its own grid) goes in the file's 80-byte
+  header ("Varda terrain solid; N gap points filled") and the status line.
 
 ## Lines
 
@@ -108,8 +115,11 @@ of General Image Analysis (see [Lines and profiles](lines-and-profiles.md)).
 - **Export Web Page…** saves the view as one self-contained HTML file that
   opens in any modern web browser, with no server and nothing to install.
   Readers can orbit and zoom, and change the exaggeration, the sun and the
-  shadows. It's suited to sharing with coauthors or publishing as
-  supplementary material.
+  shadows. When gaps were filled, its panel says how many points and how,
+  and a **Filled gaps** box tints them; the page's data
+  (`window.VARDA_SCENE.filled`) holds the count, the method and a bit mask
+  of the filled grid points. It's suited to sharing with coauthors or
+  publishing as supplementary material.
 
 The 3D view needs WebGL 2 (any graphics from the last decade). If it isn't
 available, the workspace says so; updating the graphics driver usually
@@ -141,7 +151,10 @@ a CTX DEM say, on top of the surface:
    affine, projective, polynomial or a thin-plate spline for warped ones.
    The panel reports the tie points the fit kept and their RMS residual,
    in the DEM's map units and labeled with them (m for a DEM projected in
-   meters, ° for a geographic one).
+   meters, ° for a geographic one), the image and band matched (with the
+   band's wavelength, or its name, and its SNR) and the tie points' median
+   phase-plane SNR. All of it is saved with the overlay's alignment in the
+   session.
    **Match using** chooses the image that is matched: the overlay itself,
    or another loaded image with the same georeferencing. A parameter map
    often has little texture to match, but a scene made from the same
@@ -180,11 +193,12 @@ or analyses, not from the 3D surface.
   the band shown and its height unit.
 - For a figure: the vertical exaggeration, the sun's azimuth and elevation,
   whether shadows were cast, the drape and its stretch or color map, any
-  overlays and how they were aligned, and whether gaps were filled.
+  overlays and how they were aligned, and whether gaps were filled (how
+  many points, and how; see the table below).
 - For an overlay: the reference it was aligned to (an image, or the DEM
-  hillshade), the matched image, the model, the tie points kept and their
-  RMS, and any manual shift. Varda matches on the band with the best SNR
-  and doesn't show which band that was.
+  hillshade), the matched image and band (both shown in the panel), the
+  model, the tie points kept, their RMS and median phase-plane SNR, and any
+  manual shift.
 
 How the surface is made, beyond the panel's settings:
 
@@ -192,12 +206,12 @@ How the surface is made, beyond the panel's settings:
 | --- | --- |
 | Decimation | Every *n* × *n* block of DEM pixels becomes one grid point, their mean height ignoring no data; *n* is the DEM's longer side divided by the Detail, rounded up (the status line's "every *n* pixels"). Edge blocks may be partial. Each point stands at the center of its block (a partial block's own center), in the view, web page and STL alike; the surface ends at the outermost points, half a block inside the DEM's edges. |
 | Height storage | In the view and the web page, heights are stored in 16 bits: 65,535 levels from the lowest to the highest point, so one step is (highest − lowest) / 65,534. 3D-printing exports use the heights unrounded. |
-| Gap filling | Gaps enclosed by data take the nearest grid point's height, then are smoothed by 4 passes of a 3 × 3 mean (over valid neighbors). Done on the decimated grid. |
+| Gap filling | Gaps enclosed by data take the nearest grid point's height, then are smoothed by 4 passes of a 3 × 3 mean (over valid neighbors). Done on the decimated grid. The count and this method are saved with the session (`filled`) and the web page. |
 | Ground size | Projected DEM: pixel size × pixel count, in meters. Geographic DEM: degrees × π*a*/180, with *a* the body's equatorial radius, and the east–west size multiplied by the cosine of the center latitude. |
 | Drape | The image's own rendering with a 2–98 % linear stretch (also for elevation colors, whose color bar shows that range), resized to at most 8192 px a side (Lanczos). |
 | Lighting defaults | Sun azimuth 315°, elevation 35°, sky light 0.35, shadows on, exaggeration 1. |
 | Overlays | Reprojected to the DEM's projection with bilinear resampling, at about their own resolution; textures at most 8192 px a side. |
-| Overlay Auto Align | Matches the overlay's highest-SNR band, reprojected as above, against band 1 of the reference (or a hillshade of the band shown, its heights converted to meters by the height unit: sun azimuth 315°, elevation 45°), with the Mosaic workspace's matching (see [Mosaicking](mosaicking.md#reporting-your-results)). The fit leaves out points more than 1 pixel (of the reprojected overlay) off. |
+| Overlay Auto Align | Matches the overlay's highest-SNR band (SNR as in [Mosaicking](mosaicking.md#what-to-state); the band and its SNR are shown and saved), reprojected as above, against band 1 of the reference (or a hillshade of the band shown, its heights converted to meters by the height unit: sun azimuth 315°, elevation 45°), with the Mosaic workspace's matching (see [Mosaicking](mosaicking.md#reporting-your-results)). The fit leaves out points more than 1 pixel (of the reprojected overlay) off. |
 | Height unit | Heights × 1 (m), 1000 (km) or 0.3048 (ft) give meters; the exaggeration multiplies the result. |
 | Smooth edges | Outline points move toward their neighbors, by at most half a grid cell. |
 | Vector files | Geographic coordinates beyond ±360° longitude or ±90° latitude are taken to be in the DEM's projection already. |
@@ -208,10 +222,13 @@ How the surface is made, beyond the panel's settings:
   raises pits; the larger *n* is, the more. The 16-bit step is
   (relief) / 65,534: for 4,000 m of relief, about 6 cm, far below most
   DEMs' vertical precision.
-- **Filled gaps are invented heights.** The status line reports how many
-  grid points were filled, but filled points aren't marked in the view,
-  the web page or the STL. Turn **Fill gaps** off to see where the gaps
-  are, and say in a caption that a figure's gaps were filled.
+- **Filled gaps are invented heights.** They carry no measurement, so
+  their error is unknown and grows with the gap's size. The status line
+  and the session give how many grid points were filled; **Show filled
+  gaps** marks them in the view, stills and web pages, and the web page
+  holds their mask. An STL can't mark points, so its header gives only the
+  count. Say in a caption when a figure's gaps were filled, and show them
+  (or turn **Fill gaps** off) where the surface's shape matters.
 - **Vertical exaggeration depends on the height unit.** Heights are
   converted from the **Height unit** to meters, the ground's unit, so the
   exaggeration, the scale bar's "vertical exaggeration" and a print's
@@ -235,7 +252,9 @@ How the surface is made, beyond the panel's settings:
   overlay agrees with the reference, in the DEM's map units (as labeled).
   The overlay is only as well placed
   as the reference: report the reference's own geolocation accuracy. A
-  manual shift isn't part of the RMS.
+  manual shift isn't part of the RMS. The median phase-plane SNR (0–1; see
+  [Mosaicking](mosaicking.md#uncertainty-and-quality)) says how cleanly the
+  tiles matched; it's blank when the matching fell back to features.
 - **Draped images are for display.** The drape and overlays are stretched,
   resampled (bilinear) and, when large, downsampled. Don't read values from
   them.

@@ -217,8 +217,9 @@ def volume(mesh: Solid) -> float:
     return float(np.einsum("ij,ij->i", v0, np.cross(v1, v2)).sum() / 6.0)
 
 
-def stlBytes(mesh: Solid) -> bytes:
-    """The solid as binary STL."""
+def stlBytes(mesh: Solid, note: str = "") -> bytes:
+    """The solid as binary STL; ``note`` (how it was made) follows the
+    header's name, cut to the header's 80 bytes."""
     facets = mesh.facets.astype(np.float32)
     normals = np.cross(facets[:, 1] - facets[:, 0], facets[:, 2] - facets[:, 0])
     lengths = np.linalg.norm(normals, axis=1, keepdims=True)
@@ -227,7 +228,8 @@ def stlBytes(mesh: Solid) -> bytes:
     values = np.hstack([normals, facets.reshape(-1, 9)]).astype("<f4")
     rows = np.zeros((len(facets), 50), np.uint8)
     rows[:, :48] = values.view(np.uint8).reshape(len(facets), 48)
-    header = STL_HEADER.ljust(80, b" ")
+    text = STL_HEADER + (b"; " + note.encode("ascii", "replace") if note else b"")
+    header = text[:80].ljust(80, b" ")
     return header + np.uint32(len(facets)).tobytes() + rows.tobytes()
 
 

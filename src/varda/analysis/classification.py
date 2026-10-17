@@ -271,7 +271,8 @@ def _patchSizeParameter() -> IntParameter:
         "Patch Size",
         5,
         range=(1, 15),
-        description="Square neighborhood in pixels (odd)",
+        description="Square neighborhood in pixels (odd sizes only)",
+        step=2,
     )
 
 
@@ -346,7 +347,7 @@ class _PatchClassificationAnalysis(_SupervisedClassification):
             )
         spec = {
             "model": self.modelKey,
-            "patchSize": int(self.patchSize.value) | 1,  # odd
+            "patchSize": int(self.patchSize.value),  # odd (step 2)
             "epochs": int(self.epochs.value),
             "learningRate": float(self.learningRate.value),
             "batchSize": int(self.batchSize.value),

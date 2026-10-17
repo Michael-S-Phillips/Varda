@@ -58,10 +58,26 @@ class IovfResult:
     filtered: np.ndarray  # float64 (rows, cols, bands)
     replaced: list[int]  # voxels replaced in each round
     reference: np.ndarray  # the smooth reference cube
+    # (rows, cols): how many of each pixel's bands were replaced, in any round
+    replacedBands: np.ndarray
+    # why the rounds stopped: "nothing flagged", "counts cycling", "below stop
+    # fraction", "stalled" or "round limit"
+    stopReason: str
 
     @property
     def rounds(self) -> int:
         return len(self.replaced)
+
+    def record(self) -> dict:
+        """The replacement counts, as plain data for a result's metadata."""
+        return {
+            "replacedPerRound": list(self.replaced),
+            "replacedTotal": int(sum(self.replaced)),
+            "voxelsReplaced": int(self.replacedBands.sum()),
+            "pixelsWithReplacements": int(np.count_nonzero(self.replacedBands)),
+            "rounds": self.rounds,
+            "stopReason": self.stopReason,
+        }
 
 
 def iovfFilter(
@@ -97,7 +113,9 @@ def iovfFilter(
     shape = noise.shape
     voteThreshold = min(window)
     replaced: list[int] = []
+    ever = np.zeros(shape, dtype=bool)  # replaced in any round
     flagged: np.ndarray | None = None
+    stopReason = "round limit"
     while len(replaced) < maxRounds:
         round_ = len(replaced) + 1
         padded = _pad(noise, half)
@@ -112,19 +130,32 @@ def iovfFilter(
         replaced.append(int(flagged.shape[0]))
         if flagged.shape[0]:
             _replace(noise, padded, flagged, window, half, filt.kernels, batchMb)
+            ever[tuple(flagged.T)] = True
         # rounds shrink geometrically; report against a nominal 12-round run
         report(
             min(95, 5 + 90 * round_ // 12),
             f"round {round_}: {flagged.shape[0]} voxels replaced",
         )
-        if flagged.shape[0] == 0 or _isCycling(replaced):
+        if flagged.shape[0] == 0:
+            stopReason = "nothing flagged"
+            break
+        if _isCycling(replaced):
+            stopReason = "counts cycling"
             break
         if stopFraction > 0 and round_ > 1:
-            if flagged.shape[0] < stopFraction * replaced[0] or _isStalled(replaced):
+            if flagged.shape[0] < stopFraction * replaced[0]:
+                stopReason = "below stop fraction"
+                break
+            if _isStalled(replaced):
+                stopReason = "stalled"
                 break
     report(100, "done")
     return IovfResult(
-        filtered=noise + reference, replaced=replaced, reference=reference
+        filtered=noise + reference,
+        replaced=replaced,
+        reference=reference,
+        replacedBands=ever.sum(axis=2, dtype=np.int32),
+        stopReason=stopReason,
     )
 
 

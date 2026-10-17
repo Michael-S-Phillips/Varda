@@ -129,7 +129,7 @@ its neighborhood.
 | --- | --- | --- | --- |
 | **ROI classes** | The classes to train on | at least two | all |
 | **Hold Out** | Fraction of each class's ROIs held out for validation ([Hold-out validation](#hold-out-validation)) | 0–0.9 | 0 |
-| **Patch Size** | Width of the square neighborhood, in pixels (odd; an even value is raised by 1) | 1–15 | 5 |
+| **Patch Size** | Width of the square neighborhood, in pixels (odd sizes only: the box steps 1, 3, 5, …, so the recorded size is the one used) | 1–15 | 5 |
 | **Channels** | Filters in each convolutional layer | 4–256 | 32 |
 | **Conv Layers** | Number of convolutional layers | 1–4 | 2 |
 | **Epochs** | Passes through the training patches | 1–2000 | 50 |
@@ -256,8 +256,25 @@ Bands with larger values or more variance count for more.
 
 The result has one **Class** band (0, 1, 2, …; "Cluster 1" is 0), with no
 probability bands. A cluster that ends up empty is dropped, so you can get
-fewer clusters than you asked for. The cluster centers, the number of
-iterations run, and whether it converged aren't kept.
+fewer clusters than you asked for.
+
+The result's metadata (`kmeans`, saved with the file) records how the
+clustering ended and what each cluster is:
+
+| Key | Meaning |
+| --- | --- |
+| `iterations`, `maxIterations` | Iterations run, and the **Iterations** setting |
+| `converged` | True when the last iteration moved no pixel to another cluster |
+| `pixelsChangedLastIteration` | Pixels the last iteration moved (0 when converged) |
+| `pixelCounts` | Pixels in each cluster, in class order |
+| `centers` | Each cluster's center: the mean spectrum of its pixels, one value per band in `bands`, in the input's units |
+| `rmsDistance` | Each cluster's spread: the root-mean-square Euclidean distance of its pixels from its center, over those bands, in the input's units |
+| `bands` | The 1-based input bands the centers span (the good bands) |
+
+A run that stops at **Iterations** without converging says so in the
+result's description ("did not converge: N pixels changed cluster in the
+last of M iterations") and in the log; raise **Iterations** and run it
+again.
 
 ## Measuring accuracy
 
@@ -405,7 +422,8 @@ for what applies to every process.
 - For the MLP, CNN and ViT: the seed and the final training loss, and for
   the CNN and ViT the device (CPU, CUDA or MPS) and PyTorch version (both
   in the result's description).
-- For K-Means: the number of clusters found, and how you named them.
+- For K-Means: the number of clusters found, how you named them, the
+  iterations run and whether it converged (the `kmeans` metadata).
 - Any clean-up with the class map tools (filter size, minimum group size).
 
 Settings the dialogs don't show:
@@ -441,9 +459,13 @@ Settings the dialogs don't show:
   much the map or the accuracy changes.
 - **Unseen materials.** Every pixel is given one of your classes (see
   [Outputs](#outputs)), so check areas that none of your ROIs represent.
-- **K-Means** has no quality measure. Its clusters depend on the starting
-  centers and on the scale of each band; they are groups of similar spectra,
-  not materials, until you identify them.
+- **K-Means** has no accuracy measure. Its metadata gives each cluster's
+  pixel count and spread (RMS distance from its center): a cluster with a
+  large spread, or few pixels, is a loose group. Its clusters depend on the
+  starting centers and on the scale of each band; they are groups of
+  similar spectra, not materials, until you identify them. A result that
+  didn't converge is still changing: report it as such or re-run with more
+  iterations.
 
 ### Accuracy
 

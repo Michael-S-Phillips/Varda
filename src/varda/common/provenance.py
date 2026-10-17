@@ -53,7 +53,8 @@ METADATA_TAG = "metadata"
 RESULT_KEYS = ("accuracy", "validation", "trainingData")
 # Scientific metadata kept in files: class names and colors (class maps), what
 # Eigenvalue Plot and Inverse Transform need, classifier training figures,
-# the mosaic recipe, displacement and FATT settings
+# the mosaic recipe, displacement and FATT settings, and analyses' quality
+# figures (convergence, coverage, cluster statistics, noise models)
 KEPT_METADATA_KEYS = (
     "classes",
     "classColors",
@@ -70,6 +71,11 @@ KEPT_METADATA_KEYS = (
     "mosaic",
     "displacement",
     "fatt",
+    "sensorBands",
+    "kmeans",
+    "componentSelection",
+    "unmixing",
+    "iovf",
     *RESULT_KEYS,
 )
 # Beside a downloaded file: where it came from (catalogs/downloads.py)

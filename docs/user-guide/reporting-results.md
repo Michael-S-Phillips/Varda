@@ -35,12 +35,14 @@ record holds:
   `band_math`).
 - **Every setting**, as the dialog or workspace had it. Workspace results
   record their own settings: a mosaic its full recipe (order, corrections,
-  tie points, radiometry, seams, blending), output grid and resampling; a
-  displacement field how Auto Align matched (method asked for and used,
+  tie points with their match quality and phase-plane SNR, radiometry with
+  its fit quality, seams, blending), output grid and resampling; its source
+  map each source's alignment quality (tie points, RMS, median phase SNR);
+  a displacement field how Auto Align matched (method asked for and used,
   bands, tile size, refinement); a crop its window (0-based row, column,
   height and width); a Spectral Hourglass result the wavelength window and
-  bands kept, IOVF on or off and its settings, the MNF noise estimate and
-  components kept, the PPI iterations, threshold, seed and candidate rule,
+  bands kept, IOVF on or off, its settings and what it replaced, the MNF
+  noise estimate and components kept, the PPI iterations, threshold, seed and candidate rule,
   every endmember's name, identification and pixels, and the map method
   and its setting.
 - **The inputs:** each by name and file path, **with the input's own record**
@@ -82,7 +84,11 @@ names and colors, eigenvalues, explained variance and the inverse transform,
 classifier figures such as layer sizes, the final training loss,
 the seed, the number of components, the device and PyTorch version, the
 training data and hold-out accuracy, Accuracy Assessment reports, the
-mosaic recipe, displacement and FATT settings). Varda reads both back when
+mosaic recipe, displacement and FATT settings, and the quality figures of
+analyses: MNF's noise model, ICA's convergence, the components an Inverse
+Transform kept and the count it suggested (`componentSelection`), K-Means
+cluster statistics (`kmeans`), unmixing convergence (`unmixing`), what IOVF
+replaced (`iovf`) and sensor-band coverage (`sensorBands`)). Varda reads both back when
 it opens the file, so a reopened class map keeps its names and colors, and a
 reopened PCA, MNF or ICA result still works with **Eigenvalue Plot** and
 **Inverse Transform**. Files Varda didn't write open exactly as before.
@@ -130,9 +136,10 @@ checksum.
 
 ## Precision is not accuracy
 
-Many of Varda's quality numbers (tie-point RMS, unmixing RMS error, FATT
-nRMSE, spectral angles) measure how well a model fits the data you gave it.
-They're precision. Accuracy also depends on things Varda can't see:
+Many of Varda's quality numbers (tie-point RMS and phase-plane SNR, a
+radiometric balance's fit RMS and overlap agreement, unmixing RMS error,
+FATT nRMSE, spectral angles) measure how well a model fits the data you
+gave it. They're precision. Accuracy also depends on things Varda can't see:
 
 - **Georeferencing.** Map positions, distances and linked-image locations
   are only as good as each image's own georeferencing. Report its source and

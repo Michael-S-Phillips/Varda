@@ -149,9 +149,20 @@ class PreparePage(QWidget):
     def refresh(self) -> None:
         if self.model.prepared is not None:
             prepared = self.model.prepared
-            self.summary.setText(
-                f"{prepared.cube.shape[2]} bands, {int(prepared.valid.sum()):,} usable pixels."
+            text = (
+                f"{prepared.cube.shape[2]} bands, "
+                f"{int(prepared.valid.sum()):,} usable pixels."
             )
+            if prepared.iovf is not None:
+                iovf = prepared.iovf
+                rounds = iovf["rounds"]
+                text += (
+                    f" IOVF replaced {iovf['replacedTotal']:,} values at "
+                    f"{iovf['pixelsWithReplacements']:,} pixels in {rounds} "
+                    f"round{'s' if rounds != 1 else ''} "
+                    f"({', '.join(str(n) for n in iovf['replacedPerRound'])})."
+                )
+            self.summary.setText(text)
 
 
 class ReducePage(QWidget):

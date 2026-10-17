@@ -14,6 +14,7 @@ Alignments can also be copied from one overlay to another."""
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 
 from attrs import define, field
@@ -309,6 +310,13 @@ class OverlayPanel(QWidget):
             if a.points
             else "Placed by its georeferencing (not aligned yet)."
         )
+        if a.points and a.band is not None:
+            matched = f"Matched on {a.matchedOn}, {a.bandLabel}" + (
+                f" (SNR {a.bandSnr:.3g})" if math.isfinite(a.bandSnr) else ""
+            )
+            if math.isfinite(a.phaseSnr):
+                matched += f"; median phase-plane SNR {a.phaseSnr:.2f}"
+            fitted += f" {matched}."
         self.alignment.setText(f"{message} {fitted}".strip())
 
     def _onOpacity(self, value: int) -> None:

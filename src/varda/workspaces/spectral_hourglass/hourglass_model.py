@@ -33,8 +33,16 @@ from varda.analysis.linear_algebra import (
     suggestedComponents,
 )
 from varda.analysis.rasters import readCube
-from varda.analysis.mapping import DEFAULT_SAM_MAX_ANGLE, MapMethod, mapBands, mapRaster
-from varda.analysis.unmixing import Constraint
+from varda.analysis.mapping import (
+    DEFAULT_SAM_MAX_ANGLE,
+    UNMIXING_METADATA_KEY,
+    MapMethod,
+    mapBands,
+    mapRaster,
+    unmixingDetail,
+    unmixingMetadata,
+)
+from varda.analysis.unmixing import Constraint, UnmixingReport
 from varda.analysis.transforms import TRANSFORM_METADATA_KEY, transformMetadata
 from varda.common.entities import VardaRaster
 from varda.common.provenance import makeProvenance, setProvenance
@@ -139,6 +147,8 @@ class PreparedData:
     wavelengthsNm: np.ndarray | None = None  # the same centers in nm (for libraries)
     fwhmNm: np.ndarray | None = None  # their FWHM in nm, when the header gives it
     settings: HourglassSettings | None = None  # what Prepare ran with
+    # what IOVF replaced (IovfResult.record()), or None when it didn't run
+    iovf: dict | None = None
 
 
 @attrs.frozen
@@ -242,6 +252,7 @@ class HourglassModel:
                 )
             cube, valid = readCube(image)
             cube = np.ascontiguousarray(cube[:, :, indices])
+            iovf = None
             if settings.useIovf:
                 result = iovfFilter(
                     cube,
@@ -249,6 +260,7 @@ class HourglassModel:
                 )
                 cube = result.filtered
                 cube[~valid] = np.nan
+                iovf = result.record()
             progress(100, "done")
             return PreparedData(
                 cube=cube,
@@ -258,6 +270,7 @@ class HourglassModel:
                 wavelengthsNm=None if nm is None else nm[indices],
                 fwhmNm=None if bands.fwhm is None else bands.fwhm[indices],
                 settings=settings,
+                iovf=iovf,
             )
 
         return task
@@ -703,6 +716,7 @@ class HourglassModel:
 
         def task(progress: ProgressCallback) -> VardaRaster:
             progress(0, "mapping")
+            metadata: dict = {}
             if method is MapMethod.MTMF:
                 bands, bandNames = mapBands(
                     method, names, mnfData=mnfData, targets=targets
@@ -710,6 +724,7 @@ class HourglassModel:
                 detail = f"{k} MNF components"
             else:
                 X = prepared.cube.reshape(-1, prepared.cube.shape[2])[validFlat]
+                report = UnmixingReport()
                 bands, bandNames = mapBands(
                     method,
                     names,
@@ -718,12 +733,15 @@ class HourglassModel:
                     maxAngle=maxAngle,
                     constraint=constraint,
                     progress=lambda p, m: progress(int(0.9 * p), m),
+                    report=report,
                 )
-                detail = (
-                    f"max angle {maxAngle:g} rad"
-                    if method is MapMethod.SAM
-                    else constraint.value
-                )
+                if method is MapMethod.SAM:
+                    detail = f"max angle {maxAngle:g} rad"
+                else:
+                    detail = unmixingDetail(constraint, report)
+                    metadata[UNMIXING_METADATA_KEY] = unmixingMetadata(
+                        constraint, report
+                    )
             progress(90, "building image")
             result = mapRaster(
                 image,
@@ -734,6 +752,7 @@ class HourglassModel:
                 names=names,
                 colors=colors,
                 detail=detail,
+                metadata=metadata,
             )
             setProvenance(result, record)
             progress(100, "done")
@@ -761,6 +780,7 @@ class HourglassModel:
                 "iovf": {
                     "window": DEFAULT_WINDOW,
                     "stopFraction": DEFAULT_STOP_FRACTION,
+                    **(self.prepared.iovf or {}),
                 }
                 if settings.useIovf
                 else None,
@@ -807,6 +827,8 @@ class HourglassModel:
         k = self.components
         for key in ("inverse", "eigenvalues", "explainedVariance"):
             info[key] = info[key][:k]
+        info["noiseEstimate"] = MNF_NOISE_ESTIMATE.name
+        info["noiseRoiClasses"] = []
         return {
             "explainedVariance": info["explainedVariance"],
             TRANSFORM_METADATA_KEY: info,

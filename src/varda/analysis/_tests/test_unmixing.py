@@ -4,8 +4,10 @@ import numpy as np
 import pytest
 from scipy.optimize import nnls
 
+from varda.analysis import unmixing
 from varda.analysis.unmixing import (
     Constraint,
+    UnmixingReport,
     linearUnmix,
     mixtureTunedMatchedFilter,
     spectralAngles,
@@ -121,3 +123,49 @@ def test_fully_constrained_is_exact_for_similar_endmembers():
     for i in range(0, 300, 13):
         expected, _ = nnls(Eaug, np.append(X[i], delta))
         np.testing.assert_allclose(abundances[i], expected, atol=1e-3)
+
+
+def _manyEndmembers(count=12, bands=60):
+    x = np.linspace(0, 1, bands)
+    return np.stack(
+        [
+            0.4 + 0.1 * x - 0.2 * np.exp(-0.5 * ((x - c) / 0.04) ** 2)
+            for c in np.linspace(0.05, 0.95, count)
+        ]
+    )
+
+
+def test_admm_unmixing_reports_how_many_pixels_converged():
+    """Beyond ten endmembers FCLS is solved iteratively (ADMM): the report
+    gives the solver, iterations and the share of pixels that converged."""
+    E = _manyEndmembers()
+    rng = np.random.default_rng(2)
+    X = rng.dirichlet(np.ones(12), size=200) @ E
+    X[3] = np.nan
+    report = UnmixingReport()
+    linearUnmix(X, E, Constraint.FULLY_CONSTRAINED, report=report)
+    assert report.solver == "ADMM"
+    assert report.pixels == 199
+    assert report.pixelsConverged == 199 and report.fractionConverged == 1.0
+    assert 1 <= report.iterations <= report.maxIterations
+
+
+def test_admm_that_runs_out_of_iterations_says_so(monkeypatch):
+    monkeypatch.setattr(unmixing, "_ADMM_ITERATIONS", 2)
+    E = _manyEndmembers()
+    rng = np.random.default_rng(2)
+    X = rng.dirichlet(0.2 * np.ones(12), size=50) @ E  # abundances at 0
+    X += 0.01 * rng.normal(size=X.shape)
+    report = UnmixingReport()
+    linearUnmix(X, E, Constraint.FULLY_CONSTRAINED, report=report)
+    assert report.iterations == 2 and report.maxIterations == 2
+    assert report.pixelsConverged < report.pixels == 50
+    assert report.fractionConverged < 1.0
+
+
+def test_few_endmembers_are_solved_exactly():
+    E = _endmembers()
+    X = np.random.default_rng(0).dirichlet(np.ones(3), size=20) @ E
+    report = UnmixingReport()
+    linearUnmix(X, E, Constraint.FULLY_CONSTRAINED, report=report)
+    assert report.solver == "exact" and report.fractionConverged == 1.0

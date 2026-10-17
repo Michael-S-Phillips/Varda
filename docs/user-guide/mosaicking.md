@@ -54,16 +54,21 @@ it overlaps, and fits them:
    **outlier threshold** (1 px of the moving image by default) are left out and shown in red.
    Manual tie points are never left out.
 
-The results list each band's SNR, its points, how many the fit kept and
-their RMS (in the moving image's pixels).
+The results list each band's SNR, its points, how many the fit kept, their
+RMS (in the moving image's pixels) and their median **phase SNR** (the
+phase-plane fit's SNR, below), and the summary gives the median phase SNR
+over all points. The tie-point table shows each point's **Quality** and
+**Phase SNR**.
 A band whose points disagree (an atmospheric band or a detector artifact,
 say) shows up with a high RMS or few kept points: untick it to fit without
 it. Running Auto Align again replaces the image's automatic tie points and
 keeps the manual ones; **Delete Automatic** removes them.
 
 **Add Displacement Field to Images** adds the tile shifts as an image: east
-and north displacement (map units) and match quality, tile by tile over the
-overlap, as COSI-Corr produces. It's useful beyond mosaicking, for example
+and north displacement (map units), match quality and phase-plane SNR, tile
+by tile over the overlap, as COSI-Corr produces (each the median over the
+matched bands; NaN where no tile matched, and the SNR band is NaN
+throughout without sub-pixel refinement). It's useful beyond mosaicking, for example
 to look for change or deformation between two dates.
 
 ### By hand
@@ -122,8 +127,15 @@ With [ISIS](optional-features.md#isis-mosaicking) installed, **Compare with
 ISIS equalizer** solves the same balance with ISIS and shows its gains and
 offsets beside Varda's (and **Use ISIS's Corrections** applies them).
 Statistics come from a subsample of each overlap. The table shows each
-image's mean gain and offset; hover for every band. The corrections are
-saved with the session and recorded in the exported mosaic's metadata.
+image's mean gain and offset and its **Fit RMS** (below); hover for every
+band's gain, offset, RMS and number of samples. Under it, **Overlap
+agreement** lists every overlap's mean absolute difference **Before** and
+**After** the corrections (the median over bands; hover for every band).
+A band with fewer than 50 shared pixels can't be fitted: it keeps gain 1
+and offset 0, the status line names it, and the tooltip lists it. The
+corrections and these figures are saved with the session and recorded in
+the exported mosaic's metadata and provenance (the recipe's `radiometry`
+→ `quality`).
 
 ## Seams
 
@@ -171,7 +183,12 @@ labeled "(visual)". Keep **None** for analysis.
   with the top image's pixels, so at that size its pixels are copied
   unchanged (unless you rotate or warp it).
 - **Source map**: a class map of which image each mosaic pixel came from,
-  useful for checking seams and tracing a spectrum back to its strip.
+  useful for checking seams and tracing a spectrum back to its strip. Its
+  metadata (`mosaic` → `sources`, also in its provenance) lists, for each
+  class, the image, its transform, its enabled tie points, how many the fit
+  kept, their RMS (moving image's pixels) and their median phase SNR
+  (`null` where there is none, e.g. for the reference image), so each
+  pixel's alignment quality can be traced through its class.
 
 Seams are hard (no blending), so spectra are never mixed across them. The
 mosaic's provenance record holds the inputs (with their own records), the
@@ -180,7 +197,7 @@ points, radiometric corrections, seams and blending) and the versions of
 ISIS or the Ames Stereo Pipeline when their results are used. A displacement
 field records how Auto Align matched (method asked for and used, bands,
 tile size, refinement), and the source map records the mosaic it belongs
-to. A file you save keeps all of this (see [Reporting results from
+to and each source's alignment quality. A file you save keeps all of this (see [Reporting results from
 Varda](reporting-results.md#where-it-lives-in-files)), along with a one-line
 summary in its description.
 
@@ -200,9 +217,11 @@ for what applies to every process.
 - How each image was aligned: the transform model, how the tie points were
   found (phase correlation with or without sub-pixel refinement, ORB, SIFT,
   LoFTR, ASP `image_align`, or by hand), the bands matched on, the outlier
-  threshold, and how many points the fit kept and their RMS.
-- The radiometric balance (method and fit), the seam method, any blending,
-  and the export's resampling and pixel size.
+  threshold, how many points the fit kept and their RMS, and (with
+  sub-pixel refinement) their median phase SNR.
+- The radiometric balance (method and fit) with its fit RMS and the
+  overlaps' agreement before and after, the seam method, any blending, and
+  the export's resampling and pixel size.
 
 Settings Auto Align uses that aren't in the dialog:
 
@@ -215,7 +234,7 @@ Settings Auto Align uses that aren't in the dialog:
 | Tiles dropped | Correlation coefficient of the two tiles, once aligned, below 0.6 |
 | Fallback to features | **Auto** switches to ORB when phase correlation gives fewer than 6 points (800 keypoints, ratio test 0.8, cross-checked) |
 | RANSAC | 99.9 % confidence; for a thin-plate spline, outliers are found with a cubic (or quadratic) polynomial at 3 × the threshold, then the spline is fitted to the rest |
-| Displacement field | Each tile's shift is the median over the matched bands |
+| Displacement field | Each tile's shift, quality and phase SNR is the median over the matched bands |
 
 Radiometric balancing reads each overlap at up to 100,000 co-located pixels
 (nearest neighbor); an overlap with fewer than 50 doesn't count. The
@@ -248,15 +267,38 @@ smooth warps.
   coefficient of the two tiles once aligned (0 to 1). SIFT and LoFTR points
   carry their matcher's own confidence, which isn't comparable to it; ORB
   and ASP points have none.
+- **Phase SNR** (0 to 1) is the phase-plane fit's own measure of
+  agreement (Leprince et al. 2007): with Q the normalized cross-power
+  spectrum of the two tiles, W the frequency mask and d the fitted shift,
+  SNR = 1 − Σ W·|Q − exp(j ω·d)|² / (4 Σ W). It is 1 when the tiles'
+  phase difference is exactly a pure shift and falls as noise, change or
+  local distortion break that; COSI-Corr reports the same quantity. It is
+  recorded only for points refined by the phase-plane fit (Auto Align with
+  **Sub-pixel refinement**): manual, ORB, SIFT, LoFTR and ASP points, and
+  phase-correlation points without refinement, have none (blank in the
+  table, `null` in the recipe). Low-SNR points are the first to suspect;
+  Varda doesn't drop points by SNR, so report the median SNR alongside the
+  RMS.
 - **Residual units.** Each point's residual in the table is in map units
   (meters in a projected CRS, degrees in a geographic one). The RMS values
   are in the moving image's pixels.
-- **Radiometry** reports each image's gains and offsets, but not how well
-  the fit worked. Compare the overlaps before and after balancing (with
-  [linked images](linked-images.md) or ROI statistics) if you need a number.
-  Histogram matching, blending and bilinear resampling change spectra, which
-  is why their results are labeled "(visual)": don't use them for
-  quantitative spectral work.
+- **Radiometric fit quality.** For each corrected image and band, **Fit
+  RMS** is the root mean square of (corrected image − corrected images it
+  was fitted to) over their co-located samples, in the inputs' data units,
+  with the number of samples. "Fitted to" is the held images it overlaps
+  for **Linear, to the held images**, and every image it overlaps for the
+  global and histogram methods. It includes every sample (the robust fit's
+  trimmed outliers too) and everything that differs between the images
+  besides brightness (misregistration, parallax, changed surfaces,
+  illumination and photometric angle), so it is an upper bound on the
+  calibration mismatch, not a calibration uncertainty. **Overlap
+  agreement** gives each overlap's mean absolute difference before and
+  after (data units); report both. Bands left uncorrected for too few
+  samples are listed (`defaulted`, 0-based, in the recipe). These figures
+  are not computed for **Use ISIS's Corrections**; balance in Varda to get
+  them. Histogram matching, blending and bilinear resampling change
+  spectra, which is why their results are labeled "(visual)": don't use
+  them for quantitative spectral work.
 - **Nearest-neighbor export** keeps every spectrum as measured, but moves it
   by up to half an output pixel.
 

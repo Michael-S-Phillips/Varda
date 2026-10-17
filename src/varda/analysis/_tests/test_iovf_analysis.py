@@ -61,3 +61,33 @@ def test_bad_bands_keep_the_input_values():
     np.testing.assert_array_equal(out[1:, :, 12], expected[1:])
     assert np.isnan(out[0, 0]).all()  # nodata stays missing
     assert result.bandModel.badBands[12]
+
+
+def test_the_replaced_count_map_comes_with_the_filtered_cube():
+    """By default the run also gives a one-band image of how many bands were
+    replaced at each pixel; both record the per-round counts."""
+    image = _image()
+    filtered, counts = IovfAnalysis().runAll(image, lambda p, m: None)
+
+    assert filtered.name == "scene IOVF"
+    assert counts.name == "scene IOVF replaced"
+    assert counts.bandNames == ["Bands replaced"]
+    values = counts.getData()[:, :, 0]
+    assert values[8, 7] >= 1  # the spike
+    assert np.isnan(values[0, 0])  # nodata stays missing
+    record = filtered.extraMetadata["iovf"]
+    assert counts.extraMetadata["iovf"] == record
+    assert record["replacedTotal"] == sum(record["replacedPerRound"]) > 0
+    assert record["rounds"] == len(record["replacedPerRound"])
+    assert record["pixelsWithReplacements"] == int(np.nansum(values > 0))
+    assert record["stopReason"]
+    assert (
+        f"{record['replacedTotal']} voxels replaced" in filtered.dataSource.description
+    )
+
+
+def test_the_count_map_can_be_left_out():
+    analysis = IovfAnalysis()
+    analysis.replacedMap.set(False)
+    (filtered,) = analysis.runAll(_image(), lambda p, m: None)
+    assert "iovf" in filtered.extraMetadata

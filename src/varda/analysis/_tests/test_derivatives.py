@@ -48,8 +48,56 @@ def test_spectral_slope_between_two_wavelengths():
     result = analysis.run(_linearImage(slope=2e-4), lambda p, m: None)
 
     assert result.name == "scene slope 1200-1800"
+    np.testing.assert_allclose(result.getData()[:, :, 0], 2e-4, atol=1e-12)
+
+
+def test_spectral_slope_alone_is_one_band():
+    analysis = SpectralSlopeAnalysis()
+    analysis.fitStatistics.set(False)
+    result = analysis.run(_linearImage(slope=2e-4), lambda p, m: None)
     assert result.bandCount == 1
     np.testing.assert_allclose(result.getData()[:, :, 0], 2e-4, atol=1e-12)
+
+
+def test_spectral_slope_reports_its_standard_error_and_r_squared():
+    """Standard error from the residuals, sqrt(SSE / (n - 2) / Sxx), and
+    R² = 1 - SSE / SST, against a direct least-squares fit."""
+    rng = np.random.default_rng(7)
+    cube = 0.1 + 2e-4 * WAVELENGTHS + 0.01 * rng.normal(size=(3, 4, WAVELENGTHS.size))
+    image = VardaRaster(ArrayDataSource(cube, wavelengths=WAVELENGTHS), name="scene")
+    result = SpectralSlopeAnalysis().run(image, lambda p, m: None)
+
+    assert result.bandCount == 3
+    assert result.bandNames == [
+        "Slope 1000-2000 nm (per nm)",
+        "Slope standard error (per nm)",
+        "R² (unitless)",
+    ]
+    data = result.getData()
+    y = cube[1, 2]
+    x = WAVELENGTHS
+    slope, intercept = np.polyfit(x, y, 1)
+    residual = y - (slope * x + intercept)
+    sse = np.sum(residual**2)
+    se = np.sqrt(sse / (x.size - 2) / np.sum((x - x.mean()) ** 2))
+    r2 = 1 - sse / np.sum((y - y.mean()) ** 2)
+    np.testing.assert_allclose(data[1, 2], [slope, se, r2], rtol=1e-4)
+
+
+def test_a_perfect_line_has_no_slope_error_and_r_squared_one():
+    data = SpectralSlopeAnalysis().run(_linearImage(), lambda p, m: None).getData()
+    np.testing.assert_allclose(data[:, :, 1], 0.0, atol=1e-9)
+    np.testing.assert_allclose(data[:, :, 2], 1.0, atol=1e-6)
+
+
+def test_two_bands_give_no_slope_error():
+    """Two points fit exactly: there are no degrees of freedom left for the
+    error, so it is NaN rather than a misleading 0."""
+    analysis = SpectralSlopeAnalysis()
+    analysis.startWavelength.set(1000.0)
+    analysis.endWavelength.set(1100.0)
+    data = analysis.run(_linearImage(), lambda p, m: None).getData()
+    assert np.isnan(data[:, :, 1]).all()
 
 
 def test_spectral_slope_needs_two_bands_in_the_range():

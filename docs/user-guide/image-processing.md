@@ -48,6 +48,31 @@ neighbors; with none left, it takes the reference value. Bands marked bad
 keep their input values. Spectral filters added by plugins (a spectral smoothing filter, say) go here
 too.
 
+| Setting | Meaning | Range | Default |
+|---|---|---|---|
+| **Window Rows**, **Window Columns**, **Window Bands** | Size of the test window (odd) | 3–15 | 7, 5, 5 |
+| **Stop Below** | Stop once a round replaces fewer values than this share of round 1's (0: run until nothing is flagged) | 0–50 % | 1 % |
+| **Replaced Count Image** | Also add an image of how many bands were replaced at each pixel | On / off | On |
+
+**Outputs:** the filtered cube (the input's bands and units) and, with
+**Replaced Count Image** on, a one-band image named "*image* IOVF replaced"
+whose band "Bands replaced" counts, at each pixel, the bands replaced in any
+round (0 to the band count; NaN where the pixel is unusable). Both carry the
+same `iovf` metadata (saved with the file):
+
+| Key | Meaning |
+|---|---|
+| `replacedPerRound` | Values replaced in each round |
+| `replacedTotal` | Their sum; a value replaced in two rounds counts twice |
+| `voxelsReplaced` | Distinct values replaced (the sum of the count image) |
+| `pixelsWithReplacements` | Pixels with at least one replaced value |
+| `rounds` | Rounds run |
+| `stopReason` | Why it stopped: "nothing flagged", "below stop fraction", "stalled", "counts cycling" or "round limit" (200 rounds) |
+
+The filtered cube's description repeats the totals, the per-round counts
+and the stop reason. When **Save to** is set in the dialog, the count image
+is saved beside the result, with `_replaced` added to its file name.
+
 ## Spatial gradient (Derivatives)
 
 **Spatial Gradient** (Processing → Derivatives) gives the magnitude of one
@@ -66,6 +91,13 @@ band's spectral response. Bad bands and no-data values are left out. A band
 the cube covers less than 90% of (HiRISE BG below CRISM's first band, say)
 is skipped, and the result's description lists it. A pixel missing more
 than 10% of a band's response (from no-data) is no-data in that band.
+
+Each band's **coverage**, the share of its response (area) that the cube's
+good bands cover, is in the result's description (e.g. "coverage BG 93%,
+RED 100%, NIR 100%") and its metadata (`sensorBands`: the sensor, the
+coverage of every sensor band, used or skipped, as a fraction 0–1, the
+90% threshold and the skipped bands). The metadata is saved with the
+file.
 
 Built in:
 
@@ -104,7 +136,8 @@ if needed. CTX's band (515-705 nm at half power) lies in CRISM's VNIR
 detector, so use joined or VNIR data rather than an IR-only cube; note
 that CRISM's MTRDR has no bands from 631 to 710 nm, so the scene misses
 part of the CTX band. Varda keeps a band if at least 90% of its response
-is covered, but doesn't report how much was.
+is covered, and the result's description gives how much was (e.g. "CTX
+93%").
 
 ## Image math and masks
 
@@ -183,7 +216,8 @@ agree. One bit (frame 0, say) shows where that frame was left out.
 - **Spatial Entropy:** the Shannon entropy (bits) of one band's values in a
   window around each pixel, after sorting the band into equal-width bins
   between its minimum and maximum. Textured areas score high, uniform areas
-  low.
+  low. The **Window** (pixels, 3–99, default 7) takes odd sizes only, so the
+  recorded size is the one used.
 - **Spectral Entropy:** the Shannon entropy (bits) of each pixel's spectrum,
   treated as a distribution over its bands (each band's share of the
   spectrum's sum), over its good bands (bad bands are left out). A flat
@@ -350,8 +384,9 @@ Sizes are made odd (a 4 becomes 5).
 
 ### Uncertainty and quality
 
-None of these tools reports an uncertainty. What you can say, and how to get
-a number:
+Most of these tools report no uncertainty (IOVF's replacement counts and
+the sensor-band coverage are the exceptions, below). What you can say, and
+how to get a number:
 
 - **Gaps.** Within a window's width of no-data, filters, texture, slopes and
   resampling see the nearest valid value repeated. Exclude those pixels (for
@@ -369,12 +404,15 @@ a number:
   times that.) Bilateral, total variation and Canny are
   set relative to the band's standard deviation, so the same setting acts
   differently on bands with different spread.
-- **IOVF.** The number of values replaced in all rounds, and the number of
-  rounds, are in the result's description; the count in each round and
-  which values were replaced aren't saved. To map them, subtract the result
-  from the input (Image Arithmetic): the difference is zero, to rounding,
-  except where a value was replaced. The window and the stop setting change
-  what's replaced, so report both. Bad bands, and a pixel's no-data bands,
+- **IOVF.** Report the window, the stop setting and the `iovf` metadata
+  (values replaced per round and in total, pixels affected, rounds and why
+  it stopped). The **Replaced Count Image** maps where values were
+  replaced; clusters of replacements in one area or one band range point
+  to real spectral features being taken for spikes, so inspect those
+  spectra before trusting the filtered values there. To see by how much
+  each value changed, subtract the result from the input (Image
+  Arithmetic). The window and the stop setting change what's replaced, so
+  report both. Bad bands, and a pixel's no-data bands,
   are filled along the spectrum before filtering (so filled values take
   part in the windows); in the result, bad bands get their input values
   back and stay marked bad, while a pixel's filled no-data bands stay
@@ -383,9 +421,12 @@ a number:
   approximations (the result's description says so), and CTX is rebuilt
   from published edges: fine for a scene to align, not for comparing
   values with the real instrument. For that, give the instrument's measured
-  response file. A band can be kept with up to 10% of its response missing,
-  and Varda doesn't report how much was: compare the band's range with the
-  cube's wavelengths yourself.
+  response file. A band can be kept with up to 10% of its response
+  missing; its coverage (in the description and the `sensorBands`
+  metadata) says how much of it the cube covers. Report it for any band
+  below 100%: the missing part of the response is left out and the rest
+  renormalized, so the band is biased toward the cube's side of it when
+  the spectrum slopes across it.
 - **Band Math and Image Arithmetic** don't propagate errors. For a ratio
   R = A / B with independent noise, (σR / R)² = (σA / A)² + (σB / B)². Take
   σA and σB from the standard deviation of each band over a uniform area

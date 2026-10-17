@@ -198,8 +198,9 @@ class MatchSettings:
 class DisplacementField:
     """Where the moving image's features sit relative to the reference's,
     tile by tile over their overlap (as COSI-Corr's output): east and north
-    displacement in map units, and each match's quality (0-1). NaN where a
-    tile gave no confident match."""
+    displacement in map units, each match's quality (0-1: the tiles'
+    correlation once aligned) and its phase-plane SNR (0-1; NaN without the
+    refinement). NaN where a tile gave no confident match."""
 
     referenceKey: int
     movingKey: int
@@ -207,9 +208,11 @@ class DisplacementField:
     dy: np.ndarray
     quality: np.ndarray
     transform: Affine  # field pixel (col, row) → map; pixels sit on the tile centers
+    phaseSnr: np.ndarray
 
 
-MatchedPoint = tuple[tuple[float, float], tuple[float, float], float, int]
+# (reference pixel, moving pixel, quality, band, phase-plane SNR or NaN)
+MatchedPoint = tuple[tuple[float, float], tuple[float, float], float, int, float]
 # The image's transform, as image_align names it (warps are screened with a
 # homography; Varda fits them)
 ASP_MODELS = {
@@ -255,15 +258,16 @@ def applyTiePoints(
 ) -> None:
     """Replace an input's automatic tie points with ``result``'s."""
     project.removeAutoTiePoints(movingKey)
-    for referenceKey, (referencePixel, movingPixel, quality, band) in result.points:
+    for referenceKey, (reference, moving, quality, band, snr) in result.points:
         project.addTiePoint(
             movingKey,
-            movingPixel,
+            moving,
             referenceKey,
-            referencePixel,
+            reference,
             auto=True,
             quality=quality,
             band=band,
+            phaseSnr=snr,
         )
 
 
@@ -344,8 +348,8 @@ def matchPair(
     settings: MatchSettings,
     progress: Callable[[float, str], None],
 ) -> tuple[list[MatchedPoint], DisplacementField | None, MatchMethod]:
-    """Tie points (reference pixel, moving pixel, quality, band) between two
-    inputs over ``grid`` (their overlap), the displacement field, and the
+    """Tie points (reference pixel, moving pixel, quality, band, phase SNR)
+    between two inputs over ``grid`` (their overlap), the displacement field, and the
     method used."""
     referenceCube = readCube(reference, list(bands))
     movingCube = readCube(moving, list(bands))
@@ -391,8 +395,8 @@ def matchPair(
             progress(i / len(bands), f"matching band {band + 1}")
             found, centers, shift = _tileMatches(a, b, settings)
             points += [
-                _tiePoint(reference, moving, grid, p, q, quality, band)
-                for p, q, quality in found
+                _tiePoint(reference, moving, grid, p, q, quality, band, snr)
+                for p, q, quality, snr in found
             ]
             shifts.append(shift)
         displacement = _field(
@@ -421,6 +425,7 @@ def _tiePoint(
     q: np.ndarray,
     quality: float,
     band: int,
+    phaseSnr: float = float("nan"),
 ) -> MatchedPoint:
     """A match from overlap-grid pixels (p in the reference, q in the moving
     image) to each input's own pixels."""
@@ -433,6 +438,7 @@ def _tiePoint(
         (float(m[0]), float(m[1])),
         float(quality),
         int(band),
+        float(phaseSnr),
     )
 
 
@@ -456,12 +462,14 @@ def _coarseOffset(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 def _tileMatches(
     a: np.ndarray, b: np.ndarray, settings: MatchSettings
 ) -> tuple[
-    list[tuple[np.ndarray, np.ndarray, float]], list[tuple[int, int]], np.ndarray
+    list[tuple[np.ndarray, np.ndarray, float, float]],
+    list[tuple[int, int]],
+    np.ndarray,
 ]:
     """Phase-correlated tiles over one band of the overlap: the matches
-    (reference point, moving point, quality), the tile grid's top-left
-    corners, and each tile's shift (tiles × (dx, dy, quality), NaN when
-    rejected)."""
+    (reference point, moving point, quality, phase-plane SNR or NaN), the
+    tile grid's top-left corners, and each tile's shift (tiles × (dx, dy,
+    quality, SNR), NaN when rejected)."""
     size = settings.tileSize
     rows, cols = a.shape
     step = max(size // 4, 1)  # overlapping tiles, as COSI-Corr steps its windows
@@ -475,7 +483,7 @@ def _tileMatches(
         for x in range(0, cols - size + 1, step)
     ]
     coarse = _coarseOffset(a, b)
-    found, shifts = [], np.full((len(corners), 3), np.nan)
+    found, shifts = [], np.full((len(corners), 4), np.nan)
     for t, (y, x) in enumerate(corners):
         tile = a[y : y + size, x : x + size]
         if not np.isfinite(tile).all() or bandSnr(tile[:, :, None])[0] < MIN_TILE_SNR:
@@ -487,19 +495,20 @@ def _tileMatches(
         if np.abs(shift).max() > size / 4:  # beyond what phase correlation can trust
             continue
         whole = np.round(shift)
+        snr = float("nan")
         if settings.refine:
             aligned = _tile(b, x + coarse[0] + whole[0], y + coarse[1] + whole[1], size)
             if aligned is None:
                 continue
-            fraction, _ = refineShift(tile, aligned, shift - whole)
+            fraction, snr = refineShift(tile, aligned, shift - whole)
             shift = whole + fraction
             quality = alignedCorrelation(tile, aligned, tuple(fraction))
         if quality < MIN_QUALITY:
             continue
         total = coarse + shift
         center = np.array([x + size / 2, y + size / 2])
-        found.append((center, center + total, quality))
-        shifts[t] = (*total, quality)
+        found.append((center, center + total, quality, snr))
+        shifts[t] = (*total, quality, snr)
     return found, corners, shifts
 
 
@@ -527,7 +536,7 @@ def _field(
     step = (
         (xs[1] - xs[0]) if len(xs) > 1 else ((ys[1] - ys[0]) if len(ys) > 1 else size)
     )
-    stacked = np.stack(shifts)  # (bands, tiles, 3)
+    stacked = np.stack(shifts)  # (bands, tiles, 4)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN tiles stay NaN
         median = np.nanmedian(stacked, axis=0)
@@ -545,6 +554,7 @@ def _field(
         mapShift[:, 1].reshape(shape),
         median[:, 2].reshape(shape),
         transform,
+        median[:, 3].reshape(shape),
     )
 
 

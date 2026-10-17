@@ -47,6 +47,12 @@ MAP_UNITS = {  # PROJ's unit names, as labels
     "foot": "ft",
     "US survey foot": "US ft",
 }
+FILL_SMOOTHING = 4  # passes of a 3 × 3 mean over the filled points
+FILL_METHOD = (
+    "nearest valid grid point's height (Euclidean distance), then "
+    f"{FILL_SMOOTHING} passes of a 3 x 3 mean over valid neighbors, on the "
+    "decimated grid; gaps enclosed by data only"
+)
 THREE_FILES = {
     "three": "three.module.min.js",
     "three/addons/controls/OrbitControls.js": "OrbitControls.js",
@@ -61,6 +67,7 @@ class Terrain:
     step: int  # DEM pixels per grid cell
     filled: int = 0  # grid points of gaps inside the data that were filled
     demShape: tuple[int, int] = (0, 0)  # the DEM's rows and columns (0: step × grid)
+    filledMask: np.ndarray | None = None  # (rows, cols) bool: the filled points
 
     @property
     def columns(self) -> np.ndarray:
@@ -102,6 +109,7 @@ class TerrainSettings:
     edges: str = "smooth"
     # the unit of the DEM's heights (a HEIGHT_UNITS key); ground sizes are meters
     heightUnit: str = "m"
+    showFilled: bool = False  # tint the filled gaps' points
 
     @property
     def metersPerHeightUnit(self) -> float:
@@ -177,15 +185,16 @@ def mapUnit(crs: CRS) -> str:
     return MAP_UNITS.get(name, name or "map units")
 
 
-def fillGaps(heights: np.ndarray, smoothing: int = 4) -> tuple[np.ndarray, int]:
+def fillGaps(
+    heights: np.ndarray, smoothing: int = FILL_SMOOTHING
+) -> tuple[np.ndarray, np.ndarray]:
     """Gaps of no data enclosed by data (a DTM's voids on steep slopes, say)
     filled from the nearest heights and smoothed; no data around the outside
-    stays. Returns the heights and how many points were filled."""
+    stays. Returns the heights and which points were filled (``FILL_METHOD``)."""
     valid = np.isfinite(heights)
     gaps = ndimage.binary_fill_holes(valid) & ~valid
-    count = int(gaps.sum())
-    if not count:
-        return heights, 0
+    if not gaps.any():
+        return heights, gaps
     nearest = ndimage.distance_transform_edt(
         ~valid, return_distances=False, return_indices=True
     )
@@ -196,7 +205,7 @@ def fillGaps(heights: np.ndarray, smoothing: int = 4) -> tuple[np.ndarray, int]:
         filled[gaps] = mean[gaps] / np.maximum(
             ndimage.uniform_filter(np.isfinite(filled).astype(float), 3)[gaps], 1e-9
         )
-    return filled.astype(heights.dtype), count
+    return filled.astype(heights.dtype), gaps
 
 
 @njit(cache=_CACHE)
@@ -255,12 +264,13 @@ def buildTerrain(
     step = max(1, math.ceil(max(data.shape) / maxSide))
     widthM, heightM = size if size is not None else groundSize(dem)
     heights = _blockMean(data, step)
-    filled = 0
+    mask = np.zeros(heights.shape, bool)
     if fill:
-        heights, filled = fillGaps(heights)
+        heights, mask = fillGaps(heights)
     if trim:
         heights = trimToRectangle(heights)
-    return Terrain(heights, widthM, heightM, step, filled, data.shape)
+        mask = mask & np.isfinite(heights)
+    return Terrain(heights, widthM, heightM, step, int(mask.sum()), data.shape, mask)
 
 
 def quantize(heights: np.ndarray) -> tuple[np.ndarray, float, float]:
@@ -296,9 +306,27 @@ PANEL = """<div id="panel">
 <label>Sun azimuth</label><input type="range" min="0" max="360" step="1" data-setting="sunAzimuth">
 <label>Sun elevation</label><input type="range" min="2" max="90" step="1" data-setting="sunElevation">
 <label>Shadows</label><input type="checkbox" data-setting="shadows">
-<button id="home">Reset view</button>
+{filled}<button id="home">Reset view</button>
 </div>
 <div id="credit">Made with <a href="https://github.com/varda-pro/Varda">Varda</a></div>"""
+
+
+FILLED_PANEL = """<label>Filled gaps</label><input type="checkbox" data-setting="showFilled">
+<p class="note">{count:,} points of gaps in the DEM were filled with invented heights ({method}); tick to tint them.</p>
+"""
+
+
+def _filledData(terrain: Terrain) -> dict:
+    """The filled points for the page: how many, how, and a bit mask (rows
+    first, most significant bit first) as base64, or None."""
+    mask = terrain.filledMask
+    return {
+        "count": terrain.filled,
+        "method": FILL_METHOD,
+        "mask": base64.b64encode(np.packbits(mask.ravel()).tobytes()).decode()
+        if mask is not None and mask.any()
+        else None,
+    }
 
 
 @frozen
@@ -358,6 +386,7 @@ def pageHtml(
         "overlays": [asdict(overlay) for overlay in overlays],
         "legend": None if legend is None else asdict(legend),
         "lines": [asdict(line) for line in lines],
+        "filled": _filledData(terrain),
     }
     importmap = {"imports": {k: _dataUrl(folder / f) for k, f in THREE_FILES.items()}}
     safeTitle = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -365,7 +394,17 @@ def pageHtml(
     return (
         template.replace("{{TITLE}}", safeTitle)
         .replace("{{IMPORTMAP}}", json.dumps(importmap))
-        .replace("{{PANEL}}", PANEL.format(title=safeTitle) if panel else "")
+        .replace(
+            "{{PANEL}}",
+            PANEL.format(
+                title=safeTitle,
+                filled=FILLED_PANEL.format(count=terrain.filled, method=FILL_METHOD)
+                if terrain.filled
+                else "",
+            )
+            if panel
+            else "",
+        )
         # </script> can't appear inside the inline script
         .replace("{{SCENE}}", json.dumps(data).replace("</", "<\\/"))
         .replace("{{VIEWER}}", (folder / "viewer.js").read_text())

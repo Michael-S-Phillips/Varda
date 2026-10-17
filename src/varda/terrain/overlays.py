@@ -50,6 +50,13 @@ class Alignment:
     shift: tuple[float, float] = (0.0, 0.0)
     points: int = 0  # tie points the last fit used
     rms: float = float("nan")  # their residual, map units
+    # What Auto Align matched: the image (by name), its band (0-based) and
+    # that band's SNR, and the tie points' median phase-plane SNR (0-1)
+    matchedOn: str = ""
+    band: int | None = None
+    bandLabel: str = ""
+    bandSnr: float = float("nan")
+    phaseSnr: float = float("nan")
 
     def matrix(self) -> np.ndarray:
         """The correction with the manual shift after it."""
@@ -68,21 +75,40 @@ class Alignment:
             "warp": None if self.warp is None else self.warp.state(),
             "shift": list(self.shift),
             "points": self.points,
-            "rms": None if math.isnan(self.rms) else self.rms,
+            "rms": _orNone(self.rms),
+            "matchedOn": self.matchedOn,
+            "band": self.band,
+            "bandLabel": self.bandLabel,
+            "bandSnr": _orNone(self.bandSnr),
+            "phaseSnr": _orNone(self.phaseSnr),
         }
 
     @classmethod
     def fromState(cls, state: dict) -> Alignment:
         warp = state.get("warp")
-        rms = state.get("rms")
+        band = state.get("band")
         return cls(
             TransformModel[state.get("model", DEFAULT_MODEL.name)],
             np.asarray(state.get("correction", np.eye(3).tolist()), float),
             None if warp is None else Warp.fromState(warp),
             tuple(state.get("shift", (0.0, 0.0))),
             int(state.get("points", 0)),
-            float("nan") if rms is None else float(rms),
+            _orNan(state.get("rms")),
+            str(state.get("matchedOn", "")),
+            None if band is None else int(band),
+            str(state.get("bandLabel", "")),
+            _orNan(state.get("bandSnr")),
+            _orNan(state.get("phaseSnr")),
         )
+
+
+def _orNone(value: float) -> float | None:
+    """NaN as None, for JSON."""
+    return None if math.isnan(value) else float(value)
+
+
+def _orNan(value: float | None) -> float:
+    return float("nan") if value is None else float(value)
 
 
 @frozen
@@ -153,11 +179,26 @@ def bandArray(image: VardaRaster, band: int) -> np.ndarray:
     return data
 
 
-def bestBand(image: VardaRaster) -> int:
-    """The band with the best signal-to-noise ratio, to align on."""
+def bestBand(image: VardaRaster) -> tuple[int, float]:
+    """The band with the best signal-to-noise ratio, to align on, and its
+    SNR (``mosaicking.bands.bandSnr``)."""
     snr = estimateSnr(MosaicInput(image, 0))
     bands = chooseBands(snr, image.bandModel.centers, 1, image.bandModel.badBands)
-    return int(bands[0]) if bands else 0
+    band = int(bands[0]) if bands else 0
+    return band, float(snr[band])
+
+
+def bandLabel(image: VardaRaster, band: int) -> str:
+    """A band as people name it: its number (1-based), with its wavelength
+    or its name when it has one."""
+    centers = image.bandModel.centers
+    if centers is not None and np.isfinite(centers[band]):
+        return f"band {band + 1} ({centers[band]:.6g} nm)"
+    label = f"band {band + 1}"
+    names = list(image.bandNames or [])
+    name = str(names[band]) if band < len(names) else ""
+    plain = name.lower() in ("", str(band + 1), label)  # nothing more to say
+    return label if plain else f"{label} ({name})"
 
 
 def align(
@@ -182,8 +223,16 @@ def align(
     fitted = project.input(1)
     inliers = [p.residual for p in project.tiePointsOf(1) if p.inlier]
     rms = float(np.sqrt(np.mean(np.square(inliers)))) if inliers else math.nan
+    snr = np.array([p.phaseSnr for p in project.tiePointsOf(1)], float)
+    snr = snr[np.isfinite(snr)]
     return Alignment(
-        model, fitted.correction.copy(), fitted.warp, (0.0, 0.0), len(inliers), rms
+        model,
+        fitted.correction.copy(),
+        fitted.warp,
+        (0.0, 0.0),
+        len(inliers),
+        rms,
+        phaseSnr=float(np.median(snr)) if snr.size else math.nan,
     )
 
 

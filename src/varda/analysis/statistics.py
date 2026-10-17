@@ -55,7 +55,11 @@ class SpatialEntropyAnalysis(Analysis):
 
     band = IntParameter("Band", 1, range=(1, 10000), description="Band (1-based)")
     window = IntParameter(
-        "Window", 7, range=(3, 99), description="Window size in pixels (odd)"
+        "Window",
+        7,
+        range=(3, 99),
+        description="Window size in pixels (odd sizes only)",
+        step=2,
     )
     bins = IntParameter(
         "Bins", 64, range=(2, 256), description="Gray levels the band is quantized into"
@@ -68,7 +72,7 @@ class SpatialEntropyAnalysis(Analysis):
         valid = np.isfinite(data)
         if image.nodata is not None:
             valid &= data != image.nodata
-        window = int(self.window.value) | 1  # force odd
+        window = int(self.window.value)  # odd (step 2)
         bins = int(self.bins.value)
 
         quantised = _quantise(data, valid, bins)

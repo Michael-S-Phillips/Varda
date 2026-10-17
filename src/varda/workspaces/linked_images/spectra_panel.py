@@ -154,9 +154,10 @@ class LinkedSpectraPanel(QWidget):
     def _showBits(self, index: int, spectrum: LinkedSpectrum) -> str:
         """Draw a spectrum of bit masks as bits by wavelength; returns how
         many bits are set, for the title."""
-        width = max(self.bitWidths[index], highestBit(spectrum.values))
+        dtype = self.images[index].dtype
+        width = max(self.bitWidths[index], highestBit(spectrum.values, dtype))
         self.bitWidths[index] = width
-        planes = bitPlanes(spectrum.values, width)
+        planes = bitPlanes(spectrum.values, width, dtype)
         axis = spectrum.displayAxis
         step = float(np.median(np.diff(axis))) if axis.size > 1 else 1.0
         bits = self.bitImages[index]

@@ -63,3 +63,12 @@ def test_spatial_entropy_names_the_band_and_ignores_nodata():
 def test_entropy_analyses_are_filed_under_statistics():
     for analysis in (SpectralEntropyAnalysis, SpatialEntropyAnalysis):
         assert analysis.category == "Statistics"
+
+
+def test_spatial_entropy_window_takes_only_odd_sizes():
+    """An even window is moved onto an odd one in the setting itself, so the
+    recorded value is the one used."""
+    analysis = SpatialEntropyAnalysis()
+    analysis.window.set(8)
+    assert analysis.window.get() == 9
+    assert analysis.window.step == 2

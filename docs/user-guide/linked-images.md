@@ -94,7 +94,7 @@ How images are linked:
 | By map location | The point's map coordinates in the georeferencing of the image you clicked, converted to each other image's CRS with PROJ (through pyproj), then to its pixel through its georeferencing. No co-registration is done. |
 | Values | The spectrum of the pixel the point falls in (nearest pixel, no interpolation). |
 | Lines | Vertices are kept in the first image's coordinates and moved to each image as above; each image's profile is then sampled along straight segments between them on its own grid. |
-| Bits | Bit *i* is (value >> *i*) & 1, so bit 0 is the least significant. |
+| Bits | Bit *i* is (value >> *i*) & 1, so bit 0 is the least significant. A signed image's values are read as the unsigned integer of the same width (an int16 −1 is sixteen bits set), as **Decode Bit Mask** reads them. |
 
 ### Uncertainty and quality
 

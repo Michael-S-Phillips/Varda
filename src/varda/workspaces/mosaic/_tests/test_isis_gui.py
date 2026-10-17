@@ -12,6 +12,7 @@ from varda.mosaicking.recipe import Correction, RadiometryMethod
 from varda.workspaces.mosaic import mosaic_workspace
 from varda.workspaces.mosaic.cam2map_dialog import Cam2mapDialog
 from varda.workspaces.mosaic.mosaic_workspace import MosaicWorkspace
+from varda.workspaces.mosaic.panels import RADIOMETRY_COLUMNS
 from varda.workspaces.mosaic._tests.test_radiometry_panel import _strip
 
 
@@ -94,7 +95,8 @@ def test_the_comparison_shows_isis_beside_varda_and_can_be_used(workspace, qtbot
     assert panel.compareIsis.isVisibleTo(panel)
     panel.compareIsis.click()
     qtbot.waitUntil(lambda: panel.compareIsis.isEnabled(), timeout=10000)
-    assert panel.table.item(1, 3).text() == "1.0250"  # the mean of 0.8 and 1.25
+    column = RADIOMETRY_COLUMNS.index("ISIS gain")
+    assert panel.table.item(1, column).text() == "1.0250"  # mean of 0.8 and 1.25
     assert "ISIS equalizer solved 2 images" in panel.status.text()
     panel.useIsis.click()
     assert np.allclose(workspace.project.input(1).radiometry.gain, [0.8, 1.25])
