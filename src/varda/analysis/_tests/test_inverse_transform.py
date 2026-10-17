@@ -230,3 +230,10 @@ def test_preview_is_an_eigenvalue_plot_whose_cutoff_tracks_the_components(qtbot)
 def test_ordinary_analyses_have_no_preview():
     image = _image(_planted())
     assert PcaAnalysis().createPreviewWidget(image) is None
+
+
+def test_the_output_choices_show_their_descriptive_labels():
+    assert InverseTransformAnalysis().output.enumNames == [
+        "Denoised image (inverse transform to the original bands)",
+        "Only the chosen components (as component bands)",
+    ]

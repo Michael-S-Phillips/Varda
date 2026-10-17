@@ -6,7 +6,12 @@ own axes and pans and zooms on its own.
 A bit mask (a pipeline's per-frame exclusions: bit i set where frame i was
 left out) reads better as bits than as a number: such images show as a
 chart of bits by wavelength, which is the default for whole-number images
-named like masks and can be switched for any whole-number image."""
+named like masks and can be switched for any whole-number image.
+
+Export writes every image's spectrum at the cursor as CSV: the pixel read
+(column, row), the cursor's map position in that image's CRS, and the
+x axis's unit (a wavelength unit, or band numbers), under a commented
+header naming each image's CRS."""
 
 from __future__ import annotations
 
@@ -17,6 +22,7 @@ from pathlib import Path
 
 import numpy as np
 import pyqtgraph as pg
+from pyproj import CRS
 from PyQt6.QtCore import QRectF
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
@@ -33,6 +39,7 @@ from PyQt6.QtWidgets import (
 from varda.common.entities import VardaRaster
 from varda.common.palette import classColor
 from varda.common.ui import MutedLabel
+from varda.version import vardaVersion
 from varda.workspaces.linked_images.linking import (
     LinkedSpectrum,
     bitPlanes,
@@ -174,17 +181,42 @@ class LinkedSpectraPanel(QWidget):
                 QMessageBox.warning(self, "Export Spectra", str(error))
 
     def exportTo(self, path: Path) -> None:
+        """The spectra at the cursor: per image, the pixel read (``col``,
+        ``row``, counted from 0), the cursor's map position (``map_x``,
+        ``map_y``, in the image's CRS; empty without georeferencing), ``x``
+        in ``x_unit`` (a wavelength unit, or "band" for band numbers) and the
+        value."""
+        header = [f"Varda {vardaVersion()} linked spectra at the cursor"]
+        rows = []
+        for image, spectrum, point in zip(self.images, self.spectra, self._positions):
+            if spectrum is None:
+                continue
+            x, y = (float(v) for v in np.asarray(point).reshape(-1)[:2])
+            col, row = int(np.floor(x)), int(np.floor(y))
+            mapX = mapY = ""
+            if image.hasGeospatialData:
+                mapped = image.imageToGeo(np.array([[x, y]]))[0]
+                mapX, mapY = repr(float(mapped[0])), repr(float(mapped[1]))
+                crs = CRS.from_user_input(image.crs)
+                header.append(f"{image.name}: CRS {crs.name}; WKT {crs.to_wkt()}")
+            else:
+                header.append(f"{image.name}: no georeferencing")
+            for axis, value in zip(spectrum.displayAxis, spectrum.values):
+                rows.append(
+                    [
+                        image.name,
+                        col,
+                        row,
+                        mapX,
+                        mapY,
+                        repr(float(axis)),
+                        spectrum.axisUnit,
+                        "" if np.isnan(value) else f"{value:.10g}",
+                    ]
+                )
         with path.open("w", newline="") as f:
+            f.writelines(f"# {line}\n" for line in header)
             out = csv.writer(f)
-            out.writerow(["image", "x", "value"])
-            for image, spectrum in zip(self.images, self.spectra):
-                if spectrum is None:
-                    continue
-                for x, value in zip(spectrum.displayAxis, spectrum.values):
-                    out.writerow(
-                        [
-                            image.name,
-                            f"{x:.6g}",
-                            "" if np.isnan(value) else f"{value:.10g}",
-                        ]
-                    )
+            columns = ["image", "col", "row", "map_x", "map_y", "x", "x_unit"]
+            out.writerow([*columns, "value"])
+            out.writerows(rows)

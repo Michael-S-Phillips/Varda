@@ -46,9 +46,12 @@ your system's keychain. The three catalogs above don't need one.
   georeferenced image, picked under **Image**). The search area is always a
   longitude–latitude rectangle: products whose footprints touch it are
   found, even if they miss the image itself.
-- **Dates:** tick **From** and **To**. Dates are UTC days. **To** means the
-  start of that day (00:00 UTC) for STAC and footprint files, so set it to
-  the day after the last day you want. ODE is sent the date alone.
+- **Dates:** tick **From** and **To**. Dates are UTC days and both are
+  inclusive: **From** starts at 00:00 UTC and **To** runs to the end of its
+  day (23:59:59.999999 UTC), for every catalog. ODE is sent the dates alone
+  and reads them the same way (to 23:59:59.999). For footprint files, a
+  product's time (the start-time column) must fall within the dates; STAC
+  and ODE apply their own observation-time filters.
 - **At most:** results per search (100 by default, up to 1,000). **More
   Results** fetches the next page. The status line says how many the catalog
   matched. STAC's cloud-cover filter is applied by Varda after the catalog

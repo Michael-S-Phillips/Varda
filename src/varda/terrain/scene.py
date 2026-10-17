@@ -1,8 +1,10 @@
 """The 3D terrain page's data. No Qt.
 
 A DEM becomes a grid of heights (decimated to fit the GPU, quantized to 16
-bits with 0 for no data) spanning its ground size in meters, plus a drape
-image. ``pageHtml`` builds the viewer page around them: one self-contained
+bits with 0 for no data) over its ground size in meters, each point at the
+center of the block of DEM pixels it averages, plus a drape image. Heights
+stay in the DEM's own unit (``TerrainSettings.heightUnit``), which the viewer
+and the STL export convert to meters. ``pageHtml`` builds the viewer page around them: one self-contained
 HTML file (three.js inlined through an import map of data URLs), which Varda
 shows and which is also the web export.
 """
@@ -27,6 +29,7 @@ from PIL import Image
 from pyproj import CRS
 
 from varda.common.entities import VardaRaster
+from varda.terrain.solid import blockCenters
 from varda.terrain.vectors import PageLine
 from varda.utilities.resources import resource_path
 
@@ -34,6 +37,16 @@ _CACHE = not getattr(sys, "frozen", False)  # see stretch_algorithms._CACHE
 MAX_SIDE = 1024  # vertices on a side, by default: about 2 million triangles
 MAX_TEXTURE = 8192  # px on a side for the drape
 LEVELS = 65534  # height levels (16 bits, 0 meaning no data)
+# Height units the 3D view knows, in meters (as the viewer's HEIGHT_UNITS)
+HEIGHT_UNITS = {"m": 1.0, "km": 1000.0, "ft": 0.3048}
+MAP_UNITS = {  # PROJ's unit names, as labels
+    "metre": "m",
+    "meter": "m",
+    "kilometre": "km",
+    "kilometer": "km",
+    "foot": "ft",
+    "US survey foot": "US ft",
+}
 THREE_FILES = {
     "three": "three.module.min.js",
     "three/addons/controls/OrbitControls.js": "OrbitControls.js",
@@ -47,6 +60,20 @@ class Terrain:
     heightM: float  # and south to north
     step: int  # DEM pixels per grid cell
     filled: int = 0  # grid points of gaps inside the data that were filled
+    demShape: tuple[int, int] = (0, 0)  # the DEM's rows and columns (0: step × grid)
+
+    @property
+    def columns(self) -> np.ndarray:
+        """Where each grid column stands: the center of the DEM pixels it
+        averages, as a fraction of the extent from the west edge."""
+        count = self.heights.shape[1]
+        return blockCenters(self.demShape[1] or count * self.step, self.step)
+
+    @property
+    def rows(self) -> np.ndarray:
+        """And each grid row, as a fraction from the north edge."""
+        count = self.heights.shape[0]
+        return blockCenters(self.demShape[0] or count * self.step, self.step)
 
     @property
     def zRange(self) -> tuple[float, float]:
@@ -73,6 +100,12 @@ class TerrainSettings:
     # the outline: "smooth" (cut diagonally), "stepped" (cell by cell) or
     # "rectangle" (trimmed to the largest rectangle with data everywhere)
     edges: str = "smooth"
+    # the unit of the DEM's heights (a HEIGHT_UNITS key); ground sizes are meters
+    heightUnit: str = "m"
+
+    @property
+    def metersPerHeightUnit(self) -> float:
+        return HEIGHT_UNITS.get(self.heightUnit, 1.0)
 
     def toDict(self) -> dict:
         return asdict(self)
@@ -119,6 +152,29 @@ def groundSize(image: VardaRaster) -> tuple[float, float]:
         return width * metersPerDegree * math.cos(latitude), height * metersPerDegree
     factor = crs.axis_info[0].unit_conversion_factor if crs.axis_info else 1.0
     return width * factor, height * factor
+
+
+def verticalUnit(crs: CRS) -> str | None:
+    """The height unit (a ``HEIGHT_UNITS`` key) a CRS declares on its up
+    axis (a compound CRS's vertical part, or a 3D CRS), if it's one Varda
+    knows; US survey feet count as feet (2 parts per million apart)."""
+    for axis in crs.axis_info:
+        if axis.direction.lower() == "up":
+            factor = axis.unit_conversion_factor
+            for unit, meters in HEIGHT_UNITS.items():
+                if math.isclose(factor, meters, rel_tol=1e-5):
+                    return unit
+    return None
+
+
+def mapUnit(crs: CRS) -> str:
+    """The unit of a CRS's map coordinates, as a short label: ° for a
+    geographic CRS, m, km, ft or US ft for a projected one (otherwise PROJ's
+    name for it)."""
+    if crs.is_geographic:
+        return "°"
+    name = crs.axis_info[0].unit_name if crs.axis_info else ""
+    return MAP_UNITS.get(name, name or "map units")
 
 
 def fillGaps(heights: np.ndarray, smoothing: int = 4) -> tuple[np.ndarray, int]:
@@ -204,7 +260,7 @@ def buildTerrain(
         heights, filled = fillGaps(heights)
     if trim:
         heights = trimToRectangle(heights)
-    return Terrain(heights, widthM, heightM, step, filled)
+    return Terrain(heights, widthM, heightM, step, filled, data.shape)
 
 
 def quantize(heights: np.ndarray) -> tuple[np.ndarray, float, float]:
@@ -290,6 +346,9 @@ def pageHtml(
         "rows": rows,
         "widthM": terrain.widthM,
         "heightM": terrain.heightM,
+        # where the grid's points stand, as fractions of the extent
+        "columnAt": terrain.columns.tolist(),
+        "rowAt": terrain.rows.tolist(),
         "zMin": zMin,
         "zStep": zStep,
         "heights": base64.b64encode(levels.astype("<u2").tobytes()).decode(),

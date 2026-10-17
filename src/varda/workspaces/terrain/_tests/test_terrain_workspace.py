@@ -229,10 +229,90 @@ def test_the_print_dialog_shows_the_printed_size(workspace, qtbot):
     qtbot.addWidget(dialog)
     dialog.widthBox.setValue(120)
     width, depth, height = dialog.printedSize()
-    assert (width, depth) == pytest.approx((120, 80))  # a 1200 × 800 m DEM
-    # 200 m of relief at 0.1 mm per meter, doubled, on a 3 mm base
-    assert height == pytest.approx(200 * 0.1 * 2 + 3, abs=0.5)
-    assert "120 × 80" in dialog.sizeLabel.text()
+    # a 1200 × 800 m DEM of 20 m pixels: its points, at the pixels' centers,
+    # span 1180 × 780 m
+    mmPerM = 120 / 1180
+    assert (width, depth) == pytest.approx((120, 780 * mmPerM))
+    # 200 m of relief, doubled, on a 3 mm base
+    assert height == pytest.approx(200 * mmPerM * 2 + 3, abs=0.5)
+    assert "120 × 79" in dialog.sizeLabel.text()
+    # heights in kilometers print a thousand times taller per unit
+    inKilometers = PrintDialog(workspace.terrain, 2.0, metersPerHeightUnit=1000.0)
+    qtbot.addWidget(inKilometers)
+    inKilometers.widthBox.setValue(120)
+    assert inKilometers.printedSize()[2] == pytest.approx(
+        200_000 * mmPerM * 2 + 3, abs=500
+    )
+
+
+def test_the_height_unit_is_a_setting_kept_with_the_session(workspace, qtbot):
+    assert workspace.settings.heightUnit == "m"  # no vertical CRS: meters
+    workspace.heightUnit.setCurrentText("Kilometers")
+    assert workspace.settings.heightUnit == "km"
+    assert workspace.baseDepth.suffix() == " km"
+    assert workspace.sessionState()["settings"]["heightUnit"] == "km"
+    described = describeWorkspace(workspace)
+    assert described is not None
+    restored = buildWorkspace(
+        *described, workspace.projectImages, workspace.sessionState()
+    )
+    assert isinstance(restored, TerrainWorkspace)
+    qtbot.addWidget(restored)
+    assert restored.settings.heightUnit == "km"
+    assert restored.heightUnit.currentText() == "Kilometers"
+    _finishBackgroundWork(qtbot)
+
+
+def test_a_dem_whose_crs_declares_feet_is_in_feet(qtbot):
+    crs = CRS.from_user_input("EPSG:2229+6360")  # US feet, also vertically
+    dem = VardaRaster(
+        ArrayDataSource(
+            np.random.default_rng(0).random((20, 30, 1)).astype(np.float32),
+            transform=TRANSFORM,
+            crs=crs,
+        ),
+        name="dem",
+    )
+    workspace = TerrainWorkspace(ProjectImages([dem]), dem)
+    qtbot.addWidget(workspace)
+    assert workspace.settings.heightUnit == "ft"
+    assert workspace.overlayPanel.mapUnit == "US ft"
+    assert workspace.overlayPanel.shiftEast.suffix() == " US ft"
+    _finishBackgroundWork(qtbot)
+
+
+def test_overlay_units_follow_the_dem(workspace):
+    panel = workspace.overlayPanel
+    assert panel.mapUnit == "m" and panel.shiftEast.suffix() == " m"
+    panel.setMapUnit("°")
+    assert panel.shiftEast.suffix() == "°" and panel.shiftEast.decimals() == 6
+
+
+def test_auto_align_shades_the_band_shown(qtbot, monkeypatch):
+    rows, cols = 40, 60
+    first = np.zeros((rows, cols))
+    second = np.full((rows, cols), 7.0)
+    dem = _image(np.stack([first, second], axis=2), "dem")
+    images = ProjectImages([dem])
+    overlay = _offsetOverlay(images)
+    workspace = TerrainWorkspace(images, dem)
+    qtbot.addWidget(workspace)
+    workspace.bandBox.setCurrentIndex(1)
+    shaded = []
+
+    def hillshade(heights, pixelSize):
+        shaded.append(np.asarray(heights))
+        raise RuntimeError("enough")
+
+    monkeypatch.setattr(
+        "varda.workspaces.terrain.terrain_workspace.hillshade", hillshade
+    )
+    added = workspace.overlayPanel.add(overlay)
+    added.reference = "DEM hillshade"
+    workspace.autoAlign(0)
+    qtbot.waitUntil(lambda: bool(shaded), timeout=10000)
+    assert np.all(shaded[0] == 7.0)
+    _finishBackgroundWork(qtbot)
 
 
 def test_the_stl_export_writes_a_closed_solid(workspace, qtbot, tmp_path):

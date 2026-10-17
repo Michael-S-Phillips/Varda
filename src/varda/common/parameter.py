@@ -130,19 +130,41 @@ class IntParameter(Parameter[int]):
         range: tuple[int, int] | None = None,
         units: str | None = None,
         description: str | None = None,
+        *,
+        step: int = 1,
     ):
+        """``step`` > 1 allows only the range's start plus multiples of it
+        (step 2 from an odd start: odd values only); other values are clamped
+        into the range and moved up onto a step, so the value held is always
+        one that is used."""
         self.units = units
         self.range = range
+        self.step = step
         if range is not None:
             default = max(range[0], min(range[1], default))  # clamp default to range
-        super().__init__(name, default, description=description)
+        super().__init__(name, self._onStep(default), description=description)
+
+    def _onStep(self, value: int) -> int:
+        if self.step <= 1:
+            return value
+        value = int(value)
+        if self.range is not None:
+            value = max(self.range[0], min(self.range[1], value))
+        low = self.range[0] if self.range is not None else 0
+        value = low + -(-(value - low) // self.step) * self.step  # round up
+        if self.range is not None and value > self.range[1]:
+            value -= self.step
+        return value
+
+    def set(self, value: int) -> None:
+        super().set(self._onStep(value))
 
     def setRange(self, range: tuple[int, int], value: int | None = None) -> None:
         """Change the allowed range once it is known (e.g. an image's band
         count); the value is clamped into it, or replaced by ``value``."""
         self.range = range
         wanted = self.value if value is None else value
-        self.value = max(range[0], min(range[1], wanted))
+        self.value = self._onStep(max(range[0], min(range[1], wanted)))
         self.sigRangeChanged.emit(range)  # widgets re-read range and value
         self.sigParameterChanged.emit(self.value)
 
@@ -153,6 +175,7 @@ class IntParameter(Parameter[int]):
             range=self.range,
             units=self.units,
             description=self.description,
+            step=self.step,
         )
 
 

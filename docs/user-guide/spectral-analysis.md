@@ -11,13 +11,12 @@ What they share:
   cm⁻¹) before computing, so every "per nm" below is per nanometer whatever
   unit the image uses. Continuum Removal and Spectral Slope need numeric
   wavelengths with units; Spectral Derivative falls back to band numbers.
-- **Missing values.** No-data values and bad bands (the ENVI `bbl` list) are
-  filled by linear interpolation along each pixel's spectrum (the nearest
-  value past the first or last good band). A pixel missing more than half of
-  its good bands is no data in the result.
-- **Bad bands.** Continuum Removal and Spectral Slope leave bad bands out.
-  Spectral Derivative keeps every band, so at a bad band it uses the filled
-  values (see below).
+- **Bad bands.** All three tools leave out the bands marked bad in the
+  image (the ENVI `bbl` list, editable in **Image Properties**).
+- **Missing values.** No-data values in the good bands are filled by linear
+  interpolation along each pixel's spectrum (the nearest value past the
+  first or last good band). A pixel missing more than half of its good bands
+  is no data in the result.
 
 For band ratios, band depths and named spectral parameters, use **Band
 Math** (see [Image processing](image-processing.md#image-math-and-masks))
@@ -69,13 +68,14 @@ The second derivative applies the same step twice, so for evenly spaced
 bands it is (R₍ᵢ₊₂₎ − 2Rᵢ + R₍ᵢ₋₂₎) / (4h²): it spans five bands (two on
 each side), not three, and the first and last two bands are affected by
 the edges. Without numeric wavelengths, x is the band number and the result
-is per band.
+is per band. Bad bands are left out before differentiating, so across a gap
+of bad bands the difference is taken between the good bands on either side
+of it (over the wider, uneven spacing).
 
-**Output:** the same bands, wavelengths, FWHM and bad-band list as the input.
-Values are the input's units per nm (per nm² for the second derivative), or
-per band without wavelengths; the result's description says which. At a bad
-band, and across a gap of bad bands, the derivative is that of the
-straight line the gap was filled with. The derivative isn't smoothed first,
+**Output:** the input's good bands, with their wavelengths and FWHM (bad
+bands aren't in the result). Values are the input's units per nm (per nm²
+for the second derivative), or per band without wavelengths; the result's
+description says which. The derivative isn't smoothed first,
 and Varda has no built-in spectral smoothing (the **Iterative Outlier Voting
 Filter (IOVF)** removes spikes only), so smooth the data yourself if you
 need to and report how.
@@ -157,8 +157,11 @@ Settings the tools use that aren't in the dialog:
   pixel to pixel. Because each hull point is chosen as a local maximum,
   noise biases the continuum upward and the depths slightly deeper,
   especially at low SNR.
-- **Filled bands** are interpolated, not measured. Report how many bad bands
-  fell inside a window or range, and avoid reading derivatives across them.
+- **Gaps of bad bands.** Bad bands are left out, not filled, but a gap
+  widens the spacing there: a derivative across it is a coarser difference,
+  and a window or range that spans it has fewer bands. Report how many bad
+  bands fell inside a window or range, and read derivatives next to a gap
+  with care.
 
 ### References
 

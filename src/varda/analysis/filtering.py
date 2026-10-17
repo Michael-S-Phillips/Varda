@@ -6,7 +6,7 @@ import numpy as np
 
 from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.iovf import iovfFilter
-from varda.analysis.rasters import readCube, sameBandsRaster
+from varda.analysis.rasters import goodBands, readCube, sameBandsRaster
 from varda.common.entities import VardaRaster
 from varda.common.parameter import FloatParameter, IntParameter
 
@@ -75,6 +75,12 @@ class IovfAnalysis(Analysis):
             ),
         )
         filtered = result.filtered
+        bad = np.setdiff1d(np.arange(image.bandCount), goodBands(image))
+        if bad.size:  # filled to filter the cube: give back the input's values
+            original = np.array(image.getData(bandIndices=list(bad)), np.float64)
+            if image.nodata is not None:
+                original[original == image.nodata] = np.nan
+            filtered[:, :, bad] = original
         filtered[~valid] = np.nan
         return sameBandsRaster(
             image,

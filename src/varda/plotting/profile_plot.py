@@ -3,8 +3,9 @@
 Each line is one curve in its color. Hovering reads out the distance and
 value and reports where that is on the image (sigCursor), so the views can
 mark it. For a DEM with distances in meters the vertical exaggeration is
-shown. Export: CSV (every sample, with its pixel and map position), PNG, SVG
-and PDF."""
+shown. Export: CSV (every sample, with its pixel and map position, under a
+commented header naming the image, its CRS and the units), PNG, SVG and
+PDF."""
 
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 import pyqtgraph as pg
+from pyproj import CRS
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -31,6 +33,7 @@ from varda.common.ui import MutedLabel
 from varda.lines.line_collection import VardaLine
 from varda.lines.profile import Profile, profile
 from varda.plotting.plot_export import IMAGE_FILTER, exportImage
+from varda.version import vardaVersion
 
 KM_FROM = 5000.0  # m: longer profiles are plotted in kilometers
 EXPORT_FILTER = f"CSV data (*.csv);;{IMAGE_FILTER}"
@@ -44,6 +47,26 @@ def bandLabel(image: VardaRaster, band: int) -> str:
     if wavelengths is not None and band < len(wavelengths):
         return f"Band {band + 1} ({wavelengths[band]})"
     return f"Band {band + 1}"
+
+
+def valueUnit(image: VardaRaster, band: int) -> str:
+    """The unit of a band's values, where Varda knows it: a result of one of
+    its analyses keeps it in place of a wavelength unit (its band labeled
+    by name, not wavelength); otherwise ""."""
+    wavelengths = image.wavelengths
+    if wavelengths is None or band >= len(wavelengths):
+        return ""
+    if np.issubdtype(np.asarray(wavelengths).dtype, np.number):
+        return ""  # a wavelength's unit, not the values'
+    return image.wavelengthUnits or ""
+
+
+def crsLabel(crs: CRS | None) -> str:
+    """A CRS's name and, when it has one, its EPSG code."""
+    if crs is None:
+        return "none (pixel coordinates)"
+    epsg = crs.to_epsg()
+    return crs.name + (f" (EPSG:{epsg})" if epsg else "")
 
 
 class ProfilePlotWidget(QWidget):
@@ -231,7 +254,27 @@ class ProfilePlotWidget(QWidget):
             return
         georeferenced = self.image.hasGeospatialData
         units = self._unitsOf()
+        band = int(self.bandBox.currentData() or 0)
+        unit = valueUnit(self.image, band)
+        crs = CRS.from_user_input(self.image.crs) if georeferenced else None
+        if units == "px":
+            distance = "px (the image has no georeferencing)"
+        elif crs is not None and crs.is_geographic:
+            distance = f"{units} (geodesic on the body's ellipsoid)"
+        else:
+            distance = f"{units} (in the map projection's plane)"
+        header = [
+            f"Varda {vardaVersion()} line profiles",
+            f"image: {self.image.name}"
+            + (f" ({self.image.filePath})" if self.image.filePath else ""),
+            f"CRS: {crsLabel(crs)}",
+            *([f"CRS WKT: {crs.to_wkt()}"] if crs is not None else []),
+            f"distance unit: {distance}",
+            f"values: {self.bandBox.currentText()}"
+            + (f" ({unit})" if unit else " (unit not recorded in the image)"),
+        ]
         with path.open("w", newline="") as f:
+            f.writelines(f"# {line}\n" for line in header)
             out = csv.writer(f)
             header = ["line", f"distance_{units}", "x_px", "y_px"]
             if georeferenced:
@@ -245,7 +288,8 @@ class ProfilePlotWidget(QWidget):
                 for i, (d, (x, y), v) in enumerate(
                     zip(result.distance, result.positions, result.values)
                 ):
-                    row = [line.name, f"{d:.6g}", f"{x:.3f}", f"{y:.3f}"]
+                    # repr: the shortest text that reads back as the same float
+                    row = [line.name, repr(float(d)), f"{x:.3f}", f"{y:.3f}"]
                     if mapXY is not None:
-                        row += [f"{mapXY[i, 0]:.6f}", f"{mapXY[i, 1]:.6f}"]
+                        row += [repr(float(mapXY[i, 0])), repr(float(mapXY[i, 1]))]
                     out.writerow([*row, "" if not np.isfinite(v) else f"{v:.10g}"])

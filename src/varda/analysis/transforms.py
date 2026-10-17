@@ -9,7 +9,6 @@ rebuild a denoised image (or to keep just those components).
 
 from __future__ import annotations
 
-from enum import Enum
 from typing import ClassVar
 
 import numpy as np
@@ -31,7 +30,7 @@ from varda.analysis.linear_algebra import (
     weightedPca,
     unflatten,
 )
-from varda.analysis.rasters import readCube
+from varda.analysis.rasters import goodBands, readCube
 from varda.common.entities import VardaRaster
 from varda.common.grid import compatibleImages
 from varda.common.parameter import (
@@ -170,10 +169,7 @@ class _ComponentAnalysis(Analysis):
         axis = self._bandAxis(image)
         lo, hi = sorted((self.wavelengths.get().x, self.wavelengths.get().y))
         keep = (axis >= lo) & (axis <= hi) if hi > lo else np.ones(axis.size, bool)
-        model = image.bandModel
-        if model.badBands.size == axis.size:
-            keep &= ~model.badBands
-        return np.flatnonzero(keep)
+        return np.intersect1d(np.flatnonzero(keep), goodBands(image))
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         self._image = image  # for transforms that need more than the cube
@@ -319,42 +315,57 @@ class MnfAnalysis(_ComponentAnalysis):
         ),
     )
     noiseRoi = MultiChoiceParameter(
-        "Noise ROI Class",
-        description="For a homogeneous-region estimate: a uniform area (e.g. dark or flat)",
+        "Noise ROI Classes",
+        description=(
+            "For a homogeneous-region estimate: uniform areas (e.g. dark or "
+            "flat); the pixels of every ticked class are used together"
+        ),
     )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.noiseEstimate.sigParameterChanged.connect(self._offerNoiseRoi)
+
+    def _usesRegion(self) -> bool:
+        return self.noiseEstimate.get() is NoiseEstimate.HOMOGENEOUS_REGION
+
+    def _offerNoiseRoi(self, _estimate=None) -> None:
+        """Tick a noise ROI class to start from only while the estimate uses
+        one, so a neighbor-difference result records none."""
+        if not self._usesRegion():
+            self.noiseRoi.set([])
+        elif not self.noiseRoi.get():
+            self.noiseRoi.set(self.noiseRoi.choices[:1])
 
     def prepareFor(self, image: VardaRaster) -> None:
         super().prepareFor(image)
         rois = self.context.rois
         names = list(rois.classes()) if rois else []
         kept = [n for n in self.noiseRoi.get() if n in names]
-        self.noiseRoi.setChoices(names, selected=kept or names[:1])
+        self.noiseRoi.setChoices(names, selected=kept)
+        self._offerNoiseRoi()
 
     def unavailableReason(self, image: VardaRaster) -> str:
-        if (
-            self.noiseEstimate.get() is NoiseEstimate.HOMOGENEOUS_REGION
-            and not self._noiseClass()
-        ):
-            return "Draw an ROI over a uniform area and tick it as the noise ROI class."
+        if self._usesRegion() and not self._noiseClasses():
+            return "Draw an ROI over a uniform area and tick it as a noise ROI class."
         return ""
 
-    def _noiseClass(self) -> str | None:
+    def _noiseClasses(self) -> list[str]:
         rois = self.context.rois
-        chosen = [
+        return [
             n for n in self.noiseRoi.get() if rois is not None and n in rois.classes()
         ]
-        return chosen[0] if chosen else None
 
     def _transform(self, cube, X, valid, components, W, weights):
         method = NoiseEstimate(self.noiseEstimate.get())
         region = None
         if method is NoiseEstimate.HOMOGENEOUS_REGION:
-            name, rois, image = self._noiseClass(), self.context.rois, self._image
-            if name is None or rois is None or image is None:
+            names, rois, image = self._noiseClasses(), self.context.rois, self._image
+            if not names or rois is None or image is None:
                 raise ValueError(
                     "Pick a noise ROI class for the homogeneous-region estimate."
                 )
-            region = rois.classMask(name, image)
+            region = np.logical_or.reduce([rois.classMask(n, image) for n in names])
         noise = noiseCovariance(cube, valid, method, region, weights)
         return mnf(X, noise, components, W)
 
@@ -391,9 +402,9 @@ class IcaAnalysis(_ComponentAnalysis):
         return [f"IC {i + 1}" for i in range(result.scores.shape[1])]
 
 
-class InverseOutput(Enum):
+class InverseOutput(LabeledEnum):
     DENOISED_IMAGE = "Denoised image (inverse transform to the original bands)"
-    FIRST_COMPONENTS = "Only the first N components"
+    FIRST_COMPONENTS = "Only the chosen components (as component bands)"
 
 
 class InverseTransformAnalysis(Analysis):

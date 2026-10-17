@@ -14,13 +14,12 @@ What they share:
   200,000 of them on larger images (the sample is fixed, so runs repeat).
   The covariance is the sample covariance (dividing by N − 1). Target pixels
   are part of the background too.
-- **Missing values.** No-data values and bad bands are filled by linear
+- **Bad bands are left out.** Bands marked bad in the image (the ENVI `bbl`
+  list, editable in **Image Properties**) don't go into the statistics or the
+  scores; every detector works on the good bands only.
+- **Missing values.** No-data values in the good bands are filled by linear
   interpolation along each pixel's spectrum. A pixel missing more than half
   of its good bands is no data in the result.
-- **Bad bands are kept** (as filled values), not removed; see [Uncertainty
-  and quality](#uncertainty-and-quality). To leave them out, make a copy
-  without them first with **Processing → Geometry → Subset (Crop Rows,
-  Columns, Bands)**.
 
 ## RX Anomaly (Global)
 
@@ -43,10 +42,11 @@ scene's, not each window's.
 | **Inner Window** | Guard window, pixels on a side | 3 | 1–31 |
 | **Outer Window** | Background window, pixels on a side | 15 | 3–101 |
 
-Both must be odd: an even size is raised by one (4 becomes 5). The outer
-window is made at least 2 pixels larger than the inner one. The sizes used
-are in the result's name ("local RX 3/15"), so check them there. The
-background mean is over the outer² − inner² pixels between the two windows
+Both take odd sizes only (an even size typed in is raised to the next odd
+one, 4 becomes 5), and the outer window is at least 2 pixels larger than the
+inner one (raising the inner window raises the outer one with it). The sizes
+in the dialog are the sizes used: they are what the result's record and its
+name ("local RX 3/15") show. The background mean is over the outer² − inner² pixels between the two windows
 (15² − 3² = 216 by default). At the image's edges the windows are mirrored
 back into the image, and no-data pixels inside a window count as the
 scene's mean.
@@ -71,9 +71,11 @@ It ignores brightness (scaling a pixel doesn't change its score).
 Draw an ROI on the target material first.
 
 **Output:** one band per target, named after its ROI class, from 0 (no
-resemblance) to 1. Because the cosine is squared, a pixel pointing directly
-*away* from the target also scores near 1; the Matched Filter's sign tells
-them apart.
+resemblance) to 1. This is the **squared** form of ACE (as in Kraut & Scharf
+1999 and Manolakis & Shaw 2002), not the signed cosine. Because the cosine is
+squared, a pixel pointing directly *away* from the target also scores near 1;
+the Matched Filter's sign tells them apart. A pixel exactly at the
+background mean has no direction (the formula is 0/0); it scores 0.
 
 ## Matched Filter
 
@@ -104,10 +106,9 @@ for what applies to every process.
 
 ### What to state
 
-- The detector, and for Local RX the window sizes actually used (from the
-  result's name).
-- The bands used, and whether you removed bad bands first (Subset) or let
-  Varda fill them.
+- The detector, and for Local RX the window sizes (recorded with the result).
+- The bands used: the image's good bands (list the bad bands left out, from
+  **Image Properties**), or the subset you made first.
 - That the background mean and covariance are the whole scene's (for Local
   RX, a local mean with the scene's covariance), from at most 200,000
   sampled pixels.
@@ -132,14 +133,14 @@ for what applies to every process.
   score, not only as α. For Local RX the scores run somewhat higher, because
   the local mean is itself estimated from neighbors that are spatially
   correlated.
-- **Bad bands and correlated bands.** Bands filled from their neighbors are
-  copies or blends of other bands, which makes the covariance nearly
-  singular: its inverse, and so every score, becomes numerically unstable,
-  and the effective number of degrees of freedom drops to the number of
-  good bands. Hundreds of highly correlated hyperspectral bands can do the
-  same. Remove bad bands first (Subset), or reduce the data with [MNF or
-  PCA](transforms.md) and run the detector on the leading components;
-  report which.
+- **Correlated bands.** Hundreds of highly correlated hyperspectral bands
+  make the covariance nearly singular: its inverse, and so every score,
+  becomes numerically unstable. Bad bands are already left out (filled from
+  their neighbors, they would be blends of other bands and make it singular),
+  but bands that are nearly copies of each other can do the same. If scores
+  look noisy or unstable, reduce the data with [MNF or PCA](transforms.md)
+  and run the detector on the leading components; report which. For the χ²
+  threshold above, B is the number of good bands.
 - **Measure detection and false-alarm rates.** Make a 0/1 mask from a score
   band with **Processing → Image Math → Threshold to Mask**. Draw ROIs over
   areas you know to be background, and (if you have them) over known
