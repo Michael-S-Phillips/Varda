@@ -490,7 +490,7 @@ class ImageParameterWidget(QWidget):
         connectWhileAlive(param.sigParameterChanged, self.onParamChanged, self)
 
     def imageSelectionChanged(self, index: int) -> None:
-        self.param.set(self.imageList[index])
+        self.param.setOrClear(self.imageList[index])
 
     def onParamChanged(self, value: VardaRaster | None) -> None:
         with QSignalBlocker(self.comboBox):

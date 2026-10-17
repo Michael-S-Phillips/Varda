@@ -1,0 +1,236 @@
+"""Image math: images combined band by band (add, subtract, multiply,
+divide, minimum, maximum) with another image on the same pixel grid or a
+number; masks made by thresholds; and masks applied, keeping where the mask
+is set, where it isn't, or multiplying by it. No Qt.
+
+A second image or a mask has the image's bands or one band (applied to
+every band). No data in either is no data in the result; so is division
+by zero. A mask is set where it's nonzero, and has no say where it has no
+data (the pixel is dropped).
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+from varda.analysis.analysis import Analysis, ProgressCallback
+from varda.analysis.rasters import sameBandsRaster, singleBandRaster
+from varda.common.entities import VardaRaster
+from varda.common.grid import compatibleImages
+from varda.common.parameter import (
+    EnumParameter,
+    FloatParameter,
+    ImageParameter,
+    IntParameter,
+    LabeledEnum,
+    Vec2Parameter,
+)
+from varda.common.vec2 import Vec2
+
+CATEGORY = "Image Math"
+
+
+def readWithGaps(image: VardaRaster, bands: list[int] | None = None) -> np.ndarray:
+    """Bands as float64 (rows, cols, bands), NaN where there's no data."""
+    data = np.ma.filled(np.ma.asarray(image.getData(bands), dtype=np.float64), np.nan)
+    nodata = image.bandModel.noData
+    if nodata is not None and np.isfinite(nodata):
+        data[data == nodata] = np.nan
+    return data
+
+
+def partners(images, image: VardaRaster) -> list[VardaRaster]:
+    """Images on ``image``'s grid with its bands or one band."""
+    return [
+        other
+        for other in compatibleImages(list(images), image)
+        if other.bandCount in (1, image.bandCount)
+    ]
+
+
+class Operation(LabeledEnum):
+    ADD = "Add (+)"
+    SUBTRACT = "Subtract (−)"
+    MULTIPLY = "Multiply (×)"
+    DIVIDE = "Divide (÷)"
+    MINIMUM = "Minimum"
+    MAXIMUM = "Maximum"
+
+
+OPERATIONS = {
+    Operation.ADD: np.add,
+    Operation.SUBTRACT: np.subtract,
+    Operation.MULTIPLY: np.multiply,
+    Operation.DIVIDE: np.divide,
+    Operation.MINIMUM: np.minimum,
+    Operation.MAXIMUM: np.maximum,
+}
+
+
+class ImageArithmeticAnalysis(Analysis):
+    analysisId = "image_arithmetic"
+    name = "Image Arithmetic"
+    category = CATEGORY
+    description = (
+        "Combine the image with another image on the same pixel grid (with the "
+        "same bands, or one band applied to every band), or with a number: add, "
+        "subtract, multiply, divide, minimum or maximum, band by band. No data "
+        "in either, and division by zero, are no data in the result."
+    )
+
+    operation = EnumParameter("Operation", Operation)
+    second = ImageParameter(
+        "Second Image",
+        "Another image on the same grid; none to use the number",
+        optional=True,
+        noneLabel="None (use the number)",
+    )
+    number = FloatParameter(
+        "Number", 1.0, description="Used when there's no second image"
+    )
+
+    def prepareFor(self, image: VardaRaster) -> None:
+        current = self.second.get()
+        self.second.setProvider(lambda: partners(self.context.images, image))
+        self.second.setOrClear(
+            current if current in partners(self.context.images, image) else None
+        )
+
+    def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
+        reportProgress(0, "reading")
+        first = readWithGaps(image)
+        other = self.second.get()
+        if other is not None and other not in partners(self.context.images, image):
+            raise ValueError(
+                f"{other.name} isn't on {image.name}'s grid with its bands."
+            )
+        operand = readWithGaps(other) if other is not None else float(self.number.value)
+        operation = self.operation.get()
+        reportProgress(50, "combining")
+        with np.errstate(all="ignore"):
+            values = OPERATIONS[operation](first, operand)
+        values[~np.isfinite(values)] = np.nan
+        what = other.name if other is not None else f"{float(self.number.value):g}"
+        label = operation.value.split(" (")[0].lower()
+        return sameBandsRaster(
+            image,
+            values,
+            name=f"{image.name} {label} {what}",
+            description=f"{image.name}, {label} {what}, band by band",
+        )
+
+
+class ThresholdSide(LabeledEnum):
+    INSIDE = "Inside the range"
+    OUTSIDE = "Outside the range"
+
+
+class ThresholdToMaskAnalysis(Analysis):
+    analysisId = "threshold_to_mask"
+    name = "Threshold to Mask"
+    category = CATEGORY
+    description = (
+        "A mask from one band: 1 where its value is inside (or outside) a range, "
+        "0 elsewhere, no data where the band has none. Apply it with Apply Mask, "
+        "or combine masks with Image Arithmetic (minimum is and, maximum is or)."
+    )
+
+    band = IntParameter("Band", 1, range=(1, 10_000), description="1-based")
+    limits = Vec2Parameter(
+        "Range", Vec2(0.0, 1.0), valueNames=("from", "to"), description="Inclusive"
+    )
+    side = EnumParameter("Mask Is", ThresholdSide)
+
+    def prepareFor(self, image: VardaRaster) -> None:
+        self.band.setRange((1, image.bandCount))
+        # start from the band's values (a range of 0-1 means nothing for DN)
+        values = readWithGaps(image, [int(self.band.value) - 1])
+        if np.isfinite(values).any():
+            low, high = float(np.nanmin(values)), float(np.nanmax(values))
+            self.limits.range = (Vec2(low, high), Vec2(low, high))
+            self.limits.set(Vec2(low, high))
+
+    def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
+        band = int(self.band.value) - 1
+        reportProgress(0, "reading")
+        values = readWithGaps(image, [band])[..., 0]
+        low, high = sorted((self.limits.get().x, self.limits.get().y))
+        inside = (values >= low) & (values <= high)
+        outside = self.side.get() is ThresholdSide.OUTSIDE
+        mask = np.where(~inside if outside else inside, 1.0, 0.0)
+        mask[np.isnan(values)] = np.nan
+        where = "outside" if outside else "inside"
+        bandName = (
+            image.bandNames[band] if band < len(image.bandNames) else f"band {band + 1}"
+        )
+        return singleBandRaster(
+            image,
+            mask,
+            name=f"{image.name} mask ({bandName} {where} {low:g}-{high:g})",
+            bandName="mask",
+            description=f"1 where {bandName} of {image.name} is {where} {low:g}-{high:g}",
+        )
+
+
+class MaskMode(LabeledEnum):
+    KEEP_SET = "Keep where the mask is set"
+    KEEP_UNSET = "Keep where the mask isn't set (inverse)"
+    MULTIPLY = "Multiply by the mask"
+
+
+class ApplyMaskAnalysis(Analysis):
+    analysisId = "apply_mask"
+    name = "Apply Mask"
+    category = CATEGORY
+    description = (
+        "Apply a mask on the same pixel grid (one band, or the image's bands): "
+        "keep the pixels where it's set (nonzero) and make the rest no data, keep "
+        "where it isn't set, or multiply by it (a weight or a 0/1 mask)."
+    )
+
+    mask = ImageParameter(
+        "Mask", "A mask on the same grid, e.g. from Threshold to Mask"
+    )
+    mode = EnumParameter("Mode", MaskMode)
+
+    def prepareFor(self, image: VardaRaster) -> None:
+        current = self.mask.get()
+        candidates = partners(self.context.images, image)
+        self.mask.setProvider(lambda: partners(self.context.images, image))
+        if current in candidates:
+            self.mask.set(current)
+
+    def unavailableReason(self, image: VardaRaster) -> str:
+        if not partners(self.context.images, image):
+            return (
+                "Make or open a mask on this image's grid first (Threshold to "
+                "Mask, Band Math, or ROI to Mask)."
+            )
+        return ""
+
+    def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
+        mask = self.mask.get()
+        if mask is None or mask not in partners(self.context.images, image):
+            raise ValueError(self.unavailableReason(image) or "Choose the mask.")
+        reportProgress(0, "reading")
+        values = readWithGaps(image)
+        weights = readWithGaps(mask)
+        mode = self.mode.get()
+        if mode is MaskMode.MULTIPLY:
+            out = values * weights
+        else:
+            isSet = np.where(np.isnan(weights), False, weights != 0)
+            keep = isSet if mode is MaskMode.KEEP_SET else ~isSet
+            keep &= ~np.isnan(weights)  # a mask without data has no say
+            out = np.where(keep, values, np.nan)
+        how = {
+            MaskMode.KEEP_SET: "masked by",
+            MaskMode.KEEP_UNSET: "masked outside",
+            MaskMode.MULTIPLY: "times",
+        }[mode]
+        return sameBandsRaster(
+            image,
+            out,
+            name=f"{image.name} {how} {mask.name}",
+            description=f"{image.name} {how} {mask.name} ({mode.value})",
+        )

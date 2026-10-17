@@ -77,6 +77,34 @@ detector, so use joined or VNIR data rather than an IR-only cube; note
 that CRISM's MTRDR has no bands from 631 to 710 nm, so the scene misses
 part of the CTX band (the result's coverage says how much).
 
+## Image math and masks
+
+**Band Math** (Processing → Spectral Parameters) makes one band from an
+expression: `R2300 / R2200` (the bands nearest 2300 and 2200 nm),
+`(b10 - b4) / (b10 + b4)` (band numbers), comparisons and `where()`. It can
+use other images on the same pixel grid by their place in the Image List:
+`i3_b1` is band 1 of the 3rd image, so `b1 * (i3_b1 > 0)` keeps band 1
+where image 3 is positive. The dialog lists which images those are.
+
+**Processing → Image Math:**
+
+- **Image Arithmetic** combines the image with another image on the same
+  grid, band by band, or with a number: add, subtract, multiply, divide,
+  minimum or maximum. The second image has the same bands, or one band
+  applied to every band. No data in either (and division by zero) is no
+  data in the result.
+- **Threshold to Mask** makes a mask from one band: 1 where its value is
+  inside (or outside) a range, 0 elsewhere, no data where the band has
+  none. The range starts at the band's minimum and maximum.
+- **Apply Mask** applies a mask on the same grid: keep the pixels where
+  it's set (nonzero) and make the rest no data, keep where it **isn't** set
+  (the inverse), or **multiply** by it (for a weight, or a 0/1 mask that
+  should leave zeros).
+
+Masks combine with Image Arithmetic: **minimum** of two 0/1 masks is
+"and", **maximum** is "or", and `1 - mask` in Band Math inverts one. Masks
+also come from ROIs (ROI to Mask) and from Band Math (`b3 > 0.2` is 1 or 0).
+
 ## Bit masks (Statistics)
 
 **Decode Bit Mask** reads images whose values are sets of bits, such as a

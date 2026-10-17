@@ -15,6 +15,14 @@ can alter results.
   FWHM and good/bad flag. Edits apply at once everywhere and are kept in
   sessions and packages; for ENVI images they can be saved into the header
   (backed up first).
+- **Image Math** (Processing → Image Math): **Image Arithmetic** adds,
+  subtracts, multiplies, divides, or takes the minimum or maximum of two
+  images on the same grid (or an image and a number), band by band;
+  **Threshold to Mask** makes a 0/1 mask from a band's range (inside or
+  outside); **Apply Mask** keeps where a mask is set, where it isn't
+  (inverse), or multiplies by it.
+- **Band Math across images:** `i3_b1` is band 1 of the 3rd image in the
+  Image List (on the same grid), e.g. `b1 * (i3_b1 > 0)`.
 
 ## 0.9.0 (2026-10-16)
 

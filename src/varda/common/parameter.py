@@ -434,6 +434,17 @@ class ImageParameter(Parameter[VardaRaster]):
         if len(images) > 0 and not self.optional:
             self.set(images[0])
 
+    def clear(self) -> None:
+        """No image (an optional parameter's None choice)."""
+        self.value = None  # ty: ignore[invalid-assignment]
+        self.sigParameterChanged.emit(None)
+
+    def setOrClear(self, image: VardaRaster | None) -> None:
+        if image is None:
+            self.clear()
+        else:
+            self.set(image)
+
     def clone(self) -> ImageParameter:
         newParam = ImageParameter(
             self.name,

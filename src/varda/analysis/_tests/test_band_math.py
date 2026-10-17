@@ -36,7 +36,9 @@ def _image(units="nm", nodata=None) -> VardaRaster:
 def test_wavelength_and_band_number_references_resolve_to_bands():
     image = _image()
     _, refs = checkExpression("R2300 / R2205 + b1", image)
-    assert refs == {"R2300": 30, "R2205": 20, "b1": 0}  # nearest band; b is 1-based
+    bands = {name: band for name, (_, band) in refs.items()}
+    assert bands == {"R2300": 30, "R2205": 20, "b1": 0}  # nearest band; b is 1-based
+    assert all(source is image for source, _ in refs.values())
 
 
 def test_references_are_checked_before_any_data_is_read():
@@ -52,7 +54,10 @@ def test_references_are_checked_before_any_data_is_read():
     no_axis = VardaRaster(ArrayDataSource(np.ones((3, 3, 4))), name="bands")
     with pytest.raises(ExpressionError, match="wavelengths"):
         checkExpression("R2300", no_axis)
-    assert checkExpression("b2 - b1", no_axis)[1] == {"b2": 1, "b1": 0}
+    assert checkExpression("b2 - b1", no_axis)[1] == {
+        "b2": (no_axis, 1),
+        "b1": (no_axis, 0),
+    }
 
 
 def test_the_result_matches_numpy_and_does_not_depend_on_the_unit():
@@ -108,3 +113,28 @@ def test_expressions_can_be_saved_and_reused(qtbot, tmp_path):
     qtbot.addWidget(again)
     again.savedBox.setCurrentText("R2300 / R2205")
     assert analysis.expression.get() == "R2300 / R2205"
+
+
+def test_other_images_on_the_grid_by_their_place_in_the_image_list():
+    from varda.analysis.analysis import AnalysisContext
+    from varda.analysis.band_math import BandMathAnalysis, evaluateExpression
+
+    image = _image()
+    counts = VardaRaster(
+        ArrayDataSource(np.full((30, 20, 2), 3.0, np.float32)), name="COUNT"
+    )
+    small = VardaRaster(ArrayDataSource(np.ones((5, 5, 1), np.float32)), name="small")
+    images = [image, counts, small]
+    _, refs = checkExpression("b1 * i2_b2", image, images)
+    assert refs["i2_b2"] == (counts, 1)
+    result = evaluateExpression("(20 - i2_b1) * (b1 > 0)", image, images=images)
+    np.testing.assert_allclose(result[np.isfinite(result)], 17.0)
+    with pytest.raises(ExpressionError, match="pixel grid"):
+        checkExpression("i3_b1", image, images)
+    with pytest.raises(ExpressionError, match="images 1-3"):
+        checkExpression("i9_b1", image, images)
+    analysis = BandMathAnalysis()
+    analysis.setContext(AnalysisContext(images=images))
+    analysis.expression.set("i2_b1 - 1")
+    out = analysis.run(image, lambda *_: None)
+    np.testing.assert_allclose(out.getData(), 2.0)
