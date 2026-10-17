@@ -185,3 +185,45 @@ def test_external_matchers_are_pooled_over_the_bands(method):
 def test_external_matchers_need_the_runtime():
     with pytest.raises(RuntimeError, match="PyTorch"):
         autoAlign(_project(_scene()), 1, [0], MatchSettings(method=MatchMethod.LOFTR))
+
+
+def test_refined_points_carry_the_phase_plane_snr():
+    project = _project(_moved(_scene(), 1.3, 0.4))
+    autoAlign(project, 1, [0], MatchSettings(bandCount=2))
+    snr = np.array([p.phaseSnr for p in project.tiePoints])
+    assert snr.size and np.isfinite(snr).all()
+    assert ((snr > 0) & (snr <= 1)).all()
+    # the aligned-tile correlation stays the quality, a separate number
+    assert not np.allclose([p.quality for p in project.tiePoints], snr)
+    report = project.bandReport(1)
+    assert all(0 < fit.phaseSnr <= 1 for fit in report.values())
+
+
+def test_points_without_refinement_have_no_phase_snr():
+    project = _project(_scene())
+    autoAlign(project, 1, [0], MatchSettings(bandCount=1, refine=False))
+    assert project.tiePoints
+    assert all(np.isnan(p.phaseSnr) for p in project.tiePoints)
+    assert all(np.isnan(fit.phaseSnr) for fit in project.bandReport(1).values())
+
+
+def test_external_matches_have_no_phase_snr():
+    project = _project(_scene())
+    matcher, _ = _plantedMatcher(np.array([1.0, 0.0]))
+    autoAlign(
+        project,
+        1,
+        [0],
+        MatchSettings(method=MatchMethod.SIFT, bandCount=1, externalMatcher=matcher),
+    )
+    assert all(np.isnan(p.phaseSnr) for p in project.tiePoints)
+
+
+def test_the_displacement_field_carries_the_phase_snr():
+    project = _project(_moved(_scene(), 3.0, 0.0))
+    field = autoAlign(project, 1, [0], MatchSettings(bandCount=2)).fields[0]
+    assert field.phaseSnr.shape == field.dx.shape
+    finite = np.isfinite(field.phaseSnr)
+    assert finite.sum() > 10
+    assert (field.phaseSnr[finite] <= 1).all()
+    assert np.array_equal(finite, np.isfinite(field.dx))

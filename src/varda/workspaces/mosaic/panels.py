@@ -24,9 +24,11 @@ from PyQt6.QtWidgets import (
 
 from varda.common.ui import ElidingComboBox, FlowLayout, MutedLabel
 from varda.mosaicking.recipe import (
-    Correction,
-    LinearMode,
     BlendMethod,
+    Correction,
+    FitQuality,
+    LinearMode,
+    OverlapAgreement,
     RadiometryMethod,
     SeamMethod,
 )
@@ -36,8 +38,31 @@ from varda.workspaces.mosaic.views import OUTLIER_COLOR, ImagePointView
 
 
 # Rows are numbered by the vertical header; pixels are (col, row)
-COLUMNS = ["Reference", "Moving", "Source", "Quality", "Residual (px)", "Use"]
+COLUMNS = [
+    "Reference",
+    "Moving",
+    "Source",
+    "Quality",
+    "Phase SNR",
+    "Residual (px)",
+    "Use",
+]
+COLUMN_TIPS = {
+    "Quality": "The tiles' correlation once aligned (0-1); for learned or SIFT "
+    "features, the matcher's confidence",
+    "Phase SNR": "The phase-plane fit's SNR (0-1, Leprince et al. 2007): how "
+    "well the tiles' phase difference fits a pure shift. Blank when the "
+    "point wasn't refined by it (manual, feature, ASP points)",
+}
 USE_COLUMN = COLUMNS.index("Use")
+
+
+def headerTips(table: QTableWidget, tips: dict[str, str]) -> None:
+    """Tooltips on a table's column headers, by header text."""
+    for column in range(table.columnCount()):
+        item = table.horizontalHeaderItem(column)
+        if item is not None and item.text() in tips:
+            item.setToolTip(tips[item.text()])
 
 
 def _kind(point: TiePoint) -> str:
@@ -189,6 +214,7 @@ class TiePointPanel(QWidget):
         self.hint.setWordWrap(True)
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
+        headerTips(self.table, COLUMN_TIPS)
         self.table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
         )
@@ -258,6 +284,7 @@ class TiePointPanel(QWidget):
                 if point.auto and point.band is not None
                 else ("Auto" if point.auto else "Manual"),
                 "" if np.isnan(point.quality) else f"{point.quality:.2f}",
+                "" if np.isnan(point.phaseSnr) else f"{point.phaseSnr:.2f}",
                 "" if np.isnan(point.residual) else f"{point.residual / size:.2f}",
             ]
             for column, text in enumerate(cells):
@@ -337,16 +364,79 @@ class TiePointPanel(QWidget):
         self.sigChanged.emit()
 
 
-def _perBand(correction: Correction, shown: int = 12) -> str:
-    """Each band's gain and offset, for a tooltip."""
-    if correction.lutIn is not None:
-        return "Histogram matching: a lookup table per band"
-    lines = [
-        f"Band {b + 1}: gain {g:.4f}, offset {o:.4g}"
-        for b, (g, o) in enumerate(zip(correction.gain, correction.offset))
-    ]
+def _shortened(lines: list[str], shown: int = 12) -> list[str]:
     more = len(lines) - shown
-    return "\n".join(lines[:shown] + ([f"… and {more} more bands"] if more > 0 else []))
+    return lines[:shown] + ([f"… and {more} more bands"] if more > 0 else [])
+
+
+def _perBand(correction: Correction, fit: FitQuality | None = None) -> str:
+    """Each band's gain and offset, and how well it fits, for a tooltip."""
+    if correction.lutIn is not None:
+        lines = [f"Band {b + 1}: lookup table" for b in range(len(correction.gain))]
+        header = ["Histogram matching: a lookup table per band"]
+    else:
+        lines = [
+            f"Band {b + 1}: gain {g:.4f}, offset {o:.4g}"
+            for b, (g, o) in enumerate(zip(correction.gain, correction.offset))
+        ]
+        header = []
+    if fit is not None:
+        lines = [
+            f"{line}; RMS {rms:.4g} ({n:,} samples)"
+            for line, rms, n in zip(lines, fit.rms, fit.samples)
+        ]
+        header.append(
+            "Fit RMS: the corrected image minus the corrected images it was "
+            "fitted to, over their shared pixels (data units)"
+        )
+        if fit.defaulted:
+            bands = ", ".join(str(b + 1) for b in fit.defaulted)
+            header.append(f"Too few samples, left uncorrected: band {bands}")
+    return "\n".join(header + _shortened(lines))
+
+
+def _overlapTip(overlap: OverlapAgreement) -> str:
+    """Each band's mean absolute difference before and after, for a tooltip."""
+    lines = [
+        f"Band {b + 1}: {before:.4g} → {after:.4g} ({n:,} samples)"
+        for b, (before, after, n) in enumerate(
+            zip(overlap.before, overlap.after, overlap.samples)
+        )
+    ]
+    return "\n".join(
+        ["Mean absolute difference, before → after (data units)"] + _shortened(lines)
+    )
+
+
+def _number(value: float) -> str:
+    return "" if not np.isfinite(value) else f"{value:.4g}"
+
+
+def _middle(values: np.ndarray) -> float:
+    """The median of the finite values (NaN if none)."""
+    finite = values[np.isfinite(values)]
+    return float(np.median(finite)) if finite.size else float("nan")
+
+
+RADIOMETRY_COLUMNS = [
+    "Image",
+    "Gain (mean)",
+    "Offset (mean)",
+    "Fit RMS",
+    "ISIS gain",
+    "ISIS offset",
+]
+RADIOMETRY_TIPS = {
+    "Fit RMS": "The median over bands of the corrected image minus the "
+    "corrected images it was fitted to, RMS over their shared pixels (data "
+    "units); hover a row for every band",
+}
+OVERLAP_COLUMNS = ["Overlap", "Before", "After"]
+OVERLAP_TIPS = {
+    "Before": "The images' mean absolute difference where they overlap, "
+    "uncorrected (median over bands, data units)",
+    "After": "The same after the corrections",
+}
 
 
 class RadiometryPanel(QWidget):
@@ -389,15 +479,23 @@ class RadiometryPanel(QWidget):
         self.useIsis.clicked.connect(self.sigUseIsis)
         self.useIsis.setVisible(False)
         self.isisCorrections: dict[int, Correction] = {}
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(
-            ["Image", "Gain (mean)", "Offset (mean)", "ISIS gain", "ISIS offset"]
-        )
+        self.table = QTableWidget(0, len(RADIOMETRY_COLUMNS))
+        self.table.setHorizontalHeaderLabels(RADIOMETRY_COLUMNS)
+        headerTips(self.table, RADIOMETRY_TIPS)
         header = self.table.horizontalHeader()
         assert header is not None
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.overlaps = QTableWidget(0, len(OVERLAP_COLUMNS))
+        self.overlaps.setHorizontalHeaderLabels(OVERLAP_COLUMNS)
+        headerTips(self.overlaps, OVERLAP_TIPS)
+        header = self.overlaps.horizontalHeader()
+        assert header is not None
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.overlaps.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.overlapsLabel = QLabel("Overlap agreement (mean |difference|):")
         note = MutedLabel(
             "Linear corrections are documented per band and recorded with the "
             "mosaic; with None every spectrum stays exact. Histogram matching "
@@ -422,6 +520,8 @@ class RadiometryPanel(QWidget):
         left.addWidget(self.status)
         right = QVBoxLayout()
         right.addWidget(self.table, 1)
+        right.addWidget(self.overlapsLabel)
+        right.addWidget(self.overlaps, 1)
         right.addWidget(note)
         layout = QHBoxLayout(self)
         layout.addLayout(left, 1)
@@ -446,31 +546,62 @@ class RadiometryPanel(QWidget):
                 Qt.CheckState.Checked if item.key in held else Qt.CheckState.Unchecked
             )
             self.held.addItem(row)
+        quality = self.project.radiometryQuality
+        fits = quality.fits if quality is not None else {}
         self.table.setRowCount(len(self.project.inputs))
         for row, item in enumerate(self.project.inputs):
             correction = item.radiometry
+            fit = fits.get(item.key)
             if correction is None:
-                cells = [item.image.name, "—", "—"]
-            elif correction.lutIn is not None:
-                cells = [item.image.name, "histogram", "histogram"]
+                cells = [item.image.name, "—", "—", "—"]
             else:
-                cells = [
-                    item.image.name,
-                    f"{np.mean(correction.gain):.4f}",
-                    f"{np.mean(correction.offset):.4g}",
-                ]
+                if correction.lutIn is not None:
+                    cells = [item.image.name, "histogram", "histogram"]
+                else:
+                    cells = [
+                        item.image.name,
+                        f"{np.mean(correction.gain):.4f}",
+                        f"{np.mean(correction.offset):.4g}",
+                    ]
+                cells.append(
+                    "held"
+                    if item.key in self.project.heldKeys
+                    else ("" if fit is None else _number(_middle(fit.rms)))
+                )
             isis = self.isisCorrections.get(item.key)
             cells += (
                 [f"{np.mean(isis.gain):.4f}", f"{np.mean(isis.offset):.4g}"]
                 if isis is not None
                 else ["", ""]
             )
-            tip = _perBand(correction) if correction is not None else ""
+            tip = _perBand(correction, fit) if correction is not None else ""
             for column, text in enumerate(cells):
                 cell = QTableWidgetItem(text)
                 cell.setToolTip(tip)
                 self.table.setItem(row, column, cell)
+        self._showOverlaps()
         self._updateState()
+
+    def _showOverlaps(self) -> None:
+        """Each overlap's agreement before and after the corrections (the
+        median over bands; hover for every band)."""
+        quality = self.project.radiometryQuality
+        overlaps = quality.overlaps if quality is not None else ()
+        names = {i.key: i.image.name for i in self.project.inputs}
+        self.overlaps.setRowCount(len(overlaps))
+        for row, overlap in enumerate(overlaps):
+            cells = [
+                f"{names[overlap.first]} / {names[overlap.second]}",
+                _number(_middle(overlap.before)),
+                _number(_middle(overlap.after)),
+            ]
+            tip = _overlapTip(overlap)
+            for column, text in enumerate(cells):
+                cell = QTableWidgetItem(text)
+                cell.setToolTip(tip)
+                self.overlaps.setItem(row, column, cell)
+        self.overlaps.setVisible(bool(overlaps))
+        self.overlapsLabel.setVisible(bool(overlaps))
 
     def heldKeys(self) -> frozenset[int]:
         return frozenset(

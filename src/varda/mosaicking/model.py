@@ -18,6 +18,7 @@ from varda.mosaicking.recipe import (
     Correction,
     LinearMode,
     RadiometryMethod,
+    RadiometryQuality,
     Seam,
     SeamMethod,
 )
@@ -146,6 +147,9 @@ class TiePoint:
     quality: float = float("nan")  # the match's score (0-1), for automatic points
     band: int | None = None  # the band it was matched on
     inlier: bool = True  # whether the last (robust) fit kept it
+    # The phase-plane fit's SNR (0-1, Leprince et al. 2007): NaN unless the
+    # point was refined by it
+    phaseSnr: float = float("nan")
 
 
 @frozen
@@ -155,6 +159,7 @@ class BandFit:
     count: int
     inliers: int
     rms: float  # the inliers' residual, in the moving image's pixels
+    phaseSnr: float = float("nan")  # the points' median phase-plane SNR (0-1)
 
 
 class MosaicError(ValueError):
@@ -184,6 +189,8 @@ class MosaicProject:
         self.radiometryMethod = RadiometryMethod.NONE
         self.radiometryMode = LinearMode.BOTH
         self.heldKeys: frozenset[int] = frozenset()
+        # How well the corrections fit (None: none, or not assessed)
+        self.radiometryQuality: RadiometryQuality | None = None
         self.seamMethod = SeamMethod.PRIORITY
         self.seams: list[Seam] = []
         self.blend = Blend()
@@ -220,12 +227,14 @@ class MosaicProject:
         self.radiometryMethod = result.method
         self.radiometryMode = result.mode
         self.heldKeys = frozenset(result.held)
+        self.radiometryQuality = result.quality
 
     def clearRadiometry(self) -> None:
         for item in self.inputs:
             item.radiometry = None
         self.radiometryMethod = RadiometryMethod.NONE
         self.heldKeys = frozenset()
+        self.radiometryQuality = None
 
     @property
     def isVisual(self) -> bool:
@@ -265,6 +274,7 @@ class MosaicProject:
         auto: bool = False,
         quality: float = float("nan"),
         band: int | None = None,
+        phaseSnr: float = float("nan"),
     ) -> TiePoint:
         if movingKey == referenceKey:
             raise MosaicError("A tie point joins two different images.")
@@ -276,6 +286,7 @@ class MosaicProject:
             auto=auto,
             quality=float(quality),
             band=band,
+            phaseSnr=float(phaseSnr),
         )
         self.tiePoints.append(point)
         return point
@@ -332,7 +343,8 @@ class MosaicProject:
 
     def bandReport(self, key: int) -> dict[int, BandFit]:
         """For each band an image's automatic tie points came from: how many
-        there are, how many the last fit kept, and their RMS residual."""
+        there are, how many the last fit kept, their RMS residual, and their
+        median phase-plane SNR (NaN when none was refined)."""
         size = self.input(key).pixelSize
         report = {}
         auto = [p for p in self.tiePointsOf(key) if p.auto and p.enabled]
@@ -340,8 +352,39 @@ class MosaicProject:
             points = [p for p in auto if p.band == band]
             kept = np.array([p.residual for p in points if p.inlier], float)
             rms = float(np.sqrt(np.mean(kept**2))) / size if kept.size else float("nan")
-            report[band] = BandFit(len(points), int(kept.size), rms)
+            snr = np.array([p.phaseSnr for p in points], float)
+            snr = snr[np.isfinite(snr)]
+            median = float(np.median(snr)) if snr.size else float("nan")
+            report[band] = BandFit(len(points), int(kept.size), rms, median)
         return report
+
+    def alignmentSummary(self) -> list[dict]:
+        """Each input's alignment quality, in priority order (an input's
+        position is its class in the source map): its transform, enabled
+        tie points, how many the last fit kept, their RMS residual (moving
+        image's pixels) and median phase-plane SNR (None when there's none)."""
+        summary = []
+        for position, item in enumerate(self.inputs):
+            points = [p for p in self.tiePointsOf(item.key) if p.enabled]
+            kept = np.array(
+                [p.residual for p in points if p.inlier and np.isfinite(p.residual)]
+            )
+            snr = np.array([p.phaseSnr for p in points], float)
+            snr = snr[np.isfinite(snr)]
+            summary.append(
+                {
+                    "class": position,
+                    "image": item.image.name,
+                    "model": item.model.name,
+                    "tiePoints": len(points),
+                    "kept": int(kept.size),
+                    "rmsPixels": float(np.sqrt(np.mean(kept**2))) / item.pixelSize
+                    if kept.size
+                    else None,
+                    "medianPhaseSnr": float(np.median(snr)) if snr.size else None,
+                }
+            )
+        return summary
 
     # --- saving ----------------------------------------------------------------
 
@@ -360,6 +403,9 @@ class MosaicProject:
                 "method": self.radiometryMethod.name,
                 "mode": self.radiometryMode.name,
                 "held": sorted(self.heldKeys),
+                "quality": None
+                if self.radiometryQuality is None
+                else self.radiometryQuality.state(),
             },
             "inputs": [
                 {
@@ -383,6 +429,7 @@ class MosaicProject:
                     "auto": p.auto,
                     "quality": None if np.isnan(p.quality) else p.quality,
                     "band": p.band,
+                    "phaseSnr": None if np.isnan(p.phaseSnr) else p.phaseSnr,
                 }
                 for p in self.tiePoints
             ],
@@ -411,6 +458,10 @@ class MosaicProject:
         self.radiometryMethod = RadiometryMethod[radiometry.get("method", "NONE")]
         self.radiometryMode = LinearMode[radiometry.get("mode", "BOTH")]
         self.heldKeys = frozenset(radiometry.get("held", []))
+        quality = radiometry.get("quality")
+        self.radiometryQuality = (
+            None if quality is None else RadiometryQuality.fromState(quality)
+        )
         order = state.get("order")
         if order and sorted(order) == sorted(i.key for i in self.inputs):
             self.inputs.sort(key=lambda i: order.index(i.key))
@@ -424,6 +475,9 @@ class MosaicProject:
                 auto=p.get("auto", False),
                 quality=float("nan") if p.get("quality") is None else p["quality"],
                 band=p.get("band"),
+                phaseSnr=float("nan")
+                if p.get("phaseSnr") is None
+                else float(p["phaseSnr"]),
             )
             for p in state.get("tiePoints", [])
         ]

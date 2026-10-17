@@ -36,6 +36,7 @@ from varda.mosaicking.matching import (
     MatchSettings,
 )
 from varda.mosaicking.model import DEFAULT_INLIER_PX, BandFit, MosaicProject
+from varda.workspaces.mosaic.panels import headerTips
 
 ALL_OVERLAPPING = -1
 METHOD_NAMES = {
@@ -45,7 +46,22 @@ METHOD_NAMES = {
     MatchMethod.SIFT: "SIFT",
 }
 TILE_SIZES = (32, 64, 128)
-BAND_COLUMNS = ["Band", "Wavelength", "SNR", "Points", "Kept", "RMS (px)", "Use"]
+BAND_COLUMNS = [
+    "Band",
+    "Wavelength",
+    "SNR",
+    "Points",
+    "Kept",
+    "RMS (px)",
+    "Phase SNR",
+    "Use",
+]
+BAND_TIPS = {
+    "SNR": "The band's signal-to-noise ratio in the moving image (how it was chosen)",
+    "RMS (px)": "The kept points' residual after the fit, in the moving image's pixels",
+    "Phase SNR": "The median phase-plane SNR (0-1) of the band's points; "
+    "blank when none was refined by the phase-plane fit",
+}
 
 
 class AutoAlignDialog(QDialog):
@@ -154,6 +170,7 @@ class AutoAlignDialog(QDialog):
         self.summary.setWordWrap(True)
         self.bands = QTableWidget(0, len(BAND_COLUMNS))
         self.bands.setHorizontalHeaderLabels(BAND_COLUMNS)
+        headerTips(self.bands, BAND_TIPS)
         vertical, header = self.bands.verticalHeader(), self.bands.horizontalHeader()
         assert vertical is not None and header is not None
         vertical.setVisible(False)
@@ -172,7 +189,7 @@ class AutoAlignDialog(QDialog):
         self.fieldButton = QPushButton("Add Displacement Field to Images")
         self.fieldButton.setToolTip(
             "The tile shifts as an image (east and north displacement in map "
-            "units, and match quality), as COSI-Corr produces"
+            "units, match quality and phase-plane SNR), as COSI-Corr produces"
         )
         self.fieldButton.clicked.connect(self._addFields)
         self.fieldButton.setVisible(False)
@@ -237,6 +254,9 @@ class AutoAlignDialog(QDialog):
         self.progress.setVisible(False)
         method = METHOD_NAMES.get(result.method, "phase correlation")
         lines = [f"{result.added} tie points by {method}. {fitMessage}"]
+        snr = np.array([p[1][4] for p in result.points], float)
+        if np.isfinite(snr).any():
+            lines.append(f"Median phase-plane SNR {np.nanmedian(snr):.2f}.")
         if result.message:
             lines.append(result.message)
         self.summary.setText(" ".join(lines))
@@ -264,6 +284,7 @@ class AutoAlignDialog(QDialog):
                 str(fit.count if used else sum(p.band == band for p in auto)),
                 str(fit.inliers) if used else "",
                 "" if not used or np.isnan(fit.rms) else f"{fit.rms:.3f}",
+                "" if not used or np.isnan(fit.phaseSnr) else f"{fit.phaseSnr:.2f}",
             ]
             for column, text in enumerate(cells):
                 self.bands.setItem(row, column, QTableWidgetItem(text))

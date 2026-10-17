@@ -35,8 +35,10 @@ record holds:
   `band_math`).
 - **Every setting**, as the dialog or workspace had it. Workspace results
   record their own settings: a mosaic its full recipe (order, corrections,
-  tie points, radiometry, seams, blending), output grid and resampling; a
-  displacement field how Auto Align matched (method asked for and used,
+  tie points with their match quality and phase-plane SNR, radiometry with
+  its fit quality, seams, blending), output grid and resampling; its source
+  map each source's alignment quality (tie points, RMS, median phase SNR);
+  a displacement field how Auto Align matched (method asked for and used,
   bands, tile size, refinement); a crop its window (0-based row, column,
   height and width); a Spectral Hourglass result the wavelength window and
   bands kept, IOVF on or off, its settings and what it replaced, the MNF
@@ -134,9 +136,10 @@ checksum.
 
 ## Precision is not accuracy
 
-Many of Varda's quality numbers (tie-point RMS, unmixing RMS error, FATT
-nRMSE, spectral angles) measure how well a model fits the data you gave it.
-They're precision. Accuracy also depends on things Varda can't see:
+Many of Varda's quality numbers (tie-point RMS and phase-plane SNR, a
+radiometric balance's fit RMS and overlap agreement, unmixing RMS error,
+FATT nRMSE, spectral angles) measure how well a model fits the data you
+gave it. They're precision. Accuracy also depends on things Varda can't see:
 
 - **Georeferencing.** Map positions, distances and linked-image locations
   are only as good as each image's own georeferencing. Report its source and

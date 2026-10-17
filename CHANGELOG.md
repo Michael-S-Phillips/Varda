@@ -89,6 +89,32 @@ can alter results.
   Varda version), and results made from it name it as their source.
 - **FATT → Export Table…** saves the ranked targets (nRMSE, angle) as CSV,
   with the settings that made the ranking.
+- **Mosaic Auto Align keeps the phase-plane SNR:** each tie point refined
+  by the phase-plane fit (Leprince et al. 2007) now carries its SNR (0-1)
+  beside its match quality, in a **Phase SNR** column of the tie-point
+  table, as each band's median in the Auto Align results, in the recipe
+  (sessions, the mosaic's metadata and provenance) and as a fourth band of
+  the Displacement Field. Points without refinement (manual, ORB, SIFT,
+  LoFTR, ASP) have none and show it blank.
+- **Mosaic radiometry reports how well it fit:** after balancing, the
+  Radiometry tab shows each image's fit RMS (per band on hover, in data
+  units, with the number of samples) and every overlap's mean absolute
+  difference before and after; bands left uncorrected because too few
+  pixels overlap are named. All of it is saved with the session and the
+  recipe in the mosaic's metadata and provenance.
+- **Mosaic source maps carry each source's alignment quality:** the
+  exported source map's metadata and provenance list, per class, the
+  image's transform, tie points (enabled and kept), RMS in pixels and
+  median phase-plane SNR.
+- **3D terrain overlays show what Auto Align matched:** the Overlays panel
+  names the image and band matched (its wavelength or name, and its SNR)
+  and the tie points' median phase-plane SNR, and the overlay's saved
+  alignment records them.
+- **3D terrain marks filled gaps:** **Show filled gaps** tints the points
+  whose heights Fill gaps invented, in the view, stills and exported web
+  pages (whose panel and data also give the count, the method and a mask of
+  them). Sessions record the count and method; Export for 3D Printing
+  states the count in its dialog, its status line and the STL's header.
 - **Classification accuracy.** **Accuracy Assessment** (Processing →
   Classification) compares a class map with ROI classes drawn as ground
   truth, matched by name: confusion matrix, overall accuracy with a 95%

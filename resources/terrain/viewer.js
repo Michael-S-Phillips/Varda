@@ -22,6 +22,7 @@ const settings = Object.assign(
     scaleBar: true, // measured at the view's center (the orbit target)
     colorBar: true, // when the drape is colored by elevation
     heightUnit: "m", // the DEM's height unit; ground sizes are meters
+    showFilled: false, // tint the points of filled gaps (invented heights)
   },
   scene.settings || {}
 );
@@ -179,6 +180,19 @@ geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
 geometry.setIndex(indices); // three.js picks 32-bit indices when needed
 geometry.computeVertexNormals();
+
+// Points of filled gaps (scene.filled.mask: a bit per grid point, rows first,
+// most significant bit first): tinted through vertex colors when shown
+const FILLED_TINT = [1.0, 0.35, 0.8];
+const filledMask = scene.filled && scene.filled.mask
+  ? Uint8Array.from(atob(scene.filled.mask), (c) => c.charCodeAt(0)) : null;
+if (filledMask) {
+  const colors = new Float32Array(cols * rows * 3).fill(1);
+  for (let i = 0; i < cols * rows; i++) {
+    if (filledMask[i >> 3] & (0x80 >> (i & 7))) colors.set(FILLED_TINT, 3 * i);
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+}
 
 const material = new THREE.MeshStandardMaterial({ roughness: 0.95, metalness: 0 });
 const terrain = new THREE.Mesh(geometry, material);
@@ -373,6 +387,7 @@ function apply() {
   sideMaterial.emissive.set(settings.sideColor).multiplyScalar(0.25);
   renderer.shadowMap.enabled = settings.shadows;
   sun.castShadow = settings.shadows;
+  material.vertexColors = Boolean(filledMask) && settings.showFilled;
   material.needsUpdate = true;
   sky.intensity = settings.ambient;
   renderer.setClearColor(new THREE.Color(settings.background), 1);

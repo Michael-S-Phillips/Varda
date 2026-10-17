@@ -75,6 +75,96 @@ class Correction:
         )
 
 
+def _jsonList(values: np.ndarray) -> list[float | None]:
+    """An array as a list, NaN as None (JSON has no NaN)."""
+    return [None if not np.isfinite(v) else float(v) for v in np.ravel(values)]
+
+
+def _array(values: list) -> np.ndarray:
+    return np.array([np.nan if v is None else v for v in values], float)
+
+
+@frozen(eq=False)
+class FitQuality:
+    """How well one image's radiometric correction fits, per band: the RMS
+    of the corrected image minus the corrected images it was fitted to,
+    over their co-located samples (data units), how many samples there
+    were, and the bands left uncorrected because there were too few."""
+
+    rms: np.ndarray  # (bands,), NaN where no samples
+    samples: np.ndarray  # (bands,)
+    defaulted: tuple[int, ...] = ()  # 0-based bands kept at gain 1, offset 0
+
+    def state(self) -> dict:
+        return {
+            "rms": _jsonList(self.rms),
+            "samples": [int(n) for n in self.samples],
+            "defaulted": list(self.defaulted),
+        }
+
+    @classmethod
+    def fromState(cls, state: dict) -> FitQuality:
+        return cls(
+            _array(state["rms"]),
+            np.asarray(state["samples"], int),
+            tuple(int(b) for b in state.get("defaulted", [])),
+        )
+
+
+@frozen(eq=False)
+class OverlapAgreement:
+    """Two overlapping images' mean absolute difference per band over their
+    co-located samples, before and after the corrections (data units)."""
+
+    first: int  # input keys
+    second: int
+    before: np.ndarray  # (bands,)
+    after: np.ndarray
+    samples: np.ndarray  # (bands,)
+
+    def state(self) -> dict:
+        return {
+            "images": [self.first, self.second],
+            "before": _jsonList(self.before),
+            "after": _jsonList(self.after),
+            "samples": [int(n) for n in self.samples],
+        }
+
+    @classmethod
+    def fromState(cls, state: dict) -> OverlapAgreement:
+        first, second = state["images"]
+        return cls(
+            int(first),
+            int(second),
+            _array(state["before"]),
+            _array(state["after"]),
+            np.asarray(state["samples"], int),
+        )
+
+
+@frozen(eq=False)
+class RadiometryQuality:
+    """A radiometric balance's quality: each corrected image's fit, and
+    every overlap's agreement before and after."""
+
+    fits: dict[int, FitQuality]  # by input key
+    overlaps: tuple[OverlapAgreement, ...]
+
+    def state(self) -> dict:
+        return {
+            "units": "data units of the inputs",
+            "fits": {str(k): fit.state() for k, fit in self.fits.items()},
+            "overlaps": [overlap.state() for overlap in self.overlaps],
+        }
+
+    @classmethod
+    def fromState(cls, state: dict) -> RadiometryQuality:
+        return cls(
+            {int(k): FitQuality.fromState(v) for k, v in state["fits"].items()},
+            tuple(OverlapAgreement.fromState(o) for o in state["overlaps"]),
+        )
+
+
 def extendedInterp(x: np.ndarray, xp: np.ndarray, fp: np.ndarray) -> np.ndarray:
     """``np.interp``, continued linearly beyond the ends (by the end
     segments' slopes) instead of clamping, so values outside the matched

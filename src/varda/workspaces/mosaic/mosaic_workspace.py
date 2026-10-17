@@ -564,14 +564,26 @@ def displacementRaster(
     matching: dict | None = None,
 ) -> VardaRaster:
     """A displacement field as an image: east and north displacement (map
-    units) and match quality, on the tile grid over the overlap; ``matching``
+    units), match quality and phase-plane SNR (0-1, NaN where no tile was
+    refined by the phase-plane fit), on the tile grid over the overlap; ``matching``
     is how Auto Align matched (``matchParameters``), for its provenance."""
     moving = project.input(displacement.movingKey).image.name
     reference = project.input(displacement.referenceKey).image.name
-    names = ["East displacement", "North displacement", "Match quality"]
+    names = [
+        "East displacement",
+        "North displacement",
+        "Match quality",
+        "Phase-plane SNR",
+    ]
     source = ArrayDataSource(
         np.stack(
-            [displacement.dx, displacement.dy, displacement.quality], axis=2
+            [
+                displacement.dx,
+                displacement.dy,
+                displacement.quality,
+                displacement.phaseSnr,
+            ],
+            axis=2,
         ).astype(np.float32),
         wavelengths=np.array(names),
         wavelengthUnits="",
@@ -617,7 +629,9 @@ def _methods(project: MosaicProject, resampling: Resampling) -> str:
 def sourcesRaster(
     project: MosaicProject, result: MosaicResult, mosaic: VardaRaster
 ) -> VardaRaster:
-    """Which input each mosaic pixel came from, as a class map."""
+    """Which input each mosaic pixel came from, as a class map, with each
+    source's alignment quality (``MosaicProject.alignmentSummary``) in its
+    metadata and provenance, so a pixel's quality can be traced."""
     classes = np.where(result.sources == NO_SOURCE, np.nan, result.sources).astype(
         np.float32
     )
@@ -632,8 +646,18 @@ def sourcesRaster(
         name=f"{mosaic.name} sources",
         description=f"Source image of each pixel of {mosaic.name}",
     )
+    summary = project.alignmentSummary()
+    sources.dataSource.extraMetadata["mosaic"] = {
+        "mosaic": mosaic.name,
+        "sources": summary,
+    }
     setProvenance(
         sources,
-        makeProvenance("Mosaic Source Index", {}, [mosaic], processId="mosaic_sources"),
+        makeProvenance(
+            "Mosaic Source Index",
+            {"sources": summary},
+            [mosaic],
+            processId="mosaic_sources",
+        ),
     )
     return sources
