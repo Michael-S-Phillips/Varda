@@ -8,7 +8,7 @@ from varda.analysis.analysis import Analysis
 from varda.common.entities import VardaRaster
 from varda.common.parameter import ImageParameter, Parameter, ParameterGroup
 from varda.common.provenance import PROVENANCE_KEY as PROVENANCE_KEY
-from varda.common.provenance import makeProvenance, plain, setProvenance
+from varda.common.provenance import RESULT_KEYS, makeProvenance, plain, setProvenance
 from varda.common.provenance import provenanceText as provenanceText
 
 
@@ -47,5 +47,10 @@ def recordProvenance(
             processId=analysis.analysisId,
             plugin=analysis.plugin,
             software=analysis.softwareVersions(),
+            results={
+                key: result.extraMetadata[key]
+                for key in RESULT_KEYS
+                if key in result.extraMetadata
+            },
         ),
     )
