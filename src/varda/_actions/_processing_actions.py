@@ -26,6 +26,8 @@ from varda.analysis.runner import AnalysisRunner
 from varda.analysis.transforms import TRANSFORM_METADATA_KEY, InverseTransformAnalysis
 from varda.common.di_types import ProjectImages
 from varda.common.entities import VardaRaster
+from varda.crism_ui.calibration_dialog import CalibrationDialog
+from varda.crism_ui.process_dialog import ProcessCrismDialog
 from varda.context_keys import EXPR_HAS_IMAGES, EXPR_NEVER
 from varda.image_loading import ImageLoadingService
 from varda.maingui import MainGUI
@@ -237,6 +239,22 @@ def openCam2map(images: ProjectImages, mainGui: MainGUI) -> None:
     dialog.show()
 
 
+def openCrismProcess(images: ProjectImages, mainGui: MainGUI) -> None:
+    """Process CRISM observations; each map-projected product joins the project."""
+    dialog = ProcessCrismDialog(parent=mainGui)
+    dialog.sigProcessed.connect(
+        lambda result: result.mapProjected
+        and ImageLoadingService.load_images(
+            file_paths=[str(result.mapProjected)], on_success_callback=images.append
+        )
+    )
+    dialog.show()
+
+
+def openCrismCalibration(mainGui: MainGUI) -> None:
+    CalibrationDialog(parent=mainGui).show()
+
+
 def openSpectralHourglass(images: ProjectImages, mainGui: MainGUI) -> None:
     NewSpectralHourglassDialog(images, parent=mainGui).connectOnAccept(
         mainGui.addTab
@@ -248,8 +266,13 @@ SPECTRAL_HOURGLASS_ACTION_ID = "varda.processing.spectral_hourglass"
 FATT_ACTION_ID = "varda.processing.fatt"
 CAM2MAP_ACTION_ID = "varda.processing.cam2map"
 OPTIONAL_FEATURES_ACTION_ID = "varda.processing.optional_features"
+CRISM_PROCESS_ACTION_ID = "varda.processing.crism_process"
+CRISM_CALIBRATION_ACTION_ID = "varda.processing.crism_calibration"
+CRISM_MENU = categoryMenuId(MenuId.PROCESSING, "CRISM")
 
-PROCESSING_SUBMENUS = processingSubmenus(MenuId.PROCESSING, ANALYSES)
+PROCESSING_SUBMENUS = processingSubmenus(MenuId.PROCESSING, ANALYSES) + [
+    submenuItem(MenuId.PROCESSING, "CRISM", 98)
+]
 PROCESSING_ACTIONS = processingActions(
     MenuId.PROCESSING, "varda.processing", ANALYSES, _menuCallback
 ) + [
@@ -295,6 +318,23 @@ PROCESSING_ACTIONS = processingActions(
         ),
         callback=openCam2map,
         menus=[MenuRule(id=categoryMenuId(MenuId.PROCESSING, "Geometry"), order=99)],
+    ),
+    Action(
+        id=CRISM_PROCESS_ACTION_ID,
+        title="Process CRISM Observation…",
+        tooltip=(
+            "Turn CRISM TRR3 observations into map-projected I/F with the "
+            "atmosphere, spikes and spectral smile corrected"
+        ),
+        callback=openCrismProcess,
+        menus=[MenuRule(id=CRISM_MENU, order=0)],
+    ),
+    Action(
+        id=CRISM_CALIBRATION_ACTION_ID,
+        title="Get CRISM Calibration Files…",
+        tooltip="See which calibration files an observation needs, and fetch the missing ones",
+        callback=openCrismCalibration,
+        menus=[MenuRule(id=CRISM_MENU, order=1)],
     ),
     Action(
         id=OPTIONAL_FEATURES_ACTION_ID,
