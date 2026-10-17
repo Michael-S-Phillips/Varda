@@ -28,8 +28,11 @@ two).
 - **Which pixels.** A pixel belongs to an ROI when its center is inside it.
   Only valid pixels count: no-data pixels, and pixels missing half or more
   of their good bands, are left out.
-- **Bands.** Every band is used. Bands marked bad (and the odd missing value)
-  are filled by linear interpolation along each spectrum, not removed.
+- **Bands.** Every good band is used. Bands marked bad in the image (the
+  ENVI `bbl` list, editable in **Image Properties**) are left out of
+  training and prediction, by every classifier here including K-Means. The
+  odd missing value in a good band is filled by linear interpolation along
+  the spectrum.
 - **Class numbers.** Classes are numbered from 0 in the order their first
   ROI was drawn (among those ticked). The class color is the color of the
   class's first ROI.
@@ -176,7 +179,7 @@ and each pixel goes to the class under which it is most likely.
 **Dimensions.** A class's covariance can only be inverted when it has more
 pixels than dimensions, and a 400-band image needs hundreds of pixels per
 class. So Varda may classify on principal components instead of bands. With
-*b* bands and *n* pixels in the smallest class, the number of dimensions
+*b* good bands and *n* pixels in the smallest class, the number of dimensions
 *k* is:
 
 - **Components** set (*c* > 0): *k* = the smallest of *c*, *b* and *n* − 1.
@@ -220,7 +223,7 @@ How it works (SPy's k-means): the starting centers are spaced evenly along
 the diagonal from the image's per-band minimum to its per-band maximum, so
 there is no randomness and every run gives the same result. Each iteration
 assigns every pixel to its nearest center (Euclidean distance on the raw
-values, all bands, not standardized) and moves each center to the mean of
+values, all good bands, not standardized) and moves each center to the mean of
 its pixels. It stops when no pixel changes cluster, or after **Iterations**.
 Bands with larger values or more variance count for more.
 
@@ -243,7 +246,9 @@ for what applies to every process.
   pixels, and how you chose them. Varda records which ROI classes you
   ticked, but not the ROIs' shapes or pixel counts: save the session, or
   export the ROIs from the ROI Manager (**Export...**), to keep them.
-- Any band subset, spatial subset or preprocessing of the input.
+- The bands used: the image's good bands (list the bad bands left out, from
+  **Image Properties**), and any band subset, spatial subset or
+  preprocessing of the input.
 - For Maximum Likelihood and Mahalanobis Distance: the number of dimensions
   *k*, and whether they were bands or principal components.
 - For the MLP, CNN and ViT: the seed and the final training loss, and for

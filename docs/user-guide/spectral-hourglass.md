@@ -150,7 +150,7 @@ Settings that aren't in the workspace:
 | Step | Setting |
 | --- | --- |
 | Prepare | Bands marked bad in the header are dropped; a pixel's no-data bands are filled by linear interpolation along its spectrum, and pixels missing more than half their good bands are left out |
-| IOVF | Window 7 rows × 5 columns × 5 bands; reference spectrum a 19-band running median, then a Savitzky–Golay smooth (9 bands, cubic); two-sided Grubbs test at α = 0.125 (0.05 for edge windows under 45 voxels); a voxel is replaced with 5 or more votes; stops when a round replaces under 1% of the first round's voxels, or after 200 rounds |
+| IOVF | Window 7 rows × 5 columns × 5 bands; reference spectrum a 19-band running median, then a Savitzky–Golay smooth (9 bands, cubic); two-sided Grubbs test at α = 0.125 (0.05 for edge windows under 45 voxels); a voxel is replaced with 5 or more votes, by the Gaussian-weighted mean of its unflagged, valid neighbors (weights renormalized over them; the reference value when none is left); stops when a round replaces under 1% of the first round's voxels, or after 200 rounds |
 | MNF | Noise covariance from differences between each pixel and the next one in its row, divided by √2 (Green et al. 1988); every component is computed |
 | Suggested components | Those with an MNF eigenvalue above 2 (eigenvalues are about SNR + 1), but no more than the elbow of the eigenvalue curve (the point of the log curve farthest from the line joining its ends); at least 1 |
 | PPI | Skewers are random unit vectors (normalized Gaussian draws) from numpy's PCG64 generator, drawn in blocks of 1,024 (block *b* seeded from the seed and *b*), so skewer *i* depends only on the seed, *i* and the number of components; a pixel scores once per skewer if its projection is within the threshold of either end |
@@ -162,15 +162,15 @@ Settings that aren't in the workspace:
 
 **The Processing menu versions** differ as follows:
 
-- They read every band. Bad bands are filled by interpolation and kept,
-  not dropped, and there's no wavelength window or IOVF unless you ran
-  them first.
+- They read every good band: bands marked bad in the header are left out,
+  as here. There's no wavelength window or IOVF unless you ran them first.
 - Each endmember is a ROI class's mean over the union of its ROIs.
 - **Pixel Purity Index (PPI)** runs on the leading **Bands Used** (default
-  10) of any image, with **Iterations** (default 10,000, 100 to 1,000,000)
-  and **Seed** (default 0, as in the workspace). Its **Threshold** (default
-  2.5) is in that image's data units: noise sigmas only for an MNF result.
-- **MTMF** computes its own MNF from all bands with the horizontal noise
+  10) good bands of any image, with **Iterations** (default 10,000, 100 to
+  1,000,000) and **Seed** (default 0, as in the workspace). Its **Threshold**
+  (default 2.5) is in that image's data units: noise sigmas only for an MNF
+  result.
+- **MTMF** computes its own MNF from all good bands with the horizontal noise
   estimate (not selectable), keeping **MNF Components** (default 10).
 - Their results do carry the full Processing record (settings, input,
   Varda version).

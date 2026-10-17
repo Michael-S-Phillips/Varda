@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from shapely.geometry import box
 
+from varda.analysis import transforms
 from varda.analysis.analysis import AnalysisContext
 from varda.analysis.linear_algebra import NoiseEstimate
 from varda.analysis.transforms import (
@@ -195,3 +196,43 @@ def test_there_is_no_separate_weighted_pca():
     from varda.analysis.registry import ANALYSES
 
     assert "weighted_pca" not in {a.analysisId for a in ANALYSES}
+
+
+def _twoFlatAreas() -> ROICollection:
+    rois = ROICollection()
+    rois.addROI(box(2, 2, 10, 10), "dark", Color(1, 0, 0, 0.5), ROIMode.RECTANGLE)
+    rois.addROI(box(25, 25, 35, 35), "flat", Color(0, 0, 1, 0.5), ROIMode.RECTANGLE)
+    return rois
+
+
+def test_mnf_noise_comes_from_every_ticked_roi_class(monkeypatch):
+    image = generate_random_image((40, 40, 10))
+    rois = _twoFlatAreas()
+    seen = []
+
+    def capture(cube, valid, method=NoiseEstimate.HORIZONTAL, region=None, w=None):
+        seen.append(region)
+        return np.eye(cube.shape[2])
+
+    monkeypatch.setattr(transforms, "noiseCovariance", capture)
+    analysis = MnfAnalysis()
+    analysis.setContext(AnalysisContext(rois=rois))
+    analysis.noiseEstimate.set(NoiseEstimate.HOMOGENEOUS_REGION)
+    analysis.prepareFor(image)
+    analysis.noiseRoi.set(["dark", "flat"])
+    analysis.run(image, lambda p, m: None)
+    expected = rois.classMask("dark", image) | rois.classMask("flat", image)
+    np.testing.assert_array_equal(seen[0], expected)
+
+
+def test_mnf_records_no_noise_roi_for_a_neighbor_difference_estimate():
+    image = generate_random_image((40, 40, 10))
+    analysis = MnfAnalysis()
+    analysis.setContext(AnalysisContext(rois=_twoFlatAreas()))
+    analysis.prepareFor(image)
+    assert analysis.noiseEstimate.get() is NoiseEstimate.HORIZONTAL
+    assert analysis.noiseRoi.get() == []
+    analysis.noiseEstimate.set(NoiseEstimate.HOMOGENEOUS_REGION)
+    assert analysis.noiseRoi.get() == ["dark"]  # a class to start from
+    analysis.noiseEstimate.set(NoiseEstimate.VERTICAL)
+    assert analysis.noiseRoi.get() == []

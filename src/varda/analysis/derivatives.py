@@ -6,7 +6,13 @@ import numpy as np
 from scipy import ndimage
 
 from varda.analysis.analysis import Analysis, ProgressCallback
-from varda.analysis.rasters import bandIndex, bandMetadata, readCube, singleBandRaster
+from varda.analysis.rasters import (
+    bandIndex,
+    bandMetadataSubset,
+    readCube,
+    readGoodBands,
+    singleBandRaster,
+)
 from varda.common.entities import VardaRaster
 from varda.common.parameter import FloatParameter, IntParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
@@ -19,16 +25,18 @@ class SpectralDerivativeAnalysis(Analysis):
     description = (
         "Derivative of each spectrum with respect to wavelength, band by band "
         "(or the second derivative): highlights absorption edges and band "
-        "centers. Without numeric wavelengths, band index is the x axis."
+        "centers. Without numeric wavelengths, band index is the x axis. "
+        "Bad bands are left out: the result has the image's good bands."
     )
 
     order = IntParameter("Order", 1, range=(1, 2), description="1 = dR/dλ, 2 = d²R/dλ²")
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
-        cube, _valid = readCube(image)  # unusable pixels are NaN throughout
+        # unusable pixels are NaN throughout; bad bands left out
+        cube, _valid, bands = readGoodBands(image)
         centers = image.bandModel.centers  # nm, whatever the image's own unit
-        x = centers if centers is not None else np.arange(image.bandCount, dtype=float)
+        x = centers[bands] if centers is not None else bands.astype(float)
 
         reportProgress(40, "differentiating")
         derivative = cube
@@ -39,15 +47,15 @@ class SpectralDerivativeAnalysis(Analysis):
         per = "nm" if centers is not None else "band"
         if int(self.order.value) == 2:
             per += "²"
-        # Same bands as the source: its spectral axis (and FWHM, bad bands) carries over
+        # The source's good bands: their spectral axis (and FWHM) carries over
         source = ArrayDataSource(
             derivative.astype(np.float32),
-            wavelengths=np.asarray(image.wavelengths),
+            wavelengths=np.asarray(image.wavelengths)[bands],
             wavelengthUnits=image.wavelengthUnits,
-            bandNames=list(image.bandNames),
+            bandNames=[image.bandNames[b] for b in bands],
             transform=image.transform,
             crs=image.crs,
-            extraMetadata=bandMetadata(image),
+            extraMetadata=bandMetadataSubset(image, bands),
             description=f"{suffix} of {image.name} (per {per})",
         )
         return VardaRaster(source, name=f"{image.name} {suffix}")
@@ -59,8 +67,8 @@ class SpectralSlopeAnalysis(Analysis):
     category = "Derivatives"
     description = (
         "Least-squares slope of each spectrum between two wavelengths "
-        "(reflectance per nm), e.g. the 1.8-2.5 µm slope used to flag "
-        "hydrated phases."
+        "(reflectance per nm), 1000-2000 nm by default; set the range to the "
+        "slope you need."
     )
 
     startWavelength = FloatParameter(
