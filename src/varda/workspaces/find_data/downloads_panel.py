@@ -420,6 +420,8 @@ class DownloadsPanel(QWidget):
                         ),
                         cancel,
                         queued.catalog.requestHeaders(),
+                        catalog=queued.catalog.name,
+                        product=queued.product,
                     )
                 except IncompleteDownload as error:
                     # the files that exist were downloaded; say which didn't

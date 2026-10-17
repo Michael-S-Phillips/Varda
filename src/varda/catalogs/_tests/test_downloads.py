@@ -3,7 +3,9 @@ folder per product."""
 
 import hashlib
 import http.server
+import json
 import threading
+from pathlib import Path
 
 import pytest
 import shapely
@@ -16,6 +18,8 @@ from varda.catalogs.downloads import (
     exportList,
     productFolder,
 )
+from varda.common.provenance import SOURCE_SUFFIX, readSourceRecord
+from varda.version import vardaVersion
 
 DATA = bytes(range(256)) * 4000  # ~1 MB
 
@@ -124,6 +128,24 @@ def test_products_get_their_own_folders(server, tmp_path):
     )
     assert [p.name for p in paths] == ["data.bin", "other.bin"]
     assert seen[-1] == 1.0 and seen == sorted(seen)
+
+
+def test_each_downloaded_file_gets_a_record_of_where_it_came_from(server, tmp_path):
+    product = Product("p1", "P1", "CRISM MTRDR", shapely.box(0, 0, 1, 1))
+    digest = "md5:" + hashlib.md5(DATA).hexdigest()
+    folder = productFolder(tmp_path, "ode", product)
+    (path,) = downloadProduct(
+        [_file(server, digest)], folder, catalog="PDS ODE", product=product
+    )
+    record = json.loads(Path(str(path) + SOURCE_SUFFIX).read_text())
+    assert record["catalog"] == "PDS ODE"
+    assert record["collection"] == "CRISM MTRDR" and record["product"] == "p1"
+    assert record["url"] == server and record["file"] == "data.bin"
+    assert record["checksum"] == digest and record["verifiedBy"] == "checksum"
+    assert record["size"] == len(DATA)
+    assert record["vardaVersion"] == vardaVersion()
+    assert record["downloaded"].endswith("+00:00")
+    assert readSourceRecord([path]) == record
 
 
 def test_a_download_list_exports_as_csv_and_a_script(tmp_path):

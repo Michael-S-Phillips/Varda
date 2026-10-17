@@ -4,13 +4,16 @@ A file goes to ``<name>.part`` first: an interrupted download resumes from
 there with an HTTP range request, and the file only takes its name once it
 is complete and its checksum (when the catalog gives one) matches. A file
 already there, complete, isn't downloaded again. Each product has its own
-folder: ``<root>/<catalog>/<collection>/<product>/``.
+folder: ``<root>/<catalog>/<collection>/<product>/``. Beside each file
+downloaded for a product, ``<file>.varda-source.json`` records where it came
+from (``writeSourceRecord``); Varda reads it when it opens the file.
 """
 
 from __future__ import annotations
 
 import csv
 import hashlib
+import json
 import re
 import shlex
 import ssl
@@ -18,11 +21,14 @@ import threading
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable, Mapping
+from datetime import datetime, timezone
 from pathlib import Path
 
 import certifi
 
 from varda.catalogs.catalog import CatalogError, Product, RemoteFile
+from varda.common.provenance import SOURCE_SUFFIX
+from varda.version import vardaVersion
 
 CHUNK = 1 << 20
 TIMEOUT_S = 60
@@ -145,6 +151,36 @@ def download(
     return target
 
 
+def writeSourceRecord(
+    path: Path, file: RemoteFile, catalog: str, product: Product
+) -> Path:
+    """Record beside a downloaded file where it came from and how it was
+    verified (a record already there for this download is kept)."""
+    sidecar = Path(str(path) + SOURCE_SUFFIX)
+    if sidecar.exists() and sidecar.stat().st_mtime >= path.stat().st_mtime:
+        return sidecar
+    verifiedBy = "nothing"
+    if _hasher(file.checksum)[0] is not None:
+        verifiedBy = "checksum"
+    elif _exactSize(file) is not None:
+        verifiedBy = "size"
+    record = {
+        "catalog": catalog,
+        "collection": product.collection,
+        "product": product.id,
+        "title": product.title,
+        "file": file.name,
+        "url": file.url,
+        "size": path.stat().st_size,
+        "checksum": file.checksum,
+        "verifiedBy": verifiedBy,
+        "downloaded": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "vardaVersion": vardaVersion(),
+    }
+    sidecar.write_text(json.dumps(record, indent=2))
+    return sidecar
+
+
 class IncompleteDownload(CatalogError):
     """Some of a product's files couldn't be downloaded; the others were.
     ``paths`` are the downloaded files (in order), ``failures`` the reasons."""
@@ -164,11 +200,15 @@ def downloadProduct(
     progress: Callable[[float, str], None] = lambda fraction, message: None,
     cancelled: threading.Event | None = None,
     headers: Mapping[str, str] | None = None,
+    *,
+    catalog: str = "",
+    product: Product | None = None,
 ) -> list[Path]:
     """Download a product's files into its folder, in order; progress is the
     share of bytes done (by file count when sizes are unknown). A file that
     fails doesn't stop the others: they're downloaded, then
-    IncompleteDownload says which failed (a cancel stops at once)."""
+    IncompleteDownload says which failed (a cancel stops at once). With
+    ``product``, each file gets a record of where it came from."""
     files = list(files)
     sizes = [f.size for f in files]
     known = all(s is not None for s in sizes)
@@ -187,7 +227,10 @@ def downloadProduct(
             progress(min(share, 1.0), f"downloading {file.name}")
 
         try:
-            paths.append(download(file, folder / file.name, report, cancelled, headers))
+            path = download(file, folder / file.name, report, cancelled, headers)
+            if product is not None:
+                writeSourceRecord(path, file, catalog, product)
+            paths.append(path)
         except CatalogError as error:
             if cancelled is not None and cancelled.is_set():
                 raise
