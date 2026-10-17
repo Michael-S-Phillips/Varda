@@ -95,7 +95,8 @@ When it's done, Varda shows:
 - **warnings**, if the code does anything you should know about: network
   access, starting other programs, writing files, or running text as code
 - the **checks**: the feature run on a synthetic image and on a crop of your
-  image, and the plugin's own tests
+  image, and the plugin's own tests (these run only when Varda runs from
+  source: the downloadable app doesn't include pytest)
 - the **code**, file by file, and the build log
 
 Then choose:
@@ -108,6 +109,27 @@ Then choose:
 
 Enabled plugins are listed in **Plugins → Manage Plugins…**, where you can
 disable, reload or remove them like any other plugin.
+
+## Before you report its results
+
+Passing the checks means only that the plugin runs without errors. It ran
+on a small synthetic cube (12 × 12 pixels) and on a crop of up to 48 × 48
+pixels from the middle of your image, the checks finished within 3 minutes,
+and it returned an image the same size as its input. It also passed the
+tests the AI wrote for it, where those ran. Nothing checks that its answers
+are right: a kindled plugin hasn't been validated scientifically.
+
+Before you use its results in a paper:
+
+- read its code, and make sure it does what you asked;
+- run it on data with a known answer (a spectrum or image where you can
+  work out the result by hand) and compare;
+- describe the method in your own words, with its formula and settings,
+  rather than citing the plugin.
+
+Each result records the plugin's name and version, but not that an AI built
+it, so say so yourself. See [Reporting results from
+Varda](reporting-results.md#plugins-and-kindle-a-feature).
 
 ## Privacy and safety
 

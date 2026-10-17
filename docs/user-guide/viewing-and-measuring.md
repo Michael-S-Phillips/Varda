@@ -1,0 +1,247 @@
+# Viewing and measuring
+
+How Varda turns an image into what you see, and how it measures spectra:
+single pixels, boxes, ROIs and ratios. Stretches change only the picture.
+Everything else on this page reads the data as stored.
+
+## Display stretches
+
+Each view shows either one band through a color map (**Mono**) or three
+bands as red, green and blue (**RGB**), set under **Render Settings**. A
+stretch maps each band's values to 0–1. Varda then multiplies by 255 and
+truncates to 8 bits; in Mono, that 8-bit value picks one of 256 colors from
+the color map. No-data pixels are drawn as 0: black in RGB, the color
+map's lowest color in Mono.
+
+**Stretch Algorithm** offers:
+
+| Stretch | What it does | Settings (default) |
+| --- | --- | --- |
+| **Min-Max (Auto Full Range)** (the default) | The band's minimum maps to 0 and its maximum to 1, linearly | None |
+| **Min-Max (Manual)** | Linear between limits you type | **Red Stretch**, **Green Stretch**, **Blue Stretch**: min and max (0 and 1). Mono uses the red limits |
+| **Linear Percentile** | Linear between two percentiles; values outside are clipped | **Low Percent** (1 %), **High Percent** (99 %), whole numbers 0–100 |
+| **Square Root (Percentile)** | √x of the Linear Percentile result: lifts dark areas gently | As Linear Percentile |
+| **Logarithmic (Percentile)** | log₁₀(1 + 9x) of the Linear Percentile result: lifts dark areas strongly | As Linear Percentile |
+| **Histogram Equalization** | Each value maps to the fraction of pixels at or below it, from a 4,096-bin histogram between the band's minimum and maximum | None |
+
+Each band of an RGB view is stretched on its own statistics. **No Stretch**
+is listed but doesn't work yet: the view fails to draw. Use **Min-Max
+(Manual)** with limits 0 and 1 to show reflectance as it is.
+
+**Percentiles are approximate.** Varda finds them from a 1,024-bin
+histogram, not by sorting. Each limit is the lower edge of the bin the
+percentile falls in, so it can be low by up to one bin width: (maximum −
+minimum) / 1,024. For RGB, the bins span the range of all three bands
+together, so a band with a narrow range gets coarser limits. **High
+Percent** at 100 gives the lower edge of the top bin, a little under the
+maximum.
+
+**Where the statistics come from.** In the General Image Analysis workspace,
+**Stretch From** chooses **Full image** (the default), **Main view** or
+**Zoom view**. The view choices recompute the stretch as you pan and zoom, so
+the same pixel value can look different in two figures. Other workspaces
+always use the full image.
+
+**The Histogram panel** shows each band's values with the stretch limits as
+a draggable region. Dragging a region switches to **Min-Max (Manual)**, filled
+in with the limits the previous stretch used, so the numbers then show in
+**Red Stretch**, **Green Stretch** and **Blue Stretch**. This is the way to
+read the exact limits of an automatic stretch.
+
+### Stating the display in a figure caption
+
+A stretch never changes the data, the spectra, or any analysis. But a reader
+can't interpret a picture without knowing how it was made. In the caption,
+give:
+
+- the bands shown, by wavelength, as R, G, B (or the one band and its color
+  map);
+- the stretch and its settings (for example "linear, 1–99 % per band") or
+  the exact limits in data units;
+- for **Main view** or **Zoom view** statistics, that the stretch comes from
+  the area shown.
+
+Sessions keep the display settings of Linked Images and 3D Terrain
+workspaces, but not those of General Image Analysis, so write them down.
+
+## Pixel spectra
+
+Turn on **Pixel Select** under a view and Ctrl-click (Cmd-click on a Mac) a
+pixel to plot its spectrum. Under **Pixel Spectra** in the plot's sidebar,
+**Window Width** and **Window Height** (1 px each by default, up to 99) set
+a box around the click instead. A box plots the mean of its pixels, with a
+shaded band of ±1 standard deviation (see [ROI statistics](#roi-statistics)
+for how both are computed). An even-sized box extends one pixel further
+right and down than left and up.
+
+**Export…** in the plot's sidebar saves the plot as PNG, SVG or PDF, or the
+curves as CSV. The CSV has the means only, not the shaded standard
+deviation.
+
+### Library overlays
+
+**Library Spectra** adds a spectrum from the bundled USGS library (splib07a,
+at the library's own spectral resolution, not resampled to your sensor).
+To make it easy to compare shapes, Varda **scales and offsets** the library
+curve so that, within the wavelengths on screen, its minimum and maximum
+match those of the selected curve (or the most recently added one). The
+values plotted are no longer the library's reflectance.
+
+This is cosmetic, but it changes what a reader sees:
+
+- In any published figure, say that library spectra are scaled and offset
+  for comparison, or show them unscaled.
+- To show the library's true values, click the library curve and, under
+  **Selected Curve**, set **Y Scale** to 1 and **Y Offset** to 0. The scaling
+  can't be turned off beforehand.
+- A CSV export writes curves as shown, with any scale and offset applied.
+  Reset them first if you need the library values.
+
+## ROI statistics
+
+Draw ROIs in the **ROI Manager** with **Draw ROI**. (The ROI tools are due to
+be rewritten; this describes them as they are now.) **Plot Spectrum** (in the
+ROI's right-click menu, or the button) plots the ROI's mean spectrum in
+**ROI Plots**, shaded ±1 standard deviation.
+
+How Varda computes them:
+
+- **Which pixels:** a pixel is in the ROI when its center is inside the
+  shape.
+- **No-data:** a band's no-data value is left out band by band, so a pixel
+  can count at some wavelengths and not others. Pixels that are no-data in
+  every band are dropped.
+- **Mean and standard deviation** are per band, over the remaining pixels.
+  The standard deviation is the population form (divided by n, not n − 1).
+  Multiply by √(n / (n − 1)) for the sample form; for more than about 30
+  pixels the difference is under 2 %.
+- An ROI with no valid pixels isn't plotted.
+
+The plot doesn't show n. To get it, add a column (below) with the
+**count** statistic of a band.
+
+### Calculated columns
+
+**Add Column...** adds a column to the ROI table. Its **Kind** is one of:
+
+- **Geometry**, with **Measure**:
+  - **Area (pixels)** and **Perimeter (pixels)**: of the shape in pixel
+    units. The area is the shape's area, not the number of pixels whose
+    centers fall inside it.
+  - **Area (map units²)**, **Perimeter (map units)**, **Centroid x (map
+    units)** and **Centroid y (map units)**: in the image's coordinate
+    system, measured on the flat map (planar, not geodesic). They're
+    available only for georeferenced images. In a projected system they're
+    in its unit (usually meters), and carry the projection's scale
+    distortion away from its true-scale latitude or center. In a geographic
+    system (longitude and latitude) they're in degrees and degrees², which
+    aren't areas on the ground: reproject the image first if you need them.
+- **Zonal statistic of a raster**: **mean**, **median**, **std**
+  (population), **min**, **max**, **sum** or **count** of one band inside
+  each ROI, on the ROIs' image or any image on the same pixel grid. Same pixel
+  rule as above; **count** is the number of valid (non-no-data) pixels in
+  that band.
+- **Expression**: arithmetic on other columns, with `sqrt`, `log`, `log10`,
+  `exp`, `abs`, `min`, `max`, `round`, `pi` and `e`. A value that can't be
+  computed is left blank.
+
+Calculated columns update as ROIs change. The table shows six significant
+figures. **Export...** writes the ROIs and their columns as GeoJSON,
+GeoPackage or a shapefile.
+
+### Uncertainty of a mean spectrum
+
+The standard deviation is the **spread within the ROI**: real variation
+across the surface plus noise. It isn't the uncertainty of the mean. For
+that, use the standard error of the mean, per band:
+
+  SE = σ / √n
+
+where σ is the standard deviation and n the band's valid pixel count.
+
+Neighboring pixels aren't independent. The instrument's point-spread
+function, resampling in map projection, and real geology at scales larger
+than a pixel all make nearby pixels alike, so the n pixels carry less
+information than n independent samples. SE = σ/√n then **understates** the
+uncertainty. Report it as a lower bound, or use an effective n (for example,
+the number of point-spread-function footprints or resampling blocks in the
+ROI) and say which you used. Report n, σ and how the ROI was drawn alongside
+any mean spectrum.
+
+## Ratio Explorer
+
+Ratio spectra divide a spectrum of interest by a nearby, spectrally bland
+one, to cancel shared atmospheric and instrument effects. Turn on **Ratio
+Explorer** under a view (General Image Analysis and the dual-image
+workspace), then
+Ctrl-click (Cmd-click) for the numerator box and Ctrl-right-click for the
+denominator box. **Box Width** and **Box Height** (5 px each by default,
+1–99) apply to both. The ratio is plotted in **Ratio Spectra**. Press S (or
+**Save Boxes as ROIs**) to keep both boxes as ROIs; Esc clears them.
+
+With **Lock to sensor column** (in the ROI Manager) on, the denominator box
+moves to the numerator's detector column, using the CRISM geometry file
+found beside the image. Without that file, the box stays where you clicked.
+
+The ratio is, band by band, the **mean of the numerator box divided by the
+mean of the denominator box** (not the mean of pixel-by-pixel ratios). A band
+where the denominator mean is zero, or either mean is missing, is left blank.
+ROIs work the same way: **Set as Denominator** on one, then **Plot Ratio
+Spectrum** on another.
+
+### Uncertainty of a ratio
+
+Varda doesn't compute an uncertainty for ratios. To first order, with
+independent errors in the numerator mean *a* and the denominator mean *b*:
+
+  σ_R / R = √( (σ_a / a)² + (σ_b / b)² ),  with σ_a = s_a / √n_a and σ_b = s_b / √n_b
+
+where *s* is each box's standard deviation in that band and *n* its pixel
+count. This holds while each relative error is small (under about 10 %). It
+inherits the spatial-correlation caveat above, and errors shared by the two
+boxes (such as residual detector striping in the same column) aren't
+independent.
+
+To get the numbers, save the boxes as ROIs and add **mean**, **std** and
+**count** columns for the bands you report.
+
+## Reporting your results
+
+What to state in a methods section, what the quality measures mean, and
+what to cite. See also [Reporting results from Varda](reporting-results.md)
+for what applies to every process.
+
+### What to state
+
+- For figures: the bands, stretch and limits, as in [the caption
+  section](#stating-the-display-in-a-figure-caption), and whether library
+  spectra are scaled and offset.
+- For spectra: whether each is a single pixel, a box (its size) or an ROI
+  (its shape, how and where it was drawn, its pixel count), and that the
+  plotted spread is ±1 population standard deviation.
+- For ratios: the numerator and denominator areas, their sizes and pixel
+  counts, whether the denominator was locked to the same detector column,
+  and that the ratio is of the two means.
+- For ROI measures: whether areas are in pixels or map units, the coordinate
+  system, and that they're planar.
+
+### Uncertainty and quality
+
+- **A standard deviation is spread, not error.** Give σ/√n (with n) for a
+  mean, and say that spatial correlation makes it a lower bound.
+- **Ratios** carry the propagated error above; Varda doesn't report it.
+- **Map areas** are only as good as the image's georeferencing and carry the
+  projection's distortion. Areas in pixels are in pixel units, whatever
+  the pixels' size on the ground.
+- **Library comparisons** are qualitative while the library curve is scaled:
+  the match of shapes says nothing about absolute reflectance. The library
+  is also at a finer spectral resolution than most sensors.
+- **Stretches** don't affect any number on this page.
+
+### References
+
+- USGS spectral library: Kokaly, R. F., Clark, R. N., Swayze, G. A., Livo,
+  K. E., Hoefen, T. M., Pearson, N. C., Wise, R. A., Benzel, W. M., Lowers,
+  H. A., Driscoll, R. L., & Klein, A. J. (2017). USGS Spectral Library
+  Version 7. *U.S. Geological Survey Data Series 1035*.
+  https://doi.org/10.3133/ds1035

@@ -51,10 +51,11 @@ it overlaps, and fits them:
    hand-crafted features struggle (its weights download once), and **SIFT**.
 5. **Fit:** the tie points from every band are fitted together with the
    image's transform, robustly (RANSAC): points farther off than the
-   **outlier threshold** (1 px by default) are left out and shown in red.
+   **outlier threshold** (1 px of the moving image by default) are left out and shown in red.
    Manual tie points are never left out.
 
-The results list each band's points, how many the fit kept and their RMS.
+The results list each band's SNR, its points, how many the fit kept and
+their RMS (in the moving image's pixels).
 A band whose points disagree (an atmospheric band or a detector artifact,
 say) shows up with a high RMS or few kept points: untick it to fit without
 it. Running Auto Align again replaces the image's automatic tie points and
@@ -72,8 +73,8 @@ to look for change or deformation between two dates.
 - **Fit it to tie points**: choose the reference image, then click a feature
   on the reference and the same feature on the moving image. Repeat for a few
   well-spread features, choose a transform and press **Fit to Tie Points**.
-  The status line reports the fit's RMS error in pixels, and the table shows
-  each point's residual; uncheck **Use** to leave a poor point out of the next
+  The status line reports the fit's RMS error in the moving image's pixels,
+  and the table shows each point's residual (in map units); uncheck **Use** to leave a poor point out of the next
   fit.
 
 | Transform | What it corrects | Tie points needed |
@@ -172,9 +173,122 @@ labeled "(visual)". Keep **None** for analysis.
 - **Source map**: a class map of which image each mosaic pixel came from,
   useful for checking seams and tracing a spectrum back to its strip.
 
-Seams are hard (no blending), so spectra are never mixed across them. The
-mosaic's metadata records the inputs, the resampling, the radiometric
-corrections, the seams and the full recipe.
+Seams are hard (no blending), so spectra are never mixed across them. In
+Varda, the mosaic's metadata records the inputs, the resampling, the
+radiometric corrections, the seams and the full recipe. A file you save from
+it keeps only a one-line summary in its description (the inputs and the
+methods): keep the session, or a [packaged project](sessions-and-saving.md),
+for the full recipe.
 
 Saving the session keeps each Mosaic workspace's recipe (order, visibility,
 alignments and tie points), so you can reopen it and keep working.
+
+## Reporting your results
+
+What to state in a methods section, what the quality measures mean, and
+what to cite. See also [Reporting results from Varda](reporting-results.md)
+for what applies to every process.
+
+### What to state
+
+- The inputs, their priority order, and which (if any) you held for
+  radiometry.
+- How each image was aligned: the transform model, how the tie points were
+  found (phase correlation with or without sub-pixel refinement, ORB, SIFT,
+  LoFTR, ASP `image_align`, or by hand), the bands matched on, the outlier
+  threshold, and how many points the fit kept and their RMS.
+- The radiometric balance (method and fit), the seam method, any blending,
+  and the export's resampling and pixel size.
+
+Settings Auto Align uses that aren't in the dialog:
+
+| Step | Setting |
+| --- | --- |
+| Band choice | SNR = signal over noise; noise is 1.4826 × the median absolute deviation of neighboring-pixel differences, divided by √2; signal is the standard deviation with that noise removed |
+| Coarse offset | Phase correlation on copies reduced to at most 512 px |
+| Tiles | 64 px, stepping a quarter of a tile (tiles overlap); the step grows to keep at most 400 tiles per band |
+| Tiles skipped | Tile SNR below 2 (too little texture), or a shift larger than a quarter of the tile |
+| Tiles dropped | Correlation coefficient of the two tiles, once aligned, below 0.6 |
+| Fallback to features | **Auto** switches to ORB when phase correlation gives fewer than 6 points (800 keypoints, ratio test 0.8, cross-checked) |
+| RANSAC | 99.9 % confidence; for a thin-plate spline, outliers are found with a cubic (or quadratic) polynomial at 3 × the threshold, then the spline is fitted to the rest |
+| Displacement field | Each tile's shift is the median over the matched bands |
+
+Radiometric balancing reads each overlap at up to 100,000 co-located pixels
+(nearest neighbor); an overlap with fewer than 50 doesn't count. The
+**Linear, to the held images** fit is least squares, fitted three times,
+each time without points more than 3 robust standard deviations (from the
+median absolute deviation) off the previous line. Blending defaults are a
+20 px feather and 4 levels. Seams are found on overlaps reduced to at most
+4 million pixels. Warps (polynomials and splines) are evaluated every 8
+output pixels and interpolated between, which is well below a pixel for
+smooth warps.
+
+### Uncertainty and quality
+
+- **Tie-point RMS is precision, not accuracy.** It says how well the moving
+  image agrees with the *reference image* after the fit, in the moving
+  image's pixels. The mosaic is only as well georeferenced as the reference:
+  report the reference's own geolocation accuracy (from its source) as well.
+  To measure the alignment independently, leave a few well-spread manual
+  tie points out of the fit (untick **Use**) and report their residuals as
+  check points.
+- **Splines and high-order polynomials.** A thin-plate spline passes
+  (almost) through every point it's fitted to, so its RMS is close to zero
+  whatever the true error. Report check-point residuals for these models,
+  not the fit's RMS.
+- **The 0.1 px and 1/50 px figures** above describe the methods on
+  well-textured, low-noise images (Leprince et al. 2007 report about
+  1/50 px). They aren't measured on your images; the RMS and check points
+  are.
+- **Match quality** for phase-correlation tie points is the correlation
+  coefficient of the two tiles once aligned (0 to 1). SIFT and LoFTR points
+  carry their matcher's own confidence, which isn't comparable to it; ORB
+  and ASP points have none.
+- **Residual units.** Each point's residual in the table is in map units
+  (meters in a projected CRS, degrees in a geographic one). The RMS values
+  are in the moving image's pixels.
+- **Radiometry** reports each image's gains and offsets, but not how well
+  the fit worked. Compare the overlaps before and after balancing (with
+  [linked images](linked-images.md) or ROI statistics) if you need a number.
+  Histogram matching, blending and bilinear resampling change spectra, which
+  is why their results are labeled "(visual)": don't use them for
+  quantitative spectral work.
+- **Nearest-neighbor export** keeps every spectrum as measured, but moves it
+  by up to half an output pixel.
+
+### References
+
+- Phase correlation: Kuglin, C. D., & Hines, D. C. (1975). The phase
+  correlation image alignment method. *Proc. IEEE International Conference
+  on Cybernetics and Society*, 163–165.
+- Sub-pixel phase correlation (scikit-image's upsampled DFT, used for the
+  tiles): Guizar-Sicairos, M., Thurman, S. T., & Fienup, J. R. (2008).
+  Efficient subpixel image registration algorithms. *Optics Letters*,
+  33(2), 156–158.
+- Phase-plane refinement: Leprince, S., Barbot, S., Ayoub, F., & Avouac,
+  J.-P. (2007). Automatic and precise orthorectification, coregistration,
+  and subpixel correlation of satellite images, application to ground
+  deformation measurements. *IEEE Transactions on Geoscience and Remote
+  Sensing*, 45(6), 1529–1558.
+- RANSAC: Fischler, M. A., & Bolles, R. C. (1981). Random sample consensus.
+  *Communications of the ACM*, 24(6), 381–395.
+- Thin-plate splines: Bookstein, F. L. (1989). Principal warps: thin-plate
+  splines and the decomposition of deformations. *IEEE Transactions on
+  Pattern Analysis and Machine Intelligence*, 11(6), 567–585.
+- ORB: Rublee, E., Rabaud, V., Konolige, K., & Bradski, G. (2011). ORB: an
+  efficient alternative to SIFT or SURF. *Proc. ICCV*, 2564–2571.
+- SIFT: Lowe, D. G. (2004). Distinctive image features from scale-invariant
+  keypoints. *International Journal of Computer Vision*, 60(2), 91–110.
+- LoFTR: Sun, J., Shen, Z., Wang, Y., Bao, H., & Zhou, X. (2021). LoFTR:
+  detector-free local feature matching with transformers. *Proc. CVPR*,
+  8922–8931.
+- Ames Stereo Pipeline: Beyer, R. A., Alexandrov, O., & McMichael, S.
+  (2018). The Ames Stereo Pipeline: NASA's open source software for deriving
+  and processing terrain data. *Earth and Space Science*, 5(9), 537–548.
+- Multi-band blending: Burt, P. J., & Adelson, E. H. (1983). A multiresolution
+  spline with application to image mosaics. *ACM Transactions on Graphics*,
+  2(4), 217–236.
+- Seams and image processing: van der Walt, S., et al. (2014). scikit-image:
+  image processing in Python. *PeerJ*, 2, e453.
+- ISIS (`cam2map`, `equalizer`): cite the ISIS release you used, as its
+  documentation asks.
