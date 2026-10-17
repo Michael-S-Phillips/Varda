@@ -81,7 +81,9 @@ def test_the_replaced_count_map_comes_with_the_filtered_cube():
     assert record["rounds"] == len(record["replacedPerRound"])
     assert record["pixelsWithReplacements"] == int(np.nansum(values > 0))
     assert record["stopReason"]
-    assert f"{record['replacedTotal']} voxels replaced" in filtered.dataSource.description
+    assert (
+        f"{record['replacedTotal']} voxels replaced" in filtered.dataSource.description
+    )
 
 
 def test_the_count_map_can_be_left_out():

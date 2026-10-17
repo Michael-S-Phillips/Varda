@@ -58,12 +58,14 @@ def test_prepare_can_run_the_iovf_filter():
 
 def test_prepare_keeps_and_records_what_iovf_replaced():
     model = _prepared(useIovf=True)
+    assert model.prepared is not None
     record = model.prepared.iovf
+    assert record is not None
     assert record["replacedTotal"] == sum(record["replacedPerRound"])
-    assert model.runSettings()["prepare"]["iovf"]["replacedPerRound"] == (
-        record["replacedPerRound"]
-    )
-    assert _prepared().prepared.iovf is None
+    recorded = model.runSettings()["prepare"]["iovf"]
+    assert recorded["replacedPerRound"] == record["replacedPerRound"]
+    plain = _prepared().prepared
+    assert plain is not None and plain.iovf is None
 
 
 def test_mnf_suggests_a_component_count_and_gives_component_images():

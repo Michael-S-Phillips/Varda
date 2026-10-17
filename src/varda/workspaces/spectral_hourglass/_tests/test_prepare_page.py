@@ -55,6 +55,7 @@ def test_the_summary_shows_what_iovf_replaced(qtbot):
     widget = PreparePage(model, run=lambda settings=None: None)
     qtbot.addWidget(widget)
     widget.refresh()
+    assert model.prepared is not None
     record = model.prepared.iovf
     assert record is not None
     text = widget.summary.text()

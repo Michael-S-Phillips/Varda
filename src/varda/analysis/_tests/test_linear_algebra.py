@@ -106,7 +106,8 @@ def test_fastica_reports_its_iterations_and_convergence():
     X = sources @ np.array([[1.0, 0.5], [0.3, 1.0]])
 
     done = fastIca(X, components=2, maxIterations=400, seed=0)
-    assert done.converged is True and 1 <= done.iterations < 400
+    assert done.converged is True and done.iterations is not None
+    assert 1 <= done.iterations < 400
 
     cut = fastIca(X, components=2, maxIterations=1, seed=0)
     assert cut.converged is False and cut.iterations == 1

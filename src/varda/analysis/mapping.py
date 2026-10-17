@@ -79,9 +79,7 @@ def mapBands(
         ]
     if method is MapMethod.UNMIX:
         assert X is not None and spectra is not None
-        abundances, rmse = linearUnmix(
-            X, spectra, constraint, progress, report=report
-        )
+        abundances, rmse = linearUnmix(X, spectra, constraint, progress, report=report)
         return np.column_stack([abundances, rmse]), [*names, "RMS Error"]
     assert mnfData is not None and targets is not None
     mf, infeasibility = mixtureTunedMatchedFilter(mnfData, targets)

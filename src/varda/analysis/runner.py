@@ -74,7 +74,9 @@ class AnalysisRunner(QObject):
                 report(100, f"saving to {outputPath}")
                 writeRaster(results[0], outputPath)
                 for companion in results[1:]:
-                    writeRaster(companion, companionPath(outputPath, results[0], companion))
+                    writeRaster(
+                        companion, companionPath(outputPath, results[0], companion)
+                    )
             return results
 
         def onFinished(results: list[VardaRaster]) -> None:
