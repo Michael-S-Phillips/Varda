@@ -252,11 +252,13 @@ def rgb_hist_percentiles_numba(
     vmin=None,
     vmax=None,
 ):
-    """
-    Alternate method for approximating percentiles using a histogram approach.
-    It's much faster than np.nanpercentile, but also slightly less accurate.
-    I dont know for certain if this is okay or not (I think the error is smaller than what can be seen on a display), but for now not using it.
-    """
+    """Each channel's low and high percentiles, from a ``bins``-bin histogram
+    between ``vmin`` and ``vmax`` (default: the minimum and maximum of all
+    three channels together). The Linear Percentile stretch uses this: it's
+    much faster than ``np.nanpercentile``. The p-th percentile is the smallest
+    value with at least p % of the values at or below it; each limit is the
+    lower edge of the bin holding it, so it can be low by up to one bin width,
+    (vmax - vmin) / bins. NaN is ignored."""
     flat = rgb.reshape(-1, 3)
 
     if vmin is None:
@@ -287,11 +289,13 @@ def mono_hist_percentiles_numba(
     vmin=None,
     vmax=None,
 ):
-    """
-    Alternate method for approximating percentiles using a histogram approach.
-    It's much faster than np.nanpercentile, but also slightly less accurate.
-    I dont know for certain if this is okay or not (I think the error is smaller than what can be seen on a display), but for now not using it.
-    """
+    """The low and high percentiles of one band, from a ``bins``-bin histogram
+    between ``vmin`` and ``vmax`` (default: the band's minimum and maximum).
+    The Linear Percentile stretch uses this: it's much faster than
+    ``np.nanpercentile``. The p-th percentile is the smallest value with at
+    least p % of the values at or below it; each limit is the lower edge of
+    the bin holding it, so it can be low by up to one bin width,
+    (vmax - vmin) / bins. NaN is ignored."""
     flat = mono.reshape(-1, 1)
 
     if vmin is None:
@@ -339,10 +343,10 @@ class LinearPercentileStretch(StretchAlgorithm):
         return self.config
 
     def apply(self, image: np.ndarray, sample: np.ndarray | None = None) -> np.ndarray:
-        """Compute min/max values based on percentiles.
-
-        NOTE: This is an approximation using histogram binning. But I think that for the purpose of visualization it's indisinguishable.
-        """
+        """Stretch linearly between the low and high percentiles of each
+        channel, clipping values outside. The percentiles come from a 1,024-bin
+        histogram (see ``rgb_hist_percentiles_numba``), so each limit can be low
+        by up to one bin width."""
 
         # profile = Profiler()
         lowPercent = self.config.lowPercent.value

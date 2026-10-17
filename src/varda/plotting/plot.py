@@ -117,6 +117,10 @@ class Curve(QObject):
         # Extra graphics that belong to this curve (e.g. a +/- std-dev band):
         # they follow its Y offset/scale and are removed with it.
         self.bandItems: list[QGraphicsItem] = []
+        # For a mean spectrum: per-sample standard deviation and pixel count,
+        # in the data's units (before the Y scale/offset); exported with it.
+        self.std: np.ndarray | None = None
+        self.count: np.ndarray | None = None
         self._pointSize: int | None = None  # None: samples not marked
 
         self.config.sigParameterChanged.connect(self.onConfigChanged)
@@ -155,16 +159,21 @@ class Curve(QObject):
         self.plotDataItem.setSymbolBrush(pg.mkBrush(self.config.color.value.toQColor()))
         self.plotDataItem.setSymbolPen(None)
 
-    def displayedData(self) -> tuple[np.ndarray, np.ndarray]:
-        """The curve's data as shown, i.e. with its Y scale and offset applied."""
+    def data(self) -> tuple[np.ndarray, np.ndarray]:
+        """The curve's own data, without its Y scale and offset."""
         x, y = self.plotDataItem.getData()
         if x is None or y is None:
             return np.array([]), np.array([])
-        shownY = (
-            np.asarray(y, dtype=float) * self.config.scale.value
-            + self.config.offset.value
-        )
-        return np.asarray(x, dtype=float), shownY
+        return np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+
+    def displayedData(self) -> tuple[np.ndarray, np.ndarray]:
+        """The curve's data as shown, i.e. with its Y scale and offset applied."""
+        x, y = self.data()
+        return x, y * self.config.scale.value + self.config.offset.value
+
+    def isTransformed(self) -> bool:
+        """Whether the curve is shown with a Y scale or offset."""
+        return self.config.scale.value != 1.0 or self.config.offset.value != 0.0
 
     def setClickable(self, clickable: bool):
         self.plotDataItem.setCurveClickable(clickable, width=20)
@@ -887,13 +896,26 @@ class VardaPlotWidget(QWidget):
         self._adoptCurve(Curve.deserialize(data))
         event.accept()
 
-    def plotWithFill(self, x, y, yLower, yUpper, fillBrush, **kwargs) -> Curve:
+    def plotWithFill(
+        self,
+        x,
+        y,
+        yLower,
+        yUpper,
+        fillBrush,
+        std: np.ndarray | None = None,
+        count: np.ndarray | None = None,
+        **kwargs,
+    ) -> Curve:
         """Plot a curve with a filled region between yLower and yUpper.
 
         Useful for displaying mean +/- standard deviation. The band belongs to
         the returned curve: it follows its Y offset/scale and is removed with it.
+        ``std`` and ``count`` (per sample) are kept on the curve for export.
         """
         curve = self.plot(x, y, **kwargs)
+        curve.std = None if std is None else np.asarray(std, dtype=float)
+        curve.count = None if count is None else np.asarray(count)
 
         upperCurve = pg.PlotDataItem(x, yUpper, pen=pg.mkPen(None))
         lowerCurve = pg.PlotDataItem(x, yLower, pen=pg.mkPen(None))

@@ -8,7 +8,8 @@ Everything else on this page reads the data as stored.
 
 Each view shows either one band through a color map (**Mono**) or three
 bands as red, green and blue (**RGB**), set under **Render Settings**. A
-stretch maps each band's values to 0–1. Varda then multiplies by 255 and
+stretch maps each band's values to 0–1. Varda then clips to 0–1 (so
+values outside saturate at black or full brightness), multiplies by 255 and
 truncates to 8 bits; in Mono, that 8-bit value picks one of 256 colors from
 the color map. No-data pixels are drawn as 0: black in RGB, the color
 map's lowest color in Mono.
@@ -25,12 +26,13 @@ map's lowest color in Mono.
 | **Histogram Equalization** | Each value maps to the fraction of pixels at or below it, from a 4,096-bin histogram between the band's minimum and maximum | None |
 
 Each band of an RGB view is stretched on its own statistics. **No Stretch**
-is listed but doesn't work yet: the view fails to draw. Use **Min-Max
-(Manual)** with limits 0 and 1 to show reflectance as it is.
+shows the values as they are, as if they were already 0–1: right for
+reflectance; values below 0 draw as 0 and above 1 as 1.
 
 **Percentiles are approximate.** Varda finds them from a 1,024-bin
-histogram, not by sorting. Each limit is the lower edge of the bin the
-percentile falls in, so it can be low by up to one bin width: (maximum −
+histogram, not by sorting. The p-th percentile is the smallest value with
+at least p % of the pixels at or below it, and each limit is the lower edge
+of the bin that value falls in, so it can be low by up to one bin width: (maximum −
 minimum) / 1,024. For RGB, the bins span the range of all three bands
 together, so a band with a narrow range gets coarser limits. **High
 Percent** at 100 gives the lower edge of the top bin, a little under the
@@ -75,8 +77,13 @@ for how both are computed). An even-sized box extends one pixel further
 right and down than left and up.
 
 **Export…** in the plot's sidebar saves the plot as PNG, SVG or PDF, or the
-curves as CSV. The CSV has the means only, not the shaded standard
-deviation.
+curves as CSV. Each curve is a column of its own values (not scaled; see
+[Library overlays](#library-overlays)). For a box or ROI mean, two more
+columns follow it: `<name> std`, the ±1 standard deviation shaded on the
+plot, and `<name> n`, the number of pixels with data in that band behind
+the mean and standard deviation. When curves don't share wavelengths, the
+CSV has one row per sample instead, with columns `curve`, `x`, `y` and, if
+any curve is a mean, `std` and `n` (blank for single pixels).
 
 ### Library overlays
 
@@ -94,8 +101,12 @@ This is cosmetic, but it changes what a reader sees:
 - To show the library's true values, click the library curve and, under
   **Selected Curve**, set **Y Scale** to 1 and **Y Offset** to 0. The scaling
   can't be turned off beforehand.
-- A CSV export writes curves as shown, with any scale and offset applied.
-  Reset them first if you need the library values.
+- A CSV export writes every curve's own values (the library's
+  reflectance), not as shown. When a curve is shown scaled or offset, the
+  CSV starts with comment lines (beginning `#`) giving each such curve's
+  **Y Scale** and **Y Offset**: what's plotted is value × scale + offset.
+  Tell your CSV reader to skip lines starting with `#` (in pandas,
+  `comment="#"`).
 
 ## ROI statistics
 
@@ -115,10 +126,15 @@ How Varda computes them:
   The standard deviation is the population form (divided by n, not n − 1).
   Multiply by √(n / (n − 1)) for the sample form; for more than about 30
   pixels the difference is under 2 %.
+- **n per band:** the number of pixels with data in that band. It can be
+  smaller than the ROI's pixel count where some pixels are no-data in only
+  some bands. A band with no data at all has no mean or standard deviation
+  (a gap in the curve, `nan` in the CSV), never 0.
 - An ROI with no valid pixels isn't plotted.
 
-The plot doesn't show n. To get it, add a column (below) with the
-**count** statistic of a band.
+The plot doesn't show n; its CSV export has it for every band (`<name> n`,
+see [Pixel spectra](#pixel-spectra)). For one band, you can also add a
+column (below) with the **count** statistic.
 
 ### Calculated columns
 

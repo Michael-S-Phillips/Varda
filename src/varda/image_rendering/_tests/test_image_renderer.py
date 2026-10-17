@@ -139,3 +139,28 @@ def test_setStretchMinMax_emits_single_refresh_when_switching(qtbot):
     r.setStretchMinMax(0, 5.0, 7.0)
     assert count == 1
     assert r.settings.stretch.nameOf(r.settings.stretch.current) == "Min-Max (Manual)"
+
+
+def _renderer_for(data: np.ndarray) -> ImageRenderer:
+    return ImageRenderer(image=VardaRaster(dataSource=ArrayDataSource(data)))
+
+
+def test_no_stretch_renders_and_clips_to_0_1(qtbot):
+    # No Stretch hands back the renderer's read-only band array; the renderer
+    # must not write into it, and values outside 0-1 must clip, not wrap
+    data = np.array([[[-0.5], [0.5], [2.0], [np.nan]]], dtype=np.float32)
+    r = _renderer_for(data)
+    r.settings.mode.set(RenderMode.RGB)
+    r.settings.stretch.selectByName("No Stretch")
+    rgba = r.render()
+    assert list(rgba[0, :, 0]) == [0, 127, 255, 0]
+    assert np.isnan(r.getRawBandData()[0, 3]).all()
+
+
+def test_render_clips_out_of_range_stretch_output(qtbot):
+    data = np.array([[[0.0], [1.0], [5.0]]], dtype=np.float32)
+    r = _renderer_for(data)
+    r.settings.mode.set(RenderMode.RGB)
+    r.setManualStretch(0.0, 1.0)
+    rgba = r.render()
+    assert list(rgba[0, :, 0]) == [0, 255, 255]

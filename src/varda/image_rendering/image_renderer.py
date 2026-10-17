@@ -244,7 +244,9 @@ class ImageRenderer(QObject):
         )
         self._stretchedData = data
         noData = np.asarray(np.isnan(data).all(axis=2))
-        data[np.isnan(data)] = 0
+        # a new array (the stretch's output may be the read-only bands); clip
+        # so values outside 0-1 saturate instead of wrapping in the 8-bit cast
+        data = np.nan_to_num(np.clip(data, 0.0, 1.0), nan=0.0)
 
         if mode == RenderMode.MONO:
             data = np.squeeze(data, axis=2)  # back to 2D because ColorMap expects it
