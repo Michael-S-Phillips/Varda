@@ -8,6 +8,12 @@ can alter results.
 
 ### Added
 
+- **MNF keeps its noise model:** the result's transform metadata (saved
+  with the file) holds the noise covariance MNF whitened by, each band's
+  noise σ, the noise estimate and its ROI classes, from the Processing menu
+  and the Spectral Hourglass alike. **Inverse Transform** records the
+  components kept, the count it suggested and the rule behind it
+  (`componentSelection`).
 - **ICA reports convergence:** the result's transform metadata records the
   iterations FastICA ran and whether it converged; when it ran out of
   iterations first, the description and the log say so.

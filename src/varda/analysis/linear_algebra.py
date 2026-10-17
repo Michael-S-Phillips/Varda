@@ -39,7 +39,8 @@ class TransformResult:
     MNF), in decreasing order. ``eigenvalues``: (k,) the unnormalized values
     behind those shares. ``mean``: (bands,) and ``inverse``: (k, bands) such that
     ``data ~ scores @ inverse + mean``. For an iterative transform (FastICA),
-    ``iterations`` run and whether it ``converged``; None otherwise."""
+    ``iterations`` run and whether it ``converged``; None otherwise. For MNF,
+    the ``noiseCovariance`` (bands, bands) it whitened by."""
 
     scores: np.ndarray
     loadings: np.ndarray
@@ -49,6 +50,7 @@ class TransformResult:
     inverse: np.ndarray
     iterations: int | None = None
     converged: bool | None = None
+    noiseCovariance: np.ndarray | None = None
 
 
 def flattenValid(cube, nodata: float | None) -> tuple[np.ndarray, np.ndarray]:
@@ -120,6 +122,17 @@ def suggestedComponents(eigenvalues: np.ndarray, kind: str) -> int:
         return 1
     cumulative = np.cumsum(values) / total
     return int(np.searchsorted(cumulative, _SUGGESTED_VARIANCE) + 1)
+
+
+def suggestionRule(kind: str) -> str:
+    """How ``suggestedComponents`` chooses its count for ``kind``, in words."""
+    if kind == "MNF":
+        return (
+            f"MNF eigenvalue above {_MNF_NOISE_EIGENVALUE:g} (SNR + 1), but no "
+            "more than the elbow of the log eigenvalue curve (the point farthest "
+            "from the line joining its ends); at least 1"
+        )
+    return f"enough components for {100 * _SUGGESTED_VARIANCE:g}% of the variance"
 
 
 def elbowIndex(eigenvalues: np.ndarray) -> int:
@@ -373,6 +386,7 @@ def mnf(
             eigenvalues=values,
             mean=mean,
             inverse=inverse,
+            noiseCovariance=noiseCov,
         )
     mean = X.mean(axis=0)
     whitened = pca((X - mean) @ whitening, components)
@@ -383,6 +397,7 @@ def mnf(
         eigenvalues=whitened.eigenvalues,
         mean=mean,
         inverse=whitened.loadings.T @ unwhitening,
+        noiseCovariance=noiseCov,
     )
 
 

@@ -65,6 +65,7 @@ KEPT_METADATA_KEYS = (
     "fatt",
     "sensorBands",
     "kmeans",
+    "componentSelection",
 )
 # Beside a downloaded file: where it came from (catalogs/downloads.py)
 SOURCE_SUFFIX = ".varda-source.json"

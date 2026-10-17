@@ -111,6 +111,15 @@ def test_ppi_can_continue_adding_iterations():
     assert model.ppiIterations == 4000
 
 
+def test_the_mnf_image_keeps_its_noise_model():
+    model = _mnfWithComponents(3)
+    info = model.mnfMetadata()["transform"]
+    bands = model.cube.shape[2]
+    assert np.asarray(info["noiseCovariance"]).shape == (bands, bands)
+    assert len(info["noiseSigma"]) == bands
+    assert info["noiseEstimate"] == "HORIZONTAL"
+
+
 def _mnfWithComponents(count: int) -> HourglassModel:
     model = _prepared()
     model.applyMnf(model.mnfTask()(_noProgress))

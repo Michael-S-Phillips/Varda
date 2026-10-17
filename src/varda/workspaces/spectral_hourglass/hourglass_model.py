@@ -807,6 +807,8 @@ class HourglassModel:
         k = self.components
         for key in ("inverse", "eigenvalues", "explainedVariance"):
             info[key] = info[key][:k]
+        info["noiseEstimate"] = MNF_NOISE_ESTIMATE.name
+        info["noiseRoiClasses"] = []
         return {
             "explainedVariance": info["explainedVariance"],
             TRANSFORM_METADATA_KEY: info,

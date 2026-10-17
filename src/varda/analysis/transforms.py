@@ -29,6 +29,7 @@ from varda.analysis.linear_algebra import (
     noiseCovariance,
     pca,
     suggestedComponents,
+    suggestionRule,
     weightedPca,
     unflatten,
 )
@@ -49,6 +50,8 @@ from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 logger = logging.getLogger(__name__)
 
 TRANSFORM_METADATA_KEY = "transform"
+# Inverse Transform: the components kept, and the count it suggested
+SELECTION_METADATA_KEY = "componentSelection"
 
 
 def _componentsParameter() -> IntParameter:
@@ -105,7 +108,9 @@ def transformMetadata(
     bands: np.ndarray | None = None,
 ) -> dict:
     """What Inverse Transform needs, as plain JSON-able types; ``bands`` are
-    the image's bands that went in (all of them by default)."""
+    the image's bands that went in (all of them by default). For MNF, also
+    the noise covariance it whitened by and each band's noise σ (its
+    diagonal's square root), in the input's units."""
     kept = np.arange(image.bandCount) if bands is None else np.asarray(bands)
     wavelengths = list(image.wavelengths)
     names = list(image.bandNames)
@@ -124,6 +129,17 @@ def transformMetadata(
         "inverse": result.inverse.tolist(),
         "eigenvalues": result.eigenvalues.tolist(),
         "explainedVariance": result.explainedVariance.tolist(),
+        **noiseMetadata(result),
+    }
+
+
+def noiseMetadata(result: TransformResult) -> dict:
+    noise = result.noiseCovariance
+    if noise is None:
+        return {}
+    return {
+        "noiseCovariance": noise.tolist(),
+        "noiseSigma": np.sqrt(np.clip(np.diag(noise), 0, None)).tolist(),
     }
 
 
@@ -387,6 +403,13 @@ class MnfAnalysis(_ComponentAnalysis):
     def _bandNames(self, result):
         return [f"MNF {i + 1}" for i in range(result.scores.shape[1])]
 
+    def _quality(self, result):
+        region = self._usesRegion()
+        return {
+            "noiseEstimate": NoiseEstimate(self.noiseEstimate.get()).name,
+            "noiseRoiClasses": self._noiseClasses() if region else [],
+        }
+
 
 class IcaAnalysis(_ComponentAnalysis):
     analysisId = "ica"
@@ -527,6 +550,13 @@ class InverseTransformAnalysis(Analysis):
             raise ValueError("Tick at least one component to keep.")
         which = describeComponentSelection(indices)
 
+        selection = {
+            "kind": kind,
+            "suggested": suggestedComponents(np.asarray(info["eigenvalues"]), kind),
+            "rule": suggestionRule(kind),
+            "kept": [i + 1 for i in indices],
+        }
+
         reportProgress(0, "reading components")
         cube, _ = readCube(image)
         if self.output.value is InverseOutput.FIRST_COMPONENTS:
@@ -545,7 +575,11 @@ class InverseTransformAnalysis(Analysis):
                 crs=image.crs,
                 nodata=image.nodata,
                 description=f"{which.capitalize()} of {image.name}",
-                extraMetadata={**image.extraMetadata, TRANSFORM_METADATA_KEY: kept},
+                extraMetadata={
+                    **image.extraMetadata,
+                    TRANSFORM_METADATA_KEY: kept,
+                    SELECTION_METADATA_KEY: selection,
+                },
             )
             return VardaRaster(source, name=f"{sourceName} {kind} ({which})")
 
@@ -563,5 +597,6 @@ class InverseTransformAnalysis(Analysis):
             transform=image.transform,
             crs=image.crs,
             description=f"{sourceName} rebuilt from {kind} {which}",
+            extraMetadata={SELECTION_METADATA_KEY: selection},
         )
         return VardaRaster(source, name=f"{sourceName} {kind} inverse ({which})")
