@@ -37,6 +37,21 @@ can alter results.
   **ROI to Mask** (Processing → Image Math) makes a 0/1 mask from ROI
   classes.
 
+### Fixed
+
+- **Laptop screens:** panels no longer cut off their text at small sizes.
+  Docked panels used to scroll sideways, out of sight, when they were wider
+  than their dock: in **Find Data** the catalog description, the Collection
+  box, the dates, the Preview, and the Results and Downloads buttons were cut
+  off. Now every dock is at least as wide as its panel can get, panels scroll
+  down rather than sideways, button rows wrap onto a second line, long names
+  in combo boxes end in "…" with the full name in the tooltip, and
+  descriptions wrap. Find Data, General Image Analysis, Dual Image, Linked
+  Images, Mosaic, Spectral Hourglass and 3D Terrain all fit a 1280 × 800
+  screen; analysis dialogs and Optional Features scroll when they're taller
+  than the screen; number fields in analysis settings are wide enough for
+  their values.
+
 ## 0.9.0 (2026-10-16)
 
 ### Added

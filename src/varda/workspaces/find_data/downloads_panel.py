@@ -21,7 +21,6 @@ from PyQt6.QtWidgets import (
     QMenu,
     QProgressBar,
     QPushButton,
-    QToolButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -35,6 +34,7 @@ from varda.catalogs.downloads import (
     exportList,
     productFolder,
 )
+from varda.common.ui import FlowLayout
 from varda.image_loading.data_sources.registry import datasource_registry
 from varda.utilities.background import onMainThread, runInBackground
 
@@ -116,6 +116,7 @@ class DownloadsPanel(QWidget):
         self.tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.tree.itemChanged.connect(self._onItemChanged)
         self.total = QLabel()
+        self.total.setWordWrap(True)
         self.folder = QLineEdit(str(defaultFolder()))
         self.folder.editingFinished.connect(
             lambda: QSettings().setValue(FOLDER_KEY, self.folder.text())
@@ -132,13 +133,12 @@ class DownloadsPanel(QWidget):
         self.cancelButton = QPushButton("Cancel")
         self.cancelButton.clicked.connect(self.cancel)
         self.cancelButton.setEnabled(False)
-        checkButton = QToolButton()
-        checkButton.setText("Check")
+        # push buttons with menus: their size allows for the menu's arrow
+        checkButton = QPushButton("Check")
         checkButton.setToolTip(
             "Check files in the selected products (or in all of them): all, the "
             "essential ones, none, or every file of a type"
         )
-        checkButton.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         checkMenu = QMenu(checkButton)
         checkMenu.addAction("All Files", lambda: self.checkFiles(lambda f: True))
         checkMenu.addAction(
@@ -152,10 +152,8 @@ class DownloadsPanel(QWidget):
                 lambda role=role: self.checkFiles(lambda f: f.role == role, add=True),
             )
         checkButton.setMenu(checkMenu)
-        selectButton = QToolButton()
-        selectButton.setText("Select")
+        selectButton = QPushButton("Select")
         selectButton.setToolTip("Select products, e.g. the failed ones to retry")
-        selectButton.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         selectMenu = QMenu(selectButton)
         selectMenu.addAction(
             "All Products", lambda: self.selectProducts(lambda s: True)
@@ -186,7 +184,7 @@ class DownloadsPanel(QWidget):
         folderRow.addWidget(QLabel("Folder:"))
         folderRow.addWidget(self.folder, 1)
         folderRow.addWidget(browse)
-        buttons = QHBoxLayout()
+        buttons = FlowLayout()
         for button in (
             self.downloadButton,
             self.cancelButton,
@@ -194,15 +192,12 @@ class DownloadsPanel(QWidget):
             selectButton,
             remove,
             export,
+            self.openWhenDone,
         ):
             buttons.addWidget(button)
-        buttons.addStretch()
-        totalRow = QHBoxLayout()
-        totalRow.addWidget(self.total, 1)
-        totalRow.addWidget(self.openWhenDone)
         layout = QVBoxLayout(self)
         layout.addWidget(self.tree, 1)
-        layout.addLayout(totalRow)
+        layout.addWidget(self.total)
         layout.addLayout(folderRow)
         layout.addLayout(buttons)
         layout.addWidget(self.progress)

@@ -22,7 +22,6 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QKeyEvent, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractItemView,
-    QComboBox,
     QFrame,
     QLineEdit,
     QTreeView,
@@ -31,7 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.catalogs.catalog import Collection
-from varda.common.ui import MutedLabel
+from varda.common.ui import ElidingComboBox, MutedLabel
 
 SEARCH_ROLE = Qt.ItemDataRole.UserRole + 1  # the text words are matched in
 INDEX_ROLE = Qt.ItemDataRole.UserRole + 2  # the collection's index in the combo
@@ -228,9 +227,10 @@ class CollectionPopup(QFrame):
         return super().eventFilter(watched, event)
 
 
-class CollectionCombo(QComboBox):
+class CollectionCombo(ElidingComboBox):
     """A combo box of collections (``setCollections``) that drops down the
-    searchable tree instead of a plain list."""
+    searchable tree instead of a plain list. A long name is elided, and
+    shown in full in the tooltip."""
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)

@@ -15,7 +15,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QWidget,
     QVBoxLayout,
-    QHBoxLayout,
     QCheckBox,
     QPushButton,
     QMessageBox,
@@ -29,6 +28,7 @@ from varda.image_loading.crism_geometry import (
     resolveGeometryFile,
     wholePixels,
 )
+from varda.common.ui import FlowLayout
 from varda.plotting.plot import VardaPlotWidget
 from varda.rois.add_column_dialog import AddColumnDialog
 from varda.rois.roi_calculations import CalculatedColumns
@@ -133,17 +133,19 @@ class ROIManagerWidget(QWidget):
             )
 
         # Layout
-        btnRow = QHBoxLayout()
-        btnRow.addWidget(self.selectAllButton)
-        btnRow.addWidget(self.deselectButton)
-        btnRow.addWidget(self.visibilityButton)
-        btnRow.addWidget(self._deleteBtn)
-        btnRow.addWidget(self.fromMaskButton)
-        btnRow.addWidget(self._addColumnBtn)
-        btnRow.addWidget(self._exportBtn)
-        btnRow.addWidget(self._plotBtn)
-        btnRow.addWidget(self._lockColumnCheck)
-        btnRow.addStretch()
+        btnRow = FlowLayout()  # wraps in a narrow dock
+        for widget in (
+            self.selectAllButton,
+            self.deselectButton,
+            self.visibilityButton,
+            self._deleteBtn,
+            self.fromMaskButton,
+            self._addColumnBtn,
+            self._exportBtn,
+            self._plotBtn,
+            self._lockColumnCheck,
+        ):
+            btnRow.addWidget(widget)
 
         layout = QVBoxLayout(self)
         if drawingState is not None:

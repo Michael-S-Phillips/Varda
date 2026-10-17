@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.branding.loader import RedrawSpinner
+from varda.common.ui import PanelScrollArea
 from varda.optional_features.asp_section import AspSection
 from varda.optional_features.isis_section import IsisSection
 from varda.utilities.background import onMainThread, runInBackground
@@ -150,7 +151,10 @@ class OptionalFeaturesDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
 
-        layout = QVBoxLayout(self)
+        # the sections scroll when they're taller than a laptop screen
+        body = QWidget()
+        layout = QVBoxLayout(body)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.reasonLabel)
         layout.addWidget(title)
         layout.addWidget(about)
@@ -169,7 +173,9 @@ class OptionalFeaturesDialog(QDialog):
         separator.setFrameShape(QFrame.Shape.HLine)
         layout.addWidget(separator)
         layout.addWidget(IsisSection())
-        layout.addWidget(buttons)
+        dialogLayout = QVBoxLayout(self)
+        dialogLayout.addWidget(PanelScrollArea(body), 1)
+        dialogLayout.addWidget(buttons)
 
         self.setMinimumWidth(480)
         self._setBusy(False)  # after the layout, which shows the buttons it adds

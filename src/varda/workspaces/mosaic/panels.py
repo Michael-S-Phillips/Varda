@@ -8,7 +8,6 @@ from PyQt6.QtCore import QPointF, Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QAbstractItemView,
-    QComboBox,
     QFormLayout,
     QHBoxLayout,
     QHeaderView,
@@ -23,7 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from varda.common.ui import MutedLabel
+from varda.common.ui import ElidingComboBox, FlowLayout, MutedLabel
 from varda.mosaicking.recipe import (
     Correction,
     LinearMode,
@@ -65,7 +64,7 @@ class InputsPanel(QWidget):
         up, down = QPushButton("Move Up"), QPushButton("Move Down")
         up.clicked.connect(lambda: self._move(-1))
         down.clicked.connect(lambda: self._move(1))
-        self.model = QComboBox()
+        self.model = ElidingComboBox()
         for model in TransformModel:
             self.model.addItem(model.value, model)
         self.model.currentIndexChanged.connect(self._onModel)
@@ -178,14 +177,16 @@ class TiePointPanel(QWidget):
         self.project = project
         self.movingKey = project.inputs[0].key
         self._pendingReference: tuple[float, float] | None = None
-        self.reference = QComboBox()
+        self.reference = ElidingComboBox()
         self.reference.currentIndexChanged.connect(self._onReference)
         self.referenceView = ImagePointView()
         self.movingView = ImagePointView()
         self.referenceView.sigClicked.connect(self._onReferenceClicked)
         self.movingView.sigClicked.connect(self._onMovingClicked)
         self.movingLabel = QLabel()
+        self.movingLabel.setWordWrap(True)
         self.hint = MutedLabel("")
+        self.hint.setWordWrap(True)
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
         self.table.horizontalHeader().setSectionResizeMode(
@@ -212,10 +213,7 @@ class TiePointPanel(QWidget):
         views.addLayout(right, 1)
         side = QVBoxLayout()
         side.addWidget(self.table, 1)
-        buttons = QHBoxLayout()
-        buttons.addWidget(delete)
-        buttons.addWidget(deleteAuto)
-        side.addLayout(buttons)
+        side.addLayout(FlowLayout().withWidget(delete).withWidget(deleteAuto))
         views.addLayout(side, 1)
         layout = QVBoxLayout(self)
         layout.addLayout(views, 1)
@@ -363,11 +361,11 @@ class RadiometryPanel(QWidget):
     def __init__(self, project: MosaicProject, parent: QWidget | None = None):
         super().__init__(parent)
         self.project = project
-        self.method = QComboBox()
+        self.method = ElidingComboBox()
         for method in RadiometryMethod:
             self.method.addItem(method.value, method)
         self.method.currentIndexChanged.connect(lambda _: self._updateState())
-        self.mode = QComboBox()
+        self.mode = ElidingComboBox()
         for mode in LinearMode:
             self.mode.addItem(mode.value, mode)
         self.held = QListWidget()
@@ -414,16 +412,13 @@ class RadiometryPanel(QWidget):
         left.addLayout(form)
         left.addWidget(QLabel("Held images:"))
         left.addWidget(self.held, 1)
-        buttons = QHBoxLayout()
-        buttons.addWidget(self.balanceButton)
-        buttons.addWidget(clear)
-        buttons.addStretch()
-        left.addLayout(buttons)
-        isisRow = QHBoxLayout()
-        isisRow.addWidget(self.compareIsis)
-        isisRow.addWidget(self.useIsis)
-        isisRow.addStretch()
-        left.addLayout(isisRow)
+        left.addLayout(
+            FlowLayout()
+            .withWidget(self.balanceButton)
+            .withWidget(clear)
+            .withWidget(self.compareIsis)
+            .withWidget(self.useIsis)
+        )
         left.addWidget(self.status)
         right = QVBoxLayout()
         right.addWidget(self.table, 1)
@@ -550,7 +545,7 @@ class SeamsPanel(QWidget):
     def __init__(self, project: MosaicProject, parent: QWidget | None = None):
         super().__init__(parent)
         self.project = project
-        self.method = QComboBox()
+        self.method = ElidingComboBox()
         for method in SeamMethod:
             self.method.addItem(method.value, method)
         self.computeButton = QPushButton("Find Seams")
@@ -574,7 +569,7 @@ class SeamsPanel(QWidget):
             "see. Find seams again after changing the alignment."
         )
         note.setWordWrap(True)
-        self.blend = QComboBox()
+        self.blend = ElidingComboBox()
         for method in BlendMethod:
             self.blend.addItem(method.value, method)
         self.featherWidth = QSpinBox()
@@ -599,11 +594,9 @@ class SeamsPanel(QWidget):
 
         form = QFormLayout()
         form.addRow("Method:", self.method)
-        buttons = QHBoxLayout()
-        buttons.addWidget(self.computeButton)
-        buttons.addWidget(self.edit)
-        buttons.addWidget(clear)
-        buttons.addStretch()
+        buttons = (
+            FlowLayout().withWidget(self.computeButton).withWidget(self.edit)
+        ).withWidget(clear)
         blendForm = QFormLayout()
         blendForm.addRow("Blending:", self.blend)
         blendForm.addRow("Feather width:", self.featherWidth)

@@ -91,7 +91,7 @@ def test_new_data_leaves_no_stray_dimension_buttons(viz):
     buttons = [
         b
         for b in viz.findChildren(QToolButton)
-        if b.parent() is viz and b.isVisibleTo(viz) and b.text().isdigit()
+        if b.isVisibleTo(viz) and b.text().isdigit()  # in the wrapping dims row
     ]
     assert [b.text() for b in buttons] == ["1", "2", "3"]
 

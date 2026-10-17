@@ -3,8 +3,13 @@ from __future__ import annotations
 from typing_extensions import override
 from typing import Callable
 
-from PyQt6.QtCore import Qt, QEvent, QPoint, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QEvent, QPoint, QRect, QSize, pyqtSignal
 from PyQt6.QtWidgets import (
+    QComboBox,
+    QLayoutItem,
+    QStyle,
+    QStyleOptionComboBox,
+    QStylePainter,
     QVBoxLayout,
     QHBoxLayout,
     QGroupBox,
@@ -25,9 +30,10 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QSizePolicy,
     QScrollArea,
+    QAbstractScrollArea,
     QApplication,
 )
-from PyQt6.QtGui import QColor, QMouseEvent, QPalette
+from PyQt6.QtGui import QColor, QMouseEvent, QPaintEvent, QPalette, QResizeEvent
 import PyQt6Ads as ads
 
 
@@ -80,6 +86,183 @@ class HBoxBuilder(QHBoxLayout):
     def withStretch(self, stretch: int = 0) -> HBoxBuilder:
         self.addStretch(stretch)
         return self
+
+
+class FlowLayout(QLayout):
+    """Lays its items out like words in a paragraph: as many in a row as
+    fit, then the next row. A row of buttons or fields in it wraps instead
+    of being cut off when its panel is narrow; its minimum width is its
+    widest item, its preferred width all of them in one row."""
+
+    def __init__(self, parent: QWidget | None = None, margins: int = 0) -> None:
+        super().__init__(parent)
+        self._items: list[QLayoutItem] = []
+        self.setContentsMargins(margins, margins, margins, margins)
+
+    def withWidget(self, widget: QWidget) -> FlowLayout:
+        self.addWidget(widget)
+        return self
+
+    def addItem(self, a0: QLayoutItem | None) -> None:
+        if a0 is not None:
+            self._items.append(a0)
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, index: int) -> QLayoutItem | None:
+        return self._items[index] if 0 <= index < len(self._items) else None
+
+    def takeAt(self, index: int) -> QLayoutItem | None:
+        return self._items.pop(index) if 0 <= index < len(self._items) else None
+
+    def expandingDirections(self) -> Qt.Orientation:
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, a0: int) -> int:
+        return self._arrange(QRect(0, 0, a0, 0), move=False)
+
+    def setGeometry(self, a0: QRect) -> None:
+        super().setGeometry(a0)
+        self._arrange(a0, move=True)
+
+    def _visible(self) -> list[QLayoutItem]:
+        return [item for item in self._items if not item.isEmpty()]
+
+    def _spacing(self, orientation: Qt.Orientation) -> int:
+        if self.spacing() >= 0:
+            return self.spacing()
+        style = (self.parentWidget() or QWidget()).style()
+        assert style is not None
+        metric = (
+            QStyle.PixelMetric.PM_LayoutHorizontalSpacing
+            if orientation == Qt.Orientation.Horizontal
+            else QStyle.PixelMetric.PM_LayoutVerticalSpacing
+        )
+        spacing = style.pixelMetric(metric)
+        return spacing if spacing >= 0 else 6  # macOS leaves it to the widgets
+
+    def _margins(self) -> QSize:
+        m = self.contentsMargins()
+        return QSize(m.left() + m.right(), m.top() + m.bottom())
+
+    def sizeHint(self) -> QSize:
+        items = self._visible()
+        gap = self._spacing(Qt.Orientation.Horizontal)
+        width = sum(i.sizeHint().width() for i in items) + gap * max(len(items) - 1, 0)
+        height = max((i.sizeHint().height() for i in items), default=0)
+        return QSize(width, height) + self._margins()
+
+    def minimumSize(self) -> QSize:
+        size = QSize()
+        for item in self._visible():
+            size = size.expandedTo(item.minimumSize())
+        return size + self._margins()
+
+    def _arrange(self, rect: QRect, move: bool) -> int:
+        """Place the items (with ``move``) in ``rect``; the height they take."""
+        m = self.contentsMargins()
+        area = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        xGap = self._spacing(Qt.Orientation.Horizontal)
+        yGap = self._spacing(Qt.Orientation.Vertical)
+        rows: list[list[QLayoutItem]] = [[]]
+        x = area.x()
+        for item in self._visible():
+            width = min(item.sizeHint().width(), area.width())
+            if rows[-1] and x + width > area.right() + 1:
+                rows.append([])
+                x = area.x()
+            rows[-1].append(item)
+            x += width + xGap
+        y = area.y()
+        for row in rows:
+            height = max((i.sizeHint().height() for i in row), default=0)
+            x = area.x()
+            for item in row:
+                size = item.sizeHint()
+                width = max(min(size.width(), area.width()), item.minimumSize().width())
+                if move:
+                    top = y + (height - size.height()) // 2
+                    item.setGeometry(QRect(x, top, width, size.height()))
+                x += width + xGap
+            y += height + yGap
+        return y - yGap - rect.y() + m.bottom()
+
+
+class ElidingComboBox(QComboBox):
+    """A combo box that can shrink below its longest item: the current text
+    is elided ("Moon: Lunar Orbiter…") and then, in full, in the tooltip
+    (after any tooltip of its own, set as usual with ``setToolTip``)."""
+
+    def __init__(self, parent: QWidget | None = None, minimumCharacters: int = 12):
+        super().__init__(parent)
+        self._hint = ""
+        self.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.setMinimumContentsLength(minimumCharacters)
+        self.currentTextChanged.connect(lambda _: self._updateToolTip())
+
+    def setToolTip(self, a0: str | None) -> None:
+        self._hint = a0 or ""
+        self._updateToolTip()
+
+    def _textRect(self, option: QStyleOptionComboBox) -> QRect:
+        style = self.style()
+        assert style is not None
+        rect = style.subControlRect(
+            QStyle.ComplexControl.CC_ComboBox,
+            option,
+            QStyle.SubControl.SC_ComboBoxEditField,
+            self,
+        )
+        if not option.currentIcon.isNull():
+            rect.setLeft(rect.left() + option.iconSize.width() + 4)
+        return rect
+
+    def _elided(self, option: QStyleOptionComboBox) -> str:
+        return self.fontMetrics().elidedText(
+            option.currentText,
+            Qt.TextElideMode.ElideRight,
+            self._textRect(option).width() - 2,
+        )
+
+    def isElided(self) -> bool:
+        option = QStyleOptionComboBox()
+        self.initStyleOption(option)
+        return self._elided(option) != option.currentText
+
+    def _updateToolTip(self) -> None:
+        text = self.currentText() if self.isElided() else ""
+        toolTip = "\n\n".join(t for t in (text, self._hint) if t)
+        if toolTip != self.toolTip():
+            super().setToolTip(toolTip)
+
+    def resizeEvent(self, e: QResizeEvent | None) -> None:
+        super().resizeEvent(e)
+        self._updateToolTip()
+
+    def paintEvent(self, e: QPaintEvent | None) -> None:
+        if self.isEditable():
+            super().paintEvent(e)
+            return
+        painter = QStylePainter(self)
+        option = QStyleOptionComboBox()
+        self.initStyleOption(option)
+        painter.drawComplexControl(QStyle.ComplexControl.CC_ComboBox, option)
+        if self.currentIndex() < 0 and self.placeholderText():
+            option.palette.setBrush(
+                QPalette.ColorRole.ButtonText,
+                option.palette.brush(QPalette.ColorRole.PlaceholderText),
+            )
+            option.currentText = self.placeholderText()
+        option.currentText = self._elided(option)
+        # here, as items can change with signals blocked (no currentTextChanged)
+        self._updateToolTip()
+        painter.drawControl(QStyle.ControlElement.CE_ComboBoxLabel, option)
 
 
 class GroupBoxBuilder(QGroupBox):
@@ -173,6 +356,68 @@ class VerticalScrollArea(QScrollArea):
                 widget.minimumSizeHint().width(), super().minimumSizeHint().height()
             )
         return super().minimumSizeHint()
+
+
+class _PanelContents(QWidget):
+    """Holds a ``PanelScrollArea``'s panel. Asked how tall it must be at a
+    width, it gives the panel's minimum height there, not its preferred
+    one, so a panel with wrapping text squeezes its tables and plots before
+    it scrolls (QScrollArea sizes such panels by ``heightForWidth``)."""
+
+    def __init__(self, panel: QWidget) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(panel)
+
+    def heightForWidth(self, a0: int) -> int:
+        layout = self.layout()
+        assert layout is not None
+        return layout.minimumHeightForWidth(a0)
+
+
+class PanelScrollArea(QScrollArea):
+    """A panel (a form, a list of details, a table with buttons) that
+    scrolls vertically when it can't get any shorter, and never sideways:
+    it can get as narrow as the panel's minimum width, no narrower, so the
+    panel's labels wrap, its combo boxes elide and its button rows wrap
+    instead of disappearing off the edge. ``VardaDockWidget`` puts panels
+    in one."""
+
+    def __init__(self, panel: QWidget, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.panel = panel
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        contents = _PanelContents(panel)
+        self.setWidget(contents)
+        contents.installEventFilter(self)
+
+    def eventFilter(self, a0, a1) -> bool:
+        if a0 is self.widget() and a1 is not None:
+            if a1.type() == QEvent.Type.LayoutRequest:
+                self.updateGeometry()  # its minimum width may have changed
+        return super().eventFilter(a0, a1)
+
+    def _withScrollBar(self, width: int) -> int:
+        bar = self.verticalScrollBar()
+        extra = bar.sizeHint().width() if bar is not None else 0
+        return width + extra + 2 * self.frameWidth()
+
+    def minimumSizeHint(self) -> QSize:
+        width = self._withScrollBar(self.panel.minimumSizeHint().width())
+        return QSize(width, super().minimumSizeHint().height())
+
+    def sizeHint(self) -> QSize:
+        hint = self.panel.sizeHint()
+        # a tall panel asks for most of the screen, not more: a dialog
+        # holding it then opens on screen, and scrolls
+        screen = self.screen()
+        tallest = (
+            screen.availableGeometry().height() * 3 // 4 if screen else hint.height()
+        )
+        return QSize(self._withScrollBar(hint.width()), min(hint.height(), tallest))
 
 
 class FormBuilder(QFormLayout):
@@ -580,8 +825,34 @@ ads.CDockManager.setAutoHideConfigFlags(
 
 
 class VardaDockWidget(ads.CDockWidget):
+    """A dock whose contents are never cut off: a panel that isn't a scroll
+    area of its own (a table, a plot, an image view) goes into a
+    ``PanelScrollArea``, and the dock gets no narrower than the panel's
+    minimum width. (ADS's own scroll area scrolls sideways instead, where
+    users don't notice it.) So give it panels that can get narrow: wrap
+    text, elide combo boxes, put button rows in a ``FlowLayout``.
+    ``widget()`` is still the panel given (as with ADS's scroll area)."""
+
     def __init__(self, title: str, parent: QWidget | None = None):
         super().__init__(title, parent)
+        self._panel: QWidget | None = None  # the panel it put in a scroll area
+        self.setMinimumSizeHintMode(
+            ads.CDockWidget.eMinimumSizeHintMode.MinimumSizeHintFromContent
+        )
+
+    def setWidget(
+        self,
+        widget: QWidget | None,
+        InsertMode: ads.CDockWidget.eInsertMode = ads.CDockWidget.eInsertMode.AutoScrollArea,  # noqa: N803 (ADS's name)
+    ) -> None:
+        """Show ``widget`` (``InsertMode`` is ignored: see the class)."""
+        self._panel = None
+        if widget is not None and not isinstance(widget, QAbstractScrollArea):
+            self._panel, widget = widget, PanelScrollArea(widget)
+        super().setWidget(widget, ads.CDockWidget.eInsertMode.ForceNoScrollArea)
+
+    def widget(self) -> QWidget | None:
+        return self._panel or super().widget()
 
     def withWidget(self, widget: QWidget) -> VardaDockWidget:
         self.setWidget(widget)

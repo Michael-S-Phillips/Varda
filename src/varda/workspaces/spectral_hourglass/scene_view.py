@@ -18,7 +18,6 @@ from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QHBoxLayout,
     QLabel,
     QSlider,
     QSpinBox,
@@ -27,6 +26,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.common.entities import ROIMode, VardaRaster
+from varda.common.ui import FlowLayout, HBoxBuilder, WrapperWidget
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.image_rendering.image_renderer import ImageRenderer, RenderMode
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
@@ -171,18 +171,27 @@ class SceneView(QWidget):
         for widget in (self.shapeLabel, self.shapeBox):
             widget.hide()  # only while drawing
 
-        controls = QHBoxLayout()
-        controls.addWidget(self.shapeLabel)
-        controls.addWidget(self.shapeBox)
-        controls.addWidget(QLabel("Overlay"))
-        controls.addWidget(self.overlayBox)
-        controls.addWidget(self.componentSpin)
-        controls.addWidget(self.mapBandBox)
-        controls.addWidget(QLabel("Opacity"))
-        controls.addWidget(self.opacitySlider)
-        controls.addStretch()
-        controls.addWidget(self.endmembersBox)
-        controls.addWidget(self.candidatesBox)
+        # wraps onto more rows in a narrow dock
+        controls = FlowLayout(margins=2)
+        for widget in (
+            self.shapeLabel,
+            self.shapeBox,
+            WrapperWidget(
+                HBoxBuilder(margins=0)
+                .withWidget(QLabel("Overlay"))
+                .withWidget(self.overlayBox)
+            ),
+            self.componentSpin,
+            self.mapBandBox,
+            WrapperWidget(
+                HBoxBuilder(margins=0)
+                .withWidget(QLabel("Opacity"))
+                .withWidget(self.opacitySlider)
+            ),
+            self.endmembersBox,
+            self.candidatesBox,
+        ):
+            controls.addWidget(widget)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(controls)

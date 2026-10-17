@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from PyQt6.QtWidgets import QMessageBox
 
+from varda.common.layout_audit import assertNothingClipped
 from varda.optional_features import optional_features_dialog
 from varda.optional_features.optional_features_dialog import OptionalFeaturesDialog
 from varda.optional_features.torch_runtime import (
@@ -165,3 +166,12 @@ def test_diagnostics_name_the_platform_build_and_folder(qtbot, runtime):
     dialog = _dialog(qtbot, runtime)
     text = dialog.diagnostics()
     assert str(runtime.root) in text and "linux-x64-cu130" in text
+
+
+def test_the_dialog_scrolls_on_a_short_laptop_screen(qtbot, runtime):
+    dialog = _dialog(qtbot, runtime)
+    assert dialog.minimumSizeHint().height() < 400  # its sections scroll
+    dialog.resize(dialog.minimumSizeHint().width(), 500)
+    dialog.show()
+    qtbot.waitExposed(dialog)
+    assertNothingClipped(dialog)
