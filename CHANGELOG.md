@@ -82,6 +82,10 @@ can alter results.
 
 ### Fixed
 
+- **Find Data's ODE searches with no matches** said `'str' object has no
+  attribute 'get'` instead of "Nothing found here.": where nothing matches,
+  ODE answers with a message in place of the product list, which Varda
+  didn't expect.
 - **Pixels inside ROIs of two different classes** are now left out of
   every supervised classifier's training (and validation), and counted in
   the result. Before, the MLP, CNN and ViT trained on them once per class
