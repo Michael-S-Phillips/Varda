@@ -67,6 +67,40 @@ def test_resampling_halves_the_pixels_and_doubles_their_size():
     assert (result.transform.c, result.transform.f) == (1000.0, 5000.0)  # same corner
 
 
+def _noise(rows=64, cols=64) -> VardaRaster:
+    cube = np.random.default_rng(0).normal(size=(rows, cols, 1)).astype(np.float32)
+    return VardaRaster(ArrayDataSource(cube, transform=TRANSFORM), name="noise")
+
+
+@pytest.mark.parametrize("how", [Interpolation.BILINEAR, Interpolation.CUBIC])
+def test_shrinking_with_interpolation_averages_away_fine_detail(how):
+    """Anti-aliased as scikit-image's resize: a Gaussian of σ = (1/factor −
+    1) / 2 old pixels first, so pixel-scale noise averages down."""
+    analysis = ResampleAnalysis()
+    analysis.factor.set(0.25)
+    analysis.interpolation.set(how)
+    data = _data(analysis.run(_noise(), QUIET))
+    assert data.std() < 0.25
+
+
+def test_shrinking_with_nearest_neighbor_keeps_the_values():
+    analysis = ResampleAnalysis()
+    analysis.factor.set(0.25)
+    analysis.interpolation.set(Interpolation.NEAREST)
+    original = _noise()
+    data = _data(analysis.run(original, QUIET))
+    assert np.isin(data, _data(original)).all()
+
+
+def test_the_description_records_the_actual_factors():
+    analysis = ResampleAnalysis()
+    analysis.factor.set(0.5)
+    result = analysis.run(_image(rows=5, cols=7, bands=1), QUIET)
+    assert (result.height, result.width) == (2, 4)  # rounded pixel counts
+    assert "rows ×0.4" in result.description
+    assert "columns ×0.571429" in result.description
+
+
 def test_nearest_neighbor_enlarging_repeats_values():
     analysis = ResampleAnalysis()
     analysis.factor.set(2.0)

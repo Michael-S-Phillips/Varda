@@ -16,9 +16,18 @@ Workspace** with the DEM loaded.
     a 2-98 % stretch).
 - **Detail**: how finely the surface follows the DEM: at most 512 (Low),
   1024 (Medium) or 2048 (High) points on the longer side. Each point is the
-  mean height of a block of DEM pixels. The status line gives the ground
-  size, the height range, the grid, how many DEM pixels a side each point
-  averages, and how many points of gaps were filled.
+  mean height of a block of DEM pixels, placed at the block's center. The
+  status line gives the ground size, the height range (in the height unit),
+  the grid, how many DEM pixels a side each point averages, and how many
+  points of gaps were filled.
+- **Height unit**: the unit of the DEM's heights: **Meters** (the default),
+  **Kilometers** or **Feet**. Ground sizes are in meters, so heights are
+  converted to meters for the view, the exaggeration, the color bar's label
+  and 3D printing. When the DEM's CRS declares a vertical unit (a compound
+  CRS with a vertical part, or a 3D CRS), Varda starts from it (US survey
+  feet count as feet, 2 parts per million apart); otherwise check it
+  yourself, since most planetary DEMs don't say. It's saved with the
+  session.
 - **Exaggeration** stretches the heights; **Sun azimuth** (clockwise from
   north) and **Sun elevation** place the light; **Cast shadows** and **Sky
   light** (which lifts the shadows) shape it; **Background** sets the color
@@ -33,8 +42,8 @@ Views and settings are saved with the session.
 
 - **Sides (block diagram)** stands the surface on walls down to a flat base,
   like a cut block. **Base depth** is how far below the lowest point the
-  base is (Automatic: a quarter of the relief); it's exaggerated with the
-  heights. **Side color** offers earth, light gray, white, dark gray, black
+  base is, in the height unit (Automatic: a quarter of the relief); it's
+  exaggerated with the heights. **Side color** offers earth, light gray, white, dark gray, black
   or any color (Custom…).
 - **Edges** shapes the outline where the data ends, in the view and in the
   printed solid: **Smooth** (the default) cuts the grid cells' corners and
@@ -47,7 +56,8 @@ Views and settings are saved with the session.
   show as pits. No data around the outside of the DEM stays empty.
 - **Export for 3D Printing…** saves the terrain as a closed solid in STL,
   the format slicers (Cura, PrusaSlicer, Bambu Studio and others) open.
-  Choose the **width** in millimeters, the **exaggeration**, the **base**
+  Choose the **width** in millimeters (between the outermost grid points),
+  the **exaggeration**, the **base**
   under the lowest point (3 mm by default), and the **detail** (points on
   the longer side; 512 suits most printers). The dialog shows the size it
   will print. The solid is watertight, with sides around any gaps left
@@ -129,8 +139,9 @@ a CTX DEM say, on top of the surface:
    fallback), and fits the **Model**: Translation by default, as
    map-projected products are mostly just offset, or rigid, similarity,
    affine, projective, polynomial or a thin-plate spline for warped ones.
-   The panel reports the tie points the fit kept and their RMS residual
-   (in the DEM's map units, which it labels m).
+   The panel reports the tie points the fit kept and their RMS residual,
+   in the DEM's map units and labeled with them (m for a DEM projected in
+   meters, ° for a geographic one).
    **Match using** chooses the image that is matched: the overlay itself,
    or another loaded image with the same georeferencing. A parameter map
    often has little texture to match, but a scene made from the same
@@ -138,7 +149,8 @@ a CTX DEM say, on top of the surface:
    for example a CTX-like scene from CRISM) matches well, and the alignment
    found for it moves the overlay.
 4. **Shift E, N** moves the overlay by hand, in the DEM's map units
-   (meters for a projected DEM), after the fit.
+   (as labeled: meters for a DEM projected in meters, degrees for a
+   geographic one), after the fit.
    **Alignment: Copy** and **Paste** give another overlay the same
    alignment (products of one observation share it); **Reset** returns the
    overlay to its georeferencing.
@@ -164,8 +176,8 @@ or analyses, not from the 3D surface.
 
 ### What to state
 
-- The DEM (product, its source, resolution and stated vertical precision)
-  and the band shown.
+- The DEM (product, its source, resolution and stated vertical precision),
+  the band shown and its height unit.
 - For a figure: the vertical exaggeration, the sun's azimuth and elevation,
   whether shadows were cast, the drape and its stretch or color map, any
   overlays and how they were aligned, and whether gaps were filled.
@@ -178,14 +190,15 @@ How the surface is made, beyond the panel's settings:
 
 | Step | What Varda does |
 | --- | --- |
-| Decimation | Every *n* × *n* block of DEM pixels becomes one grid point, their mean height ignoring no data; *n* is the DEM's longer side divided by the Detail, rounded up (the status line's "every *n* pixels"). Edge blocks may be partial. |
+| Decimation | Every *n* × *n* block of DEM pixels becomes one grid point, their mean height ignoring no data; *n* is the DEM's longer side divided by the Detail, rounded up (the status line's "every *n* pixels"). Edge blocks may be partial. Each point stands at the center of its block (a partial block's own center), in the view, web page and STL alike; the surface ends at the outermost points, half a block inside the DEM's edges. |
 | Height storage | In the view and the web page, heights are stored in 16 bits: 65,535 levels from the lowest to the highest point, so one step is (highest − lowest) / 65,534. 3D-printing exports use the heights unrounded. |
 | Gap filling | Gaps enclosed by data take the nearest grid point's height, then are smoothed by 4 passes of a 3 × 3 mean (over valid neighbors). Done on the decimated grid. |
 | Ground size | Projected DEM: pixel size × pixel count, in meters. Geographic DEM: degrees × π*a*/180, with *a* the body's equatorial radius, and the east–west size multiplied by the cosine of the center latitude. |
 | Drape | The image's own rendering with a 2–98 % linear stretch (also for elevation colors, whose color bar shows that range), resized to at most 8192 px a side (Lanczos). |
 | Lighting defaults | Sun azimuth 315°, elevation 35°, sky light 0.35, shadows on, exaggeration 1. |
 | Overlays | Reprojected to the DEM's projection with bilinear resampling, at about their own resolution; textures at most 8192 px a side. |
-| Overlay Auto Align | Matches the overlay's highest-SNR band, reprojected as above, against band 1 of the reference (or a hillshade of the DEM's first band: sun azimuth 315°, elevation 45°), with the Mosaic workspace's matching (see [Mosaicking](mosaicking.md#reporting-your-results)). The fit leaves out points more than 1 pixel (of the reprojected overlay) off. |
+| Overlay Auto Align | Matches the overlay's highest-SNR band, reprojected as above, against band 1 of the reference (or a hillshade of the band shown, its heights converted to meters by the height unit: sun azimuth 315°, elevation 45°), with the Mosaic workspace's matching (see [Mosaicking](mosaicking.md#reporting-your-results)). The fit leaves out points more than 1 pixel (of the reprojected overlay) off. |
+| Height unit | Heights × 1 (m), 1000 (km) or 0.3048 (ft) give meters; the exaggeration multiplies the result. |
 | Smooth edges | Outline points move toward their neighbors, by at most half a grid cell. |
 | Vector files | Geographic coordinates beyond ±360° longitude or ±90° latitude are taken to be in the DEM's projection already. |
 
@@ -199,24 +212,28 @@ How the surface is made, beyond the panel's settings:
   grid points were filled, but filled points aren't marked in the view,
   the web page or the STL. Turn **Fill gaps** off to see where the gaps
   are, and say in a caption that a figure's gaps were filled.
-- **Vertical exaggeration assumes heights in meters.** Heights are drawn in
-  the DEM's own units against a ground size in meters, so the exaggeration,
-  the scale bar's "vertical exaggeration" and a print's height are true only
-  for a DEM in meters. A DEM in kilometers or feet isn't converted.
+- **Vertical exaggeration depends on the height unit.** Heights are
+  converted from the **Height unit** to meters, the ground's unit, so the
+  exaggeration, the scale bar's "vertical exaggeration" and a print's
+  height are true only when the height unit is right. Check it for DEMs
+  whose CRS doesn't declare one; Varda 0.9.0 and earlier always took
+  heights as meters.
 - **Geographic DEMs are drawn as a flat rectangle.** The east–west size is
   right only at the center latitude, and uses a sphere of the equatorial
   radius, so shapes are stretched away from the center latitude, more for
   DEMs spanning many degrees. Use a projected DEM for figures where shape
   matters.
-- **Positions on the surface** are good to about a grid cell: the grid's
-  points are spread evenly across the DEM's full extent, while each is the
-  mean of a block.
+- **Positions on the surface.** Each grid point stands at the center of
+  the block of DEM pixels it averages, so its position is right, but its
+  height is the block's mean (see above). (Varda 0.9.0 and earlier spread
+  the points evenly from edge to edge, misplacing them by up to half a
+  block, more with a partial edge block.)
 - **The scale bar** is measured at the view's center. In a perspective view
   it's wrong elsewhere in the frame; use views from above for figures with
   a scale.
 - **Overlay alignment RMS is precision, not accuracy.** It's how well the
-  overlay agrees with the reference, in the DEM's map units, and the panel
-  labels it m whatever those units are. The overlay is only as well placed
+  overlay agrees with the reference, in the DEM's map units (as labeled).
+  The overlay is only as well placed
   as the reference: report the reference's own geolocation accuracy. A
   manual shift isn't part of the RMS.
 - **Draped images are for display.** The drape and overlays are stretched,

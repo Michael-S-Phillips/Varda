@@ -21,9 +21,13 @@ const settings = Object.assign(
     northArrow: true,
     scaleBar: true, // measured at the view's center (the orbit target)
     colorBar: true, // when the drape is colored by elevation
+    heightUnit: "m", // the DEM's height unit; ground sizes are meters
   },
   scene.settings || {}
 );
+// Meters per height unit (as varda/terrain/scene.py's HEIGHT_UNITS)
+const HEIGHT_UNITS = { m: 1, km: 1000, ft: 0.3048 };
+const metersPerHeightUnit = () => HEIGHT_UNITS[settings.heightUnit] ?? 1;
 
 const container = document.getElementById("view");
 let renderer;
@@ -57,6 +61,11 @@ function decodeHeights(base64, count) {
 }
 
 const cols = scene.cols, rows = scene.rows;
+// Where each grid column and row stands, as a fraction of the DEM's extent
+// from its west and north edges: the center of the block of DEM pixels it
+// averages (older pages: spread edge to edge)
+const columnAt = scene.columnAt || Array.from({ length: cols }, (_, c) => c / (cols - 1));
+const rowAt = scene.rowAt || Array.from({ length: rows }, (_, r) => r / (rows - 1));
 const quantized = decodeHeights(scene.heights, cols * rows);
 const zMid = scene.zMin + (scene.zStep * 65534) / 2; // keep coordinates small
 const positions = new Float32Array(cols * rows * 3);
@@ -66,11 +75,11 @@ for (let r = 0; r < rows; r++) {
   for (let c = 0; c < cols; c++) {
     const i = r * cols + c, q = quantized[i];
     const z = q === 0 ? NaN : scene.zMin + (q - 1) * scene.zStep - zMid;
-    positions[3 * i] = (c / (cols - 1) - 0.5) * scene.widthM;
-    positions[3 * i + 1] = (0.5 - r / (rows - 1)) * scene.heightM;
+    positions[3 * i] = (columnAt[c] - 0.5) * scene.widthM;
+    positions[3 * i + 1] = (0.5 - rowAt[r]) * scene.heightM;
     positions[3 * i + 2] = Number.isNaN(z) ? 0 : z;
-    uvs[2 * i] = c / (cols - 1);
-    uvs[2 * i + 1] = 1 - r / (rows - 1);
+    uvs[2 * i] = columnAt[c];
+    uvs[2 * i + 1] = 1 - rowAt[r];
     if (!Number.isNaN(z)) { zLow = Math.min(zLow, z); zHigh = Math.max(zHigh, z); }
   }
 }
@@ -146,7 +155,8 @@ function relaxOutline(edges, smooth) {
     const p = edges[k], r = Math.floor(p / cols), c = p % cols;
     if (!twice[p] && before[p] >= 0 && r > 0 && c > 0 && r < rows - 1 && c < cols - 1) moving.push(p);
   }
-  const limitX = scene.widthM / (cols - 1) / 2, limitY = scene.heightM / (rows - 1) / 2;
+  const limitX = scene.widthM * (columnAt[1] - columnAt[0]) / 2;
+  const limitY = scene.heightM * (rowAt[1] - rowAt[0]) / 2;
   const next = new Float32Array(moving.length * 2);
   for (let round = 0; round < 8; round++) {
     moving.forEach((p, k) => {
@@ -250,11 +260,21 @@ function buildSides() {
 
 // --- lines draped on the surface (a traverse, mapped contacts) ------------------------
 
+// Where a fraction of the extent falls among the grid's points: an index
+// with its fraction to the next point
+function gridIndex(at, f) {
+  let k = 0;
+  while (k < at.length - 2 && at[k + 1] <= f) k++;
+  return k + (f - at[k]) / ((at[k + 1] - at[k]) || 1);
+}
+
 // Height at (u, v), fractions of the DEM's extent (v north), between grid
 // points; NaN off the data
 function heightAt(u, v) {
-  const x = u * (cols - 1), y = (1 - v) * (rows - 1);
-  const c = Math.min(Math.max(Math.floor(x), 0), cols - 2), r = Math.min(Math.max(Math.floor(y), 0), rows - 2);
+  const x = gridIndex(columnAt, u), y = gridIndex(rowAt, 1 - v);
+  // the surface ends at the outermost points (half a block inside the extent)
+  if (x < -1e-9 || y < -1e-9 || x > cols - 1 + 1e-9 || y > rows - 1 + 1e-9) return NaN;
+  const c =Math.min(Math.max(Math.floor(x), 0), cols - 2), r = Math.min(Math.max(Math.floor(y), 0), rows - 2);
   const fx = x - c, fy = y - r;
   const at = (rr, cc) => quantized[rr * cols + cc] ? positions[3 * (rr * cols + cc) + 2] : NaN;
   return at(r, c) * (1 - fx) * (1 - fy) + at(r, c + 1) * fx * (1 - fy) +
@@ -296,7 +316,7 @@ function buildLines() {
           const u = u0 + (u1 - u0) * k / n, v = v0 + (v1 - v0) * k / n;
           const z = heightAt(u, v);
           if (Number.isNaN(z) || u < 0 || u > 1 || v < 0 || v > 1) { flush(); continue; }
-          run.push(new THREE.Vector3((u - 0.5) * scene.widthM, (v - 0.5) * scene.heightM, z * settings.exaggeration + lift));
+          run.push(new THREE.Vector3((u - 0.5) * scene.widthM, (v - 0.5) * scene.heightM, z * verticalScale() + lift));
         }
       }
       flush();
@@ -329,10 +349,13 @@ function placeSun() {
   sun.shadow.camera.updateProjectionMatrix();
 }
 
+// Heights in meters (the ground's unit), times the exaggeration
+const verticalScale = () => settings.exaggeration * metersPerHeightUnit();
+
 let builtSides = "", builtLines = NaN, builtSmooth = settings.edges !== "stepped";
 function apply() {
-  terrain.scale.z = settings.exaggeration;
-  if (settings.exaggeration !== builtLines) { builtLines = settings.exaggeration; buildLines(); }
+  terrain.scale.z = verticalScale();
+  if (verticalScale() !== builtLines) { builtLines = verticalScale(); buildLines(); }
   const smooth = settings.edges !== "stepped";
   if (smooth !== builtSmooth) {
     builtSmooth = smooth;

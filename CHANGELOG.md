@@ -37,6 +37,58 @@ can alter results.
   **ROI to Mask** (Processing → Image Math) makes a 0/1 mask from ROI
   classes.
 
+### Fixed
+
+- **Edge Detection, Scharr (changes results):** Scharr was √2 times the
+  gradient magnitude; it's now in band units per pixel, like Sobel, Prewitt
+  and Roberts. Scharr results from earlier versions are √2 (about 1.414)
+  times the new ones.
+- **Terrain on an image without georeferencing:** distances are in pixels,
+  and the result now says so: its description, and slope's unit ("degrees
+  (rise per pixel)") and curvature's (per pixel²). Values are unchanged.
+- **Terrain roughness units:** labeled with the Z Factor when it isn't 1
+  (e.g. "elevation units × 1000 (Z Factor)"), not just "elevation units".
+  Values are unchanged.
+- **Decode Bit Mask on signed integers (changes results):** negative values
+  were widened to 64 bits, so a 16-bit −1 counted 64 bits set and showed
+  bits above 15. Each value is now read as the bits of its own width (a
+  16-bit −1 is bits 0–15). Unsigned and non-negative images are unchanged.
+- **Resample (changes results):** shrinking with bilinear or cubic
+  interpolation now anti-aliases first (a Gaussian of σ = (old / new − 1) / 2
+  pixels, as scikit-image's resize), so fine detail no longer aliases and
+  pixel noise averages down. Nearest neighbor and enlarging are unchanged.
+  The description now records the actual factors along rows and columns
+  (pixel counts are rounded) and the σ, not the factor typed.
+- **3D Terrain height unit (changes the view and STL files):** heights were
+  always taken as meters, so the exaggeration, the "vertical exaggeration"
+  note and 3D prints were wrong for DEMs in kilometers or feet. A new
+  **Height unit** setting (meters, kilometers or feet; saved with the
+  session) converts them, and starts from the DEM's vertical unit when its
+  CRS declares one. The base depth and color bar show the unit.
+- **3D Terrain point positions (changes the view and STL files):** the
+  grid's points were spread evenly from edge to edge, misplacing them by up
+  to half a block of DEM pixels (more with a partial edge block). Each now
+  stands at the center of the block it averages, in the view, web pages
+  and STL files, so drapes, overlays and lines sit where they belong. A
+  print's width is now between the outermost points.
+- **3D Terrain overlays:** the RMS and Shift E, N are labeled with the DEM's
+  map unit (° for a geographic DEM) instead of always "m"; values are
+  unchanged. Auto Align against the DEM hillshade now shades the band shown,
+  not always the first (changes alignments for multi-band DEMs).
+- **Profile CSV:** a commented header now records the image (name and
+  file), its CRS (name, EPSG code, WKT), the distance unit and how it was
+  measured, the band and its unit when known, and the Varda version.
+  Distances and map coordinates are written in full; they were rounded to 6
+  significant figures (10 m steps past 1,000 km).
+- **Linked spectra CSV:** now gives each image's pixel (`col`, `row`) and
+  the cursor's map position (`map_x`, `map_y`), and says what `x` is
+  (`x_unit`: a wavelength unit, or "band"), with each image's CRS in a
+  commented header. The columns changed: scripts reading the old
+  `image, x, value` file need updating.
+- **Linked Images warnings:** a notice across the top of the workspace now
+  names images linked by map location that have no georeferencing (read by
+  pixel), and images linked by pixel that aren't on the first image's grid.
+
 ## 0.9.0 (2026-10-16)
 
 ### Added

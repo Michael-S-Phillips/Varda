@@ -57,7 +57,11 @@ from varda.lines.line_manager_widget import LineManagerWidget
 from varda.plotting.profile_plot import ProfilePlotWidget
 from varda.workspaces.cropping import addCrop, cropMessage
 from varda.workspaces.line_display import LineDisplay
-from varda.workspaces.linked_images.linking import Link, linkedPoints
+from varda.workspaces.linked_images.linking import (
+    Link,
+    linkedPoints,
+    linkWarnings,
+)
 from varda.workspaces.linked_images.spectra_panel import LinkedSpectraPanel
 
 CURSOR_COLOR = QColor("#ffd400")
@@ -175,6 +179,17 @@ class LinkedImagesWorkspace(QMainWindow):
             profiles.addWidget(plot)
 
         self._arrange(display, profiles)
+        # What isn't linked as asked: a notice across the top, not a dialog
+        warnings = linkWarnings(self.images, link)
+        self.linkNotice = QLabel(" ".join(warnings))
+        self.linkNotice.setWordWrap(True)
+        self.linkNotice.setContentsMargins(8, 4, 8, 4)
+        self.linkNotice.setStyleSheet(
+            "background: rgba(255, 196, 0, 0.18); border-bottom: 1px solid "
+            "rgba(255, 196, 0, 0.6);"
+        )
+        self.linkNotice.setVisible(bool(warnings))
+        self.setMenuWidget(self.linkNotice)
         self.lines.sigCollectionChanged.connect(self._placeLines)
         self.lineManager.sigSelectionChanged.connect(lambda _: self._showProfiles())
 
