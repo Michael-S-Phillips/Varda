@@ -234,8 +234,9 @@ class ENVIDataSource(RasterioDataSource):
         )
 
     @cached_property
-    def extraMetadata(self) -> dict[str, str]:
-        """Extra ENVI metadata not captured by standard properties."""
+    def extraMetadata(self) -> dict:
+        """Extra ENVI metadata not captured by standard properties, and what
+        Varda wrote beside the file (its provenance and scientific metadata)."""
         skip = {
             "description",
             "default_bands",
@@ -244,7 +245,10 @@ class ENVIDataSource(RasterioDataSource):
             "wavelength",
             "geospatial_info",
         }
-        return {k: v for k, v in self._enviTags.items() if k not in skip}
+        return {
+            **{k: v for k, v in self._enviTags.items() if k not in skip},
+            **self._vardaMetadata(),
+        }
 
     @cached_property
     def description(self) -> str:

@@ -7,6 +7,7 @@ from PyQt6.QtGui import QColor
 
 from synthetic_scene import PATCHES, WAVELENGTHS, endmemberSpectra, syntheticScene
 from varda.analysis.spectral_library import LibrarySpectrum
+from varda.analysis.transforms import InverseTransformAnalysis
 from varda.image_rendering.image_renderer import RenderMode
 from varda.workspaces.spectral_hourglass.hourglass_model import (
     MapMethod,
@@ -114,6 +115,16 @@ def test_suggest_identify_and_map_end_to_end(workspace):
     page.runButton.click()
     result = workspace.projectImages[-1]
     assert result.name == "scene SAM"
+    record = result.extraMetadata["provenance"]
+    assert record["process"] == "Spectral Hourglass Map"
+    assert record["inputs"][0]["name"] == "scene"
+    parameters = record["parameters"]
+    assert parameters["map"]["method"] == "SAM"
+    assert "maxAngle" in parameters["map"]
+    assert parameters["mnf"]["componentsKept"] == 3
+    assert parameters["ppi"]["iterations"] == 3000
+    assert [e["name"] for e in parameters["endmembers"]] == list(PATCHES)
+    assert len(parameters["endmembers"][0]["pixels"]) == 16
     assert workspace.scene.currentOverlay() == "Map: SAM"
     assert model.state(Step.MAP) is StepState.DONE
 
@@ -125,7 +136,11 @@ def test_suggest_identify_and_map_end_to_end(workspace):
     page.review.scoreLine.setValue(0.8)
     assert workspace.scene.currentOverlay() == Overlay.DETECTIONS
     page.review.sigAddToProject.emit(page.review.detectionsRaster())
-    assert workspace.projectImages[-1].name.startswith("scene MTMF detections")
+    detections = workspace.projectImages[-1]
+    assert detections.name.startswith("scene MTMF detections")
+    record = detections.extraMetadata["provenance"]
+    assert record["parameters"]["minimumScore"] == pytest.approx(0.8)
+    assert record["inputs"][0]["provenance"]["parameters"]["map"]["method"] == "MTMF"
 
 
 def test_hovering_a_point_marks_the_pixel_and_plots_it(workspace):
@@ -142,7 +157,23 @@ def test_mnf_and_ppi_can_join_the_project(workspace):
     workspace.pipeline.purityPage.addButton.click()
     names = [image.name for image in workspace.projectImages]
     assert names[-2:] == ["scene MNF", "scene PPI"]
-    assert workspace.projectImages[-2].bandCount == 3
+    mnfImage, ppiImage = workspace.projectImages[-2:]
+    assert mnfImage.bandCount == 3
+    mnfRecord = mnfImage.extraMetadata["provenance"]
+    assert mnfRecord["process"] == "Spectral Hourglass MNF"
+    prepare = mnfRecord["parameters"]["prepare"]
+    assert prepare["useIovf"] is False and "bandsKept" in prepare
+    assert mnfRecord["parameters"]["mnf"]["noiseEstimate"] == "HORIZONTAL"
+    ppiRecord = ppiImage.extraMetadata["provenance"]
+    assert ppiRecord["parameters"]["ppi"]["threshold"] == 0.5
+    assert "seed" in ppiRecord["parameters"]["ppi"]
+    # the MNF image works with Eigenvalue Plot and Inverse Transform
+    assert len(mnfImage.extraMetadata["transform"]["eigenvalues"]) == 3
+    inverse = InverseTransformAnalysis()
+    assert inverse.unavailableReason(mnfImage) == ""
+    inverse.prepareFor(mnfImage)
+    rebuilt = inverse.run(mnfImage, lambda p, m: None)
+    assert rebuilt.bandCount == len(workspace.model.prepared.bandIndices)
 
 
 def test_library_preview_is_plotted_scaled(workspace):

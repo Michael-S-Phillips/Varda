@@ -106,10 +106,10 @@ for what applies to every process.
   **Denoised image (inverse transform to the original bands)**, or **Only
   the chosen components (as component bands)**.
 
-The result's record keeps the settings, but an inverse transform records
-only its immediate input, the component image. Export that too, or note its
-settings yourself (see [Chains of
-results](reporting-results.md#what-varda-records-and-what-it-doesnt)).
+The result's record keeps the settings, and its input's record (the
+component image's, with the forward transform's settings and its own
+input), in Varda and in exported files (see [Reporting results from
+Varda](reporting-results.md#what-varda-records-and-what-it-doesnt)).
 
 Settings that aren't in the dialog:
 
@@ -151,10 +151,11 @@ and why (the eigenvalue curve, the component images, or both).
   have the same bands: if the transform left bands out, first cut the
   original to the same bands with **Subset (Crop Rows, Columns, Bands)**.
 - **What's saved where.** The band names of a PCA result carry each
-  component's share of the variance ("PC 1 (85.2%)"), and they are kept in
-  exported files. The eigenvalues, explained variance, mean and inverse are
-  kept in Varda and in sessions, not in exported files. Record the values
-  you report from **Eigenvalue Plot…**'s table.
+  component's share of the variance ("PC 1 (85.2%)"). The eigenvalues,
+  explained variance, mean and inverse are kept with the result and in its
+  exported files (the `VARDA` metadata domain), so **Eigenvalue Plot…** and
+  **Inverse Transform** work on a reopened file. Quote the values you report
+  from **Eigenvalue Plot…**'s table.
 
 ### References
 

@@ -56,6 +56,7 @@ def defaultRange(image: VardaRaster) -> tuple[float, float]:
 
 class FattMapAnalysis(Analysis):
     analysisId = "fatt_map"
+    software = ("spectral",)
     name = "FATT Detection Map"
     description = (
         "Target transformation in small moving windows of several shapes "

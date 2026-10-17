@@ -74,11 +74,15 @@ file** in the analysis dialog to also write it to disk (ENVI `.img`/`.hdr` or
 GeoTIFF), or export any image later with **File → Export Image…** or by
 right-clicking an image → **Export Image…**.
 
-A result made from the **Processing** menu records how it was made: the
-analysis, every setting, its input image (the immediate input only, not
-how that input was made), the Varda version, the time, and the plugin and
-its version if a plugin made it. An exported file keeps a one-line summary
-of this in its description. Results made inside workspaces (mosaics, crops,
-the Spectral Hourglass's outputs) don't get this full record. See
-[Reporting results from Varda](reporting-results.md) for what is and isn't
-recorded.
+Every result records how it was made: the process, every setting, its
+inputs with how each of them was made, the Varda version, the time, the
+plugin and its version if a plugin made it, and the versions of the
+libraries or tools that did the work. Results made inside workspaces
+(mosaics, displacement fields, crops, the Spectral Hourglass's outputs)
+record their workspace settings. An exported file keeps the full record,
+and metadata such as class names and colors and what Inverse Transform
+needs, in its `VARDA` metadata domain (inside a GeoTIFF; in the
+`.img.aux.xml` beside an ENVI file, so keep it with the `.img` and `.hdr`),
+plus a one-line summary in its description. Varda reads them back when it
+opens the file. See [Reporting results from Varda](reporting-results.md)
+for what is and isn't recorded, and how to read the record.

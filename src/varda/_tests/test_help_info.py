@@ -23,6 +23,7 @@ def test_system_info_has_what_a_bug_report_needs():
         "numpy",
         "rasterio",
         "GDAL",
+        "Spectral Python (SPy)",
         "PROJ",
         "HyPyRameter",
         "PyTorch",

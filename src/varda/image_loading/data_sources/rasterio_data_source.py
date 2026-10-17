@@ -22,6 +22,7 @@ from affine import Affine
 import affine as affine_module
 from pyproj import CRS
 
+from varda.common.provenance import VARDA_NAMESPACE, fileMetadata
 from varda.utilities.proj_lock import PROJ_LOCK
 
 from .data_source import (
@@ -287,7 +288,15 @@ class RasterioDataSource(DataSource):
 
     @cached_property
     def extraMetadata(self) -> dict:
-        return {}
+        return self._vardaMetadata()
+
+    def _vardaMetadata(self) -> dict:
+        """What Varda wrote in the file's ``VARDA`` domain (its provenance and
+        scientific metadata), and where it was downloaded from; {} for other
+        files."""
+        return fileMetadata(
+            self._reader().tags(ns=VARDA_NAMESPACE), (self.filePath, self._src.name)
+        )
 
     @cached_property
     def description(self) -> str:

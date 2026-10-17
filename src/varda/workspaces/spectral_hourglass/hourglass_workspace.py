@@ -36,6 +36,7 @@ from varda.analysis.linear_algebra import unflatten
 from varda.analysis.spectral_library import LibrarySpectrum, resampleTo
 from varda.branding.loader import RedrawSpinner
 from varda.common.entities import Color, VardaRaster
+from varda.common.provenance import setProvenance
 from varda.common.ui import VardaDockWidget
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.image_rendering.new_histogram_view import NewHistogramView
@@ -304,8 +305,12 @@ class SpectralHourglassWorkspace(QMainWindow):
         bandNames: list[str],
         name: str,
         units: str,
+        output: str,
+        extraMetadata: dict | None = None,
         detail: str = "",
     ) -> VardaRaster:
+        """A result over the image's footprint, with the run's provenance
+        (``output``: "MNF" or "PPI")."""
         image = self.model.image
         source = ArrayDataSource(
             values.astype(np.float32),
@@ -315,8 +320,11 @@ class SpectralHourglassWorkspace(QMainWindow):
             transform=image.transform,
             crs=image.crs,
             description=f"{name} (spectral hourglass{detail})",
+            extraMetadata=dict(extraMetadata or {}),
         )
-        return VardaRaster(source, name=name)
+        raster = VardaRaster(source, name=name)
+        setProvenance(raster, self.model.provenance(output))
+        return raster
 
     def _addMnfToProject(self) -> None:
         result = self.model.mnf
@@ -327,7 +335,12 @@ class SpectralHourglassWorkspace(QMainWindow):
         names = [f"MNF {i + 1}" for i in range(k)]
         self.projectImages.append(
             self._footprintRaster(
-                values, names, f"{self.model.image.name} MNF", "components"
+                values,
+                names,
+                f"{self.model.image.name} MNF",
+                "components",
+                "MNF",
+                self.model.mnfMetadata(),
             )
         )
 
@@ -343,7 +356,12 @@ class SpectralHourglassWorkspace(QMainWindow):
         )
         self.projectImages.append(
             self._footprintRaster(
-                values, ["PPI"], f"{self.model.image.name} PPI", "count", detail
+                values,
+                ["PPI"],
+                f"{self.model.image.name} PPI",
+                "count",
+                "PPI",
+                detail=detail,
             )
         )
 

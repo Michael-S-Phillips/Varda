@@ -283,9 +283,21 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
     batchSize: IntParameter
     seed: IntParameter
 
+    software = ("torch",)
+
     @classmethod
     def isAvailable(cls) -> bool:
         return TORCH_AVAILABLE or torchRuntime().isInstalled()
+
+    @classmethod
+    def softwareVersions(cls) -> dict[str, str]:
+        """PyTorch's version: in Varda's environment, or the runtime's."""
+        if TORCH_AVAILABLE:
+            return super().softwareVersions()
+        manifest = torchRuntime().manifest()
+        if manifest is None:
+            return {}
+        return {"torch": f"{manifest['torch']} ({manifest.get('device', '?')})"}
 
     def _modelParams(self) -> dict[str, int]:
         raise NotImplementedError

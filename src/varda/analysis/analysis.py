@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QWidget
 
 from varda.common.entities import VardaRaster
 from varda.common.parameter import IntParameter, ParameterGroup
+from varda.common.provenance import softwareVersions
 from varda.rois.roi_collection import ROICollection
 
 # (percent 0-100, message)
@@ -72,6 +73,9 @@ class Analysis(ParameterGroup):
     # "<name> <version>" of the plugin that added it ("" for Varda's own);
     # recorded in results' provenance.
     plugin: ClassVar[str] = ""
+    # Distributions that do the work (e.g. "spectral"); their versions are
+    # recorded in results' provenance.
+    software: ClassVar[tuple[str, ...]] = ()
 
     def __init__(self) -> None:
         super().__init__()
@@ -79,6 +83,11 @@ class Analysis(ParameterGroup):
 
     def setContext(self, context: AnalysisContext) -> None:
         self.context = context
+
+    @classmethod
+    def softwareVersions(cls) -> dict[str, str]:
+        """The versions of ``software`` (those installed), for provenance."""
+        return softwareVersions(cls.software)
 
     @classmethod
     def isAvailable(cls) -> bool:
