@@ -2,6 +2,8 @@
 together, one cursor whose spectra show for every image, lines whose
 profiles show for every image, and all of it kept with the session."""
 
+import csv
+
 import numpy as np
 import pytest
 from affine import Affine
@@ -193,3 +195,36 @@ def test_each_spectrum_plot_pans_and_zooms_on_its_own(workspace):
     first, second = (p.getViewBox() for p in workspace.spectra.plots[:2])
     first.setXRange(2.0, 3.0, padding=0)
     assert second.viewRange()[0] != pytest.approx([2.0, 3.0])
+
+
+def test_the_spectra_csv_says_where_and_what_x_is(workspace, tmp_path):
+    workspace.placeCursor(1, 4.5, 2.5)  # pixel (4, 2): 450 m east, 250 m south
+    path = tmp_path / "spectra.csv"
+    workspace.spectra.exportTo(path)
+    lines = path.read_text().splitlines()
+    comments = [line for line in lines if line.startswith("#")]
+    assert "Varda" in comments[0] and any("AGGREGATE: CRS" in c for c in comments)
+    rows = list(csv.reader(line for line in lines if not line.startswith("#")))
+    assert rows[0] == ["image", "col", "row", "map_x", "map_y", "x", "x_unit", "value"]
+    first = rows[1]
+    assert first[:3] == ["AGGREGATE", "4", "2"]
+    assert (float(first[3]), float(first[4])) == pytest.approx((450.0, -250.0))
+    assert (float(first[5]), first[6]) == (pytest.approx(1.0), "µm")
+    assert float(first[7]) == pytest.approx(1000 + 20 + 4)
+
+
+def test_a_notice_says_when_images_are_not_linked_as_asked(workspace, qtbot, products):
+    workspace.show()
+    assert not workspace.linkNotice.isVisible()  # one grid, linked by pixel
+    other = _product("OTHER", lambda r, c, b: r, transform=Affine(9, 0, 0, 0, -9, 0))
+    widget = LinkedImagesWorkspace([products[0], other], [], Link.PIXEL)
+    qtbot.addWidget(widget)
+    widget.show()
+    assert widget.linkNotice.isVisible() and "OTHER" in widget.linkNotice.text()
+    plain = VardaRaster(
+        ArrayDataSource(np.zeros((20, 30, 6), np.float32)), name="PLAIN"
+    )
+    byMap = LinkedImagesWorkspace([products[0], plain], [], Link.MAP)
+    qtbot.addWidget(byMap)
+    byMap.show()
+    assert byMap.linkNotice.isVisible() and "PLAIN" in byMap.linkNotice.text()

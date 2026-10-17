@@ -52,7 +52,9 @@ class ResampleAnalysis(Analysis):
         "Change the number of pixels: a factor above 1 enlarges, below 1 "
         "shrinks (e.g. 0.5 halves each side). Nearest neighbor keeps the "
         "original values (use it for class maps); bilinear and cubic "
-        "interpolate. The georeferencing is updated to the new pixel size."
+        "interpolate (anti-aliased when shrinking, with a Gaussian as in "
+        "scikit-image's resize). The georeferencing is updated to the new "
+        "pixel size."
     )
 
     factor = FloatParameter(
@@ -76,10 +78,15 @@ class ResampleAnalysis(Analysis):
             Interpolation.BILINEAR: 1,
             Interpolation.CUBIC: 3,
         }[self.interpolation.value]
+        # Anti-aliasing when shrinking, as scikit-image's resize: a Gaussian
+        # of σ = (old / new − 1) / 2 old pixels along each shrunk axis
+        sigma = tuple(max(0.0, (1.0 / z - 1.0) / 2.0) for z in zoom) if order else None
         output = np.empty((rows, cols, image.bandCount), np.float32)
         for index in range(image.bandCount):
             reportProgress(int(100 * index / image.bandCount), f"band {index + 1}")
             filled, missing = fillGaps(readBand(image, index))
+            if sigma is not None and any(sigma):
+                filled = ndimage.gaussian_filter(filled, sigma, mode="nearest")
             # grid_mode: pixels are areas, so the corners stay where they were
             band = ndimage.zoom(
                 filled, zoom, order=order, mode="nearest", grid_mode=True
@@ -93,7 +100,18 @@ class ResampleAnalysis(Analysis):
             image,
             output,
             name=f"{image.name} ×{factor:g}",
-            description=f"{image.name} resampled ×{factor:g} ({self.interpolation.value.value.lower()})",
+            description=(
+                f"{image.name} resampled to {rows} × {cols} pixels: rows "
+                f"×{zoom[0]:.6g}, columns ×{zoom[1]:.6g} (factor {factor:g} "
+                f"asked, pixel counts rounded; "
+                f"{self.interpolation.value.value.lower()}"
+                + (
+                    f", Gaussian anti-aliasing σ {sigma[0]:.3g} × {sigma[1]:.3g} old pixels"
+                    if sigma is not None and any(sigma)
+                    else ""
+                )
+                + ")"
+            ),
             transform=transform,
         )
 

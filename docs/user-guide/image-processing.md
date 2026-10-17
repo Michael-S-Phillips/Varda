@@ -29,7 +29,7 @@ and **Filtering → Spectral** (along each pixel's spectrum).
 |---|---|
 | **Smoothing** | Mean (box), Gaussian, Median (removes spikes and speckle, keeps edges), Bilateral and Total variation (edge-preserving) |
 | **Sharpening** | Unsharp mask and Laplacian sharpen add detail back; High pass and Gaussian high pass return only the detail |
-| **Edge Detection** | Sobel, Prewitt, Roberts (gradient magnitude, band units per pixel), Scharr (√2 times the gradient magnitude per pixel), Laplacian, Laplacian of Gaussian, Canny (an edge map of 1s and 0s), Directional (the gradient toward a direction measured clockwise from the image's up, not from map north) |
+| **Edge Detection** | Sobel, Prewitt, Scharr, Roberts (gradient magnitude, band units per pixel), Laplacian, Laplacian of Gaussian, Canny (an edge map of 1s and 0s), Directional (the gradient toward a direction measured clockwise from the image's up, not from map north) |
 | **Morphology** | Dilate, Erode, Opening, Closing, White and Black top-hat, Morphological gradient, with a square or disk structuring element |
 | **Speckle Filters** | Lee, Kuan (set by the number of looks) and Frost (set by damping): smooth uniform areas, keep edges and texture |
 | **Frequency Filter (FFT)** | Low, high or band pass in the Fourier domain, with Gaussian, Butterworth or ideal cutoffs (fractions of the Nyquist frequency) |
@@ -164,6 +164,8 @@ pipeline's per-frame exclusions (bit *i* set where frame *i* of a stack was
 left out) or a quality band, band by band: the **number of bits set**, **one
 bit** (1 where it's set), or **any of the bits** (1 where any is set; bits
 written like `0, 3-5`). No-data stays no-data. It needs whole-number data.
+Signed integers are read as their bits at the image's width: a 16-bit −1
+is 16 bits set (bits 0–15).
 
 For MISE's example products, the number of bits set in EXCLUDE reproduces
 COUNT exactly, value for value: a check that the pipeline's two products
@@ -235,18 +237,25 @@ Distances come from the image's pixel size, so elevations and pixel size
 must be in the same units. Images in degrees (a geographic coordinate
 system) are refused; use a projected one (such as meters per pixel). An
 image with no georeferencing is treated as having a pixel size of 1, so its
-slopes are per pixel, not per meter. Use the **Z Factor** when elevations
-are in other units (for example, 1000 for kilometers of elevation over
-meters of pixel size); roughness is in elevations times the Z Factor.
+slopes are per pixel, not per meter; the result's description and units say
+so (slope in "degrees (rise per pixel)", curvature per pixel²). Use the
+**Z Factor** when elevations are in other units (for example, 1000 for
+kilometers of elevation over meters of pixel size); roughness is in
+elevation units times the Z Factor, and its units say so (e.g. "elevation
+units × 1000 (Z Factor)").
 
 ## Geometry
 
 - **Resample (Resize):** changes the number of pixels by a scale factor,
   with nearest neighbor (use it for class maps), bilinear or cubic
-  interpolation. Each new pixel is sampled at its center, not averaged
-  over the old pixels it covers: shrinking doesn't average away noise and
-  can alias fine detail. To average when shrinking, smooth first (a
-  **Mean** filter as wide as 1 / the factor), then resample.
+  interpolation. Each new pixel is sampled at its center. When shrinking,
+  bilinear and cubic first smooth each band with a Gaussian of σ = (old
+  size / new size − 1) / 2 old pixels along each shrunk side (the
+  anti-aliasing of scikit-image's `resize`), so fine detail doesn't alias;
+  nearest neighbor never smooths (it picks one old value, so it can alias).
+  The pixel counts are rounded, so the actual factors along rows and
+  columns can differ slightly from the one you typed; the result's
+  description records them (and the σ used).
 - **Rotate / Flip:** quarter turns and mirrors.
 - **Subset:** keeps a range of rows and columns and a list of bands. Its
   preview shows the image with a box: drag it over the part to keep, or
@@ -302,7 +311,7 @@ nearest valid value; output in the band's units unless noted):
 | Smoothing: Total variation | Chambolle's algorithm (scikit-image `denoise_tv_chambolle`) on the scaled band, weight = Strength | Strength 0.3 |
 | Sharpening | Unsharp mask: x + Amount (x − Gaussian); Laplacian sharpen: x − Amount ∇²x (5-point Laplacian); High pass: x − box mean; Gaussian high pass: x − Gaussian | Unsharp mask; Sigma 1 px; Size 3 px; Amount 1 |
 | Edges: Sobel, Prewitt | Gradient magnitude, kernels divided by 8 and 6 | Method Sobel. Output: band units per pixel |
-| Edges: Scharr, Roberts | scikit-image `scharr` and `roberts` | Output: Roberts band units per pixel; Scharr √2 × that |
+| Edges: Scharr, Roberts | scikit-image `scharr` (divided by √2) and `roberts` | Output: band units per pixel |
 | Edges: Laplacian, LoG | 5-point Laplacian; Laplacian of a Gaussian of σ = Sigma | Sigma 1.5 px. Output: band units per pixel² |
 | Edges: Canny | scikit-image `canny` on the scaled band (mean 0, standard deviation 1), Gaussian σ = Sigma, scikit-image's default thresholds (0.1 and 0.2) | Sigma 1.5 px. Output: 1 edge, 0 not |
 | Edges: Directional | Sobel gradient (÷ 8) toward Direction, clockwise from the image's up | 0°. Output: band units per pixel |
@@ -324,7 +333,7 @@ Sizes are made odd (a 4 becomes 5).
 | Band Math | Expression in 64-bit floats; `R<nm>` as above | `R2300 / R2200` | As the expression |
 | Image Arithmetic | Band by band | Add; Number 1 | As the operation |
 | Threshold to Mask | 1 where Low ≤ value ≤ High (or the opposite for outside) | Range: the band's minimum and maximum | 0 / 1 |
-| Decode Bit Mask | Values read as unsigned 64-bit integers | Number of bits set; Bits `0` | Count, or 0 / 1 |
+| Decode Bit Mask | Each value's bits at the image's own width; signed integers read as unsigned of the same width (16-bit −1 is 16 bits set) | Number of bits set; Bits `0` | Count, or 0 / 1 |
 | Local Statistics | Moments over the window (variance divided by n, not n − 1) | Standard deviation; 7 px; One band | Band units (variance: squared; skewness: none) |
 | GLCM | Symmetric co-occurrence of pairs inside the window (windows are cut at the image's edges); gray levels over the band's 2–98% range | Contrast; 7 px; 32 levels; all directions; distance 1 px; One band | Gray levels: contrast, variance in levels²; dissimilarity, mean in levels; entropy in nats (natural log); second moment (Σp², not its square root), homogeneity, correlation unitless |
 | Spatial Entropy | Histogram of the window's valid pixels in equal-width bins over the band's whole valid range | Band 1; 7 px; 64 bins | Bits; at most log₂ of the smaller of the bins and the window's pixel count (5.6 bits for 7 × 7) |
@@ -337,7 +346,7 @@ Sizes are made odd (a 4 becomes 5).
 | Sieve | Connected regions of a class smaller than Minimum Size removed | 4 px; 8-connected; Fill off | Class map |
 | Clump | Each class closed with a square; it can take only unclassified pixels and pixels outside other classes' solid regions (their opening with the same square) | 3 px | Class map |
 | Terrain | Gradients by Horn's method (Sobel ÷ 8 pixel size), edges extended; aspect = downhill direction, clockwise from north, none where flat; hillshade = cos Z cos S + sin Z sin S cos(azimuth − aspect), with Z the sun's zenith angle (90° − elevation) and S the slope, clipped to 0–1, no cast shadows; curvature = −(∂²z/∂x² + ∂²z/∂y²) (5-point), none on the image's edge pixels; roughness = mean absolute difference to the 8 neighbors | Slope; band 1; Z Factor 1; sun azimuth 315°, elevation 45° | Slope, aspect in degrees; curvature per pixel-size unit (per meter for meters), not × 100 as some GIS tools give it; roughness in elevation × Z Factor |
-| Resample | scipy `zoom`, pixels as areas (corners stay put); nearest, bilinear, or cubic spline; edges extended; the pixel size becomes old × (old pixel count / new) | Factor 0.5; bilinear | Band units |
+| Resample | scipy `zoom`, pixels as areas (corners stay put); nearest, bilinear, or cubic spline; edges extended; when shrinking with bilinear or cubic, a Gaussian prefilter of σ = (old / new pixel count − 1) / 2 per axis (as scikit-image `resize`'s anti-aliasing); the pixel size becomes old × (old pixel count / new) | Factor 0.5; bilinear | Band units |
 
 ### Uncertainty and quality
 
@@ -355,9 +364,9 @@ a number:
   (variance 1 / Looks) is the one for intensity (power) images; amplitude
   images have less speckle per look, so the true number of looks is a poor
   setting for them.
-- **Edge units.** Sobel, Prewitt, Roberts, Directional and Spatial Gradient
-  are in band units per pixel; Scharr is √2 times that, so don't mix
-  Scharr values with the others. Bilateral, total variation and Canny are
+- **Edge units.** Sobel, Prewitt, Scharr, Roberts, Directional and Spatial
+  Gradient are in band units per pixel. (Varda 0.9.0 and earlier gave Scharr √2
+  times that.) Bilateral, total variation and Canny are
   set relative to the band's standard deviation, so the same setting acts
   differently on bands with different spread.
 - **IOVF.** The number of values replaced in all rounds, and the number of
@@ -407,9 +416,11 @@ a number:
   roughness of about 1.13 σz. Report the DEM's stated vertical precision
   and pixel size with these products.
 - **Resample** with bilinear or cubic interpolation changes values (cubic
-  can overshoot); nearest neighbor keeps them but moves each by up to half
-  an old pixel. The pixel counts are rounded, so the real scale can differ
-  slightly from the factor you typed: report the new pixel size. Rotate /
+  can overshoot), and when shrinking also smooths them (the anti-aliasing
+  Gaussian above: report its σ); nearest neighbor keeps them but moves each
+  by up to half an old pixel. The pixel counts are rounded, so the real
+  scale can differ slightly from the factor you typed: report the actual
+  factors from the result's description, or the new pixel size. Rotate /
   Flip, Subset and Crop to ROI copy values exactly (as 32-bit floats; whole
   numbers beyond 16,777,216 lose precision).
 

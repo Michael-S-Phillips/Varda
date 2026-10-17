@@ -95,9 +95,15 @@ def test_gradient_edges_are_strongest_at_the_step(method):
     assert column[:5].max() == pytest.approx(0.0, abs=1e-9)
 
 
-def test_sobel_edges_are_in_band_units_per_pixel():
+@pytest.mark.parametrize(
+    "method",
+    [EdgeMethod.SOBEL, EdgeMethod.PREWITT, EdgeMethod.SCHARR, EdgeMethod.ROBERTS],
+)
+@pytest.mark.parametrize("transpose", [False, True])
+def test_gradient_edges_are_in_band_units_per_pixel(method, transpose):
     ramp = np.tile(np.arange(20.0) * 0.5, (20, 1))  # rises 0.5 per pixel
-    data, _ = _run(EdgeDetectionAnalysis(), ramp, method=EdgeMethod.SOBEL)
+    ramp = ramp.T if transpose else ramp
+    data, _ = _run(EdgeDetectionAnalysis(), ramp, method=method)
     assert np.allclose(data[5:-5, 5:-5, 0], 0.5)
 
 
