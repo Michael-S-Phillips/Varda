@@ -27,6 +27,8 @@ _CHUNK_ROWS = 65_536
 _SUGGESTED_VARIANCE = 0.99
 # MNF eigenvalues are SNR + 1; components below this are taken to be noise.
 _MNF_NOISE_EIGENVALUE = 2.0
+# FastICA stops once no unmixing vector turns by more than this (1 - |cos|)
+FASTICA_TOLERANCE = 1e-5
 
 
 @attrs.frozen
@@ -36,7 +38,8 @@ class TransformResult:
     component's share (of variance for PCA/ICA, of noise-whitened variance for
     MNF), in decreasing order. ``eigenvalues``: (k,) the unnormalized values
     behind those shares. ``mean``: (bands,) and ``inverse``: (k, bands) such that
-    ``data ~ scores @ inverse + mean``."""
+    ``data ~ scores @ inverse + mean``. For an iterative transform (FastICA),
+    ``iterations`` run and whether it ``converged``; None otherwise."""
 
     scores: np.ndarray
     loadings: np.ndarray
@@ -44,6 +47,8 @@ class TransformResult:
     eigenvalues: np.ndarray
     mean: np.ndarray
     inverse: np.ndarray
+    iterations: int | None = None
+    converged: bool | None = None
 
 
 def flattenValid(cube, nodata: float | None) -> tuple[np.ndarray, np.ndarray]:
@@ -385,7 +390,7 @@ def fastIca(
     X: np.ndarray,
     components: int,
     maxIterations: int = 200,
-    tolerance: float = 1e-5,
+    tolerance: float = FASTICA_TOLERANCE,
     seed: int = 0,
     weights: np.ndarray | None = None,
 ) -> TransformResult:
@@ -394,7 +399,8 @@ def fastIca(
 
     ``scores`` are unit-variance independent sources ordered by how much of the
     data's variance each explains; ``loadings`` is the mixing matrix in band
-    space (bands, k), so ``X - mean ~ scores @ loadings.T``.
+    space (bands, k), so ``X - mean ~ scores @ loadings.T``. ``converged``
+    is False when ``maxIterations`` ran out first.
     """
     n = X.shape[0]
     whitened = (
@@ -407,7 +413,8 @@ def fastIca(
 
     rng = np.random.default_rng(seed)
     W = _symmetricDecorrelation(rng.normal(size=(k, k)))
-    for _ in range(maxIterations):
+    iterations, converged = 0, False
+    for iterations in range(1, maxIterations + 1):
         WZ = Z @ W.T
         g = np.tanh(WZ)
         gDerivativeMean = (1.0 - g**2).mean(axis=0)
@@ -435,6 +442,8 @@ def fastIca(
         eigenvalues=variance,
         mean=mean,
         inverse=mixing,
+        iterations=iterations,
+        converged=bool(converged),
     )
 
 

@@ -99,7 +99,8 @@ for what applies to every process.
   components computed.
 - For MNF, the **Noise Estimate** (direction, or the ROI classes pooled as
   the homogeneous region). It changes the components, so always report it.
-- For ICA, **Max Iterations** (200 by default, 10 to 5000).
+- For ICA, **Max Iterations** (200 by default, 10 to 5000), the iterations
+  run and whether it converged (the result's transform metadata).
 - Any weights: which image, and whether they were weights or σ.
 - For an inverse transform, exactly which components you kept (for example
   "MNF components 1–12" or "PCA components 2–19"), and the **Output**:
@@ -139,10 +140,14 @@ and why (the eigenvalue curve, the component images, or both).
   correlated between neighbors. Striping, spikes or unfiltered artifacts
   make the noise non-white, so the noise floor sits above 1. Compare noise
   estimates if the choice matters.
-- **ICA convergence isn't reported.** If FastICA hasn't converged within
-  **Max Iterations**, Varda uses the last estimate without a warning. To
-  check, rerun with a larger **Max Iterations**: if the components don't
-  change, it had converged.
+- **ICA convergence.** FastICA has converged when no unmixing vector turns
+  by more than the tolerance (1 − |cos| < 10⁻⁵) in an iteration. The
+  result's transform metadata (saved with the file) records `iterations`
+  run, `maxIterations`, `converged` and `tolerance`. If it ran out of
+  iterations first, the result's description says "did not converge in N
+  iterations" and the log has a warning: the components are the last
+  estimate and may not be independent. Rerun with a larger **Max
+  Iterations**, and report the iterations and convergence.
 - **The rebuilt image has no residual band.** To measure what an inverse
   transform removed, subtract the rebuilt image from the original with
   **Processing → Image Math → Image Arithmetic** (see [Image

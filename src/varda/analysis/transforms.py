@@ -9,6 +9,7 @@ rebuild a denoised image (or to keep just those components).
 
 from __future__ import annotations
 
+import logging
 from typing import ClassVar
 
 import numpy as np
@@ -17,6 +18,7 @@ from PyQt6.QtWidgets import QWidget
 from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.eigenvalue_plot import EigenvaluePlot
 from varda.analysis.linear_algebra import (
+    FASTICA_TOLERANCE,
     TransformResult,
     describeComponentSelection,
     fastIca,
@@ -43,6 +45,8 @@ from varda.common.parameter import (
 )
 from varda.common.vec2 import Vec2
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+
+logger = logging.getLogger(__name__)
 
 TRANSFORM_METADATA_KEY = "transform"
 
@@ -235,6 +239,7 @@ class _ComponentAnalysis(Analysis):
         """The component images, with what Inverse Transform needs."""
         names = self._bandNames(result)
         data = unflatten(result.scores, valid).astype(np.float32)
+        description = "; ".join([f"{self.name} of {image.name}", *self._notes(result)])
         source = ArrayDataSource(
             data,
             wavelengths=np.array(names),
@@ -242,12 +247,13 @@ class _ComponentAnalysis(Analysis):
             bandNames=names,
             transform=image.transform,
             crs=image.crs,
-            description=f"{self.name} of {image.name}",
+            description=description,
             extraMetadata={
                 "explainedVariance": result.explainedVariance.tolist(),
-                TRANSFORM_METADATA_KEY: transformMetadata(
-                    result, image, self.suffix, bands
-                ),
+                TRANSFORM_METADATA_KEY: {
+                    **transformMetadata(result, image, self.suffix, bands),
+                    **self._quality(result),
+                },
             },
         )
         return VardaRaster(source, name=f"{image.name} {self.suffix}")
@@ -266,6 +272,15 @@ class _ComponentAnalysis(Analysis):
 
     def _bandNames(self, result: TransformResult) -> list[str]:
         raise NotImplementedError
+
+    def _quality(self, result: TransformResult) -> dict:
+        """What a user needs to report on the transform (noise model,
+        convergence), kept with the transform's metadata."""
+        return {}
+
+    def _notes(self, result: TransformResult) -> list[str]:
+        """Warnings for the result's description."""
+        return []
 
 
 class PcaAnalysis(_ComponentAnalysis):
@@ -397,6 +412,24 @@ class IcaAnalysis(_ComponentAnalysis):
         return fastIca(
             X, components, maxIterations=int(self.maxIterations.value), weights=W
         )
+
+    def _quality(self, result):
+        return {
+            "iterations": result.iterations,
+            "maxIterations": int(self.maxIterations.value),
+            "converged": result.converged,
+            "tolerance": FASTICA_TOLERANCE,
+        }
+
+    def _notes(self, result):
+        if result.converged:
+            return []
+        note = (
+            f"did not converge in {result.iterations} iterations (raise Max "
+            "Iterations; the components may not be independent)"
+        )
+        logger.warning("%s: %s", self.name, note)
+        return [note]
 
     def _bandNames(self, result):
         return [f"IC {i + 1}" for i in range(result.scores.shape[1])]

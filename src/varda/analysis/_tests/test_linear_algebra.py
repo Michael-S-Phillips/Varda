@@ -99,6 +99,19 @@ def test_fastica_recovers_independent_non_gaussian_sources():
     assert np.allclose(corr.max(axis=0), [1.0, 1.0], atol=0.05)
 
 
+def test_fastica_reports_its_iterations_and_convergence():
+    rng = np.random.default_rng(3)
+    n = 5000
+    sources = np.column_stack([rng.uniform(-1, 1, n), np.sign(rng.normal(size=n))])
+    X = sources @ np.array([[1.0, 0.5], [0.3, 1.0]])
+
+    done = fastIca(X, components=2, maxIterations=400, seed=0)
+    assert done.converged is True and 1 <= done.iterations < 400
+
+    cut = fastIca(X, components=2, maxIterations=1, seed=0)
+    assert cut.converged is False and cut.iterations == 1
+
+
 def test_pca_requires_at_least_as_many_samples_as_components():
     with pytest.raises(ValueError):
         pca(np.zeros((2, 5)), components=5)

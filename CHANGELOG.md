@@ -8,6 +8,9 @@ can alter results.
 
 ### Added
 
+- **ICA reports convergence:** the result's transform metadata records the
+  iterations FastICA ran and whether it converged; when it ran out of
+  iterations first, the description and the log say so.
 - **K-Means records its clusters:** the result's metadata (`kmeans`, saved
   with the file) gives the iterations run, whether it converged, and each
   cluster's center spectrum, pixel count and RMS spread; a run that stops
