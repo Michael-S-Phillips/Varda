@@ -42,6 +42,15 @@ can alter results.
 - **No Stretch** draws again (the view failed to draw). Values outside 0–1
   from any stretch now saturate at black or full brightness instead of
   wrapping around to the other end of the 8-bit range.
+- **Spectrum plot CSV export** writes each curve's own values: a library
+  spectrum scaled and offset to overlay another curve was exported scaled.
+  The scale and offset shown are now recorded in comment lines (`#`) at the
+  top. Box and ROI means also export their ±1 standard deviation and the
+  pixel count n behind each band, which were left out.
+- **ROI and box statistics** with no data (an empty footprint, or a band
+  that's no-data in every pixel) are now missing (NaN) instead of 0, so an
+  empty ROI or box no longer gives a ratio of 0. The per-band pixel count n
+  is now available.
 
 ## 0.9.0 (2026-10-16)
 

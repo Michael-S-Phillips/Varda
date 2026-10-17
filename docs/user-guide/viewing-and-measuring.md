@@ -77,8 +77,13 @@ for how both are computed). An even-sized box extends one pixel further
 right and down than left and up.
 
 **Export…** in the plot's sidebar saves the plot as PNG, SVG or PDF, or the
-curves as CSV. The CSV has the means only, not the shaded standard
-deviation.
+curves as CSV. Each curve is a column of its own values (not scaled; see
+[Library overlays](#library-overlays)). For a box or ROI mean, two more
+columns follow it: `<name> std`, the ±1 standard deviation shaded on the
+plot, and `<name> n`, the number of pixels with data in that band behind
+the mean and standard deviation. When curves don't share wavelengths, the
+CSV has one row per sample instead, with columns `curve`, `x`, `y` and, if
+any curve is a mean, `std` and `n` (blank for single pixels).
 
 ### Library overlays
 
@@ -96,8 +101,12 @@ This is cosmetic, but it changes what a reader sees:
 - To show the library's true values, click the library curve and, under
   **Selected Curve**, set **Y Scale** to 1 and **Y Offset** to 0. The scaling
   can't be turned off beforehand.
-- A CSV export writes curves as shown, with any scale and offset applied.
-  Reset them first if you need the library values.
+- A CSV export writes every curve's own values (the library's
+  reflectance), not as shown. When a curve is shown scaled or offset, the
+  CSV starts with comment lines (beginning `#`) giving each such curve's
+  **Y Scale** and **Y Offset**: what's plotted is value × scale + offset.
+  Tell your CSV reader to skip lines starting with `#` (in pandas,
+  `comment="#"`).
 
 ## ROI statistics
 
@@ -117,10 +126,15 @@ How Varda computes them:
   The standard deviation is the population form (divided by n, not n − 1).
   Multiply by √(n / (n − 1)) for the sample form; for more than about 30
   pixels the difference is under 2 %.
+- **n per band:** the number of pixels with data in that band. It can be
+  smaller than the ROI's pixel count where some pixels are no-data in only
+  some bands. A band with no data at all has no mean or standard deviation
+  (a gap in the curve, `nan` in the CSV), never 0.
 - An ROI with no valid pixels isn't plotted.
 
-The plot doesn't show n. To get it, add a column (below) with the
-**count** statistic of a band.
+The plot doesn't show n; its CSV export has it for every band (`<name> n`,
+see [Pixel spectra](#pixel-spectra)). For one band, you can also add a
+column (below) with the **count** statistic.
 
 ### Calculated columns
 
