@@ -173,12 +173,16 @@ labeled "(visual)". Keep **None** for analysis.
 - **Source map**: a class map of which image each mosaic pixel came from,
   useful for checking seams and tracing a spectrum back to its strip.
 
-Seams are hard (no blending), so spectra are never mixed across them. In
-Varda, the mosaic's metadata records the inputs, the resampling, the
-radiometric corrections, the seams and the full recipe. A file you save from
-it keeps only a one-line summary in its description (the inputs and the
-methods): keep the session, or a [packaged project](sessions-and-saving.md),
-for the full recipe.
+Seams are hard (no blending), so spectra are never mixed across them. The
+mosaic's provenance record holds the inputs (with their own records), the
+resampling, the output grid, the full recipe (order, corrections, tie
+points, radiometric corrections, seams and blending) and the versions of
+ISIS or the Ames Stereo Pipeline when their results are used. A displacement
+field records how Auto Align matched (method asked for and used, bands,
+tile size, refinement), and the source map records the mosaic it belongs
+to. A file you save keeps all of this (see [Reporting results from
+Varda](reporting-results.md#where-it-lives-in-files)), along with a one-line
+summary in its description.
 
 Saving the session keeps each Mosaic workspace's recipe (order, visibility,
 alignments and tie points), so you can reopen it and keep working.

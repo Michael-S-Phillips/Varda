@@ -110,10 +110,13 @@ covers them too; where they differ, it says so.
   kept).
 
 Hourglass results (the MNF, PPI and map images, and MTMF detections) carry
-only a one-line description, such as "Spectral Angle Mapper (SAM) of scene
-(max angle 0.1 rad)", not the Processing menu's full record. The
-description doesn't mention the wavelength window, IOVF, or which pixels
-made each endmember. Keep these yourself:
+a full provenance record (see [Reporting results from
+Varda](reporting-results.md)): the wavelength window and the bands kept,
+IOVF on or off and its settings, the MNF noise estimate and the components
+computed and kept, the PPI iterations, threshold and candidate rule (and
+its seed, empty when the run had none), every endmember's name, identification and
+pixels, and the map method and its setting; MTMF detections add their
+thresholds and the map they came from. Exported files keep it. Also:
 
 - **Save Workflow…** writes a JSON file with the image's name and path, the
   wavelength window, IOVF on or off, the kept components, the PPI settings,
@@ -124,14 +127,15 @@ made each endmember. Keep these yourself:
   identification and pixel list. Pixels are 0-based flat indices (row ×
   image width + column), so you can recompute each class's mean and spread
   elsewhere. **Export Spectra…** writes the mean spectra only.
-- The MNF image added to the project has no eigenvalues or inverse attached,
-  so **Eigenvalue Plot** and **Inverse Transform** can't use it. Read the
-  eigenvalues from the Reduce page's plot, or run **Processing → Transforms
-  → MNF** (see [PCA, MNF and ICA](transforms.md)) for a result that keeps
-  them.
+- The MNF image added to the project carries the kept components'
+  eigenvalues, explained variance, mean and inverse, as **Processing →
+  Transforms → MNF** does (see [PCA, MNF and ICA](transforms.md)), so
+  **Eigenvalue Plot** and **Inverse Transform** work on it; Inverse
+  Transform rebuilds the prepared bands (after the wavelength window, bad
+  bands and IOVF).
 - Class values in a SAM map are 0, 1, 2… in the order of the endmembers
   (the order of the `Angle(…)` bands); unclassified pixels are NaN. The
-  names travel with the result in Varda and sessions, not in exported files.
+  names and colors travel with the result, also in exported files.
 
 Settings that aren't in the workspace:
 

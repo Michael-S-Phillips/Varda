@@ -139,12 +139,16 @@ Settings that aren't in the dialog:
   resolution, grain size or condition fits less well. Without the image's
   FWHM, the library is interpolated at band centers, which keeps narrow
   features the bands themselves would blur.
-- **What's saved where.** The ranking table (nRMSE and angle for each
-  target) can't be exported: record the values you report. The map's
-  targets, library, threshold, factors, windows and band count are kept in
-  Varda and in sessions, not in exported files. The export keeps the
-  result's record (threshold in units of 10⁻⁴, factors and wavelength
-  range) and the band names, which name the targets.
+- **What's saved where.** **Export Table…** saves the ranking as CSV:
+  every target's rank, name, nRMSE (unitless; the window shows it ×10⁻⁴),
+  spectral angle between the target and its fit (degrees), whether it was
+  ticked and whether it fits under the threshold, after commented (`#`)
+  lines giving the image, the spectra used (sampling or ROI class, and how
+  many), the wavelength window and band count, the decomposition, the
+  factor count, the library, the threshold, the Varda version and the time.
+  The map's targets, library, threshold, factors, windows and band count
+  are in its metadata and its provenance record (threshold in units of
+  10⁻⁴), in Varda and in exported files; the band names name the targets.
 
 ### References
 

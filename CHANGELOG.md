@@ -36,6 +36,35 @@ can alter results.
   to ROI) or a mask image, one ROI per connected region, specks left out;
   **ROI to Mask** (Processing → Image Math) makes a 0/1 mask from ROI
   classes.
+- **Full provenance in files:** exported results keep their whole record
+  (process, every setting, inputs with their own records, Varda and plugin
+  versions, the versions of the libraries or tools that did the work, the
+  time) as JSON in the file's `VARDA` metadata domain (inside a GeoTIFF, in
+  the `.aux.xml` beside an ENVI file; `gdalinfo -mdd VARDA file` shows it),
+  with class names and colors, eigenvalues and the inverse transform,
+  classifier figures, the mosaic recipe and FATT settings. Varda reads them
+  back on open, so a reopened PCA/MNF/ICA result works with Eigenvalue Plot
+  and Inverse Transform.
+- **Workspace results record how they were made:** mosaics (recipe, grid,
+  resampling, ISIS/ASP versions), their source maps, displacement fields
+  (Auto Align settings), crop-tool crops (the window), and the Spectral
+  Hourglass's MNF, PPI, maps and MTMF detections (wavelength window, IOVF,
+  MNF noise estimate and components kept, PPI settings, endmembers and
+  their pixels, map method and setting). The hourglass MNF image works with
+  Eigenvalue Plot and Inverse Transform.
+- **Downloads record their source:** each file downloaded in Find Data gets
+  a `<file>.varda-source.json` (catalog, product, URL, size, checksum, time,
+  Varda version), and results made from it name it as their source.
+- **FATT → Export Table…** saves the ranked targets (nRMSE, angle) as CSV,
+  with the settings that made the ranking.
+
+### Changed
+
+- Results record their whole chain of inputs, not only the immediate one,
+  and the one-line description in exported files names the plugin.
+- **Help → Copy System Info** includes Spectral Python's version.
+- A `GDAL_DRIVER_PATH` exported by another installation (e.g. a conda base
+  environment) is ignored, as `PROJ_DATA` and `GDAL_DATA` already were.
 
 ## 0.9.0 (2026-10-16)
 

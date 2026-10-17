@@ -9,6 +9,7 @@ import shutil
 import numpy as np
 
 from varda.common.entities import VardaRaster
+from varda.common.provenance import PROVENANCE_KEY, makeProvenance, setProvenance
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.image_loading.image_loading_service import openDataSource
 from varda.image_loading.raster_writer import writeRaster
@@ -94,6 +95,7 @@ def test_a_package_opens_where_none_of_the_original_files_are(qtbot, tmp_path):
         openDataSource(str(writeRaster(_raster("scene"), originals / "scene.img")))
     )
     result = _raster("scene slope", 2.0)  # only in memory
+    setProvenance(result, makeProvenance("Slope", {"Units": "degrees"}, [onDisk]))
     workspace = GeneralImageAnalysisWorkflow(GeneralImageAnalysisConfig([onDisk]))
     qtbot.addWidget(workspace)
     workspace.lineCollection.addLine([[0, 0], [3, 3]], name="Rim")
@@ -114,6 +116,8 @@ def test_a_package_opens_where_none_of_the_original_files_are(qtbot, tmp_path):
     reopened = [VardaRaster.fromDataSource(openDataSource(p)) for p in state.images]
     np.testing.assert_allclose(reopened[0].getData(), 1.0)
     np.testing.assert_allclose(reopened[1].getData(), 2.0)
+    record = reopened[1].extraMetadata[PROVENANCE_KEY]  # kept in its .aux.xml
+    assert record["process"] == "Slope" and record["parameters"] == {"Units": "degrees"}
     (saved,) = state.workspaces
     assert saved.kind == "general" and saved.images == (state.images[0],)
     assert saved.extra["lines"][0]["name"] == "Rim"

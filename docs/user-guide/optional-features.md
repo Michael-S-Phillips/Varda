@@ -49,7 +49,9 @@ Training runs on CUDA or Apple MPS when available, otherwise on the CPU.
 Training shuffles its batches with a fixed seed, but Varda doesn't seed the
 network's starting weights, and GPU arithmetic isn't exactly repeatable, so
 results can differ between CPU, CUDA and Apple (MPS) runs, and may differ
-between runs; the device used isn't recorded with the result. What the
+between runs. The result's record names the PyTorch version (and, for
+the Optional Features runtime, the device it was installed for), not the
+device a run actually used. What the
 classifiers do and how to report them: [Classification](classification.md).
 Maintainers: `scripts/compile_torch_locks.py` regenerates the pinned locks in
 `resources/optional_features/torch/`.

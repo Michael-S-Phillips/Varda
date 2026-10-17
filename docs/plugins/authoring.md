@@ -103,7 +103,7 @@ def registerAnalyses():
 What Varda does with it:
 - **Menu and dialog:** it adds the menu item, and a settings dialog with an image picker built from your Parameters.
 - **Running:** `run` executes in a background thread with a progress dialog, so `run` must not touch widgets. The result joins the project's images, and can be saved to ENVI or GeoTIFF.
-- **Provenance:** every result records the analysis, its settings, the input, the Varda version, and your plugin's name and version.
+- **Provenance:** every result records the analysis, its settings, its inputs (with how they were made), the Varda version, and your plugin's name and version, and keeps the record in the files it is saved to. If a library does the scientific work, name its distribution in `software = ("spectral",)` and its installed version is recorded too.
 
 Other optional methods:
 - `prepareFor(image)`: adapt the settings to an image before the dialog shows them, for example by offering only the choices its wavelengths support
