@@ -36,6 +36,9 @@ from varda.analysis.transforms import PcaAnalysis
 from varda.app import VardaApplication
 from varda.branding.title_mark import ICON_DIR
 from varda.common.entities import VardaRaster
+from varda.crism.atmosphere import ARTIFACT_FOLDER, loadArtifactBasis
+from varda.crism.calibration import atTable
+from varda.crism.smile import standardVector
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.image_loading.image_loading_service import ImageLoadingService
 from varda.image_loading.raster_writer import writeRaster
@@ -66,6 +69,7 @@ def runSelfTest(app: VardaApplication) -> int:
             ("PCA (SPy)", lambda: _pca(image)),
             ("band parameters (HyPyRameter)", lambda: _bandParameters(image)),
             ("plugin API", _pluginApi),
+            ("CRISM resources", _crismResources),
             ("update check certificates", _updateCertificates),
             ("AI libraries", _aiLibraries),
             ("3D view (WebEngine, three.js)", lambda: _terrainView(image)),
@@ -151,6 +155,17 @@ def _brandAssets() -> str:
     broken = [icon.name for icon in icons if not QSvgRenderer(str(icon)).isValid()]
     assert not broken, f"unreadable: {broken}"
     return f"{len(icons)} icons"
+
+
+def _crismResources() -> str:
+    """The CRISM pipeline's bundled tables and artifact bases load."""
+    vector = standardVector()
+    assert len(vector.wavelengths) == 411, len(vector.wavelengths)
+    rows = atTable()
+    assert rows, "the AT CDR table is empty"
+    bases = [loadArtifactBasis(path) for path in sorted(ARTIFACT_FOLDER.glob("*.npz"))]
+    assert bases, f"no artifact bases in {ARTIFACT_FOLDER}"
+    return f"411 bands, {len(rows)} AT CDRs, {len(bases)} artifact bases"
 
 
 def _coordinateSystems() -> str:
