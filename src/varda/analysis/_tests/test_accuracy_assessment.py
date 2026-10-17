@@ -12,7 +12,7 @@ from varda.analysis.accuracy_assessment import (
     matchClasses,
     reportCsv,
 )
-from varda.analysis.accuracy_dialog import AccuracyReportDialog
+from varda.accuracy_report_dialog import AccuracyReportDialog
 from varda.analysis.analysis import AnalysisContext
 from varda.analysis.class_tools import classRaster
 from varda.analysis.provenance import recordProvenance
