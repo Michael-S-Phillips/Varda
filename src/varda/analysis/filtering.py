@@ -17,7 +17,7 @@ class IovfAnalysis(Analysis):
     category = "Filtering/Spectral"
     description = (
         "Removes isolated spikes without smoothing the spectra (Phillips et al. "
-        "2023): Grubbs outlier tests vote on every voxel of the noise left after "
+        "2024): Grubbs outlier tests vote on every voxel of the noise left after "
         "a smooth reference spectrum, and voxels most windows flag are replaced "
         "by their neighbors, round after round. Slow on large cubes."
     )

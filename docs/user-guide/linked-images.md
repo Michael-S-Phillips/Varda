@@ -15,7 +15,7 @@ grid already ticked. Choose two or more, and how to link them:
   pipeline, which share a grid.
 - **By map location:** the same place on the ground. Use it for images on
   different grids or map projections (each must be georeferenced; an image
-  without georeferencing is linked by pixel).
+  without georeferencing is linked by pixel, without a warning).
 
 ## Reading every image at once
 
@@ -23,15 +23,20 @@ grid already ticked. Choose two or more, and how to link them:
 - **Ctrl+click** in any view puts the cursor (yellow) on every view, and the
   **Linked Spectra** panel plots each image's spectrum there, one plot per
   image so that each keeps its own units (a spectrum, a count, a flag); each
-  plot pans and zooms on its own. **Ctrl+drag**
+  plot pans and zooms on its own. Each image is read at the pixel the
+  cursor falls in (not interpolated), and its plot's title gives that
+  pixel's column and row (counted from 0). **Ctrl+drag**
   updates the spectra as you go. Bad bands and no-data values show as gaps.
-  **Export…** saves the spectra at the cursor as CSV.
+  **Export…** saves the spectra at the cursor as CSV, with columns `image`,
+  `x` (the wavelength in the image's own unit, or the band number) and
+  `value` (empty for no data and bad bands).
 - A **bit mask** shows as bits by wavelength instead of a number: a
   pipeline's per-frame exclusions (bit *i* set where frame *i* of a stack
   was left out) become a chart of which frames were left out at each
-  wavelength, titled with how many. Whole-number images named like masks
-  (EXCLUDE, MASK, BITS, QA, quality) start that way; the **As Bits** button
-  switches any whole-number image. **Processing → Statistics → Decode Bit
+  wavelength, titled with how many. Bit 0 is the least significant (value
+  1). Whole-number images whose names contain "exclu", "mask", "bits",
+  "quality" or the word "QA" (in any case) start that way; the **As Bits**
+  button switches any whole-number image. **Processing → Statistics → Decode Bit
   Mask** turns a mask into images: the number of bits set, one bit, or any
   of several.
 - **Draw Line** in any view draws a line on all of them, and the **Linked
@@ -54,3 +59,58 @@ lost; panels can, and drawing a line brings Linked Profiles back.
 
 The images, the link, the cursor, the lines and each image's display
 settings are saved with the session.
+
+## Reporting your results
+
+What to state in a methods section, what the quality measures mean, and
+what to cite. See also [Reporting results from Varda](reporting-results.md)
+for what applies to every process.
+
+Linking only finds where to read each image; it doesn't change or resample
+any of them. What you report is the images' own values at those places.
+
+### What to state
+
+- The images compared, and the link (by pixel, or by map location).
+- For values you report: each image's pixel (column and row from the plot
+  titles, counted from 0) or map location. The CSV doesn't record them, so
+  note them when you export.
+- For profiles across images, the same as for any
+  [profile](lines-and-profiles.md#reporting-your-results), per image.
+
+How images are linked:
+
+| Step | What Varda does |
+| --- | --- |
+| By pixel | The same column and row in every image. Varda doesn't check that the images share a grid (the dialog only pre-ticks those that do). |
+| By map location | The point's map coordinates in the georeferencing of the image you clicked, converted to each other image's CRS with PROJ (through pyproj), then to its pixel through its georeferencing. No co-registration is done. |
+| Values | The spectrum of the pixel the point falls in (nearest pixel, no interpolation). |
+| Lines | Vertices are kept in the first image's coordinates and moved to each image as above; each image's profile is then sampled along straight segments between them on its own grid. |
+| Bits | Bit *i* is (value >> *i*) & 1, so bit 0 is the least significant. |
+
+### Uncertainty and quality
+
+- **By map location is only as good as the georeferencing.** Any offset
+  between two images' georeferencing goes straight into the comparison: the
+  "same place" can be a pixel or more apart, and Varda doesn't report the
+  offset. Check it on a sharp feature. If it matters, measure it (Auto Align
+  in the [Mosaic workspace](mosaicking.md) reports the tie points' residuals
+  between two images) and report it, or link images that are already
+  co-registered.
+- **Nearest pixel.** Each image is read at the pixel containing the point,
+  so with different pixel sizes the readings cover different areas of the
+  ground, each centered up to half a pixel (in each direction) from the
+  point.
+- **Unreferenced images aren't flagged.** In a map link, an image without
+  georeferencing is quietly read by pixel. Check each image's georeferencing
+  (Image Properties) before comparing by map location.
+- **By pixel assumes one grid.** Images of different sizes or grids are
+  still read pixel for pixel, with no warning.
+- **Lines between images with different projections** follow straight
+  segments on each image's own grid, so long segments can trace slightly
+  different ground paths. Add vertices to keep them close.
+
+### References
+
+- Coordinate conversion uses PROJ, through pyproj: give the PROJ version
+  from **Help → Copy System Info**.

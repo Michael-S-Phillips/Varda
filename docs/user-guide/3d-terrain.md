@@ -14,9 +14,11 @@ Workspace** with the DEM loaded.
   - any loaded image on the DEM's pixel grid, such as the orthoimage that
     comes with a USGS CTX or HiRISE DTM, rendered as it is in 2D (its bands,
     a 2-98 % stretch).
-- **Detail**: how finely the surface follows the DEM: Low (512 points a
-  side), Medium (1024) or High (2048). The status line says how the grid
-  relates to the DEM's pixels.
+- **Detail**: how finely the surface follows the DEM: at most 512 (Low),
+  1024 (Medium) or 2048 (High) points on the longer side. Each point is the
+  mean height of a block of DEM pixels. The status line gives the ground
+  size, the height range, the grid, how many DEM pixels a side each point
+  averages, and how many points of gaps were filled.
 - **Exaggeration** stretches the heights; **Sun azimuth** (clockwise from
   north) and **Sun elevation** place the light; **Cast shadows** and **Sky
   light** (which lifts the shadows) shape it; **Background** sets the color
@@ -127,14 +129,16 @@ a CTX DEM say, on top of the surface:
    fallback), and fits the **Model**: Translation by default, as
    map-projected products are mostly just offset, or rigid, similarity,
    affine, projective, polynomial or a thin-plate spline for warped ones.
-   The panel reports the tie points used and their RMS residual.
+   The panel reports the tie points the fit kept and their RMS residual
+   (in the DEM's map units, which it labels m).
    **Match using** chooses the image that is matched: the overlay itself,
    or another loaded image with the same georeferencing. A parameter map
    often has little texture to match, but a scene made from the same
    observation (its reflectance convolved to the reference camera's band,
    for example a CTX-like scene from CRISM) matches well, and the alignment
    found for it moves the overlay.
-4. **Shift E, N** moves the overlay by hand, in meters, after the fit.
+4. **Shift E, N** moves the overlay by hand, in the DEM's map units
+   (meters for a projected DEM), after the fit.
    **Alignment: Copy** and **Paste** give another overlay the same
    alignment (products of one observation share it); **Reset** returns the
    overlay to its georeferencing.
@@ -146,3 +150,83 @@ included in stills and exported web pages (with their opacity).
 Over Jezero, a CRISM MTRDR (FRT00005850) aligns to the USGS CTX DTM's
 orthoimage with about ten tie points and an RMS of 10 m, half a CRISM pixel;
 its georeferencing was off by about 160 m west and 340 m north.
+
+## Reporting your results
+
+What to state in a methods section, what the quality measures mean, and
+what to cite. See also [Reporting results from Varda](reporting-results.md)
+for what applies to every process.
+
+The 3D view, stills, animations, web pages and STL files are
+visualizations. Take any number you report (heights, slopes, distances,
+volumes) from the DEM itself, with Varda's [profiles](lines-and-profiles.md)
+or analyses, not from the 3D surface.
+
+### What to state
+
+- The DEM (product, its source, resolution and stated vertical precision)
+  and the band shown.
+- For a figure: the vertical exaggeration, the sun's azimuth and elevation,
+  whether shadows were cast, the drape and its stretch or color map, any
+  overlays and how they were aligned, and whether gaps were filled.
+- For an overlay: the reference it was aligned to (an image, or the DEM
+  hillshade), the matched image, the model, the tie points kept and their
+  RMS, and any manual shift. Varda matches on the band with the best SNR
+  and doesn't show which band that was.
+
+How the surface is made, beyond the panel's settings:
+
+| Step | What Varda does |
+| --- | --- |
+| Decimation | Every *n* × *n* block of DEM pixels becomes one grid point, their mean height ignoring no data; *n* is the DEM's longer side divided by the Detail, rounded up (the status line's "every *n* pixels"). Edge blocks may be partial. |
+| Height storage | In the view and the web page, heights are stored in 16 bits: 65,535 levels from the lowest to the highest point, so one step is (highest − lowest) / 65,534. 3D-printing exports use the heights unrounded. |
+| Gap filling | Gaps enclosed by data take the nearest grid point's height, then are smoothed by 4 passes of a 3 × 3 mean (over valid neighbors). Done on the decimated grid. |
+| Ground size | Projected DEM: pixel size × pixel count, in meters. Geographic DEM: degrees × π*a*/180, with *a* the body's equatorial radius, and the east–west size multiplied by the cosine of the center latitude. |
+| Drape | The image's own rendering with a 2–98 % linear stretch (also for elevation colors, whose color bar shows that range), resized to at most 8192 px a side (Lanczos). |
+| Lighting defaults | Sun azimuth 315°, elevation 35°, sky light 0.35, shadows on, exaggeration 1. |
+| Overlays | Reprojected to the DEM's projection with bilinear resampling, at about their own resolution; textures at most 8192 px a side. |
+| Overlay Auto Align | Matches the overlay's highest-SNR band, reprojected as above, against band 1 of the reference (or a hillshade of the DEM's first band: sun azimuth 315°, elevation 45°), with the Mosaic workspace's matching (see [Mosaicking](mosaicking.md#reporting-your-results)). The fit leaves out points more than 1 pixel (of the reprojected overlay) off. |
+| Smooth edges | Outline points move toward their neighbors, by at most half a grid cell. |
+| Vector files | Geographic coordinates beyond ±360° longitude or ±90° latitude are taken to be in the DEM's projection already. |
+
+### Uncertainty and quality
+
+- **Heights in the view are smoothed.** Block averaging lowers peaks and
+  raises pits; the larger *n* is, the more. The 16-bit step is
+  (relief) / 65,534: for 4,000 m of relief, about 6 cm, far below most
+  DEMs' vertical precision.
+- **Filled gaps are invented heights.** The status line reports how many
+  grid points were filled, but filled points aren't marked in the view,
+  the web page or the STL. Turn **Fill gaps** off to see where the gaps
+  are, and say in a caption that a figure's gaps were filled.
+- **Vertical exaggeration assumes heights in meters.** Heights are drawn in
+  the DEM's own units against a ground size in meters, so the exaggeration,
+  the scale bar's "vertical exaggeration" and a print's height are true only
+  for a DEM in meters. A DEM in kilometers or feet isn't converted.
+- **Geographic DEMs are drawn as a flat rectangle.** The east–west size is
+  right only at the center latitude, and uses a sphere of the equatorial
+  radius, so shapes are stretched away from the center latitude, more for
+  DEMs spanning many degrees. Use a projected DEM for figures where shape
+  matters.
+- **Positions on the surface** are good to about a grid cell: the grid's
+  points are spread evenly across the DEM's full extent, while each is the
+  mean of a block.
+- **The scale bar** is measured at the view's center. In a perspective view
+  it's wrong elsewhere in the frame; use views from above for figures with
+  a scale.
+- **Overlay alignment RMS is precision, not accuracy.** It's how well the
+  overlay agrees with the reference, in the DEM's map units, and the panel
+  labels it m whatever those units are. The overlay is only as well placed
+  as the reference: report the reference's own geolocation accuracy. A
+  manual shift isn't part of the RMS.
+- **Draped images are for display.** The drape and overlays are stretched,
+  resampled (bilinear) and, when large, downsampled. Don't read values from
+  them.
+
+### References
+
+- Overlay matching (phase correlation, its sub-pixel refinement, RANSAC,
+  ORB and the transform models): see the references in
+  [Mosaicking](mosaicking.md#references).
+- 3D rendering uses three.js (release 170), which has no formal citation;
+  name it if your journal asks for software.

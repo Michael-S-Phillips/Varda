@@ -3,12 +3,18 @@
 Detailed guides to Varda's features. For an overview, see the
 [main README](../../README.md).
 
+- [Reporting results from Varda](reporting-results.md): citing Varda and its methods, what results record, precision vs. accuracy
 - [Installing Varda](installing.md): downloading a release, running from source, optional extras
 - [Sessions and saving results](sessions-and-saving.md): saving and restoring your work, autosave, exporting images
 - [3D Terrain](3d-terrain.md): DEMs in 3D with draped images, figures and interactive web pages
 - [Linked Images](linked-images.md): any number of images linked by pixel or map location, with every image's spectrum and profile at once
 - [Lines and profiles](lines-and-profiles.md): drawing lines and plotting topographic and band profiles along them
+- [Viewing and measuring](viewing-and-measuring.md): display stretches, pixel spectra and library overlays, ROI statistics, the Ratio Explorer
+- [Finding data](finding-data.md): searching PDS ODE, STAC and footprint catalogs, and downloading products
 - [Image processing tools](image-processing.md): spatial filters, texture, color, class map tools, terrain and geometry
+- [Spectral analysis](spectral-analysis.md): continuum removal, spectral derivatives and slopes
+- [Classification](classification.md): MLP, CNN and ViT classifiers, maximum likelihood, Mahalanobis distance, k-means
+- [Target and anomaly detection](target-detection.md): RX, ACE and the matched filter
 - [PCA, MNF and ICA](transforms.md): choosing how many components to keep, inverse transforms
 - [Spectral Hourglass](spectral-hourglass.md): finding, identifying and mapping endmembers, preparing a spectral library
 - [Factor Analysis Target Transformation](fatt.md): which library spectra are components of an image, and where they fit

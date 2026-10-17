@@ -74,6 +74,11 @@ file** in the analysis dialog to also write it to disk (ENVI `.img`/`.hdr` or
 GeoTIFF), or export any image later with **File → Export Image…** or by
 right-clicking an image → **Export Image…**.
 
-Results record how they were made (the analysis, its settings, the input
-images and the Varda version), and exported files keep that record in their
-description.
+A result made from the **Processing** menu records how it was made: the
+analysis, every setting, its input image (the immediate input only, not
+how that input was made), the Varda version, the time, and the plugin and
+its version if a plugin made it. An exported file keeps a one-line summary
+of this in its description. Results made inside workspaces (mosaics, crops,
+the Spectral Hourglass's outputs) don't get this full record. See
+[Reporting results from Varda](reporting-results.md) for what is and isn't
+recorded.

@@ -1,4 +1,4 @@
-"""Iterative Outlier Voting Filter (IOVF; Phillips et al. 2023, Icarus).
+"""Iterative Outlier Voting Filter (IOVF; Phillips et al. 2024, Icarus 419).
 
 Removes isolated spikes from a (rows, cols, bands) cube without smoothing the
 spectra around them:

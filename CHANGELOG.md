@@ -8,6 +8,14 @@ can alter results.
 
 ### Added
 
+- **Documentation for reporting results:** every guide now ends with
+  *Reporting your results*: what to state in a methods section (including
+  settings the dialogs don't show), what each quality measure means and
+  doesn't, and full references. New guides cover classification, target
+  and anomaly detection, spectral analysis (continuum removal, derivatives,
+  slopes), viewing and measuring (stretches, ROI statistics, the Ratio
+  Explorer) and finding data, and *Reporting results from Varda* covers
+  citing Varda and what results record about how they were made.
 - **Image Properties** (right-click an image in the Image List →
   Properties…): see an image's file, format, size and map projection, and
   edit its name, no-data value (define one the file never declared, e.g.
