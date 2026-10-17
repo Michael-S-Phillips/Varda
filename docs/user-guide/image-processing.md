@@ -136,7 +136,8 @@ if needed. CTX's band (515-705 nm at half power) lies in CRISM's VNIR
 detector, so use joined or VNIR data rather than an IR-only cube; note
 that CRISM's MTRDR has no bands from 631 to 710 nm, so the scene misses
 part of the CTX band. Varda keeps a band if at least 90% of its response
-is covered, but doesn't report how much was.
+is covered, and the result's description gives how much was (e.g. "CTX
+93%").
 
 ## Image math and masks
 
@@ -383,8 +384,9 @@ Sizes are made odd (a 4 becomes 5).
 
 ### Uncertainty and quality
 
-None of these tools reports an uncertainty. What you can say, and how to get
-a number:
+Most of these tools report no uncertainty (IOVF's replacement counts and
+the sensor-band coverage are the exceptions, below). What you can say, and
+how to get a number:
 
 - **Gaps.** Within a window's width of no-data, filters, texture, slopes and
   resampling see the nearest valid value repeated. Exclude those pixels (for
