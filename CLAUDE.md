@@ -8,9 +8,22 @@ Varda is a PyQt6 desktop application for visualizing and analyzing hyperspectral
 
 Right now, the image processing system (`image_processing/`) is incomplete and should generally be ignored for now; analyses live in `analysis/`.
 
+## Scientific Documentation & Reproducibility
+
+Varda is scientific software. **The goal: a user must be able to accurately describe, and report the uncertainties of, any process they run in Varda using only Varda's documentation and its outputs** — enough to write a correct methods section and defend it. Treat this as a definition of "done", not an afterthought.
+
+For every analysis, filter, stretch, mosaicking step, transform, or other process:
+- It has a user-guide page under `docs/user-guide/` (linked from `docs/user-guide/README.md` and surfaced via the Help menu, `help_info.py`).
+- That page states: what the algorithm does, its **reference/citation**, every **parameter** (meaning, units, valid range, default), the **outputs** (meaning, units), and **how to assess uncertainty/quality** (residuals, RMSE, confidence intervals, error bands, SNR, or clearly stated limitations and assumptions).
+- Outputs that carry uncertainty should **expose it** (e.g. residual/quality bands, reported metrics), not hide it.
+- When you add or change a process, update its guide **in the same change**. A feature is not complete until a scientist could reproduce and report on it from the docs and outputs alone.
+
 ## Dev Tools
 uv used for package management. ruff for formatting. ty for static type checking. pytest for unit testing.
 When using Astral tools (uv, ty, ruff), invoke the relevant /astral:<skill> to ensure best practices are followed.
+
+### Working across machines
+Varda is developed across several machines and Claude Code sessions. **Before making changes, run `git status` and check the current branch** (and whether the tree is behind its remote) so you don't build on a stale checkout. Pull/rebase before starting new work, and don't assume the working tree matches a previous session.
 
 ## Commands
 - **Install/sync deps:** `uv sync`
@@ -26,9 +39,9 @@ Requires Python 3.13. GUI tests use `pytest-qt`.
 
 ### Entry Point and Application Bootstrap
 
-`src/varda/main.py` → `main()` → `initVarda()`: Performs all Application Initialization, Creates `QApplication`, initializes `VardaApplicationContext`, loads plugins, then launches `MainGUI`.
+`src/varda/main.py` → `main()` → `createVarda()` (in `startup.py`): Performs all Application Initialization, Creates `QApplication`, constructs `VardaApplication` (`app.py`), wires the menu actions from the `_actions/` package, loads plugins, then launches `MainGUI`.
 
-Right now, there is not a strongly defined "Project" data model; Because it's not yet clear what data will need to be stored in a project. So it's kept lightweight; just a list of opened images that the VardaApplicationContext stores.
+Right now, there is not a strongly defined "Project" data model; Because it's not yet clear what data will need to be stored in a project. So it's kept lightweight; just a list of opened images that `VardaApplication` stores. A user's open images, workspaces and ROIs are persisted to a JSON `.varda` session file (`session.py`, with `session_autosave.py` / `session_restore.py`); only file-backed images are saved (paths, not pixels).
 
 We also try to do as much wiring as possible at this initialization stage, to reduce dependencies in the GUI code. (Eg. we define actions for creating new workspaces, including the code that sends new workspaces to the MainGUI to create tabs for them, so MainGUI doesn't need to link those things itself, just manage the tabs).
 
@@ -49,6 +62,13 @@ We also try to do as much wiring as possible at this initialization stage, to re
 - **`plugins/`** + **`api.py`** — Plugin system (pluggy). Plugins are folders with `plugin.toml` installed into the app-data `plugins` folder (Plugins menu: Manage, Install from Folder/Zip); they import only `varda.api` (the stable, versioned plugin API) and add analyses (`registerAnalyses`) or file formats (`registerDataSources`). `plugin_manager.py` loads/enables/removes them; `app_sink.py` puts their contributions into the menus. Guide: `docs/plugins/authoring.md`. Design incl. AI-built plugins (Kindle a Feature): `docs/superpowers/specs/2026-10-14-ai-plugins-design.md`.
 - **`kindling/`** — Kindle a Feature: `providers.py` (the AI behind a small Conversation Protocol: Anthropic, and OpenAI or any OpenAI-compatible server such as Ollama or LM Studio), `agent.py` (the tool-use loop and system prompt), `tools.py` (the model's tools, confined to the plugin's folder), `docs.py` (the authoring guide, a `varda.api` reference generated from the module, the examples; bundled from `docs/plugins`), `checks.py` + `check_worker.py` (the plugin runs in a separate Varda process, `Varda --check-plugin`, on a synthetic cube and a crop of the image; plus an advisory static scan), `ai_settings.py` (the provider, and a key per provider in the OS keychain via `keyring`), and the two dialogs. Tests use a scripted provider (`_tests/fakes.py`) and an in-memory keyring.
 - **`maingui.py`** — `MainGUI` (QMainWindow): tabbed workspaces, child window management, docking.
+- **`_actions/`** — Menu actions grouped by area (`_file_actions`, `_view_actions`, `_workspace_actions`, `_processing_actions`, `_plugin_actions`, `_help_actions`, `_debug_actions`), plus `_menu_ids.py` (`MENUBAR` layout). `startup.py` assembles these into the menu bar at bootstrap, keeping wiring out of the GUI.
+- **`plotting/`** — Plot widgets (pyqtgraph): pixel spectra (`pixel_spectra_plot.py`), line profiles (`profile_plot.py`), library spectra and spectrum matching, plot export.
+- **`points/`** — Saved pixel points (`point_collection.py`, Qt-free): which pixel of which image and its ground location, exportable to GIS; `point_manager_widget.py` is the GUI.
+- **`catalogs/`** — Find-and-fetch: a mission-agnostic catalog interface (STAC, PDS ODE, footprint files) that lists/searches collections and downloads products. Catalogs register via plugins' `registerCatalogs`. Design: `docs/superpowers/specs/2026-10-15-find-and-fetch-design.md` (not yet on `main`: it's on the unmerged `docs/find-and-fetch-spec` branch).
+- **`metadata_management/`** — `metadata_editor.py`: dialog for editing image metadata after loading.
+- **`optional_features/`** — Processing > Optional Features: install/update/remove the PyTorch runtime (`torch_runtime.py`) and set up external backends (Ames Stereo Pipeline, ISIS).
+- **`all_images_view_list/`** — The project-wide image list (view model, list view, per-image actions, image properties dialog).
 
 ## Incomplete/On-Hold
 
@@ -60,8 +80,9 @@ We also try to do as much wiring as possible at this initialization stage, to re
 
 - **Brand assets and rules:** `resources/brand/README.md`. Use the files there as-is, and load static SVGs with QSvgRenderer, never the CSS-animated ones.
 - **Simplicity/Conciseness** is always preferred, and an emphasis on high code quality and maintainability. Declarative patterns are also preferred for this purpose.
-- **Application-level Actions** are defined in main.py on startup, and dynamically added to the MenuBar.
+- **Application-level Actions** are defined in the `_actions/` package and assembled into the MenuBar (`MENUBAR` in `_actions/_menu_ids.py`) by `startup.py` at bootstrap.
 - **Qt signals/slots** are used throughout for reactive UI updates. psygnal can also be used to create signals and slots in code that doesn't directly depend on Qt.
+- **Cross-platform & laptop layouts:** Varda runs on macOS, Windows and Linux, often on laptop screens (~1440×900 and smaller). UI must degrade gracefully at small sizes: set sensible minimum sizes, let panels and dialogs **resize, wrap or scroll rather than clip**, and prefer layouts over fixed geometry. Label text, combo boxes and buttons must never be cut off (e.g. docked panels in the Find Data workspace). Verify new/changed UI at laptop resolution before considering it done.
 - **Numba** (`@njit`) may be used in performance-critical paths like stretch algorithms.
 
 ### Similar Projects
