@@ -55,6 +55,11 @@ record holds:
   for spatial filters, and ISIS or the Ames Stereo Pipeline when a mosaic
   uses their results.
 - **The time** (UTC).
+- **Results measured on the result**, under `results`: a classifier's
+  training data (ROI and pixel counts per class, ambiguous pixels left out)
+  and hold-out accuracy, and an Accuracy Assessment's confusion matrix and
+  measures (see [Classification](classification.md#measuring-accuracy)). A
+  result made from a class map thus keeps the map's accuracy in its chain.
 - **Where downloaded data came from:** a file downloaded in Find Data has a
   `<file>.varda-source.json` beside it (catalog, collection, product,
   file, URL, size, checksum and what verified the download, the time and
@@ -74,7 +79,9 @@ the file's `VARDA` metadata domain as JSON:
 
 The domain has two keys: `provenance` (the record) and `metadata` (class
 names and colors, eigenvalues, explained variance and the inverse transform,
-classifier figures such as layer sizes and the final training loss, the
+classifier figures such as layer sizes, the final training loss,
+the seed, the number of components, the device and PyTorch version, the
+training data and hold-out accuracy, Accuracy Assessment reports, the
 mosaic recipe, displacement and FATT settings, and the quality figures of
 analyses: MNF's noise model, ICA's convergence, the components an Inverse
 Transform kept and the count it suggested (`componentSelection`), K-Means

@@ -89,6 +89,20 @@ can alter results.
   Varda version), and results made from it name it as their source.
 - **FATT → Export Table…** saves the ranked targets (nRMSE, angle) as CSV,
   with the settings that made the ranking.
+- **Classification accuracy.** **Accuracy Assessment** (Processing →
+  Classification) compares a class map with ROI classes drawn as ground
+  truth, matched by name: confusion matrix, overall accuracy with a 95%
+  Wilson interval, kappa, and each class's producer's and user's accuracy
+  (with intervals) and omission and commission error. Its result is an
+  error map (Correct / Incorrect over the reference pixels). The MLP, CNN,
+  ViT, Maximum Likelihood and Mahalanobis Distance classifiers can **Hold
+  Out** a fraction of each class's ROIs (whole ROIs, picked with the Seed;
+  Maximum Likelihood and Mahalanobis gain a Seed) and report their accuracy
+  on them. **Accuracy Report…** shows either report, opens when such a run
+  finishes, and saves it as CSV with a header naming the class map, its
+  provenance and the reference ROIs. Reports, and every classifier's
+  per-class training ROI and pixel counts, are kept with the result, in
+  exported files and in its provenance record (under `results`).
 
 ### Changed
 
@@ -108,6 +122,15 @@ can alter results.
   values showed the wrong bits (they were wrapped to 64 bits). They're now
   read as the unsigned integer of the image's own width (an int16 −1 is
   sixteen bits set), as **Decode Bit Mask** reads them.
+- **Pixels inside ROIs of two different classes** are now left out of
+  every supervised classifier's training (and validation), and counted in
+  the result. Before, the MLP, CNN and ViT trained on them once per class
+  with conflicting labels, and Maximum Likelihood and Mahalanobis Distance
+  gave them to the later class. **This can change results** where ROIs of
+  different classes overlap; without overlaps (and with Hold Out 0) results
+  are unchanged.
+- **Train ViT on ROIs** says, before running, when Embedding Size isn't a
+  multiple of Attention Heads, instead of failing partway.
 - **PDS products open through their labels.** After a Find Data download,
   Varda opened a product's raw data file (such as a CaSSIS `.DAT`), which
   has no header and failed to open; it now opens the PDS4 `.xml` or PDS3

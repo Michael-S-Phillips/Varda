@@ -2,8 +2,12 @@
 
 **Processing → Classification** makes class maps from an image. Five
 classifiers learn from ROIs you draw (supervised); **K-Means Clustering**
-needs none (unsupervised). The same menu has the class map tools (Density
-Slice, Majority/Minority Filter, Sieve Classes, Clump Classes), described in
+needs none (unsupervised). To measure how accurate a map is, the supervised
+classifiers can hold ROIs out (**Hold Out**), and **Accuracy Assessment**
+compares any class map with ground-truth ROIs (see
+[Measuring accuracy](#measuring-accuracy)). The same menu has the class map
+tools (Density Slice, Majority/Minority Filter, Sieve Classes, Clump
+Classes), described in
 [Image processing tools](image-processing.md#class-maps-classification).
 
 | Classifier | Learns from | Needs |
@@ -36,10 +40,17 @@ two).
 - **Class numbers.** Classes are numbered from 0 in the order their first
   ROI was drawn (among those ticked). The class color is the color of the
   class's first ROI.
-- **Overlapping ROIs of different classes.** The MLP, CNN and ViT train on
-  such a pixel once for each class, with conflicting labels. Maximum
-  Likelihood and Mahalanobis Distance give it to the later class. Avoid
-  overlaps.
+- **Overlapping ROIs of different classes.** A pixel inside ROIs of two or
+  more of the ticked classes is ambiguous: every classifier leaves it out of
+  training and validation. The result records how many there were
+  (`ambiguousPixels`), and the accuracy report says so. (Before this
+  version the MLP, CNN and ViT trained on such a pixel once per class, with
+  conflicting labels, and Maximum Likelihood and Mahalanobis Distance gave
+  it to the later class.) Overlapping ROIs of the *same* class are fine.
+- **Hold Out** (every supervised classifier): the fraction of each class's
+  ROIs to set aside for validation instead of training; see
+  [Hold-out validation](#hold-out-validation). 0 (the default) trains on
+  every ROI.
 - **Class sizes.** The MLP, CNN and ViT train on every ROI pixel, so a class
   with more pixels has more weight (a larger class acts like a larger prior).
   Maximum Likelihood and Mahalanobis Distance treat every class as equally
@@ -58,6 +69,15 @@ Every supervised classifier makes the same result, named after the image
   classifier (see each section).
 - **No data:** invalid pixels are no data (NaN) in every band.
 
+Each result also records its training data (`trainingData`): for every
+class, its number of ROIs, training ROIs and pixels, validation ROIs and
+pixels, and which of its ROIs were held out (numbered 1, 2, … in the order
+drawn); the Hold Out fraction and seed; and the number of ambiguous pixels
+left out. With **Hold Out** above 0 it records the hold-out accuracy too
+(`validation`), and the description ends with it, e.g. "… (seed 0,
+hold-out accuracy 94.2% (95% CI 91.0–96.3%))". Both are kept in exported
+files and in the result's provenance record (under `results`).
+
 Every valid pixel gets one of your classes. There is no "unclassified"
 class and no rejection threshold, so a material you didn't train on goes to
 whichever class fits least badly. To flag uncertain pixels, make a mask from
@@ -73,11 +93,12 @@ spectrum only.
 | Setting | Meaning | Range | Default |
 | --- | --- | --- | --- |
 | **ROI classes** | The classes to train on | at least two | all |
+| **Hold Out** | Fraction of each class's ROIs held out for validation ([Hold-out validation](#hold-out-validation)) | 0–0.9 | 0 |
 | **Hidden Layers** | Number of hidden layers | 1–6 | 2 |
 | **Neurons Per Layer** | Width of each hidden layer | 2–512 | 32 |
 | **Epochs** | Passes through the training pixels | 1–5000 | 200 |
 | **Learning Rate** | Adam step size | 0.00001–1 | 0.01 |
-| **Seed** | Seeds the starting weights and the shuffling | 0–2147483647 | 0 |
+| **Seed** | Seeds the starting weights, the shuffling and which ROIs are held out | 0–2147483647 | 0 |
 
 How it works:
 
@@ -86,8 +107,9 @@ How it works:
 - Hidden units are tanh; the output is a softmax over the classes.
 - Weights start from Glorot (Xavier) uniform values, biases from 0.
 - Training minimizes cross-entropy with Adam (β₁ 0.9, β₂ 0.999, ε 10⁻⁸)
-  on shuffled mini-batches of 256 pixels. There is no regularization, early
-  stopping or validation split: it always runs every epoch.
+  on shuffled mini-batches of 256 pixels. There is no regularization or
+  early stopping: it always runs every epoch. Held-out ROIs (with **Hold
+  Out**) are never seen in training; they only measure accuracy afterwards.
 - **Seed** seeds the starting weights and the shuffling. The same image,
   ROIs, settings and seed give the same result.
 
@@ -106,13 +128,14 @@ its neighborhood.
 | Setting | Meaning | Range | Default |
 | --- | --- | --- | --- |
 | **ROI classes** | The classes to train on | at least two | all |
+| **Hold Out** | Fraction of each class's ROIs held out for validation ([Hold-out validation](#hold-out-validation)) | 0–0.9 | 0 |
 | **Patch Size** | Width of the square neighborhood, in pixels (odd sizes only: the box steps 1, 3, 5, …, so the recorded size is the one used) | 1–15 | 5 |
 | **Channels** | Filters in each convolutional layer | 4–256 | 32 |
 | **Conv Layers** | Number of convolutional layers | 1–4 | 2 |
 | **Epochs** | Passes through the training patches | 1–2000 | 50 |
 | **Learning Rate** | Adam step size | 0.000001–0.1 | 0.001 |
 | **Batch Size** | Patches per training step | 4–4096 | 64 |
-| **Seed** | Seeds the starting weights and the shuffling | 0–2147483647 | 0 |
+| **Seed** | Seeds the starting weights, the shuffling and which ROIs are held out | 0–2147483647 | 0 |
 
 How it works:
 
@@ -125,8 +148,8 @@ How it works:
   and a linear layer gives the class scores, turned into probabilities by a
   softmax.
 - **Training.** Cross-entropy, Adam (PyTorch's defaults apart from the
-  learning rate), shuffled mini-batches. No regularization, early stopping
-  or validation split.
+  learning rate), shuffled mini-batches. No regularization or early
+  stopping; held-out ROIs only measure accuracy afterwards.
 - **Where it runs.** On an NVIDIA GPU (CUDA) if there is one, else an Apple
   GPU (MPS), else the CPU.
 - **Repeatability.** Before the network is built, **Seed** seeds PyTorch,
@@ -151,9 +174,10 @@ tokens are blocks of pixels.
 | Setting | Meaning | Range | Default |
 | --- | --- | --- | --- |
 | **ROI classes** | The classes to train on | at least two | all |
+| **Hold Out** | Fraction of each class's ROIs held out for validation ([Hold-out validation](#hold-out-validation)) | 0–0.9 | 0 |
 | **Patch Size** | As for the CNN | 1–15 | 5 |
 | **Embedding Size** | Length of each token's vector | 8–512 | 64 |
-| **Attention Heads** | Heads per attention layer; must divide the embedding size | 1–16 | 4 |
+| **Attention Heads** | Heads per attention layer; must divide the Embedding Size (the dialog says so and won't run otherwise) | 1–16 | 4 |
 | **Transformer Layers** | Number of encoder layers | 1–8 | 2 |
 | **Epochs**, **Learning Rate**, **Batch Size**, **Seed** | As for the CNN | | 50, 0.001, 64, 0 |
 
@@ -174,12 +198,14 @@ and each pixel goes to the class under which it is most likely.
 | Setting | Meaning | Range | Default |
 | --- | --- | --- | --- |
 | **ROI classes** | The classes to train on | at least two | all |
+| **Hold Out** | Fraction of each class's ROIs held out for validation ([Hold-out validation](#hold-out-validation)) | 0–0.9 | 0 |
 | **Components** | Principal components to classify on; 0 = automatic | 0–200 | 0 |
+| **Seed** | Picks which ROIs are held out (training itself has no randomness) | 0–2147483647 | 0 |
 
 **Dimensions.** A class's covariance can only be inverted when it has more
 pixels than dimensions, and a 400-band image needs hundreds of pixels per
 class. So Varda may classify on principal components instead of bands. With
-*b* good bands and *n* pixels in the smallest class, the number of dimensions
+*b* good bands and *n* training pixels in the smallest class, the number of dimensions
 *k* is:
 
 - **Components** set (*c* > 0): *k* = the smallest of *c*, *b* and *n* − 1.
@@ -188,7 +214,8 @@ class. So Varda may classify on principal components instead of bands. With
 
 When *k* < *b*, the principal components come from the covariance of every
 valid pixel of the image (not just the training pixels); the classes are
-then modeled on the first *k* components. Each class needs at least 3 valid
+then modeled on the first *k* components. (Held-out ROIs' pixels are part
+of that covariance, as every other pixel is; their classes never are.) Each class needs at least 3 valid
 pixels and more than *k*; otherwise Varda names it and stops. The progress
 dialog shows *k* ("training on *k* dimensions"); you can also work it out
 from the rule above.
@@ -249,6 +276,128 @@ result's description ("did not converge: N pixels changed cluster in the
 last of M iterations") and in the log; raise **Iterations** and run it
 again.
 
+## Measuring accuracy
+
+A class map's accuracy is measured on **reference** pixels whose true class
+you know and that the classifier did not train on. Varda offers two ways:
+
+- **Hold-out validation** (the **Hold Out** setting of every supervised
+  classifier): some of your training ROIs are set aside and the map is
+  checked against them. Quick, and needs no extra ROIs.
+- **Accuracy Assessment** (Processing → Classification): checks any class
+  map (from any classifier, K-Means once you have renamed its clusters,
+  a density slice, or a map cleaned with the class map tools) against
+  ROIs you drew as ground truth. Use it for independent test data.
+
+Both give the same report, described in [The report](#the-report).
+
+### Hold-out validation
+
+With **Hold Out** at *f* (0–0.9), each class with *n* ≥ 2 ROIs has
+round(*f* × *n*) of its ROIs held out: at least 1, and at most *n* − 1 so
+that the class still trains. Which ROIs is random, from the classifier's
+**Seed**: the same seed and ROIs hold out the same ones. A class with only
+one ROI can't be split: it trains on that ROI, isn't validated, and the
+report says so. The classifier trains on the remaining ROIs only, then the
+finished map is compared with the held-out ROIs' pixels.
+
+**Whole ROIs, not random pixels.** Neighboring pixels are alike (spatial
+autocorrelation), and an ROI's pixels are neighbors. Holding out random
+pixels would test the classifier on near-copies of its training pixels and
+make it look much more accurate than it is. Holding out whole ROIs is
+better, but ROIs of one class drawn close together are still alike, and the
+CNN and ViT see a patch around each pixel, which can reach into a nearby
+held-out ROI. For a stronger test, draw the ROIs of each class spread across
+the scene, or use Accuracy Assessment with test ROIs drawn in other areas.
+
+A pixel inside both a training ROI and a held-out ROI of the same class
+trains (it is left out of validation). Pixels inside ROIs of two different
+classes are left out of both.
+
+### Accuracy Assessment
+
+ENVI's "confusion matrix using ground truth ROIs". Pick the class map as the
+**Image**; the ROIs are those of the current workspace (the class map must
+be on the same grid as the image they were drawn on).
+
+| Setting | Meaning | Range | Default |
+| --- | --- | --- | --- |
+| **ROI classes** | The ROI classes to use as ground truth | at least one that matches | all |
+
+- **Matching by name.** Each ROI class is matched to the map class with the
+  same name, ignoring upper/lower case and spaces at either end ("basalt"
+  matches "Basalt"). ROI classes that match no map class are left out and
+  listed in the report's notes. Map classes with no ROI class have no
+  producer's accuracy, but pixels wrongly mapped *as* them still count as
+  errors.
+- **Reference pixels** are the pixels inside the matched ROI classes (a
+  pixel belongs to an ROI when its center is inside it). Pixels inside ROIs
+  of two or more matched classes are left out, as are reference pixels that
+  are unclassified (no data) in the map; the report counts both.
+- **Test ROIs.** For an honest measure, use ground-truth ROIs that did not
+  train the classifier, away from the training ROIs (see the spatial
+  caveat above). ROIs sharing a name are one class, so test ROIs named like
+  the map's classes can't sit beside the training ROIs in the same
+  workspace without training too. Keep them apart: open the class map in a
+  workspace of its own (it is on the same grid), draw the test ROIs there
+  (or make them from a mask with the ROI Manager's **From Threshold or
+  Mask…**), and run Accuracy Assessment from that workspace. Assessing a map
+  with its own training ROIs measures how well it fits them, not its
+  accuracy.
+
+**Result: an error map.** A class map named "*map* accuracy" with two
+classes, **Correct** (0, green) and **Incorrect** (1, red), over the
+reference pixels, and no data everywhere else. It shows *where* the errors
+are, and carries the report (metadata `accuracy`, also in the provenance
+record and in exported files), so you can reopen it with **Accuracy
+Report…**.
+
+### The report
+
+**Processing → Classification → Accuracy Report…** shows the report of an
+Accuracy Assessment result or of a classifier result made with **Hold Out**.
+It opens by itself when such a run finishes. **Save CSV…** saves it.
+
+The **confusion matrix** (error matrix) counts reference pixels: **rows are
+the map class, columns the reference class** (Congalton 1991), so
+*n*ᵢⱼ is the number of pixels of reference class *j* mapped as class *i*,
+and the diagonal holds the correct pixels. *N* is the total. From it:
+
+| Measure | Formula | Meaning |
+| --- | --- | --- |
+| **Overall accuracy** | Σ *n*ᵢᵢ / *N* | Share of reference pixels mapped correctly |
+| **95% interval** of overall accuracy | Wilson score interval, *z* = 1.96 (Wilson 1927) | Range for the accuracy if reference pixels were an independent random sample (see below) |
+| **Kappa** (Cohen 1960) | (*p*ₒ − *p*ₑ) / (1 − *p*ₑ), *p*ₒ = overall accuracy, *p*ₑ = Σ *n*ᵢ₊ *n*₊ᵢ / *N*² | Agreement beyond what the row and column totals would give by chance; 1 is perfect, 0 chance. Undefined ("—") when *p*ₑ = 1 |
+| **Producer's accuracy** of class *j* | *n*ⱼⱼ / *n*₊ⱼ (column total) | Of the reference pixels of *j*, the share mapped as *j* |
+| **Omission error** | 1 − producer's accuracy | Share of *j* the map missed |
+| **User's accuracy** of class *i* | *n*ᵢᵢ / *n*ᵢ₊ (row total) | Of the pixels mapped as *i*, the share that really are *i* |
+| **Commission error** | 1 − user's accuracy | Share of the *i* map that is something else |
+
+Producer's and user's accuracy also get 95% Wilson intervals. A measure with
+nothing to divide by (a class with no reference pixels, or none mapped as
+it) is shown as "—" (empty in the CSV, `null` in the metadata). Wilson's
+interval is used rather than the normal approximation (*p* ± 1.96 √(*p*(1 −
+*p*)/*N*)) because it stays inside 0–1 and behaves well near 100%
+accuracy and for small counts.
+
+**The CSV** has comment lines (starting with `#`) naming what was assessed:
+the Varda version and kind of report, the class map (name and file), its
+provenance (how it was made, in one line), each reference ROI class with
+its number of ROIs and pixels, and the notes. Then the matrix with its row
+and column totals, a table of per-class figures (reference, map and
+correct pixels, producer's and user's accuracy with their intervals,
+omission and commission error), and the summary (total and correct pixels,
+overall accuracy and its interval, the interval method, kappa). Numbers are
+fractions (0–1), to 6 significant digits.
+
+**What the interval doesn't cover.** The Wilson interval treats every
+reference pixel as an independent sample. Pixels of one ROI are not
+independent, so the interval is too narrow: 900 pixels in 3 ROIs carry far
+less information than 900 pixels scattered at random. The number of
+reference ROIs per class, which the report lists, is a better guide to how
+much evidence there is than the pixel count. Reference ROIs drawn where a
+class is easy to recognize also make the map look better than it is.
+
 ## Reporting your results
 
 What to state in a methods section, what the quality measures mean, and
@@ -259,10 +408,12 @@ for what applies to every process.
 
 - The classifier and every setting. The result's record has them (see
   [What Varda records](reporting-results.md#what-varda-records-and-what-it-doesnt)).
-- The training data: each class's name, its number of ROIs and of training
-  pixels, and how you chose them. Varda records which ROI classes you
-  ticked, but not the ROIs' shapes or pixel counts: save the session, or
+- The training data: each class's name, its number of training ROIs and
+  pixels, and how you chose them; and the number of ambiguous pixels left
+  out, if any. The result records the counts (`trainingData`, see
+  [Outputs](#outputs)) but not the ROIs' shapes: save the session, or
   export the ROIs from the ROI Manager (**Export...**), to keep them.
+- How accuracy was measured (see [Accuracy](#accuracy) below).
 - The bands used: the image's good bands (list the bad bands left out, from
   **Image Properties**), and any band subset, spatial subset or
   preprocessing of the input.
@@ -288,12 +439,11 @@ Settings the dialogs don't show:
 
 ### Uncertainty and quality
 
-- **Varda doesn't measure accuracy.** No classifier sets aside validation
-  data or reports accuracy or a confusion matrix. The final loss says how
-  well the network fits its *training* pixels, which says little about how
-  well it classifies the rest of the image: a network with enough epochs can
-  fit its training pixels almost perfectly. To measure accuracy, use
-  independent test data (below).
+- **Training loss is not accuracy.** The final loss says how well the
+  network fits its *training* pixels, which says little about how well it
+  classifies the rest of the image: a network with enough epochs can fit
+  its training pixels almost perfectly. Measure accuracy on pixels it
+  didn't train on (see [Accuracy](#accuracy)).
 - **Probabilities aren't calibrated.** For the MLP, CNN and ViT they are
   softmax outputs, which neural networks tend to make overconfident. For
   Maximum Likelihood and Mahalanobis Distance they hold only as far as the
@@ -317,37 +467,35 @@ Settings the dialogs don't show:
   didn't converge is still changing: report it as such or re-run with more
   iterations.
 
-**Measuring accuracy.**
+### Accuracy
 
-1. Draw test ROIs as classes of their own (for example "Basalt test"), away
-   from the training ROIs. Pixels next to each other are alike, and a CNN or
-   ViT patch reaches into its neighbors, so test ROIs that touch training
-   ROIs make the accuracy look better than it is.
-2. Train with only the training classes ticked in **ROI classes**.
-3. For each test class, make a mask with **ROI to Mask** (Processing → Image
-   Math), ticking that one class.
-4. Export the result and the masks (**File → Export Image…**, GeoTIFF) and,
-   for each test class, count its pixels by **Class** value. Each test class
-   gives one row of the confusion matrix. In Python:
+Measure it with **Hold Out** or **Accuracy Assessment** (see
+[Measuring accuracy](#measuring-accuracy)), save the report (**Accuracy
+Report… → Save CSV…**), and state:
 
-   ```python
-   import numpy as np, rasterio
-
-   classMap = rasterio.open("scene_MLP_classes.tif").read(1)  # the Class band
-   mask = rasterio.open("basalt_test_mask.tif").read(1) == 1
-   values = classMap[mask & np.isfinite(classMap)].astype(int)
-   print(np.bincount(values, minlength=4))  # 4 = number of classes
-   ```
-
-   (Or export the test ROIs from the ROI Manager and use your GIS's zonal
-   statistics.)
-5. Report the confusion matrix, the overall accuracy, each class's
-   producer's and user's accuracy, and the number of test ROIs and pixels
-   per class (Congalton 1991). Kappa (Cohen 1960) is often asked for; report
-   it alongside these, not instead. Pixels in one ROI aren't independent, so
-   a confidence interval computed from the pixel count is too narrow. If you
-   report areas of classes, correct them for the errors in the confusion
-   matrix (Olofsson et al. 2014).
+- **How the reference data were chosen:** held-out ROIs (the fraction and
+  seed, and that whole ROIs were held out, not pixels) or independent test
+  ROIs (how and where you drew them, and how far from the training ROIs).
+  Name any class that couldn't be validated (one ROI only).
+- **The number of reference ROIs and pixels per class.** Both are in the
+  report and the CSV header.
+- **The confusion matrix**, with its layout (rows map, columns reference).
+- **Overall accuracy with its 95% interval**, naming the method (Wilson
+  score interval), and **each class's producer's and user's accuracy**
+  (Congalton 1991). Kappa (Cohen 1960) is often asked for; report it
+  alongside these, not instead: it adds little to overall accuracy and
+  depends on the class proportions.
+- **The interval's limitation.** Pixels in one ROI aren't independent, so
+  the pixel-based interval is too narrow. Say so, or base your claim on the
+  number of ROIs. Hold-out accuracy from ROIs close to the training ROIs
+  is optimistic, all the more for the CNN and ViT, whose patches see
+  neighboring pixels.
+- **For several seeds** (MLP, CNN, ViT), the spread of the accuracy.
+- **Areas.** If you report areas of classes, correct them for the errors
+  in the confusion matrix, and use reference data sampled with known
+  probabilities (Olofsson et al. 2014). ROIs drawn by hand are not a
+  probability sample, so Varda's figures describe agreement on your
+  reference ROIs, not an unbiased estimate of the whole map's accuracy.
 
 ### References
 
@@ -356,6 +504,9 @@ Settings the dialogs don't show:
   Environment*, 37(1), 35–46.
 - Kappa: Cohen, J. (1960). A coefficient of agreement for nominal scales.
   *Educational and Psychological Measurement*, 20(1), 37–46.
+- Confidence intervals (Wilson score interval): Wilson, E. B. (1927).
+  Probable inference, the law of succession, and statistical inference.
+  *Journal of the American Statistical Association*, 22(158), 209–212.
 - Area estimation and accuracy: Olofsson, P., Foody, G. M., Herold, M.,
   Stehman, S. V., Woodcock, C. E., & Wulder, M. A. (2014). Good practices for
   estimating area and assessing accuracy of land change. *Remote Sensing of

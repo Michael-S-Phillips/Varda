@@ -16,12 +16,13 @@ import numpy as np
 from spectral.algorithms.algorithms import create_training_classes
 
 from varda.analysis import _spy
-from varda.analysis.analysis import Analysis, ProgressCallback
+from varda.analysis.analysis import Analysis, ProgressCallback, seedParameter
 from varda.analysis.classification import (
     _classificationRaster,
+    _holdOutParameter,
     _requireRois,
     _roiChoiceParameter,
-    _RoiTrainingAnalysis,
+    _SupervisedClassification,
 )
 from varda.analysis.linear_algebra import pca
 from varda.analysis.rasters import readGoodBands
@@ -34,6 +35,13 @@ logger = logging.getLogger(__name__)
 
 MIN_CLASS_PIXELS = 3
 MAX_AUTO_COMPONENTS = 30
+
+
+def _holdOutSeedParameter() -> IntParameter:
+    return seedParameter(
+        "Seeds which ROIs are held out (training itself has no randomness); "
+        "the same seed, settings and ROIs give the same result."
+    )
 
 
 def _componentsParameter() -> IntParameter:
@@ -64,7 +72,7 @@ def _softmax(scores: np.ndarray) -> np.ndarray:
     return weights / weights.sum(axis=1, keepdims=True)
 
 
-class _GaussianClassification(_RoiTrainingAnalysis):
+class _GaussianClassification(_SupervisedClassification):
     suffix = ""
     components: IntParameter  # declared here, assigned by each subclass
 
@@ -77,16 +85,16 @@ class _GaussianClassification(_RoiTrainingAnalysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         rois = _requireRois(self)
-        names = self._chosenClasses(rois)
-        if len(names) < 2:
+        if len(self._chosenClasses(rois)) < 2:
             raise ValueError("Training needs at least two ROI classes.")
         reportProgress(0, "reading image")
         cube, valid, _ = readGoodBands(image)
+        training = self._trainingData(rois, image, valid)
+        names = training.names
         labels = np.zeros(valid.shape, dtype=np.int64)  # 0 = not training
-        for k, name in enumerate(names, start=1):
-            labels[rois.classMask(name, image) & valid] = k
+        labels[training.rows, training.cols] = training.labels + 1
         sizes = {
-            name: int((labels == k).sum()) for k, name in enumerate(names, start=1)
+            name: int((training.labels == k).sum()) for k, name in enumerate(names)
         }
         tooSmall = [n for n, size in sizes.items() if size < MIN_CLASS_PIXELS]
         if tooSmall:
@@ -103,8 +111,8 @@ class _GaussianClassification(_RoiTrainingAnalysis):
             X = pca(X, k).scores
         reduced = np.zeros(valid.shape + (k,))
         reduced[valid] = X
-        training = create_training_classes(reduced, labels, calc_stats=True)
-        classifier = self._classifier(training, k + 1)
+        spyClasses = create_training_classes(reduced, labels, calc_stats=True)
+        classifier = self._classifier(spyClasses, k + 1)
         if len(classifier.classes) != len(names):
             raise ValueError("A training class was too small to use; draw larger ROIs.")
 
@@ -115,7 +123,7 @@ class _GaussianClassification(_RoiTrainingAnalysis):
             image,
             valid,
             probabilities,
-            names,
+            training,
             colors=self._classColors(rois, names),
             suffix=self.suffix,
             metadata={"components": k},
@@ -133,7 +141,9 @@ class MaximumLikelihoodAnalysis(_GaussianClassification):
         "most likely class."
     )
     rois = _roiChoiceParameter()
+    holdOut = _holdOutParameter()
     components = _componentsParameter()
+    seed = _holdOutSeedParameter()
 
     def _classifier(self, training, minSamples):
         return _spy.GaussianClassifier(training, min_samples=minSamples)
@@ -157,7 +167,9 @@ class MahalanobisAnalysis(_GaussianClassification):
         "whose mean is nearest, measured with the classes' pooled covariance."
     )
     rois = _roiChoiceParameter()
+    holdOut = _holdOutParameter()
     components = _componentsParameter()
+    seed = _holdOutSeedParameter()
 
     def _classifier(self, training, minSamples):
         return _spy.MahalanobisDistanceClassifier(training, min_samples=minSamples)
