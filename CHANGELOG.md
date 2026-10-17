@@ -39,6 +39,27 @@ can alter results.
 
 ### Fixed
 
+- **Random processes are reproducible.** The Pixel Purity Index (Processing
+  menu and Spectral Hourglass) and Train MLP, CNN and ViT on ROIs have a
+  **Seed** setting (default 0), recorded with the result: the same seed and
+  settings now give the same result. **Results change:** PPI counts and
+  CNN/ViT maps differ from earlier versions, and the PPI no longer gives
+  different counts on every run (earlier runs used an unrecorded random
+  seed and can't be repeated). The MLP gives the same result as before at
+  seed 0.
+- **PPI counts no longer depend on image size.** The random projections
+  depended on how many valid pixels the image had (through the batch size);
+  now the seed and the number of iterations alone fix them.
+- **Spectral Hourglass Run More** continues the same seeded run, so
+  10,000 iterations then 10,000 more equal one run of 20,000, and it is
+  turned off once the threshold, seed or number of MNF components changes
+  (it used to add counts made with different settings together). The PPI
+  image's description and the saved workflow record the seed and total
+  iterations.
+- **CNN and ViT training** seeds the network's starting weights (they
+  weren't seeded, so every run differed) and asks PyTorch for deterministic
+  algorithms. Results record the device (cpu, cuda or mps) and PyTorch
+  version; GPU results can still differ slightly from CPU ones.
 - **No Stretch** draws again (the view failed to draw). Values outside 0–1
   from any stretch now saturate at black or full brightness instead of
   wrapping around to the other end of the 8-bit range.

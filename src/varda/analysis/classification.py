@@ -14,7 +14,7 @@ from typing import ClassVar
 
 import numpy as np
 
-from varda.analysis.analysis import Analysis, ProgressCallback
+from varda.analysis.analysis import Analysis, ProgressCallback, seedParameter
 from varda.analysis.mlp import MlpClassifier
 from varda.analysis.rasters import readCube
 from varda.common.entities import Color, VardaRaster
@@ -132,6 +132,7 @@ def _classificationRaster(
     colors: list[str],
     suffix: str,
     metadata: dict,
+    detail: str = "",
 ) -> VardaRaster:
     bands = np.full(valid.shape + (1 + len(names),), np.nan, dtype=np.float32)
     bands[valid, 0] = np.argmax(probabilities, axis=1)
@@ -144,7 +145,10 @@ def _classificationRaster(
         bandNames=bandNames,
         transform=image.transform,
         crs=image.crs,
-        description=f"{suffix} of {image.name} trained on {len(names)} ROI classes",
+        description=(
+            f"{suffix} of {image.name} trained on {len(names)} ROI classes"
+            + (f" ({detail})" if detail else "")
+        ),
         extraMetadata={"classes": names, "classColors": colors, **metadata},
     )
     return VardaRaster(source, name=f"{image.name} {suffix}")
@@ -172,6 +176,10 @@ class MlpClassificationAnalysis(_RoiTrainingAnalysis):
         decimals=5,
         showSlider=False,
     )
+    seed = seedParameter(
+        "Seeds the starting weights and the mini-batch order; the same seed, "
+        "settings and ROIs give the same result."
+    )
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         rois = _requireRois(self)
@@ -187,6 +195,7 @@ class MlpClassificationAnalysis(_RoiTrainingAnalysis):
         model = MlpClassifier(
             hiddenLayers=int(self.hiddenLayers.value),
             neuronsPerLayer=int(self.neuronsPerLayer.value),
+            seed=int(self.seed.value),
         )
         epochs = int(self.epochs.value)
         losses = model.fit(
@@ -214,7 +223,12 @@ class MlpClassificationAnalysis(_RoiTrainingAnalysis):
             names,
             suffix="MLP classes",
             colors=self._classColors(rois, names),
-            metadata={"layerSizes": model.layerSizes, "finalLoss": losses[-1]},
+            metadata={
+                "layerSizes": model.layerSizes,
+                "finalLoss": losses[-1],
+                "seed": int(self.seed.value),
+            },
+            detail=f"seed {int(self.seed.value)}",
         )
 
 
@@ -246,6 +260,13 @@ def _batchSizeParameter() -> IntParameter:
     return IntParameter("Batch Size", 64, range=(4, 4096))
 
 
+def _torchSeedParameter() -> IntParameter:
+    return seedParameter(
+        "Seeds the starting weights and the mini-batch order; the same seed, "
+        "settings, ROIs, device and PyTorch version give the same result."
+    )
+
+
 class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
     """Shared plumbing for the PyTorch classifiers: patches around ROI pixels
     as training data, chunked whole-image prediction."""
@@ -260,6 +281,7 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
     epochs: IntParameter
     learningRate: FloatParameter
     batchSize: IntParameter
+    seed: IntParameter
 
     @classmethod
     def isAvailable(cls) -> bool:
@@ -281,6 +303,7 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
             "epochs": int(self.epochs.value),
             "learningRate": float(self.learningRate.value),
             "batchSize": int(self.batchSize.value),
+            "seed": int(self.seed.value),
             "modelParams": self._modelParams(),
         }
 
@@ -300,7 +323,7 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
 
         if runtime is None:
             assert torch_job is not None
-            probabilities, finalLoss = torch_job.trainAndClassify(
+            probabilities, info = torch_job.trainAndClassify(
                 cube, valid, rows, cols, y, len(names), spec, onProgress
             )
         else:
@@ -308,7 +331,8 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
                 cube, valid, rows, cols, y,
                 classes=len(names), spec=spec, progress=onProgress,
             )  # fmt: skip
-            finalLoss = info["finalLoss"]
+        device = info.get("device", "unknown device")
+        torchVersion = info.get("torch", "unknown")
 
         return _classificationRaster(
             image,
@@ -317,7 +341,14 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
             names,
             suffix=self.suffix,
             colors=self._classColors(rois, names),
-            metadata={"patchSize": spec["patchSize"], "finalLoss": finalLoss},
+            metadata={
+                "patchSize": spec["patchSize"],
+                "finalLoss": info["finalLoss"],
+                "seed": spec["seed"],
+                "device": device,
+                "torchVersion": torchVersion,
+            },
+            detail=f"seed {spec['seed']}, PyTorch {torchVersion} on {device}",
         )
 
 
@@ -338,6 +369,7 @@ class CnnClassificationAnalysis(_PatchClassificationAnalysis):
     epochs = _epochsParameter()
     learningRate = _learningRateParameter()
     batchSize = _batchSizeParameter()
+    seed = _torchSeedParameter()
 
     modelKey = "cnn"
 
@@ -366,6 +398,7 @@ class VitClassificationAnalysis(_PatchClassificationAnalysis):
     epochs = _epochsParameter()
     learningRate = _learningRateParameter()
     batchSize = _batchSizeParameter()
+    seed = _torchSeedParameter()
 
     modelKey = "vit"
 
