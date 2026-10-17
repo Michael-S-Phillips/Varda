@@ -3,12 +3,12 @@
 One class per ROI class: ROIs sharing a name train the same class. Every
 classifier produces the same result image: a Class band (0-based class index)
 plus one probability band per class, with the class names and colors in the
-metadata.
+metadata, the training pixel and ROI counts ("trainingData") and, when ROIs
+were held out, the hold-out accuracy ("validation").
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from types import ModuleType
 from typing import ClassVar
 
@@ -17,6 +17,7 @@ import numpy as np
 from varda.analysis.analysis import Analysis, ProgressCallback, seedParameter
 from varda.analysis.mlp import MlpClassifier
 from varda.analysis.rasters import readGoodBands
+from varda.analysis.training_data import TrainingData, collectTrainingData
 from varda.common.entities import Color, VardaRaster
 from varda.common.parameter import FloatParameter, IntParameter, MultiChoiceParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
@@ -48,25 +49,6 @@ def _hexColor(color: Color | None) -> str:
     return color.toQColor().name() if color is not None else "#808080"
 
 
-def _trainingSet(
-    rois: ROICollection, image: VardaRaster, valid: np.ndarray, classes: Sequence[str]
-) -> tuple[list[str], np.ndarray, np.ndarray, np.ndarray]:
-    """Class names and the (rows, cols, labels) of valid pixels inside each of
-    the chosen classes' ROIs."""
-    if len(classes) < 2:
-        raise ValueError("Training needs at least two ROI classes.")
-    rows, cols, labels = [], [], []
-    for label, name in enumerate(classes):
-        r, c = np.nonzero(rois.classMask(name, image) & valid)
-        rows.append(r)
-        cols.append(c)
-        labels.append(np.full(r.size, label))
-    y = np.concatenate(labels)
-    if len(np.unique(y)) < 2:
-        raise ValueError("At least two ROI classes must contain valid pixels.")
-    return list(classes), np.concatenate(rows), np.concatenate(cols), y
-
-
 def _requireRois(analysis: Analysis) -> ROICollection:
     rois = analysis.context.rois
     if rois is None:
@@ -77,16 +59,15 @@ def _requireRois(analysis: Analysis) -> ROICollection:
     return rois
 
 
-def _roiChoiceParameter() -> MultiChoiceParameter:
+def _roiChoiceParameter(
+    description: str = (
+        "Which of the workspace's ROI classes to train on (ROIs sharing a "
+        "name are one class); all of them by default."
+    ),
+) -> MultiChoiceParameter:
     # Each analysis declares its own copy: ParameterGroup only picks up
     # Parameters defined directly on the class.
-    return MultiChoiceParameter(
-        "ROI classes",
-        description=(
-            "Which of the workspace's ROI classes to train on (ROIs sharing a "
-            "name are one class); all of them by default."
-        ),
-    )
+    return MultiChoiceParameter("ROI classes", description=description)
 
 
 class _RoiTrainingAnalysis(Analysis):
@@ -123,20 +104,73 @@ class _RoiTrainingAnalysis(Analysis):
         return [_hexColor(collection.classColor(name)) for name in names]
 
 
+def _holdOutParameter() -> FloatParameter:
+    return FloatParameter(
+        "Hold Out",
+        0.0,
+        range=(0.0, 0.9),
+        description=(
+            "Fraction of each class's ROIs (whole ROIs, picked with the Seed) "
+            "set aside to measure accuracy instead of training; 0 = none. A "
+            "class with one ROI is always used for training."
+        ),
+        step=0.05,
+        decimals=2,
+    )
+
+
+class _SupervisedClassification(_RoiTrainingAnalysis):
+    """A classifier trained on ROI classes that can hold some ROIs out to
+    measure its accuracy on."""
+
+    # declared here, assigned by each subclass
+    holdOut: FloatParameter
+    seed: IntParameter
+
+    def _trainingData(
+        self, rois: ROICollection, image: VardaRaster, valid: np.ndarray
+    ) -> TrainingData:
+        return collectTrainingData(
+            rois,
+            image,
+            valid,
+            self._chosenClasses(rois),
+            holdOut=float(self.holdOut.value),
+            seed=int(self.seed.value),
+        )
+
+
 def _classificationRaster(
     image: VardaRaster,
     valid: np.ndarray,
     probabilities: np.ndarray,
-    names: list[str],
+    training: TrainingData,
     *,
     colors: list[str],
     suffix: str,
     metadata: dict,
     detail: str = "",
 ) -> VardaRaster:
+    """The result: Class and P(class) bands; the training data's record and,
+    when ROIs were held out, the hold-out accuracy in the metadata."""
+    names = training.names
     bands = np.full(valid.shape + (1 + len(names),), np.nan, dtype=np.float32)
-    bands[valid, 0] = np.argmax(probabilities, axis=1)
+    classes = np.argmax(probabilities, axis=1)
+    bands[valid, 0] = classes
     bands[valid, 1:] = probabilities
+    metadata = {**metadata, "trainingData": training.record}
+    details = [detail] if detail else []
+    if training.hasValidation:
+        classMap = np.full(valid.shape, -1, dtype=np.int64)
+        classMap[valid] = classes
+        validation = training.validationRecord(classMap)
+        metadata["validation"] = validation
+        report = validation["report"]
+        low, high = report["overallInterval"]
+        details.append(
+            f"hold-out accuracy {100 * report['overallAccuracy']:.1f}% "
+            f"(95% CI {100 * low:.1f}–{100 * high:.1f}%)"
+        )
     bandNames = ["Class", *[f"P({name})" for name in names]]
     source = ArrayDataSource(
         bands,
@@ -147,14 +181,14 @@ def _classificationRaster(
         crs=image.crs,
         description=(
             f"{suffix} of {image.name} trained on {len(names)} ROI classes"
-            + (f" ({detail})" if detail else "")
+            + (f" ({', '.join(details)})" if details else "")
         ),
         extraMetadata={"classes": names, "classColors": colors, **metadata},
     )
     return VardaRaster(source, name=f"{image.name} {suffix}")
 
 
-class MlpClassificationAnalysis(_RoiTrainingAnalysis):
+class MlpClassificationAnalysis(_SupervisedClassification):
     analysisId = "mlp_classification"
     name = "Train MLP on ROIs"
     description = (
@@ -165,6 +199,7 @@ class MlpClassificationAnalysis(_RoiTrainingAnalysis):
     )
 
     rois = _roiChoiceParameter()
+    holdOut = _holdOutParameter()
     hiddenLayers = IntParameter("Hidden Layers", 2, range=(1, 6))
     neuronsPerLayer = IntParameter("Neurons Per Layer", 32, range=(2, 512))
     epochs = IntParameter("Epochs", 200, range=(1, 5000))
@@ -177,8 +212,8 @@ class MlpClassificationAnalysis(_RoiTrainingAnalysis):
         showSlider=False,
     )
     seed = seedParameter(
-        "Seeds the starting weights and the mini-batch order; the same seed, "
-        "settings and ROIs give the same result."
+        "Seeds the starting weights, the mini-batch order and which ROIs are "
+        "held out; the same seed, settings and ROIs give the same result."
     )
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
@@ -187,10 +222,9 @@ class MlpClassificationAnalysis(_RoiTrainingAnalysis):
         cube, valid, _ = readGoodBands(image)
 
         reportProgress(5, "collecting training spectra")
-        names, rows, cols, y = _trainingSet(
-            rois, image, valid, self._chosenClasses(rois)
-        )
-        X = cube[rows, cols]
+        training = self._trainingData(rois, image, valid)
+        names = training.names
+        X = cube[training.rows, training.cols]
 
         model = MlpClassifier(
             hiddenLayers=int(self.hiddenLayers.value),
@@ -200,7 +234,7 @@ class MlpClassificationAnalysis(_RoiTrainingAnalysis):
         epochs = int(self.epochs.value)
         losses = model.fit(
             X,
-            y,
+            training.labels,
             epochs=epochs,
             learningRate=float(self.learningRate.value),
             onEpoch=lambda epoch, loss: reportProgress(
@@ -220,7 +254,7 @@ class MlpClassificationAnalysis(_RoiTrainingAnalysis):
             image,
             valid,
             probabilities,
-            names,
+            training,
             suffix="MLP classes",
             colors=self._classColors(rois, names),
             metadata={
@@ -237,7 +271,8 @@ def _patchSizeParameter() -> IntParameter:
         "Patch Size",
         5,
         range=(1, 15),
-        description="Square neighborhood in pixels (odd)",
+        description="Square neighborhood in pixels (odd sizes only)",
+        step=2,
     )
 
 
@@ -262,12 +297,13 @@ def _batchSizeParameter() -> IntParameter:
 
 def _torchSeedParameter() -> IntParameter:
     return seedParameter(
-        "Seeds the starting weights and the mini-batch order; the same seed, "
-        "settings, ROIs, device and PyTorch version give the same result."
+        "Seeds the starting weights, the mini-batch order and which ROIs are "
+        "held out; the same seed, settings, ROIs, device and PyTorch version "
+        "give the same result."
     )
 
 
-class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
+class _PatchClassificationAnalysis(_SupervisedClassification):
     """Shared plumbing for the PyTorch classifiers: patches around ROI pixels
     as training data, chunked whole-image prediction."""
 
@@ -311,7 +347,7 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
             )
         spec = {
             "model": self.modelKey,
-            "patchSize": int(self.patchSize.value) | 1,  # odd
+            "patchSize": int(self.patchSize.value),  # odd (step 2)
             "epochs": int(self.epochs.value),
             "learningRate": float(self.learningRate.value),
             "batchSize": int(self.batchSize.value),
@@ -326,8 +362,12 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
         cube[~valid] = cube[valid].mean(axis=0)
 
         reportProgress(5, "collecting training patches")
-        names, rows, cols, y = _trainingSet(
-            rois, image, valid, self._chosenClasses(rois)
+        training = self._trainingData(rois, image, valid)
+        names, rows, cols, y = (
+            training.names,
+            training.rows,
+            training.cols,
+            training.labels,
         )
 
         def onProgress(fraction: float, message: str) -> None:
@@ -350,7 +390,7 @@ class _PatchClassificationAnalysis(_RoiTrainingAnalysis):
             image,
             valid,
             probabilities,
-            names,
+            training,
             suffix=self.suffix,
             colors=self._classColors(rois, names),
             metadata={
@@ -375,6 +415,7 @@ class CnnClassificationAnalysis(_PatchClassificationAnalysis):
     suffix = "CNN classes"
 
     rois = _roiChoiceParameter()
+    holdOut = _holdOutParameter()
     patchSize = _patchSizeParameter()
     channels = IntParameter("Channels", 32, range=(4, 256))
     convLayers = IntParameter("Conv Layers", 2, range=(1, 4))
@@ -403,6 +444,7 @@ class VitClassificationAnalysis(_PatchClassificationAnalysis):
     suffix = "ViT classes"
 
     rois = _roiChoiceParameter()
+    holdOut = _holdOutParameter()
     patchSize = _patchSizeParameter()
     embedDim = IntParameter("Embedding Size", 64, range=(8, 512))
     heads = IntParameter("Attention Heads", 4, range=(1, 16))
@@ -413,6 +455,23 @@ class VitClassificationAnalysis(_PatchClassificationAnalysis):
     seed = _torchSeedParameter()
 
     modelKey = "vit"
+
+    def unavailableReason(self, image: VardaRaster) -> str:
+        return self._headsProblem() or super().unavailableReason(image)
+
+    def _headsProblem(self) -> str:
+        embed, heads = int(self.embedDim.value), int(self.heads.value)
+        if embed % heads:
+            return (
+                f"Embedding Size ({embed}) must be a multiple of Attention Heads "
+                f"({heads}): each head gets an equal share of the embedding."
+            )
+        return ""
+
+    def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
+        if problem := self._headsProblem():
+            raise ValueError(problem)
+        return super().run(image, reportProgress)
 
     def _modelParams(self) -> dict[str, int]:
         return {

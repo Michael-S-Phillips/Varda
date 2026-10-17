@@ -10,16 +10,19 @@ by name instead of vanishing.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from spectral.algorithms.algorithms import create_training_classes
 
 from varda.analysis import _spy
-from varda.analysis.analysis import Analysis, ProgressCallback
+from varda.analysis.analysis import Analysis, ProgressCallback, seedParameter
 from varda.analysis.classification import (
     _classificationRaster,
+    _holdOutParameter,
     _requireRois,
     _roiChoiceParameter,
-    _RoiTrainingAnalysis,
+    _SupervisedClassification,
 )
 from varda.analysis.linear_algebra import pca
 from varda.analysis.rasters import readGoodBands
@@ -28,8 +31,17 @@ from varda.common.palette import classColor
 from varda.common.parameter import IntParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
+logger = logging.getLogger(__name__)
+
 MIN_CLASS_PIXELS = 3
 MAX_AUTO_COMPONENTS = 30
+
+
+def _holdOutSeedParameter() -> IntParameter:
+    return seedParameter(
+        "Seeds which ROIs are held out (training itself has no randomness); "
+        "the same seed, settings and ROIs give the same result."
+    )
 
 
 def _componentsParameter() -> IntParameter:
@@ -60,7 +72,7 @@ def _softmax(scores: np.ndarray) -> np.ndarray:
     return weights / weights.sum(axis=1, keepdims=True)
 
 
-class _GaussianClassification(_RoiTrainingAnalysis):
+class _GaussianClassification(_SupervisedClassification):
     suffix = ""
     components: IntParameter  # declared here, assigned by each subclass
 
@@ -73,16 +85,16 @@ class _GaussianClassification(_RoiTrainingAnalysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         rois = _requireRois(self)
-        names = self._chosenClasses(rois)
-        if len(names) < 2:
+        if len(self._chosenClasses(rois)) < 2:
             raise ValueError("Training needs at least two ROI classes.")
         reportProgress(0, "reading image")
         cube, valid, _ = readGoodBands(image)
+        training = self._trainingData(rois, image, valid)
+        names = training.names
         labels = np.zeros(valid.shape, dtype=np.int64)  # 0 = not training
-        for k, name in enumerate(names, start=1):
-            labels[rois.classMask(name, image) & valid] = k
+        labels[training.rows, training.cols] = training.labels + 1
         sizes = {
-            name: int((labels == k).sum()) for k, name in enumerate(names, start=1)
+            name: int((training.labels == k).sum()) for k, name in enumerate(names)
         }
         tooSmall = [n for n, size in sizes.items() if size < MIN_CLASS_PIXELS]
         if tooSmall:
@@ -99,8 +111,8 @@ class _GaussianClassification(_RoiTrainingAnalysis):
             X = pca(X, k).scores
         reduced = np.zeros(valid.shape + (k,))
         reduced[valid] = X
-        training = create_training_classes(reduced, labels, calc_stats=True)
-        classifier = self._classifier(training, k + 1)
+        spyClasses = create_training_classes(reduced, labels, calc_stats=True)
+        classifier = self._classifier(spyClasses, k + 1)
         if len(classifier.classes) != len(names):
             raise ValueError("A training class was too small to use; draw larger ROIs.")
 
@@ -111,7 +123,7 @@ class _GaussianClassification(_RoiTrainingAnalysis):
             image,
             valid,
             probabilities,
-            names,
+            training,
             colors=self._classColors(rois, names),
             suffix=self.suffix,
             metadata={"components": k},
@@ -129,7 +141,9 @@ class MaximumLikelihoodAnalysis(_GaussianClassification):
         "most likely class."
     )
     rois = _roiChoiceParameter()
+    holdOut = _holdOutParameter()
     components = _componentsParameter()
+    seed = _holdOutSeedParameter()
 
     def _classifier(self, training, minSamples):
         return _spy.GaussianClassifier(training, min_samples=minSamples)
@@ -153,7 +167,9 @@ class MahalanobisAnalysis(_GaussianClassification):
         "whose mean is nearest, measured with the classes' pooled covariance."
     )
     rois = _roiChoiceParameter()
+    holdOut = _holdOutParameter()
     components = _componentsParameter()
+    seed = _holdOutSeedParameter()
 
     def _classifier(self, training, minSamples):
         return _spy.MahalanobisDistanceClassifier(training, min_samples=minSamples)
@@ -186,16 +202,23 @@ class KMeansAnalysis(Analysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
-        cube, valid, _ = readGoodBands(image)
+        cube, valid, bands = readGoodBands(image)
         reportProgress(20, "clustering")
-        labels, _centres = _spy.kmeans(
-            cube[valid], int(self.clusters.value), int(self.iterations.value)
-        )
-        found = np.unique(labels)
-        renumbered = np.searchsorted(found, labels)  # 0..n-1 for the clusters found
+        X = cube[valid]
+        maxIterations = int(self.iterations.value)
+        fit = _spy.kmeans(X, int(self.clusters.value), maxIterations)
+        found = np.unique(fit.labels)
+        renumbered = np.searchsorted(found, fit.labels)  # 0..n-1 for those found
         classes = np.full(valid.shape, np.nan, dtype=np.float32)
         classes[valid] = renumbered
         names = [f"Cluster {i + 1}" for i in range(found.size)]
+        description = f"K-means ({found.size} clusters) of {image.name}"
+        if not fit.converged:
+            description += (
+                f"; did not converge: {fit.changed:,} pixels changed cluster in "
+                f"the last of {fit.iterations} iterations"
+            )
+            logger.warning("%s: %s", self.name, description)
         source = ArrayDataSource(
             classes[:, :, None],
             wavelengths=np.array(["Class"]),
@@ -203,10 +226,32 @@ class KMeansAnalysis(Analysis):
             bandNames=["Class"],
             transform=image.transform,
             crs=image.crs,
-            description=f"K-means ({found.size} clusters) of {image.name}",
+            description=description,
             extraMetadata={
                 "classes": names,
                 "classColors": [classColor(i) for i in range(found.size)],
+                "kmeans": {
+                    "iterations": fit.iterations,
+                    "maxIterations": maxIterations,
+                    "converged": fit.converged,
+                    "pixelsChangedLastIteration": fit.changed,
+                    **clusterStatistics(X, renumbered, found.size),
+                    "bands": [int(b) + 1 for b in bands],
+                },
             },
         )
         return VardaRaster(source, name=f"{image.name} k-means")
+
+
+def clusterStatistics(X: np.ndarray, labels: np.ndarray, count: int) -> dict:
+    """Per cluster (labels 0..count-1 of the rows of ``X``): its pixel
+    count, its center (the mean of its pixels, per band) and its RMS
+    Euclidean distance from that center, in the data's units."""
+    centers, counts, spread = [], [], []
+    for k in range(count):
+        members = X[labels == k]
+        center = members.mean(axis=0)
+        centers.append(center.tolist())
+        counts.append(int(members.shape[0]))
+        spread.append(float(np.sqrt(np.mean(np.sum((members - center) ** 2, axis=1)))))
+    return {"pixelCounts": counts, "centers": centers, "rmsDistance": spread}

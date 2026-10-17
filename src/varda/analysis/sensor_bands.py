@@ -325,7 +325,10 @@ class SensorBandsAnalysis(Analysis):
             )
         bands = [sensor.bands[k] for k in kept]
         skipped = [b.name for b, c in zip(sensor.bands, coverage) if c < MIN_COVERAGE]
-        notes = [sensor.note] + (
+        covered = ", ".join(
+            f"{b.name} {100 * coverage[k]:.0f}%" for b, k in zip(bands, kept)
+        )
+        notes = [sensor.note, f"coverage {covered}"] + (
             [f"not covered: {', '.join(skipped)}"] if skipped else []
         )
         source = ArrayDataSource(
@@ -335,7 +338,18 @@ class SensorBandsAnalysis(Analysis):
             bandNames=[b.name for b in bands],
             transform=image.transform,
             crs=image.crs,
-            extraMetadata={"fwhm": [round(b.width, 2) for b in bands]},
+            extraMetadata={
+                "fwhm": [round(b.width, 2) for b in bands],
+                # share of each band's response the cube's good bands cover
+                "sensorBands": {
+                    "sensor": sensor.name,
+                    "coverage": {
+                        b.name: float(c) for b, c in zip(sensor.bands, coverage)
+                    },
+                    "minCoverage": MIN_COVERAGE,
+                    "skipped": skipped,
+                },
+            },
             description=f"{image.name} in {sensor.name} bands ({'; '.join(notes)})",
         )
         return VardaRaster(source, name=f"{image.name} as {sensor.name}")

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 
+import attrs
 import numpy as np
 import spectral
 from spectral.algorithms.algorithms import GaussianStats, calc_stats
@@ -31,6 +32,7 @@ __all__ = [
     "RX",
     "GaussianClassifier",
     "GaussianStats",
+    "KMeansResult",
     "MahalanobisDistanceClassifier",
     "MatchedFilter",
     "backgroundStats",
@@ -64,13 +66,35 @@ def backgroundStats(
     return calc_stats(np.ascontiguousarray(X[:, None, :]))
 
 
-def kmeans(
-    X: np.ndarray, clusters: int, iterations: int
-) -> tuple[np.ndarray, np.ndarray]:
-    """(labels per pixel, cluster centers) for (pixels, bands) ``X``."""
+@attrs.frozen
+class KMeansResult:
+    labels: np.ndarray  # cluster per pixel (SPy's numbering)
+    centers: np.ndarray  # (clusters, bands) SPy's last centers
+    iterations: int  # iterations run
+    converged: bool  # True when the last iteration reassigned no pixel
+    changed: int  # pixels reassigned in the last iteration
+
+
+def kmeans(X: np.ndarray, clusters: int, iterations: int) -> KMeansResult:
+    """k-means of (pixels, bands) ``X`` by SPy, with how it ended."""
+    changes: list[int] = []
+
+    def compare(old: np.ndarray, new: np.ndarray) -> bool:
+        # SPy calls this once per iteration; True stops it, as SPy itself
+        # stops when no pixel is reassigned
+        changes.append(int(np.count_nonzero(old != new)))
+        return changes[-1] == 0
+
     labels, centers = kmeans_ndarray(
         np.ascontiguousarray(X[:, None, :]),
         nclusters=clusters,
         max_iterations=iterations,
+        compare=compare,
     )
-    return np.asarray(labels).ravel(), np.asarray(centers)
+    return KMeansResult(
+        labels=np.asarray(labels).ravel(),
+        centers=np.asarray(centers),
+        iterations=len(changes),
+        converged=bool(changes) and changes[-1] == 0,
+        changed=changes[-1] if changes else 0,
+    )

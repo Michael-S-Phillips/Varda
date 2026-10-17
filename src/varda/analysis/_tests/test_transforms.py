@@ -77,6 +77,24 @@ def test_ica_image_is_named():
     assert result.bandCount == 3
 
 
+def test_ica_records_convergence_and_warns_when_it_stops_short(caplog):
+    """Gaussian sources have no independent directions to find: FastICA runs
+    to the iteration cap, and the result says so."""
+    analysis = IcaAnalysis()
+    analysis.components.set(3)
+    analysis.maxIterations.set(10)
+
+    with caplog.at_level("WARNING"):
+        result = analysis.run(_image(), lambda p, m: None)
+
+    info = result.extraMetadata[TRANSFORM_METADATA_KEY]
+    assert info["iterations"] == 10 and info["maxIterations"] == 10
+    assert info["converged"] is False
+    assert info["tolerance"] == pytest.approx(1e-5)
+    assert "did not converge" in result.dataSource.description
+    assert "did not converge" in caplog.text
+
+
 def test_components_are_capped_at_the_band_count():
     image = _image(bands=4)
     analysis = PcaAnalysis()

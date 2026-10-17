@@ -10,10 +10,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from enum import Enum
 
+import attrs
 import numpy as np
 
 _CHUNK = 16_384
 _ADMM_ITERATIONS = 2000
+# ADMM stops for a pixel once no abundance moves, and the split's two copies
+# differ, by more than this between iterations
+ADMM_TOLERANCE = 1e-6
 # Up to this many endmembers the fully constrained solution is found exactly
 # by trying every support set (2^m - 1 small solves, vectorized over pixels)
 _EXACT_MAX_ENDMEMBERS = 10
@@ -23,6 +27,41 @@ class Constraint(Enum):
     NONE = "Unconstrained"
     SUM_TO_ONE = "Sum to one"
     FULLY_CONSTRAINED = "Sum to one, non-negative (FCLS)"
+
+
+@attrs.define
+class UnmixingReport:
+    """How the abundances were solved, for a result's record: ``solver`` is
+    "least squares", "sum-to-one", "exact" (every support set, up to
+    ten endmembers) or "ADMM" (iterative, beyond that). For ADMM, the most
+    ``iterations`` any chunk of pixels ran (of ``maxIterations``) and how
+    many ``pixels`` met the tolerance; the others are exact."""
+
+    solver: str = ""
+    pixels: int = 0
+    pixelsConverged: int = 0
+    iterations: int = 0
+    maxIterations: int = 0
+    tolerance: float = 0.0
+
+    @property
+    def fractionConverged(self) -> float:
+        return self.pixelsConverged / self.pixels if self.pixels else 1.0
+
+    def asMetadata(self) -> dict:
+        record = {
+            "solver": self.solver,
+            "pixels": self.pixels,
+            "pixelsConverged": self.pixelsConverged,
+            "fractionConverged": self.fractionConverged,
+        }
+        if self.solver == "ADMM":
+            record |= {
+                "iterations": self.iterations,
+                "maxIterations": self.maxIterations,
+                "tolerance": self.tolerance,
+            }
+        return record
 
 
 def _finiteRows(X: np.ndarray) -> np.ndarray:
@@ -52,13 +91,16 @@ def linearUnmix(
     endmembers: np.ndarray,
     constraint: Constraint,
     progress: Callable[[int, str], None] | None = None,
+    *,
+    report: UnmixingReport | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Abundances (pixels, endmembers) such that ``X ≈ abundances @ endmembers``,
     and each pixel's RMS residual.
 
     NONE is ordinary least squares; SUM_TO_ONE adds the equality constraint
-    exactly; FULLY_CONSTRAINED also keeps abundances non-negative (FCLS,
-    solved for all pixels at once by ADMM).
+    exactly; FULLY_CONSTRAINED also keeps abundances non-negative (FCLS:
+    exact up to ten endmembers, by ADMM beyond). ``report``, when given, is
+    filled in with how the solve went.
     """
     data = np.asarray(X, dtype=np.float64)
     E = np.asarray(endmembers, dtype=np.float64)
@@ -66,15 +108,30 @@ def linearUnmix(
     abundances = np.full((data.shape[0], m), np.nan)
     rmse = np.full(data.shape[0], np.nan)
     good = np.flatnonzero(_finiteRows(data))
-    solve = {
-        Constraint.NONE: _leastSquares,
-        Constraint.SUM_TO_ONE: _sumToOne,
-        Constraint.FULLY_CONSTRAINED: _fullyConstrained,
+    report = UnmixingReport() if report is None else report
+    iterative = constraint is Constraint.FULLY_CONSTRAINED and m > _EXACT_MAX_ENDMEMBERS
+    report.solver = {
+        Constraint.NONE: "least squares",
+        Constraint.SUM_TO_ONE: "sum-to-one",
+        Constraint.FULLY_CONSTRAINED: "ADMM" if iterative else "exact",
     }[constraint]
+    report.pixels, report.pixelsConverged = int(good.size), 0
+    if iterative:
+        report.maxIterations, report.tolerance = _ADMM_ITERATIONS, ADMM_TOLERANCE
     for start in range(0, good.size, _CHUNK):
         rows = good[start : start + _CHUNK]
         block = data[rows]
-        a = solve(block, E)
+        if iterative:
+            a, iterations, converged = _fullyConstrainedAdmm(block, E)
+            report.iterations = max(report.iterations, iterations)
+            report.pixelsConverged += int(converged.sum())
+        else:
+            a = {
+                Constraint.NONE: _leastSquares,
+                Constraint.SUM_TO_ONE: _sumToOne,
+                Constraint.FULLY_CONSTRAINED: _fullyConstrainedExact,
+            }[constraint](block, E)
+            report.pixelsConverged += rows.size
         abundances[rows] = a
         residual = block - a @ E
         rmse[rows] = np.sqrt(np.mean(residual**2, axis=1))
@@ -95,12 +152,6 @@ def _sumToOne(X: np.ndarray, E: np.ndarray) -> np.ndarray:
     a = X @ E.T @ gramInv
     correction = (1.0 - a.sum(axis=1)) / (ones @ gramInv @ ones)
     return a + correction[:, None] * (gramInv @ ones)[None, :]
-
-
-def _fullyConstrained(X: np.ndarray, E: np.ndarray) -> np.ndarray:
-    if E.shape[0] <= _EXACT_MAX_ENDMEMBERS:
-        return _fullyConstrainedExact(X, E)
-    return _fullyConstrainedAdmm(X, E)
 
 
 def _fullyConstrainedExact(X: np.ndarray, E: np.ndarray) -> np.ndarray:
@@ -132,10 +183,13 @@ def _fullyConstrainedExact(X: np.ndarray, E: np.ndarray) -> np.ndarray:
     return out
 
 
-def _fullyConstrainedAdmm(X: np.ndarray, E: np.ndarray) -> np.ndarray:
+def _fullyConstrainedAdmm(
+    X: np.ndarray, E: np.ndarray
+) -> tuple[np.ndarray, int, np.ndarray]:
     """Least squares over the probability simplex (non-negative, summing to
     one), by ADMM vectorized across pixels: minimize ½‖Eᵀa - x‖² subject to
-    a = z with z on the simplex (exact Euclidean projection)."""
+    a = z with z on the simplex (exact Euclidean projection). Returns the
+    abundances, the iterations run and which pixels met the tolerance."""
     m = E.shape[0]
     gram = E @ E.T
     eigenvalues = np.linalg.eigvalsh(gram)
@@ -146,15 +200,17 @@ def _fullyConstrainedAdmm(X: np.ndarray, E: np.ndarray) -> np.ndarray:
     EtX = X @ E.T  # (pixels, m)
     z = _projectToSimplex(_sumToOne(X, E))
     u = np.zeros_like(z)
-    for _ in range(_ADMM_ITERATIONS):
+    iterations, converged = 0, np.zeros(X.shape[0], bool)
+    for iterations in range(1, _ADMM_ITERATIONS + 1):
         a = (EtX + rho * (z - u)) @ factor.T
         zNew = _projectToSimplex(a + u)
         u += a - zNew
-        converged = max(np.max(np.abs(zNew - z)), np.max(np.abs(a - zNew))) < 1e-6
+        change = np.maximum(np.abs(zNew - z).max(axis=1), np.abs(a - zNew).max(axis=1))
+        converged = change < ADMM_TOLERANCE
         z = zNew
-        if converged:
+        if converged.all():
             break
-    return z
+    return z, iterations, converged
 
 
 def _projectToSimplex(V: np.ndarray) -> np.ndarray:

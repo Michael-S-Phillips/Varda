@@ -84,6 +84,37 @@ def test_kmeans_groups_the_scene_without_rois():
     assert len(result.extraMetadata["classColors"]) == 2
 
 
+def test_kmeans_records_its_clusters_and_convergence():
+    """Centers (per band), iterations, convergence, and each cluster's pixel
+    count and RMS distance to its center go in the metadata."""
+    analysis = KMeansAnalysis()
+    analysis.clusters.set(2)
+    image = _scene()
+    result = analysis.run(image, lambda p, m: None)
+    stats = result.extraMetadata["kmeans"]
+    assert stats["converged"] is True
+    assert 1 <= stats["iterations"] <= stats["maxIterations"] == 20
+    classes = result.getData()[:, :, 0]
+    cube = np.asarray(image.getData())
+    for k in range(2):
+        members = cube[classes == k]
+        assert stats["pixelCounts"][k] == members.shape[0]
+        np.testing.assert_allclose(stats["centers"][k], members.mean(axis=0))
+        rms = np.sqrt(np.mean(np.sum((members - members.mean(axis=0)) ** 2, axis=1)))
+        assert stats["rmsDistance"][k] == pytest.approx(rms)
+    assert stats["bands"] == list(range(1, 7))  # 1-based bands the centers span
+
+
+def test_kmeans_that_stops_early_says_it_did_not_converge():
+    analysis = KMeansAnalysis()
+    analysis.clusters.set(5)
+    analysis.iterations.set(1)
+    result = analysis.run(_scene(), lambda p, m: None)
+    stats = result.extraMetadata["kmeans"]
+    assert stats["iterations"] == 1 and stats["converged"] is False
+    assert "did not converge" in result.dataSource.description
+
+
 def test_the_classifiers_are_offered():
     for cls in (MaximumLikelihoodAnalysis, MahalanobisAnalysis, KMeansAnalysis):
         assert cls in ANALYSES and cls.category == "Classification"

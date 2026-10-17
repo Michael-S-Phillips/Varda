@@ -45,3 +45,19 @@ def test_narrowing_the_slider_limits_the_bands(page):
     assert page.model.settings.wavelengthRange == pytest.approx(
         (1200.0, 2400.0), abs=1.0
     )
+
+
+def test_the_summary_shows_what_iovf_replaced(qtbot):
+    image, _ = syntheticScene()
+    model = HourglassModel(image)
+    model.settings.useIovf = True
+    model.applyPrepared(model.prepareTask()(lambda p, m: None))
+    widget = PreparePage(model, run=lambda settings=None: None)
+    qtbot.addWidget(widget)
+    widget.refresh()
+    assert model.prepared is not None
+    record = model.prepared.iovf
+    assert record is not None
+    text = widget.summary.text()
+    assert f"IOVF replaced {record['replacedTotal']:,} values" in text
+    assert f"in {record['rounds']} round" in text
