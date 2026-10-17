@@ -27,6 +27,8 @@ _CHUNK_ROWS = 65_536
 _SUGGESTED_VARIANCE = 0.99
 # MNF eigenvalues are SNR + 1; components below this are taken to be noise.
 _MNF_NOISE_EIGENVALUE = 2.0
+# FastICA stops once no unmixing vector turns by more than this (1 - |cos|)
+FASTICA_TOLERANCE = 1e-5
 
 
 @attrs.frozen
@@ -36,7 +38,9 @@ class TransformResult:
     component's share (of variance for PCA/ICA, of noise-whitened variance for
     MNF), in decreasing order. ``eigenvalues``: (k,) the unnormalized values
     behind those shares. ``mean``: (bands,) and ``inverse``: (k, bands) such that
-    ``data ~ scores @ inverse + mean``."""
+    ``data ~ scores @ inverse + mean``. For an iterative transform (FastICA),
+    ``iterations`` run and whether it ``converged``; None otherwise. For MNF,
+    the ``noiseCovariance`` (bands, bands) it whitened by."""
 
     scores: np.ndarray
     loadings: np.ndarray
@@ -44,6 +48,9 @@ class TransformResult:
     eigenvalues: np.ndarray
     mean: np.ndarray
     inverse: np.ndarray
+    iterations: int | None = None
+    converged: bool | None = None
+    noiseCovariance: np.ndarray | None = None
 
 
 def flattenValid(cube, nodata: float | None) -> tuple[np.ndarray, np.ndarray]:
@@ -115,6 +122,17 @@ def suggestedComponents(eigenvalues: np.ndarray, kind: str) -> int:
         return 1
     cumulative = np.cumsum(values) / total
     return int(np.searchsorted(cumulative, _SUGGESTED_VARIANCE) + 1)
+
+
+def suggestionRule(kind: str) -> str:
+    """How ``suggestedComponents`` chooses its count for ``kind``, in words."""
+    if kind == "MNF":
+        return (
+            f"MNF eigenvalue above {_MNF_NOISE_EIGENVALUE:g} (SNR + 1), but no "
+            "more than the elbow of the log eigenvalue curve (the point farthest "
+            "from the line joining its ends); at least 1"
+        )
+    return f"enough components for {100 * _SUGGESTED_VARIANCE:g}% of the variance"
 
 
 def elbowIndex(eigenvalues: np.ndarray) -> int:
@@ -368,6 +386,7 @@ def mnf(
             eigenvalues=values,
             mean=mean,
             inverse=inverse,
+            noiseCovariance=noiseCov,
         )
     mean = X.mean(axis=0)
     whitened = pca((X - mean) @ whitening, components)
@@ -378,6 +397,7 @@ def mnf(
         eigenvalues=whitened.eigenvalues,
         mean=mean,
         inverse=whitened.loadings.T @ unwhitening,
+        noiseCovariance=noiseCov,
     )
 
 
@@ -385,7 +405,7 @@ def fastIca(
     X: np.ndarray,
     components: int,
     maxIterations: int = 200,
-    tolerance: float = 1e-5,
+    tolerance: float = FASTICA_TOLERANCE,
     seed: int = 0,
     weights: np.ndarray | None = None,
 ) -> TransformResult:
@@ -394,7 +414,8 @@ def fastIca(
 
     ``scores`` are unit-variance independent sources ordered by how much of the
     data's variance each explains; ``loadings`` is the mixing matrix in band
-    space (bands, k), so ``X - mean ~ scores @ loadings.T``.
+    space (bands, k), so ``X - mean ~ scores @ loadings.T``. ``converged``
+    is False when ``maxIterations`` ran out first.
     """
     n = X.shape[0]
     whitened = (
@@ -407,7 +428,8 @@ def fastIca(
 
     rng = np.random.default_rng(seed)
     W = _symmetricDecorrelation(rng.normal(size=(k, k)))
-    for _ in range(maxIterations):
+    iterations, converged = 0, False
+    for iterations in range(1, maxIterations + 1):
         WZ = Z @ W.T
         g = np.tanh(WZ)
         gDerivativeMean = (1.0 - g**2).mean(axis=0)
@@ -435,6 +457,8 @@ def fastIca(
         eigenvalues=variance,
         mean=mean,
         inverse=mixing,
+        iterations=iterations,
+        converged=bool(converged),
     )
 
 

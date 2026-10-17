@@ -56,6 +56,18 @@ def test_prepare_can_run_the_iovf_filter():
     assert np.isfinite(model.cube[1:, 1:]).all()
 
 
+def test_prepare_keeps_and_records_what_iovf_replaced():
+    model = _prepared(useIovf=True)
+    assert model.prepared is not None
+    record = model.prepared.iovf
+    assert record is not None
+    assert record["replacedTotal"] == sum(record["replacedPerRound"])
+    recorded = model.runSettings()["prepare"]["iovf"]
+    assert recorded["replacedPerRound"] == record["replacedPerRound"]
+    plain = _prepared().prepared
+    assert plain is not None and plain.iovf is None
+
+
 def test_mnf_suggests_a_component_count_and_gives_component_images():
     model = _prepared()
     model.applyMnf(model.mnfTask()(_noProgress))
@@ -109,6 +121,15 @@ def test_ppi_can_continue_adding_iterations():
     )
     assert np.nansum(model.ppiImage()) > before
     assert model.ppiIterations == 4000
+
+
+def test_the_mnf_image_keeps_its_noise_model():
+    model = _mnfWithComponents(3)
+    info = model.mnfMetadata()["transform"]
+    bands = model.cube.shape[2]
+    assert np.asarray(info["noiseCovariance"]).shape == (bands, bands)
+    assert len(info["noiseSigma"]) == bands
+    assert info["noiseEstimate"] == "HORIZONTAL"
 
 
 def _mnfWithComponents(count: int) -> HourglassModel:
@@ -257,6 +278,7 @@ def test_unmixing_map_recovers_abundances():
     model = _withTrueEndmembers()
     result = model.mapTask(MapMethod.UNMIX)(_noProgress)
     assert result.bandNames == ["flat", "clay", "mafic", "RMS Error"]
+    assert result.extraMetadata["unmixing"]["solver"] == "exact"
     abundances = result.getData()[1:, 1:, :3]
     assert np.abs(abundances - truth[1:, 1:]).mean() < 0.03
 

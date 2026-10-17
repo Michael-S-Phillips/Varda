@@ -8,6 +8,38 @@ can alter results.
 
 ### Added
 
+- **IOVF maps what it replaced (adds a result):** by default IOVF also adds
+  a one-band image counting the bands replaced at each pixel (**Replaced
+  Count Image**; saved beside the result when the dialog saves it). Both
+  results record the values replaced in each round, the totals, the pixels
+  affected and why it stopped (`iovf` metadata, saved with the file). The
+  Spectral Hourglass's Prepare page shows the same totals, and its results'
+  records keep them.
+- **Unmixing reports convergence:** unmixing results record their solver
+  and, for the iterative (ADMM) solver used above ten endmembers, the
+  iterations run and the share of pixels that converged (`unmixing`
+  metadata, saved with the file); pixels left short are named in the
+  description and the log.
+- **MNF keeps its noise model:** the result's transform metadata (saved
+  with the file) holds the noise covariance MNF whitened by, each band's
+  noise σ, the noise estimate and its ROI classes, from the Processing menu
+  and the Spectral Hourglass alike. **Inverse Transform** records the
+  components kept, the count it suggested and the rule behind it
+  (`componentSelection`).
+- **ICA reports convergence:** the result's transform metadata records the
+  iterations FastICA ran and whether it converged; when it ran out of
+  iterations first, the description and the log say so.
+- **K-Means records its clusters:** the result's metadata (`kmeans`, saved
+  with the file) gives the iterations run, whether it converged, and each
+  cluster's center spectrum, pixel count and RMS spread; a run that stops
+  before converging says so in its description and the log.
+- **Convolve to Sensor Bands records coverage:** each band's coverage (the
+  share of its response the cube covers) is in the result's description
+  and, for every sensor band, in its saved metadata (`sensorBands`).
+- **Spectral Slope reports its uncertainty (changes results):** by default
+  the result has two more bands, the slope's standard error (per nm, from
+  each pixel's residuals) and the fit's R². Turn off **Fit Statistics** for
+  the slope band alone, as before.
 - **Documentation for reporting results:** every guide now ends with
   *Reporting your results*: what to state in a methods section (including
   settings the dialogs don't show), what each quality measure means and
@@ -82,6 +114,14 @@ can alter results.
 
 ### Fixed
 
+- **Odd-only windows record what they use:** the CNN and ViT **Patch Size**
+  and the **Spatial Entropy** window silently raised an even value by one,
+  so a result's record could say 4 where 5 was used. They now take odd
+  values only.
+- **Linked Images, bits of negative values:** a signed bit mask's negative
+  values showed the wrong bits (they were wrapped to 64 bits). They're now
+  read as the unsigned integer of the image's own width (an int16 −1 is
+  sixteen bits set), as **Decode Bit Mask** reads them.
 - **Pixels inside ROIs of two different classes** are now left out of
   every supervised classifier's training (and validation), and counted in
   the result. Before, the MLP, CNN and ViT trained on them once per class

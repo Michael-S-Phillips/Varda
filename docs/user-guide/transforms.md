@@ -51,6 +51,15 @@ components are ordered by it. The plot and table still label them
 
 Only pairs of pixels that are both valid count.
 
+The result keeps the noise model with its transform metadata (saved with
+the file): `noiseEstimate` (the method's name, e.g. `HORIZONTAL`),
+`noiseRoiClasses` (the pooled classes, empty for a neighbor-difference
+estimate), `noiseCovariance` (the bands × bands covariance MNF whitened by,
+in the input's units squared, before the numerical floor below) and
+`noiseSigma` (each band's noise standard deviation, the square root of its
+diagonal, in the input's units). A Spectral Hourglass MNF image added to the
+project keeps the same keys.
+
 ## Wavelengths and weights
 
 PCA, MNF and ICA each choose what goes in:
@@ -98,8 +107,11 @@ for what applies to every process.
   bands that went in (bad bands are always left out), and the number of
   components computed.
 - For MNF, the **Noise Estimate** (direction, or the ROI classes pooled as
-  the homogeneous region). It changes the components, so always report it.
-- For ICA, **Max Iterations** (200 by default, 10 to 5000).
+  the homogeneous region). It changes the components, so always report it,
+  with the noise level it found (`noiseSigma` in the transform metadata,
+  e.g. its median over the bands).
+- For ICA, **Max Iterations** (200 by default, 10 to 5000), the iterations
+  run and whether it converged (the result's transform metadata).
 - Any weights: which image, and whether they were weights or σ.
 - For an inverse transform, exactly which components you kept (for example
   "MNF components 1–12" or "PCA components 2–19"), and the **Output**:
@@ -123,7 +135,11 @@ Settings that aren't in the dialog:
 | Numerical safeguards | MNF floors the noise eigenvalues at 10⁻¹⁰ × the largest. Weighted MNF blends the noise covariance with its diagonal until its smallest eigenvalue is at least 10⁻³ × the mean variance. Weighted scores add a 10⁻¹² ridge to each fit |
 
 The suggested count is only a starting point. Report the count you chose
-and why (the eigenvalue curve, the component images, or both).
+and why (the eigenvalue curve, the component images, or both). An Inverse
+Transform result records both in its metadata (`componentSelection`, saved
+with the file): `kind` (PCA, MNF or ICA), `suggested` (the count suggested
+for the input), `rule` (the rule above, in words) and `kept` (the 1-based
+components used).
 
 ### Uncertainty and quality
 
@@ -138,11 +154,17 @@ and why (the eigenvalue curve, the component images, or both).
   differences count real scene texture as noise, and miss noise that is
   correlated between neighbors. Striping, spikes or unfiltered artifacts
   make the noise non-white, so the noise floor sits above 1. Compare noise
-  estimates if the choice matters.
-- **ICA convergence isn't reported.** If FastICA hasn't converged within
-  **Max Iterations**, Varda uses the last estimate without a warning. To
-  check, rerun with a larger **Max Iterations**: if the components don't
-  change, it had converged.
+  estimates if the choice matters: the `noiseSigma` each one recorded shows
+  how much noise it found in every band (a neighbor-difference σ well above
+  a dark ROI's is scene texture counted as noise).
+- **ICA convergence.** FastICA has converged when no unmixing vector turns
+  by more than the tolerance (1 − |cos| < 10⁻⁵) in an iteration. The
+  result's transform metadata (saved with the file) records `iterations`
+  run, `maxIterations`, `converged` and `tolerance`. If it ran out of
+  iterations first, the result's description says "did not converge in N
+  iterations" and the log has a warning: the components are the last
+  estimate and may not be independent. Rerun with a larger **Max
+  Iterations**, and report the iterations and convergence.
 - **The rebuilt image has no residual band.** To measure what an inverse
   transform removed, subtract the rebuilt image from the original with
   **Processing → Image Math → Image Arithmetic** (see [Image

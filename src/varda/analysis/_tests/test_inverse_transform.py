@@ -237,3 +237,37 @@ def test_the_output_choices_show_their_descriptive_labels():
         "Denoised image (inverse transform to the original bands)",
         "Only the chosen components (as component bands)",
     ]
+
+
+def test_mnf_keeps_its_noise_model_with_the_transform():
+    """The noise covariance MNF whitened by, and how it was estimated, are
+    kept with the transform so the noise model can be reported."""
+    image = _image(_planted())
+    analysis = MnfAnalysis()
+    analysis.components.set(8)
+    result = analysis.run(image, lambda p, m: None)
+    info = result.extraMetadata["transform"]
+    cube = image.getData().astype(np.float64)
+    valid = np.all(cube != -1.0, axis=2)
+    cube[~valid] = np.nan
+    expected = noiseCovariance(cube, valid)
+    np.testing.assert_allclose(info["noiseCovariance"], expected, rtol=1e-6)
+    assert info["noiseEstimate"] == "HORIZONTAL"
+    assert info["noiseRoiClasses"] == []
+    np.testing.assert_allclose(info["noiseSigma"], np.sqrt(np.diag(expected)))
+
+
+@pytest.mark.parametrize("output", list(InverseOutput))
+def test_inverse_records_the_suggested_count_and_its_rule(output):
+    _, pcaImage = _pcaResult()
+    analysis = InverseTransformAnalysis()
+    analysis.prepareFor(pcaImage)
+    suggested = analysis.components.get()
+    analysis.components.set(2)
+    analysis.output.set(output)
+    result = analysis.run(pcaImage, lambda p, m: None)
+    selection = result.extraMetadata["componentSelection"]
+    assert selection["kind"] == "PCA"
+    assert selection["suggested"] == suggested
+    assert "99%" in selection["rule"]
+    assert selection["kept"] == [1, 2]

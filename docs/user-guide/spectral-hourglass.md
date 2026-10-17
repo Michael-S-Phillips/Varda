@@ -95,7 +95,12 @@ covers them too; where they differ, it says so.
 
 - **Prepare:** the wavelength window (in the image's own unit, inclusive),
   that header bad bands were left out, and whether IOVF was on. The kept
-  band count and usable pixel count are on the Prepare page.
+  band count and usable pixel count are on the Prepare page, and with IOVF
+  on, how many values it replaced, at how many pixels, in how many rounds
+  (and in each round). The results' records keep the same figures
+  (`prepare.iovf`: `replacedPerRound`, `replacedTotal`, `voxelsReplaced`,
+  `pixelsWithReplacements`, `rounds`, `stopReason`; see [Image
+  processing](image-processing.md#spectral)).
 - **MNF:** the number of components kept, and that the noise was estimated
   from horizontal neighbor differences (below).
 - **PPI:** the threshold, the seed, the **total** iterations (the Pixel
@@ -118,8 +123,8 @@ covers them too; where they differ, it says so.
 Hourglass results (the MNF, PPI and map images, and MTMF detections) carry
 a full provenance record (see [Reporting results from
 Varda](reporting-results.md)): the wavelength window and the bands kept,
-IOVF on or off and its settings, the MNF noise estimate and the components
-computed and kept, the PPI iterations, threshold, seed and candidate rule,
+IOVF on or off, its settings and what it replaced, the MNF noise estimate
+and the components computed and kept, the PPI iterations, threshold, seed and candidate rule,
 every endmember's name, identification and pixels, and the map method and
 its setting; MTMF detections add their
 thresholds and the map they came from. Exported files keep it. Also:
@@ -138,7 +143,8 @@ thresholds and the map they came from. Exported files keep it. Also:
   image width + column), so you can recompute each class's mean and spread
   elsewhere. **Export Spectra…** writes the mean spectra only.
 - The MNF image added to the project carries the kept components'
-  eigenvalues, explained variance, mean and inverse, as **Processing →
+  eigenvalues, explained variance, mean and inverse, and the noise
+  covariance and per-band noise σ it whitened by, as **Processing →
   Transforms → MNF** does (see [PCA, MNF and ICA](transforms.md)), so
   **Eigenvalue Plot** and **Inverse Transform** work on it; Inverse
   Transform rebuilds the prepared bands (after the wavelength window, bad
@@ -235,7 +241,20 @@ Settings that aren't in the workspace:
   uncertainty on the abundances themselves. Unconstrained and sum-to-one
   abundances can fall below 0 or above 1, which also flags a poor
   endmember set; the fully constrained fit hides that, so check its RMS
-  error. Above 10 endmembers, whether ADMM converged isn't reported.
+  error.
+- **Unmixing convergence.** Every unmixing result (the Hourglass's Map and
+  **Processing → Endmembers → Linear Spectral Unmixing**) records how it
+  was solved in its metadata (`unmixing`, saved with the file):
+  `constraint`, `solver` ("least squares", "sum-to-one", "exact" up to 10
+  endmembers, or "ADMM" above), `pixels` solved, `pixelsConverged` and
+  `fractionConverged`; for ADMM also `iterations` (the most any block of
+  pixels needed), `maxIterations` (2,000) and `tolerance` (10⁻⁶). A pixel
+  has converged when no abundance changed by more than the tolerance in its
+  last iteration; the exact solvers count every pixel as converged. When
+  ADMM leaves pixels short, the result's description says how many and the
+  log has a warning; their abundances are the last iterate (still
+  non-negative and summing to one, but not the least-squares optimum).
+  Report the fraction converged with ADMM results.
 - **MTMF**: the MF score estimates the target's abundance (0 = background,
   1 = the target's mean spectrum) and can fall outside 0 to 1.
   Infeasibility is the pixel's distance, in noise sigmas, from where a

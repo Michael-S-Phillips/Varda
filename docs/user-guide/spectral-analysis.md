@@ -90,13 +90,21 @@ weighted equally.
 |---|---|---|
 | **Start Wavelength** | Start of the fitted range, nm | 1000 |
 | **End Wavelength** | End of the fitted range, nm | 2000 |
+| **Fit Statistics** | Also output the slope's standard error and the fit's R² (off: the slope band alone) | On |
 
 The range is inclusive at both ends, the values can be given in either
 order, and at least two good bands must fall inside it.
 
-**Output:** one band, named "Slope *start*–*end* nm", in the input's units
-per nm (reflectance per nm for reflectance data). Only the slope is kept:
-there is no intercept, standard error or goodness of fit (see below).
+**Output:** with **Fit Statistics** on (the default), three bands:
+
+| Band | Meaning | Units |
+|---|---|---|
+| Slope *start*–*end* nm (per nm) | The fitted slope b in y = a + bλ | Input units per nm (reflectance per nm for reflectance data) |
+| Slope standard error (per nm) | √(SSE / (n − 2) / Σ(λᵢ − λ̄)²): the slope's standard error estimated from the pixel's own residuals (SSE, the sum of squared residuals, over the n good bands in the range). NaN when n = 2 (no degrees of freedom left) | Input units per nm |
+| R² (unitless) | 1 − SSE / SST, SST the sum of squares of the pixel's values about their mean: the share of the spectrum's variation in the range the line explains. NaN for a flat spectrum | — |
+
+With **Fit Statistics** off, only the slope band, named "Slope
+*start*–*end* nm" (units per nm). The intercept is never output.
 
 ## Reporting your results
 
@@ -118,7 +126,9 @@ for what applies to every process.
 - For **Spectral Derivative**, the finite-difference scheme (central
   differences on the band centers, applied twice for the second
   derivative) and any smoothing you did beforehand.
-- For **Spectral Slope**, that it's an unweighted least-squares fit.
+- For **Spectral Slope**, that it's an unweighted least-squares fit, and
+  the standard error and R² of the slopes you report (e.g. their median
+  over an ROI).
 
 Settings the tools use that aren't in the dialog:
 
@@ -130,9 +140,9 @@ Settings the tools use that aren't in the dialog:
 
 ### Uncertainty and quality
 
-- **None of these tools outputs an uncertainty.** They don't propagate the
-  input's noise, and Continuum Removal doesn't record which bands it used
-  as hull points for each pixel.
+- **Only Spectral Slope outputs an uncertainty** (its standard error and
+  R² bands). The others don't propagate the input's noise, and Continuum
+  Removal doesn't record which bands it used as hull points for each pixel.
 - **Measure the noise yourself.** Draw an ROI over a uniform area and add a
   **Zonal statistic of a raster** column (**std**) in the ROI Manager (**Add
   Column...**) for the result's band of interest. The spread includes real
@@ -144,14 +154,15 @@ Settings the tools use that aren't in the dialog:
   second, √6 σ / (4h²). With hyperspectral spacing (h of a few nm), this is
   often larger than the signal, which is why derivatives are usually taken
   on smoothed spectra.
-- **Slope standard error.** Varda doesn't output it. If the noise σ is the
-  same in every band and independent between bands, the standard error of
-  the slope is σ / √(Σ(λᵢ − λ̄)²), summing over the n good bands in the range
-  (λ in nm). The sum depends only on the band centers, so you can compute it
-  once from the wavelength list. To estimate σ from the fit itself, or to
-  get R², export a pixel's or ROI's spectrum from the spectrum plot (CSV)
-  and fit it in your own tools: σ² is the sum of squared residuals over
-  n − 2.
+- **Slope standard error and R².** The standard error band assumes the
+  residuals are independent with the same variance in every band; it
+  measures how well the line fits that pixel, including real curvature
+  (absorption bands) in the range, not only noise. A curved spectrum gives
+  a large error and a low R²: report both, or narrow the range. With
+  independent noise of known σ in every band, the standard error is
+  σ / √(Σ(λᵢ − λ̄)²) instead (λ in nm), which depends only on the band
+  centers. Correlated noise between neighboring bands makes the residual
+  estimate too small.
 - **Continuum-removed depths.** A band depth (1 minus the ratio) carries the
   noise of the band and of the hull points, which are different bands from
   pixel to pixel. Because each hull point is chosen as a local maximum,

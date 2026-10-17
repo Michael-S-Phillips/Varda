@@ -6,9 +6,17 @@ import numpy as np
 
 from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.iovf import iovfFilter
-from varda.analysis.rasters import goodBands, readCube, sameBandsRaster
+from varda.analysis.rasters import (
+    goodBands,
+    readCube,
+    sameBandsRaster,
+    singleBandRaster,
+)
 from varda.common.entities import VardaRaster
-from varda.common.parameter import FloatParameter, IntParameter
+from varda.common.parameter import BoolParameter, FloatParameter, IntParameter
+
+# Per-round and total replacement counts, in both IOVF results' metadata
+IOVF_METADATA_KEY = "iovf"
 
 
 class IovfAnalysis(Analysis):
@@ -43,6 +51,14 @@ class IovfAnalysis(Analysis):
         ),
         step=0.5,
     )
+    replacedMap = BoolParameter(
+        "Replaced Count Image",
+        True,
+        description=(
+            "Also add a one-band image of how many bands were replaced at "
+            "each pixel, to map and report what the filter changed"
+        ),
+    )
 
     def unavailableReason(self, image: VardaRaster) -> str:
         window = self._window()
@@ -64,6 +80,16 @@ class IovfAnalysis(Analysis):
         )
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
+        return self._filter(image, reportProgress, withMap=False)[0]
+
+    def runAll(
+        self, image: VardaRaster, reportProgress: ProgressCallback
+    ) -> list[VardaRaster]:
+        return self._filter(image, reportProgress, withMap=self.replacedMap.get())
+
+    def _filter(
+        self, image: VardaRaster, reportProgress: ProgressCallback, withMap: bool
+    ) -> list[VardaRaster]:
         reportProgress(0, "reading image")
         cube, valid = readCube(image)  # missing bands filled; unusable pixels NaN
         result = iovfFilter(
@@ -82,12 +108,34 @@ class IovfAnalysis(Analysis):
                 original[original == image.nodata] = np.nan
             filtered[:, :, bad] = original
         filtered[~valid] = np.nan
-        return sameBandsRaster(
+        record = result.record()
+        perRound = ", ".join(str(n) for n in result.replaced)
+        filteredImage = sameBandsRaster(
             image,
             filtered,
             name=f"{image.name} IOVF",
             description=(
-                f"IOVF of {image.name}: {sum(result.replaced)} voxels replaced in "
-                f"{result.rounds} rounds"
+                f"IOVF of {image.name}: {record['replacedTotal']} voxels replaced "
+                f"in {result.rounds} rounds ({perRound}; stopped: "
+                f"{result.stopReason}), at {record['pixelsWithReplacements']} pixels"
             ),
         )
+        filteredImage.dataSource.extraMetadata[IOVF_METADATA_KEY] = record
+        if not withMap:
+            return [filteredImage]
+        counts = result.replacedBands.astype(np.float32)
+        counts[~valid] = np.nan
+        countImage = singleBandRaster(
+            image,
+            counts,
+            name=f"{image.name} IOVF replaced",
+            bandName="Bands replaced",
+            units="count",
+            description=(
+                f"Bands IOVF replaced at each pixel of {image.name} "
+                f"({record['voxelsReplaced']} voxels at "
+                f"{record['pixelsWithReplacements']} pixels)"
+            ),
+        )
+        countImage.dataSource.extraMetadata[IOVF_METADATA_KEY] = record
+        return [filteredImage, countImage]

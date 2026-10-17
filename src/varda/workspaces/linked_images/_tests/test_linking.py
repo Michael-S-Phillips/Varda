@@ -115,3 +115,16 @@ def test_linking_by_pixel_warns_about_images_on_other_grids():
     assert linkWarnings([a, same], Link.PIXEL) == []
     (warning,) = linkWarnings([a, same, shifted, smaller], Link.PIXEL)
     assert "a's grid: shifted, small (" in warning
+
+
+def test_negative_signed_values_show_their_own_bits():
+    """int16 -1 is sixteen bits set, read as unsigned of the same width (as
+    Bit Mask Decode does), not a 64-bit wraparound."""
+    values = np.array([-1.0, -32768.0, 3.0, np.nan])
+    planes = bitPlanes(values, 16, np.dtype(np.int16))
+    np.testing.assert_array_equal(planes[:, 0], np.ones(16))
+    np.testing.assert_array_equal(planes[:, 1], [0] * 15 + [1])
+    np.testing.assert_array_equal(planes[:, 2], [1, 1] + [0] * 14)
+    assert np.isnan(planes[:, 3]).all()
+    assert highestBit(values, np.dtype(np.int16)) == 16
+    assert highestBit(np.array([3.0]), np.dtype(np.int16)) == 2

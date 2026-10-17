@@ -111,3 +111,11 @@ class Analysis(ParameterGroup):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         raise NotImplementedError
+
+    def runAll(
+        self, image: VardaRaster, reportProgress: ProgressCallback
+    ) -> list[VardaRaster]:
+        """Every image a run makes: the result first, then any companions
+        (e.g. a map of what a filter replaced). All join the project; by
+        default just ``run``'s result."""
+        return [self.run(image, reportProgress)]

@@ -122,12 +122,25 @@ def spectrumAt(image: VardaRaster, x: float, y: float) -> LinkedSpectrum | None:
     )
 
 
-def bitPlanes(values: np.ndarray, width: int) -> np.ndarray:
+def _asUnsigned(values: np.ndarray, dtype: np.dtype | None) -> np.ndarray:
+    """Whole-number ``values`` as the bits the image stores, in uint64: a
+    signed value is read as the unsigned integer of the same width (int16 -1
+    is sixteen bits set, as Bit Mask Decode reads it), not sign-extended.
+    Without an integer ``dtype`` they are read as int64."""
+    stored = np.dtype(np.int64) if dtype is None or dtype.kind not in "iu" else dtype
+    native = stored.newbyteorder("=")
+    return values.astype(native).view(f"u{native.itemsize}").astype(np.uint64)
+
+
+def bitPlanes(
+    values: np.ndarray, width: int, dtype: np.dtype | None = None
+) -> np.ndarray:
     """A spectrum of bit masks as (``width`` bits, bands): 1 where a bit is
-    set, 0 where not, NaN for missing values (no data, bad bands)."""
+    set, 0 where not, NaN for missing values (no data, bad bands). ``dtype``:
+    the image's stored type, so negative signed values show their own bits."""
     values = np.asarray(values, dtype=np.float64)
     missing = ~np.isfinite(values)
-    masks = np.where(missing, 0, values).astype(np.uint64)
+    masks = _asUnsigned(np.where(missing, 0, values), dtype)
     planes = (
         (masks[None, :] >> np.arange(width, dtype=np.uint64)[:, None]) & 1
     ).astype(np.float64)
@@ -135,9 +148,12 @@ def bitPlanes(values: np.ndarray, width: int) -> np.ndarray:
     return planes
 
 
-def highestBit(values: np.ndarray) -> int:
-    """How many bits the largest finite value needs (at least 1)."""
+def highestBit(values: np.ndarray, dtype: np.dtype | None = None) -> int:
+    """How many bits the finite values need (at least 1); a negative value
+    of a signed ``dtype`` needs all of them."""
     finite = np.asarray(values, dtype=np.float64)
     finite = finite[np.isfinite(finite)]
-    largest = int(finite.max()) if finite.size else 0
+    if not finite.size:
+        return 1
+    largest = int(_asUnsigned(finite, dtype).max())
     return max(largest.bit_length(), 1)

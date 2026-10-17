@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox, QWidget
 
@@ -14,12 +17,28 @@ from varda.image_loading.raster_writer import writeRaster
 from varda.utilities.background import onMainThread, runInBackground
 
 
+def companionPath(outputPath: str, main: VardaRaster, companion: VardaRaster) -> Path:
+    """Where a companion result is saved: beside the main one, the words of
+    its name that differ from the main one's added to the file name ("scene
+    IOVF replaced" for "scene IOVF" in "out.img" is "out_replaced.img")."""
+    path = Path(outputPath)
+    words, mainWords = companion.name.split(), main.name.split()
+    shared = 0
+    while shared < min(len(words), len(mainWords)) and (
+        words[shared] == mainWords[shared]
+    ):
+        shared += 1
+    extra = " ".join(words[shared:]) or companion.name
+    slug = re.sub(r"[^\w-]+", "_", extra).strip("_")
+    return path.with_name(f"{path.stem}_{slug}{path.suffix}")
+
+
 class AnalysisRunner(QObject):
     """Runs analyses in the background; a successful result is appended to the
     project's images."""
 
     sigProgress = pyqtSignal(int, str)
-    sigFinished = pyqtSignal(object)  # the resulting VardaRaster
+    sigFinished = pyqtSignal(object)  # the resulting VardaRaster (the first)
     sigFailed = pyqtSignal(object)  # the exception
 
     def __init__(self, images: ProjectImages, parent: QWidget | None = None) -> None:
@@ -47,18 +66,24 @@ class AnalysisRunner(QObject):
 
         report = onMainThread(onProgress)
 
-        def task() -> VardaRaster:
-            result = analysis.run(image, report)
-            recordProvenance(result, analysis, image)
+        def task() -> list[VardaRaster]:
+            results = analysis.runAll(image, report)
+            for result in results:
+                recordProvenance(result, analysis, image)
             if outputPath is not None:
                 report(100, f"saving to {outputPath}")
-                writeRaster(result, outputPath)
-            return result
+                writeRaster(results[0], outputPath)
+                for companion in results[1:]:
+                    writeRaster(
+                        companion, companionPath(outputPath, results[0], companion)
+                    )
+            return results
 
-        def onFinished(result: VardaRaster) -> None:
+        def onFinished(results: list[VardaRaster]) -> None:
             dialog.close()
-            self._images.append(result)
-            self.sigFinished.emit(result)
+            for result in results:
+                self._images.append(result)
+            self.sigFinished.emit(results[0])
 
         def onFailed(error: Exception) -> None:
             dialog.close()

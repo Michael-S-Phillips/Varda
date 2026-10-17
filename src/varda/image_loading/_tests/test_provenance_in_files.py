@@ -154,3 +154,20 @@ def test_a_record_names_every_input_and_the_software():
     assert record["parameters"] == {"n": 3}
     assert record["software"] == {"spectral": "0.24"}
     assert record["inputs"] == [{"name": "scene", "path": "/data/scene.img"}]
+
+
+@pytest.mark.parametrize(
+    "key", ["sensorBands", "kmeans", "componentSelection", "unmixing", "iovf"]
+)
+def test_quality_figures_are_kept_in_files(tmp_path, key):
+    """Analyses' quality figures (coverage, convergence, cluster statistics)
+    survive export, so a reopened result can still be reported on."""
+    figures = {"coverage": {"B1": 0.97}, "converged": False, "iterations": [3, 1]}
+    source = ArrayDataSource(
+        np.ones((3, 4, 2), np.float32),
+        wavelengths=np.array([500.0, 600.0]),
+        wavelengthUnits="nm",
+        extraMetadata={key: figures},
+    )
+    written = writeRaster(VardaRaster(source, name="r"), tmp_path / "r.tif")
+    assert openDataSource(str(written)).extraMetadata[key] == figures
