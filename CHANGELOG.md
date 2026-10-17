@@ -51,6 +51,9 @@ can alter results.
   that's no-data in every pixel) are now missing (NaN) instead of 0, so an
   empty ROI or box no longer gives a ratio of 0. The per-band pixel count n
   is now available.
+- **Find Data's To date** now includes that whole day (to 23:59:59 UTC) for
+  STAC catalogs and footprint files, as it already did for ODE. It used to
+  stop at the start of the day, leaving the day out.
 
 ## 0.9.0 (2026-10-16)
 
