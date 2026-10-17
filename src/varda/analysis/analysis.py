@@ -9,7 +9,7 @@ import attrs
 from PyQt6.QtWidgets import QWidget
 
 from varda.common.entities import VardaRaster
-from varda.common.parameter import ParameterGroup
+from varda.common.parameter import IntParameter, ParameterGroup
 from varda.rois.roi_collection import ROICollection
 
 # (percent 0-100, message)
@@ -17,6 +17,13 @@ ProgressCallback = Callable[[int, str], None]
 
 
 SUBMENU = "/"  # separates the levels of a category path
+
+
+def seedParameter(description: str) -> IntParameter:
+    """The seed of an analysis's random numbers: the same seed and settings
+    give the same result. Declared on each analysis class (ParameterGroup only
+    picks up Parameters defined directly on the class)."""
+    return IntParameter("Seed", 0, range=(0, 2**31 - 1), description=description)
 
 
 def categoryLevels(category: str) -> list[str]:

@@ -42,9 +42,10 @@ def _scene():
 def test_the_job_classifies_every_valid_pixel_and_reports_progress():
     cube, valid, rows, cols, labels = _scene()
     seen = []
-    probabilities, finalLoss = trainAndClassify(
+    probabilities, info = trainAndClassify(
         cube, valid, rows, cols, labels, 2, SPEC, lambda f, m: seen.append(f)
     )
+    finalLoss = info["finalLoss"]
     assert probabilities.shape == (int(valid.sum()), 2)
     np.testing.assert_allclose(probabilities.sum(axis=1), 1.0, atol=1e-5)
     classes = np.full(valid.shape, -1)
@@ -79,6 +80,7 @@ def test_the_command_line_worker_streams_progress_and_writes_the_result(tmp_path
     probabilities, info = readResult(tmp_path)
     assert probabilities.shape == (int(valid.sum()), 2)
     assert info["device"] in {"cpu", "cuda", "mps"}
+    assert info["torch"] == torch.__version__ and info["seed"] == 0
     assert "finalLoss" in info
 
 
@@ -116,3 +118,26 @@ def test_the_probe_reports_the_torch_version_and_device():
     probe = json.loads(completed.stdout.strip().splitlines()[-1])
     assert probe["torch"] == torch.__version__
     assert probe["device"] in {"cpu", "cuda", "mps"}
+
+
+def test_the_job_is_seeded_before_the_model_is_built_and_reports_how_it_ran():
+    """Same seed: same starting weights and so the same result, whatever the
+    global random state was beforehand; the info says where it ran."""
+    cube, valid, rows, cols, labels = _scene()
+    spec = {**SPEC, "epochs": 3, "seed": 5}
+
+    def run(spec):
+        return trainAndClassify(
+            cube, valid, rows, cols, labels, 2, spec, lambda f, m: None
+        )
+
+    torch.manual_seed(123)
+    first, info = run(spec)
+    torch.rand(1000)  # move the global stream on
+    again, _ = run(spec)
+    np.testing.assert_array_equal(again, first)
+    other, _ = run({**spec, "seed": 6})
+    assert not np.array_equal(other, first)
+    assert info["seed"] == 5
+    assert info["device"] in {"cpu", "cuda", "mps"}
+    assert info["torch"] == torch.__version__

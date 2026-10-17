@@ -5,7 +5,7 @@ the catalogs (``varda.catalogs``, and plugins' ``registerCatalogs``) do."""
 from __future__ import annotations
 
 from collections.abc import MutableSequence
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 
 import geopandas as gpd
 import PyQt6Ads as ads
@@ -483,17 +483,17 @@ class FindDataWorkspace(QMainWindow):
         if collection is None:
             return None
 
-        def moment(check: QCheckBox, edit: QDateEdit) -> datetime | None:
+        def moment(check: QCheckBox, edit: QDateEdit, at: time) -> datetime | None:
             if not check.isChecked():
                 return None
-            date = edit.date()
-            return datetime(date.year(), date.month(), date.day(), tzinfo=timezone.utc)
+            return datetime.combine(edit.date().toPyDate(), at, timezone.utc)
 
+        # UTC days, both inclusive: To is the end of its day
         return SearchQuery(
             collection.id,
             self.searchArea(),
-            moment(self.fromCheck, self.fromDate),
-            moment(self.toCheck, self.toDate),
+            moment(self.fromCheck, self.fromDate, time.min),
+            moment(self.toCheck, self.toDate, time.max),
             self.limit.value(),
         )
 

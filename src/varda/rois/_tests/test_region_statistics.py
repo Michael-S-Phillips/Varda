@@ -4,6 +4,8 @@ import numpy as np
 import rasterio.features
 from shapely.geometry import Polygon, mapping
 
+from varda.common.entities import VardaRaster
+from varda.image_loading.data_sources import ArrayDataSource
 from varda.rois.region_statistics import boxPolygonPixels, computeRegionStatistics
 from varda.utilities.debug import generate_random_image
 
@@ -49,3 +51,19 @@ def test_region_statistics_of_a_footprint_outside_the_image_are_empty():
     stats = computeRegionStatistics(boxPolygonPixels(50, 50, 3, 3), image)
     assert stats["pixel_count"] == 0
     assert stats["mean"].shape == (10,)
+    # no data is not zero: every statistic is missing
+    for key in ("mean", "std", "min", "max"):
+        assert np.isnan(stats[key]).all()
+    np.testing.assert_array_equal(stats["valid_count"], np.zeros(10))
+
+
+def test_region_statistics_count_valid_pixels_band_by_band():
+    data = np.random.default_rng(0).random((20, 20, 3))
+    data[6, 4, 1] = np.nan  # one pixel missing in band 1 only
+    data[7, 5, :] = np.nan  # one pixel missing in every band: dropped
+    image = VardaRaster(dataSource=ArrayDataSource(data))
+
+    stats = computeRegionStatistics(boxPolygonPixels(5, 7, 3, 3), image)
+
+    assert stats["pixel_count"] == 8
+    np.testing.assert_array_equal(stats["valid_count"], [8, 7, 8])

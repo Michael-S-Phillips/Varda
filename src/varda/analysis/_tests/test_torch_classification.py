@@ -127,3 +127,39 @@ def test_classifies_the_two_regions_from_roi_patches(analysisClass, suffix):
     assert np.mean(classes[3:17, 22:38] == 1) > 0.95
     assert np.isnan(classes[0, 0])
     assert result.extraMetadata["classes"] == ["dark", "bright"]
+    metadata = result.extraMetadata
+    assert metadata["seed"] == 0 and metadata["device"] in {"cpu", "cuda", "mps"}
+    assert metadata["torchVersion"]
+    description = result.dataSource.description
+    assert "seed 0" in description and metadata["device"] in description
+
+
+@pytest.mark.parametrize(
+    "analysisClass", [CnnClassificationAnalysis, VitClassificationAnalysis]
+)
+def test_patch_classifiers_offer_a_seed_that_reaches_the_job(
+    monkeypatch, analysisClass
+):
+    """The seed goes into the job spec (both paths run the same job), and the
+    job's device and PyTorch version reach the result."""
+    specs = []
+
+    class _Job:
+        @staticmethod
+        def trainAndClassify(cube, valid, rows, cols, labels, classes, spec, progress):
+            specs.append(spec)
+            probabilities = np.tile([0.75, 0.25], (int(valid.sum()), 1))
+            return probabilities, {"finalLoss": 0.1, "device": "cpu", "torch": "9.9"}
+
+    monkeypatch.setattr(classification, "TORCH_AVAILABLE", True)
+    monkeypatch.setattr(classification, "torch_job", _Job)
+    analysis = analysisClass()
+    assert analysis.seed.value == 0
+    analysis.seed.set(11)
+    analysis.setContext(AnalysisContext(rois=_rois()))
+    result = analysis.run(_twoRegionImage(), lambda p, m: None)
+    assert specs[-1]["seed"] == 11
+    assert result.extraMetadata["device"] == "cpu"
+    assert result.extraMetadata["torchVersion"] == "9.9"
+    assert "seed 11" in result.dataSource.description
+    assert "cpu" in result.dataSource.description

@@ -34,7 +34,17 @@ class _FakePlot:
         )
 
     def plotWithFill(
-        self, x, y, yLower, yUpper, fillBrush=None, color=None, name=None, **kwargs
+        self,
+        x,
+        y,
+        yLower,
+        yUpper,
+        fillBrush=None,
+        color=None,
+        name=None,
+        std=None,
+        count=None,
+        **kwargs,
     ):
         self.fillCalls.append(
             SimpleNamespace(
@@ -44,6 +54,8 @@ class _FakePlot:
                 yUpper=np.asarray(yUpper),
                 color=color,
                 name=name,
+                std=std,
+                count=count,
             )
         )
 
@@ -57,6 +69,9 @@ def test_plot_spectrum_records_filled_curve(qtbot, make_split_image):
     assert len(plot.fillCalls) == 1
     np.testing.assert_array_almost_equal(plot.fillCalls[0].y, [8.0, 8.0, 8.0])
     assert plot.fillCalls[0].name == "roi"
+    # the spread and per-band n go with the curve, for export
+    np.testing.assert_array_almost_equal(plot.fillCalls[0].std, [0.0, 0.0, 0.0])
+    assert list(plot.fillCalls[0].count) == [36, 36, 36]
 
 
 def test_plot_spectrum_fill_band_is_mean_plus_minus_std(qtbot):

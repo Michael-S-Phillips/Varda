@@ -314,6 +314,8 @@ class ROIManagerWidget(QWidget):
             fillBrush=pg.mkBrush(fillColor),
             color=roi.color,
             name=roi.name,
+            std=std,
+            count=np.asarray(stats["valid_count"]),
         )
 
     def plotRatioSpectrum(self, fid: int) -> None:

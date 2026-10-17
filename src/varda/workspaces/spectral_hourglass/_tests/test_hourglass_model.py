@@ -105,10 +105,79 @@ def test_ppi_can_continue_adding_iterations():
     model = _throughPpi()
     before = np.nansum(model.ppiImage())
     model.applyPpi(
-        model.ppiTask(iterations=1000, threshold=0.5, seed=1, resume=True)(_noProgress)
+        model.ppiTask(iterations=1000, threshold=0.5, seed=0, resume=True)(_noProgress)
     )
     assert np.nansum(model.ppiImage()) > before
     assert model.ppiIterations == 4000
+
+
+def _mnfWithComponents(count: int) -> HourglassModel:
+    model = _prepared()
+    model.applyMnf(model.mnfTask()(_noProgress))
+    model.setComponents(count)
+    return model
+
+
+def test_ppi_records_its_seed_threshold_and_components():
+    model = _throughPpi()
+    assert model.ppi is not None
+    assert (model.ppi.seed, model.ppi.iterations) == (0, 3000)
+    assert (model.ppi.threshold, model.ppi.components) == (0.5, 3)
+
+
+def test_run_more_continues_the_seeded_skewers_so_the_total_determines_the_counts():
+    model = _throughPpi()  # 3000 skewers, seed 0
+    model.applyPpi(
+        model.ppiTask(iterations=1000, threshold=0.5, seed=0, resume=True)(_noProgress)
+    )
+    once = _mnfWithComponents(3)
+    once.applyPpi(once.ppiTask(iterations=4000, threshold=0.5, seed=0)(_noProgress))
+    assert model.ppi is not None and once.ppi is not None
+    np.testing.assert_array_equal(model.ppi.counts, once.ppi.counts)
+
+
+def test_run_more_is_refused_once_the_ppi_settings_change():
+    model = _throughPpi()
+    assert model.canRunMore(0.5, 0)
+    assert not model.canRunMore(0.6, 0)
+    assert not model.canRunMore(0.5, 1)
+    model.setComponents(2)
+    assert not model.canRunMore(0.5, 0)
+    with pytest.raises(ValueError):
+        model.ppiTask(iterations=1000, threshold=0.5, seed=0, resume=True)
+
+
+def test_saved_ppi_records_the_seed_and_total_iterations():
+    model = _throughPpi()
+    model.applyPpi(
+        model.ppiTask(iterations=1000, threshold=0.5, seed=0, resume=True)(_noProgress)
+    )
+    assert model.ppi is not None
+    counts = model.ppi.counts.copy()
+    data = model.ppiToJson()
+    assert data is not None
+    assert (data["seed"], data["totalIterations"]) == (0, 4000)
+    assert (data["threshold"], data["components"]) == (0.5, 3)
+
+    model.resetFrom(Step.PURITY)
+    model.ppiFromJson(data)
+    assert model.ppi is not None
+    np.testing.assert_array_equal(model.ppi.counts, counts)
+    assert (model.ppi.seed, model.ppi.iterations) == (0, 4000)
+    assert model.canRunMore(0.5, 0)
+
+
+def test_ppi_saved_before_seeds_were_recorded_loads_but_cannot_run_more():
+    model = _throughPpi()
+    data = model.ppiToJson()
+    assert data is not None
+    legacy = {key: data[key] for key in ("validPixels", "rows", "counts", "threshold")}
+    legacy["iterations"] = 3000
+    model.resetFrom(Step.PURITY)
+    model.ppiFromJson(legacy)
+    assert model.ppi is not None
+    assert model.ppi.seed is None and model.ppi.iterations == 3000
+    assert not model.canRunMore(0.5, 0)
 
 
 def test_endmembers_own_their_pixels_exclusively():

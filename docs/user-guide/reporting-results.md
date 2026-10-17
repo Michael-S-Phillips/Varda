@@ -48,10 +48,15 @@ Some things aren't recorded yet, so note them yourself:
   result is open in Varda. Sessions don't keep in-memory results, and
   exported files and packaged projects keep the pixels and band names but
   not this metadata. Copy what you need into your notes before closing.
-- **Random seeds.** The Pixel Purity Index is random and its seed isn't
-  recorded, so two runs differ (see [Spectral
-  Hourglass](spectral-hourglass.md)). Report the number of iterations, and
-  the pixel lists you kept (the endmember JSON export has them).
+- **Random seeds.** Processes that use random numbers (the Pixel Purity
+  Index, and training the MLP, CNN and ViT classifiers) have a **Seed**
+  setting, 0 by default, recorded with the other settings (in the Spectral
+  Hourglass, in the PPI image's description and the saved workflow). The
+  same seed and settings give the same result in the same Varda version;
+  the CNN and ViT can still differ slightly between devices (CPU, CUDA,
+  MPS) and PyTorch versions, which their results record (see
+  [Classification](classification.md)). Results from Varda 0.9.0 and
+  earlier, before these seeds, can't be reproduced exactly.
 - **Edits to the input** made in Image Properties (no-data value,
   wavelengths, bad bands) aren't part of a result's record.
 
