@@ -1,6 +1,7 @@
 """The analyses Varda offers."""
 
 from varda.analysis.analysis import Analysis
+from varda.analysis.accuracy_assessment import AccuracyAssessmentAnalysis
 from varda.analysis.band_math import BandMathAnalysis
 from varda.analysis.band_parameters import BandParametersAnalysis
 from varda.analysis.classification import (
@@ -119,6 +120,7 @@ ANALYSES: list[type[Analysis]] = [
     MajorityFilterAnalysis,
     SieveAnalysis,
     ClumpAnalysis,
+    AccuracyAssessmentAnalysis,
     PixelPurityAnalysis,
     SamMappingAnalysis,
     UnmixingAnalysis,
