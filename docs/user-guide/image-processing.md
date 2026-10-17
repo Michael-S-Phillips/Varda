@@ -101,9 +101,24 @@ where image 3 is positive. The dialog lists which images those are.
   (the inverse), or **multiply** by it (for a weight, or a 0/1 mask that
   should leave zeros).
 
+- **ROI to Mask** makes a mask from the workspace's ROIs: 1 inside the ROIs
+  of the classes you tick, 0 elsewhere.
+
 Masks combine with Image Arithmetic: **minimum** of two 0/1 masks is
-"and", **maximum** is "or", and `1 - mask` in Band Math inverts one. Masks
-also come from ROIs (ROI to Mask) and from Band Math (`b3 > 0.2` is 1 or 0).
+"and", **maximum** is "or", and `1 - mask` in Band Math inverts one. Band
+Math makes masks too (`b3 > 0.2` is 1 or 0).
+
+### ROIs from a threshold or a mask
+
+In the ROI Manager, **From Threshold or Mask…** makes a new ROI class
+from the pixels where a band is inside (or outside) a range, as ENVI's
+band threshold to ROI does, or where a mask image on the same grid is set.
+The range starts at the band's minimum and maximum, and the dialog counts
+the pixels chosen as you change it. Each connected region becomes an ROI
+of the class; regions smaller than **Smallest region** (4 pixels by
+default) are left out, so a noisy threshold doesn't make thousands of
+ROIs. Varda's ROIs are simple shapes, so a hole inside a region is filled;
+to leave holes out, apply the mask itself (Apply Mask) instead.
 
 ## Bit masks (Statistics)
 

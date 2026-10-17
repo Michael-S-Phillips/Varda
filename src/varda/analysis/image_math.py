@@ -23,6 +23,7 @@ from varda.common.parameter import (
     ImageParameter,
     IntParameter,
     LabeledEnum,
+    MultiChoiceParameter,
     Vec2Parameter,
 )
 from varda.common.vec2 import Vec2
@@ -233,4 +234,49 @@ class ApplyMaskAnalysis(Analysis):
             out,
             name=f"{image.name} {how} {mask.name}",
             description=f"{image.name} {how} {mask.name} ({mode.value})",
+        )
+
+
+class RoiToMaskAnalysis(Analysis):
+    analysisId = "roi_to_mask"
+    name = "ROI to Mask"
+    category = CATEGORY
+    needsRois = True
+    description = (
+        "A mask from the workspace's ROIs: 1 inside the ROIs of the classes you "
+        "tick, 0 elsewhere. Apply it with Apply Mask, or use it in Band Math."
+    )
+
+    classes = MultiChoiceParameter(
+        "ROI Classes", description="The classes inside the mask"
+    )
+
+    def prepareFor(self, image: VardaRaster) -> None:
+        rois = self.context.rois
+        names = list(rois.classes()) if rois is not None else []
+        kept = [n for n in self.classes.value if n in names]
+        self.classes.setChoices(names, selected=kept or names)
+
+    def unavailableReason(self, image: VardaRaster) -> str:
+        rois = self.context.rois
+        if rois is None or not len(rois):
+            return "Draw an ROI first (or make one from a threshold or a mask)."
+        if not self.classes.value:
+            return "Tick at least one ROI class."
+        return ""
+
+    def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
+        rois = self.context.rois
+        if rois is None:
+            raise ValueError("ROI to Mask needs the workspace's ROIs.")
+        names = list(self.classes.value)
+        inside = np.zeros((image.height, image.width), bool)
+        for name in names:
+            inside |= rois.classMask(name, image)
+        return singleBandRaster(
+            image,
+            inside.astype(np.float32),
+            name=f"{image.name} mask ({' + '.join(names)})",
+            bandName="mask",
+            description=f"1 inside the ROIs of {', '.join(names)} on {image.name}",
         )

@@ -23,6 +23,11 @@ can alter results.
   (inverse), or multiplies by it.
 - **Band Math across images:** `i3_b1` is band 1 of the 3rd image in the
   Image List (on the same grid), e.g. `b1 * (i3_b1 > 0)`.
+- **ROIs and masks:** **From Threshold or Mask…** in the ROI Manager makes an
+  ROI class from a band's range (inside or outside, as ENVI's band threshold
+  to ROI) or a mask image, one ROI per connected region, specks left out;
+  **ROI to Mask** (Processing → Image Math) makes a 0/1 mask from ROI
+  classes.
 
 ## 0.9.0 (2026-10-16)
 

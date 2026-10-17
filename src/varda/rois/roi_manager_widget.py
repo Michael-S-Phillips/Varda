@@ -32,6 +32,7 @@ from varda.image_loading.crism_geometry import (
 from varda.plotting.plot import VardaPlotWidget
 from varda.rois.add_column_dialog import AddColumnDialog
 from varda.rois.roi_calculations import CalculatedColumns
+from varda.rois.mask_roi_dialog import NewClassFromMaskDialog
 from varda.rois.roi_collection import ROICollection
 from varda.rois.roi_drawing_state import ROIDrawingState
 from varda.rois.roi_drawing_widgets import ROIClassPicker, ROIShapePicker
@@ -103,6 +104,12 @@ class ROIManagerWidget(QWidget):
         self._deleteBtn = QPushButton("Delete Selected")
         self._deleteBtn.clicked.connect(self._deleteSelected)
 
+        self.fromMaskButton = QPushButton("From Threshold or Mask…")
+        self.fromMaskButton.setToolTip(
+            "New ROI class from where a band is inside a range, or a mask is set"
+        )
+        self.fromMaskButton.clicked.connect(self._newClassFromMask)
+
         self._addColumnBtn = QPushButton("Add Column...")
         self._addColumnBtn.clicked.connect(self._addColumn)
 
@@ -131,6 +138,7 @@ class ROIManagerWidget(QWidget):
         btnRow.addWidget(self.deselectButton)
         btnRow.addWidget(self.visibilityButton)
         btnRow.addWidget(self._deleteBtn)
+        btnRow.addWidget(self.fromMaskButton)
         btnRow.addWidget(self._addColumnBtn)
         btnRow.addWidget(self._exportBtn)
         btnRow.addWidget(self._plotBtn)
@@ -376,6 +384,11 @@ class ROIManagerWidget(QWidget):
                 return
         for fid in fids:
             self._collection.removeROI(fid)
+
+    def _newClassFromMask(self) -> None:
+        NewClassFromMaskDialog(
+            self._collection, self._image, [self._image, *self._images], parent=self
+        ).exec()
 
     def _addColumn(self) -> None:
         images = [self._image, *self._images]
