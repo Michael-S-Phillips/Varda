@@ -68,6 +68,10 @@ can alter results.
 
 ### Fixed
 
+- **Linked Images, bits of negative values:** a signed bit mask's negative
+  values showed the wrong bits (they were wrapped to 64 bits). They're now
+  read as the unsigned integer of the image's own width (an int16 −1 is
+  sixteen bits set), as **Decode Bit Mask** reads them.
 - **PDS products open through their labels.** After a Find Data download,
   Varda opened a product's raw data file (such as a CaSSIS `.DAT`), which
   has no header and failed to open; it now opens the PDS4 `.xml` or PDS3
