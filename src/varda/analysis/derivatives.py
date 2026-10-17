@@ -9,12 +9,13 @@ from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.rasters import (
     bandIndex,
     bandMetadataSubset,
+    namedBandsRaster,
     readCube,
     readGoodBands,
     singleBandRaster,
 )
 from varda.common.entities import VardaRaster
-from varda.common.parameter import FloatParameter, IntParameter
+from varda.common.parameter import BoolParameter, FloatParameter, IntParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
 
@@ -68,7 +69,8 @@ class SpectralSlopeAnalysis(Analysis):
     description = (
         "Least-squares slope of each spectrum between two wavelengths "
         "(reflectance per nm), 1000-2000 nm by default; set the range to the "
-        "slope you need."
+        "slope you need. With Fit Statistics, two more bands give each "
+        "slope's standard error and the fit's R²."
     )
 
     startWavelength = FloatParameter(
@@ -76,6 +78,14 @@ class SpectralSlopeAnalysis(Analysis):
     )
     endWavelength = FloatParameter(
         "End Wavelength", 2000.0, units="nm", description="End of the fitted range"
+    )
+    fitStatistics = BoolParameter(
+        "Fit Statistics",
+        True,
+        description=(
+            "Also output the slope's standard error (per nm, from the fit's "
+            "residuals) and R² of the fit; off: the slope band alone"
+        ),
     )
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
@@ -100,18 +110,54 @@ class SpectralSlopeAnalysis(Analysis):
         cube = cube[:, :, selected]
 
         reportProgress(50, "fitting slopes")
-        xCentred = wavelengths[selected] - wavelengths[selected].mean()
-        yCentred = cube - cube.mean(axis=2, keepdims=True)
-        slope = np.tensordot(yCentred, xCentred, axes=([2], [0])) / np.sum(xCentred**2)
-        slope[~valid] = np.nan
+        slope, error, rSquared = _lineFit(wavelengths[selected], cube)
+        for band in (slope, error, rSquared):
+            band[~valid] = np.nan
 
-        return singleBandRaster(
+        name = f"{image.name} slope {low:g}-{high:g}"
+        if not self.fitStatistics.get():
+            return singleBandRaster(
+                image,
+                slope,
+                name=name,
+                bandName=f"Slope {low:g}-{high:g} nm",
+                units="per nm",
+            )
+        return namedBandsRaster(
             image,
-            slope,
-            name=f"{image.name} slope {low:g}-{high:g}",
-            bandName=f"Slope {low:g}-{high:g} nm",
-            units="per nm",
+            np.stack([slope, error, rSquared], axis=2),
+            [
+                f"Slope {low:g}-{high:g} nm (per nm)",
+                "Slope standard error (per nm)",
+                "R² (unitless)",
+            ],
+            name=name,
+            description=(
+                f"Least-squares slope of {image.name} over {selected.size} bands "
+                f"in {low:g}-{high:g} nm, its standard error and the fit's R²"
+            ),
         )
+
+
+def _lineFit(
+    x: np.ndarray, cube: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Per pixel, the least-squares slope of ``cube`` (rows, cols, n) against
+    ``x``, its standard error sqrt(SSE / (n - 2) / Sxx) (NaN for n = 2: no
+    degrees of freedom left) and R² = 1 - SSE / SST (NaN for a flat
+    spectrum)."""
+    xCentred = x - x.mean()
+    sxx = np.sum(xCentred**2)
+    yCentred = cube - cube.mean(axis=2, keepdims=True)
+    slope = np.tensordot(yCentred, xCentred, axes=([2], [0])) / sxx
+    residual = yCentred - slope[:, :, None] * xCentred
+    sse = np.sum(residual**2, axis=2)
+    sst = np.sum(yCentred**2, axis=2)
+    dof = x.size - 2
+    with np.errstate(invalid="ignore", divide="ignore"):
+        error = np.sqrt(sse / dof / sxx) if dof > 0 else np.full_like(slope, np.nan)
+        rSquared = np.where(sst > 0, 1.0 - sse / sst, np.nan)
+    return slope, error, rSquared
 
 
 class SpatialGradientAnalysis(Analysis):

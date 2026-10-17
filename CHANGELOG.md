@@ -8,6 +8,10 @@ can alter results.
 
 ### Added
 
+- **Spectral Slope reports its uncertainty (changes results):** by default
+  the result has two more bands, the slope's standard error (per nm, from
+  each pixel's residuals) and the fit's R². Turn off **Fit Statistics** for
+  the slope band alone, as before.
 - **Documentation for reporting results:** every guide now ends with
   *Reporting your results*: what to state in a methods section (including
   settings the dialogs don't show), what each quality measure means and
