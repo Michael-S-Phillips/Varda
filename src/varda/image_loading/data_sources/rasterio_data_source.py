@@ -312,7 +312,8 @@ class RasterioDataSource(DataSource):
                 reader.close()
 
     def __del__(self):
-        self.close()
+        if hasattr(self, "_readersLock"):  # __init__ may have failed to open
+            self.close()
 
     def __repr__(self) -> str:
         return f"RasterioDataSource({self._filePath!r}, {self.width}x{self.height}x{self.bandCount})"

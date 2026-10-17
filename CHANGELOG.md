@@ -37,6 +37,15 @@ can alter results.
   **ROI to Mask** (Processing → Image Math) makes a 0/1 mask from ROI
   classes.
 
+### Fixed
+
+- **PDS products open through their labels.** After a Find Data download,
+  Varda opened a product's raw data file (such as a CaSSIS `.DAT`), which
+  has no header and failed to open; it now opens the PDS4 `.xml` or PDS3
+  `.lbl` label, and **File → Open** lists labels. For PDS4, values outside
+  the label's valid range are no-data, as its special constants already
+  were.
+
 ## 0.9.0 (2026-10-16)
 
 ### Added

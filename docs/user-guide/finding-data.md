@@ -105,8 +105,13 @@ How Varda makes sure a file is complete:
   the reason for each file. **Select** → by status picks the failed ones to
   try again.
 
-With **Open in Varda when done** (on by default), a product's data files open
-when all its essential files have downloaded.
+With **Open in Varda when done** (on by default), a product opens when all its
+essential files have downloaded. A PDS product opens through its label (the
+`.xml` of a PDS4 product, or a detached PDS3 `.lbl`): its data file (`.dat`,
+`.img`, ...) is raw pixels, and only the label says how to read them. To open
+one yourself, choose the label in **File → Open**. Pixels set to any of the
+label's special constants (missing, or a saturation value: CaSSIS fills the
+area off the image with one), or outside its valid range, are no-data.
 
 **Export List…** saves the list as a CSV (product, file, URL, size, checksum
 and target path) or as a shell script of resumable `curl` commands, to
