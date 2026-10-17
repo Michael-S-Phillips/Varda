@@ -196,9 +196,6 @@ These fixes change results; rerun affected analyses before reporting them.
 - **Find Data's To date** now includes that whole day (to 23:59:59 UTC) for
   STAC catalogs and footprint files, as it already did for ODE. It used to
   stop at the start of the day, leaving the day out.
-
-### Fixed
-
 - **Laptop screens:** panels no longer cut off their text at small sizes.
   Docked panels used to scroll sideways, out of sight, when they were wider
   than their dock: in **Find Data** the catalog description, the Collection
