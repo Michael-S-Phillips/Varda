@@ -46,6 +46,35 @@ def test_result_is_saved_to_the_requested_path_and_still_joins_the_project(
     assert loaded.bandNames == ["first"]
 
 
+class _WithCompanion(_FirstBand):
+    analysisId = "with_companion"
+
+    def runAll(self, image, reportProgress):
+        main = self.run(image, reportProgress)
+        quality = VardaRaster(
+            ArrayDataSource(np.ones((20, 20, 1), np.float32), bandNames=["q"]),
+            name=f"{image.name} quality",
+        )
+        return [main, quality]
+
+
+def test_companion_results_join_the_project_and_are_saved_beside(qtbot, tmp_path):
+    image = generate_random_image((20, 20, 10))
+    images = ProjectImages([image])
+    runner = AnalysisRunner(images)
+    target = tmp_path / "first.img"
+
+    with qtbot.waitSignal(runner.sigFinished, timeout=10_000) as blocker:
+        runner.run(_WithCompanion(), image, outputPath=str(target))
+
+    (result,) = blocker.args
+    companion = images[-1]
+    assert result in images and companion.name.endswith(" quality")
+    assert companion.extraMetadata["provenance"]["processId"] == "with_companion"
+    assert target.exists()
+    assert openDataSource(str(tmp_path / "first_quality.img")).bandNames == ["q"]
+
+
 def test_without_a_path_nothing_is_written(qtbot, tmp_path):
     image = generate_random_image((20, 20, 10))
     runner = AnalysisRunner(ProjectImages([image]))

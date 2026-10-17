@@ -39,8 +39,8 @@ record holds:
   displacement field how Auto Align matched (method asked for and used,
   bands, tile size, refinement); a crop its window (0-based row, column,
   height and width); a Spectral Hourglass result the wavelength window and
-  bands kept, IOVF on or off and its settings, the MNF noise estimate and
-  components kept, the PPI iterations, threshold, seed and candidate rule,
+  bands kept, IOVF on or off, its settings and what it replaced, the MNF
+  noise estimate and components kept, the PPI iterations, threshold, seed and candidate rule,
   every endmember's name, identification and pixels, and the map method
   and its setting.
 - **The inputs:** each by name and file path, **with the input's own record**
@@ -75,7 +75,11 @@ the file's `VARDA` metadata domain as JSON:
 The domain has two keys: `provenance` (the record) and `metadata` (class
 names and colors, eigenvalues, explained variance and the inverse transform,
 classifier figures such as layer sizes and the final training loss, the
-mosaic recipe, displacement and FATT settings). Varda reads both back when
+mosaic recipe, displacement and FATT settings, and the quality figures of
+analyses: MNF's noise model, ICA's convergence, the components an Inverse
+Transform kept and the count it suggested (`componentSelection`), K-Means
+cluster statistics (`kmeans`), unmixing convergence (`unmixing`), what IOVF
+replaced (`iovf`) and sensor-band coverage (`sensorBands`)). Varda reads both back when
 it opens the file, so a reopened class map keeps its names and colors, and a
 reopened PCA, MNF or ICA result still works with **Eigenvalue Plot** and
 **Inverse Transform**. Files Varda didn't write open exactly as before.

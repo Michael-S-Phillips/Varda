@@ -34,6 +34,23 @@ def test_spikes_are_replaced_and_clean_voxels_barely_change():
     assert result.rounds >= 1 and result.replaced[0] >= 40
 
 
+def test_each_pixel_counts_the_bands_replaced_and_the_stop_is_named():
+    """``replacedBands`` maps how many of each pixel's bands were replaced
+    (in any round), so the replacements can be mapped and reported."""
+    spiked = _smoothCube()
+    spiked[5, 6, [20, 30]] += 0.5
+    spiked[10, 4, 40] += 0.5
+
+    result = iovfFilter(spiked, nJobs=1, stopFraction=0)
+
+    assert result.replacedBands.shape == spiked.shape[:2]
+    assert result.replacedBands[5, 6] >= 2 and result.replacedBands[10, 4] >= 1
+    changed = np.count_nonzero(result.filtered != spiked, axis=2)
+    np.testing.assert_array_equal(result.replacedBands >= changed, True)
+    assert int(result.replacedBands.sum()) <= sum(result.replaced)
+    assert result.stopReason == "nothing flagged"
+
+
 def test_progress_is_reported_per_round():
     seen = []
     iovfFilter(_smoothCube(), nJobs=1, progress=lambda p, m: seen.append((p, m)))

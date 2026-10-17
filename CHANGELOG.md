@@ -8,6 +8,13 @@ can alter results.
 
 ### Added
 
+- **IOVF maps what it replaced (adds a result):** by default IOVF also adds
+  a one-band image counting the bands replaced at each pixel (**Replaced
+  Count Image**; saved beside the result when the dialog saves it). Both
+  results record the values replaced in each round, the totals, the pixels
+  affected and why it stopped (`iovf` metadata, saved with the file). The
+  Spectral Hourglass's Prepare page shows the same totals, and its results'
+  records keep them.
 - **Unmixing reports convergence:** unmixing results record their solver
   and, for the iterative (ADMM) solver used above ten endmembers, the
   iterations run and the share of pixels that converged (`unmixing`

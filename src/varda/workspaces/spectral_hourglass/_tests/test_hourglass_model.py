@@ -56,6 +56,16 @@ def test_prepare_can_run_the_iovf_filter():
     assert np.isfinite(model.cube[1:, 1:]).all()
 
 
+def test_prepare_keeps_and_records_what_iovf_replaced():
+    model = _prepared(useIovf=True)
+    record = model.prepared.iovf
+    assert record["replacedTotal"] == sum(record["replacedPerRound"])
+    assert model.runSettings()["prepare"]["iovf"]["replacedPerRound"] == (
+        record["replacedPerRound"]
+    )
+    assert _prepared().prepared.iovf is None
+
+
 def test_mnf_suggests_a_component_count_and_gives_component_images():
     model = _prepared()
     model.applyMnf(model.mnfTask()(_noProgress))

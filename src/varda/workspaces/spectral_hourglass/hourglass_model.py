@@ -147,6 +147,8 @@ class PreparedData:
     wavelengthsNm: np.ndarray | None = None  # the same centers in nm (for libraries)
     fwhmNm: np.ndarray | None = None  # their FWHM in nm, when the header gives it
     settings: HourglassSettings | None = None  # what Prepare ran with
+    # what IOVF replaced (IovfResult.record()), or None when it didn't run
+    iovf: dict | None = None
 
 
 @attrs.frozen
@@ -250,6 +252,7 @@ class HourglassModel:
                 )
             cube, valid = readCube(image)
             cube = np.ascontiguousarray(cube[:, :, indices])
+            iovf = None
             if settings.useIovf:
                 result = iovfFilter(
                     cube,
@@ -257,6 +260,7 @@ class HourglassModel:
                 )
                 cube = result.filtered
                 cube[~valid] = np.nan
+                iovf = result.record()
             progress(100, "done")
             return PreparedData(
                 cube=cube,
@@ -266,6 +270,7 @@ class HourglassModel:
                 wavelengthsNm=None if nm is None else nm[indices],
                 fwhmNm=None if bands.fwhm is None else bands.fwhm[indices],
                 settings=settings,
+                iovf=iovf,
             )
 
         return task
@@ -775,6 +780,7 @@ class HourglassModel:
                 "iovf": {
                     "window": DEFAULT_WINDOW,
                     "stopFraction": DEFAULT_STOP_FRACTION,
+                    **(self.prepared.iovf or {}),
                 }
                 if settings.useIovf
                 else None,

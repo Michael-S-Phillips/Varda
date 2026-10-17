@@ -48,6 +48,31 @@ neighbors; with none left, it takes the reference value. Bands marked bad
 keep their input values. Spectral filters added by plugins (a spectral smoothing filter, say) go here
 too.
 
+| Setting | Meaning | Range | Default |
+|---|---|---|---|
+| **Window Rows**, **Window Columns**, **Window Bands** | Size of the test window (odd) | 3–15 | 7, 5, 5 |
+| **Stop Below** | Stop once a round replaces fewer values than this share of round 1's (0: run until nothing is flagged) | 0–50 % | 1 % |
+| **Replaced Count Image** | Also add an image of how many bands were replaced at each pixel | On / off | On |
+
+**Outputs:** the filtered cube (the input's bands and units) and, with
+**Replaced Count Image** on, a one-band image named "*image* IOVF replaced"
+whose band "Bands replaced" counts, at each pixel, the bands replaced in any
+round (0 to the band count; NaN where the pixel is unusable). Both carry the
+same `iovf` metadata (saved with the file):
+
+| Key | Meaning |
+|---|---|
+| `replacedPerRound` | Values replaced in each round |
+| `replacedTotal` | Their sum; a value replaced in two rounds counts twice |
+| `voxelsReplaced` | Distinct values replaced (the sum of the count image) |
+| `pixelsWithReplacements` | Pixels with at least one replaced value |
+| `rounds` | Rounds run |
+| `stopReason` | Why it stopped: "nothing flagged", "below stop fraction", "stalled", "counts cycling" or "round limit" (200 rounds) |
+
+The filtered cube's description repeats the totals, the per-round counts
+and the stop reason. When **Save to** is set in the dialog, the count image
+is saved beside the result, with `_replaced` added to its file name.
+
 ## Spatial gradient (Derivatives)
 
 **Spatial Gradient** (Processing → Derivatives) gives the magnitude of one
@@ -377,12 +402,15 @@ a number:
   times that.) Bilateral, total variation and Canny are
   set relative to the band's standard deviation, so the same setting acts
   differently on bands with different spread.
-- **IOVF.** The number of values replaced in all rounds, and the number of
-  rounds, are in the result's description; the count in each round and
-  which values were replaced aren't saved. To map them, subtract the result
-  from the input (Image Arithmetic): the difference is zero, to rounding,
-  except where a value was replaced. The window and the stop setting change
-  what's replaced, so report both. Bad bands, and a pixel's no-data bands,
+- **IOVF.** Report the window, the stop setting and the `iovf` metadata
+  (values replaced per round and in total, pixels affected, rounds and why
+  it stopped). The **Replaced Count Image** maps where values were
+  replaced; clusters of replacements in one area or one band range point
+  to real spectral features being taken for spikes, so inspect those
+  spectra before trusting the filtered values there. To see by how much
+  each value changed, subtract the result from the input (Image
+  Arithmetic). The window and the stop setting change what's replaced, so
+  report both. Bad bands, and a pixel's no-data bands,
   are filled along the spectrum before filtering (so filled values take
   part in the windows); in the result, bad bands get their input values
   back and stay marked bad, while a pixel's filled no-data bands stay

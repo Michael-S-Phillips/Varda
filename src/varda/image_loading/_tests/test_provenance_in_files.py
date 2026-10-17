@@ -157,7 +157,7 @@ def test_a_record_names_every_input_and_the_software():
 
 
 @pytest.mark.parametrize(
-    "key", ["sensorBands", "kmeans", "componentSelection", "unmixing"]
+    "key", ["sensorBands", "kmeans", "componentSelection", "unmixing", "iovf"]
 )
 def test_quality_figures_are_kept_in_files(tmp_path, key):
     """Analyses' quality figures (coverage, convergence, cluster statistics)
