@@ -93,6 +93,11 @@ def test_the_displacement_field_joins_the_images(workspace, qtbot):
     ]
     east = field.getData()[:, :, 0]
     assert np.isclose(np.nanmedian(east), SHIFT[0] * PIXEL, atol=0.1 * PIXEL)
+    record = field.extraMetadata["provenance"]
+    assert record["process"] == "Displacement Field"
+    assert [i["name"] for i in record["inputs"]] == ["right", "left"]
+    assert record["parameters"]["tileSize"] == 32
+    assert record["parameters"]["method"] == dialog.alignment.method.name
 
 
 def test_the_automatic_points_survive_a_session(workspace, qtbot):

@@ -30,12 +30,14 @@ from PyQt6.QtWidgets import (
 from varda.analysis.class_tools import classRaster
 from varda.analysis.rasters import bandMetadata
 from varda.common.entities import VardaRaster
+from varda.common.provenance import makeProvenance, setProvenance
 from varda.common.ui import VardaDockWidget
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.mosaicking.grid import TargetGrid, defaultGrid, pixelSize
 from varda.mosaicking.matching import (
     AutoAlignResult,
     DisplacementField,
+    MatchMethod,
     MatchSettings,
     applyTiePoints,
     findTiePoints,
@@ -112,6 +114,11 @@ class MosaicWorkspace(QMainWindow):
         # The fit mode and held images the last ISIS comparison used
         self._isisMode = LinearMode.BOTH
         self._isisHeld: frozenset[int] = frozenset()
+        self._isisVersion = "unknown"
+        # For provenance: each image's last Auto Align (settings, method used,
+        # bands used) and the external tools whose results the recipe uses
+        self._alignments: dict[int, dict] = {}
+        self._tools: dict[str, str] = {}
 
         self.canvas = MosaicCanvas()
         self.inputsPanel = InputsPanel(self.project)
@@ -277,6 +284,9 @@ class MosaicWorkspace(QMainWindow):
         progress = onMainThread(dialog.showProgress)
 
         def finished(result: AutoAlignResult) -> None:
+            self._alignments[key] = matchParameters(settings, result)
+            if result.method is MatchMethod.ASP and settings.asp is not None:
+                self._tools["Ames Stereo Pipeline"] = settings.asp.version
             applyTiePoints(self.project, key, result)
             message = self.fit(key) if result.added else "Nothing was fitted."
             dialog.showResult(result, message)
@@ -308,6 +318,7 @@ class MosaicWorkspace(QMainWindow):
 
         def finished(result: RadiometryResult) -> None:
             self.project.applyRadiometry(result)
+            self._tools.pop("ISIS", None)  # Varda's own corrections replace ISIS's
             self.radiometryPanel.showResult(
                 result.message
                 or f"Balanced with {method.value.split(' (')[0].lower()}."
@@ -327,6 +338,7 @@ class MosaicWorkspace(QMainWindow):
         if install is None:
             return
         self._isisMode, self._isisHeld = mode, held
+        self._isisVersion = install.version or "unknown"
 
         def task() -> dict:
             with tempfile.TemporaryDirectory(prefix="varda-equalizer-") as folder:
@@ -376,6 +388,7 @@ class MosaicWorkspace(QMainWindow):
                 corrections,
             )
         )
+        self._tools["ISIS"] = self._isisVersion
         self.radiometryPanel.showResult("Using ISIS equalizer's corrections.")
         self.refreshPreview()
 
@@ -416,7 +429,9 @@ class MosaicWorkspace(QMainWindow):
         self.refreshPreview()
 
     def addDisplacementField(self, displacement: DisplacementField) -> None:
-        raster = displacementRaster(self.project, displacement)
+        raster = displacementRaster(
+            self.project, displacement, self._alignments.get(displacement.movingKey)
+        )
         self.projectImages.append(raster)
         self.status.showMessage(f"Added {raster.name} to the image list.", 8000)
 
@@ -444,7 +459,7 @@ class MosaicWorkspace(QMainWindow):
         resampling: Resampling,
         withSources: bool,
     ) -> None:
-        mosaic = mosaicRaster(self.project, result, grid, resampling)
+        mosaic = mosaicRaster(self.project, result, grid, resampling, self._tools)
         self.projectImages.append(mosaic)
         if withSources:
             self.projectImages.append(sourcesRaster(self.project, result, mosaic))
@@ -476,8 +491,10 @@ def mosaicRaster(
     result: MosaicResult,
     grid: TargetGrid,
     resampling: Resampling,
+    tools: dict[str, str] | None = None,
 ) -> VardaRaster:
-    """The rendered mosaic as a project image, with its recipe in the metadata."""
+    """The rendered mosaic as a project image, with its recipe in the metadata
+    and its provenance (``tools``: external tools whose results it uses)."""
     first = project.inputs[0].image
     visual = resampling is not Resampling.NEAREST or project.isVisual
     names = [i.image.name for i in project.inputs]
@@ -500,14 +517,55 @@ def mosaicRaster(
         description=f"Mosaic of {', '.join(names)} ({_methods(project, resampling)})",
     )
     suffix = " (visual)" if visual else ""
-    return VardaRaster(source, name=f"Mosaic of {len(names)} images{suffix}")
+    mosaic = VardaRaster(source, name=f"Mosaic of {len(names)} images{suffix}")
+    setProvenance(
+        mosaic,
+        makeProvenance(
+            "Mosaic",
+            {
+                "resampling": resampling.name,
+                "grid": gridParameters(grid),
+                "recipe": project.state(),
+            },
+            [i.image for i in project.inputs],
+            processId="mosaic",
+            software=tools,
+        ),
+    )
+    return mosaic
+
+
+def gridParameters(grid: TargetGrid) -> dict:
+    """The output grid as plain data (on the GUI thread: it reads the CRS)."""
+    return {
+        "width": grid.width,
+        "height": grid.height,
+        "transform": list(grid.transform)[:6],
+        "crs": grid.crs.to_wkt() if grid.crs is not None else None,
+    }
+
+
+def matchParameters(settings: MatchSettings, result: AutoAlignResult) -> dict:
+    """How Auto Align matched an image, for provenance."""
+    return {
+        "method": result.method.name,
+        "requestedMethod": settings.method.name,
+        "bands": None if settings.bands is None else list(settings.bands),
+        "bandCount": settings.bandCount,
+        "bandsUsed": list(result.bands),
+        "tileSize": settings.tileSize,
+        "refine": settings.refine,
+    }
 
 
 def displacementRaster(
-    project: MosaicProject, displacement: DisplacementField
+    project: MosaicProject,
+    displacement: DisplacementField,
+    matching: dict | None = None,
 ) -> VardaRaster:
     """A displacement field as an image: east and north displacement (map
-    units) and match quality, on the tile grid over the overlap."""
+    units) and match quality, on the tile grid over the overlap; ``matching``
+    is how Auto Align matched (``matchParameters``), for its provenance."""
     moving = project.input(displacement.movingKey).image.name
     reference = project.input(displacement.referenceKey).image.name
     names = ["East displacement", "North displacement", "Match quality"]
@@ -530,7 +588,20 @@ def displacementRaster(
         },
         description=f"Displacement of {moving} relative to {reference}, tile by tile",
     )
-    return VardaRaster(source, name=f"Displacement of {moving} from {reference}")
+    raster = VardaRaster(source, name=f"Displacement of {moving} from {reference}")
+    setProvenance(
+        raster,
+        makeProvenance(
+            "Displacement Field",
+            matching or {},
+            [
+                project.input(displacement.movingKey).image,
+                project.input(displacement.referenceKey).image,
+            ],
+            processId="displacement_field",
+        ),
+    )
+    return raster
 
 
 def _methods(project: MosaicProject, resampling: Resampling) -> str:
@@ -553,7 +624,7 @@ def sourcesRaster(
     names = [i.image.name for i in project.inputs]
     ramp = colormaps["tab10"]
     colors = [to_hex(ramp(k % 10)) for k in range(len(names))]
-    return classRaster(
+    sources = classRaster(
         mosaic,
         classes,
         names,
@@ -561,3 +632,8 @@ def sourcesRaster(
         name=f"{mosaic.name} sources",
         description=f"Source image of each pixel of {mosaic.name}",
     )
+    setProvenance(
+        sources,
+        makeProvenance("Mosaic Source Index", {}, [mosaic], processId="mosaic_sources"),
+    )
+    return sources

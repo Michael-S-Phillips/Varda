@@ -102,6 +102,14 @@ def test_tie_points_from_clicks_then_fit_put_the_image_back(qtbot, setup):
     assert np.array_equal(np.asarray(mosaic.getData()), np.asarray(scene.getData()))
     assert isClassMap(sources) and sources.extraMetadata["classes"] == ["left", "right"]
     assert mosaic.extraMetadata["mosaic"]["inputs"] == ["left", "right"]
+    record = mosaic.extraMetadata["provenance"]
+    assert record["process"] == "Mosaic"
+    assert [i["name"] for i in record["inputs"]] == ["left", "right"]
+    assert record["parameters"]["resampling"] == "NEAREST"
+    assert record["parameters"]["recipe"] == workspace.project.state()
+    assert record["parameters"]["grid"]["width"] == grid.width
+    sourcesRecord = sources.extraMetadata["provenance"]
+    assert sourcesRecord["inputs"][0]["provenance"] == record
 
 
 def test_the_recipe_survives_a_session(setup):
