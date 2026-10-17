@@ -72,6 +72,16 @@ def test_unmixing_recovers_the_mixing_fraction():
     assert np.abs(b - fraction[1:, 1:]).mean() < 0.03
 
 
+def test_unmixing_records_its_solver_and_convergence():
+    image, _ = _scene()
+    result = _with(UnmixingAnalysis()).run(image, lambda p, m: None)
+    record = result.extraMetadata["unmixing"]
+    assert record["constraint"] == "FULLY_CONSTRAINED"
+    assert record["solver"] == "exact"
+    assert record["pixels"] == 20 * 40 - 1
+    assert record["fractionConverged"] == 1.0
+
+
 def test_mtmf_scores_the_b_half():
     image, fraction = _scene()
     analysis = _with(MtmfAnalysis())

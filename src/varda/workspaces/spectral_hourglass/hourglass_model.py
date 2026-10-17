@@ -33,8 +33,16 @@ from varda.analysis.linear_algebra import (
     suggestedComponents,
 )
 from varda.analysis.rasters import readCube
-from varda.analysis.mapping import DEFAULT_SAM_MAX_ANGLE, MapMethod, mapBands, mapRaster
-from varda.analysis.unmixing import Constraint
+from varda.analysis.mapping import (
+    DEFAULT_SAM_MAX_ANGLE,
+    UNMIXING_METADATA_KEY,
+    MapMethod,
+    mapBands,
+    mapRaster,
+    unmixingDetail,
+    unmixingMetadata,
+)
+from varda.analysis.unmixing import Constraint, UnmixingReport
 from varda.analysis.transforms import TRANSFORM_METADATA_KEY, transformMetadata
 from varda.common.entities import VardaRaster
 from varda.common.provenance import makeProvenance, setProvenance
@@ -703,6 +711,7 @@ class HourglassModel:
 
         def task(progress: ProgressCallback) -> VardaRaster:
             progress(0, "mapping")
+            metadata: dict = {}
             if method is MapMethod.MTMF:
                 bands, bandNames = mapBands(
                     method, names, mnfData=mnfData, targets=targets
@@ -710,6 +719,7 @@ class HourglassModel:
                 detail = f"{k} MNF components"
             else:
                 X = prepared.cube.reshape(-1, prepared.cube.shape[2])[validFlat]
+                report = UnmixingReport()
                 bands, bandNames = mapBands(
                     method,
                     names,
@@ -718,12 +728,15 @@ class HourglassModel:
                     maxAngle=maxAngle,
                     constraint=constraint,
                     progress=lambda p, m: progress(int(0.9 * p), m),
+                    report=report,
                 )
-                detail = (
-                    f"max angle {maxAngle:g} rad"
-                    if method is MapMethod.SAM
-                    else constraint.value
-                )
+                if method is MapMethod.SAM:
+                    detail = f"max angle {maxAngle:g} rad"
+                else:
+                    detail = unmixingDetail(constraint, report)
+                    metadata[UNMIXING_METADATA_KEY] = unmixingMetadata(
+                        constraint, report
+                    )
             progress(90, "building image")
             result = mapRaster(
                 image,
@@ -734,6 +747,7 @@ class HourglassModel:
                 names=names,
                 colors=colors,
                 detail=detail,
+                metadata=metadata,
             )
             setProvenance(result, record)
             progress(100, "done")

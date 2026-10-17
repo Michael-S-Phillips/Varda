@@ -8,6 +8,7 @@ each chosen ROI's mean spectrum is one endmember.
 
 from __future__ import annotations
 
+import logging
 from enum import Enum
 
 import numpy as np
@@ -19,6 +20,7 @@ from varda.analysis.linear_algebra import flattenValid, mnf, noiseCovariance
 from varda.analysis.rasters import readGoodBands, singleBandRaster
 from varda.analysis.unmixing import (
     Constraint,
+    UnmixingReport,
     linearUnmix,
     mixtureTunedMatchedFilter,
     spectralAngles,
@@ -31,6 +33,8 @@ from varda.common.parameter import (
     MultiChoiceParameter,
 )
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SAM_MAX_ANGLE = 0.10  # radians, ENVI's default
 
@@ -55,11 +59,13 @@ def mapBands(
     mnfData: np.ndarray | None = None,
     targets: np.ndarray | None = None,
     progress: ProgressCallback | None = None,
+    report: UnmixingReport | None = None,
 ) -> tuple[np.ndarray, list[str]]:
     """(pixels, bands) map values and band names.
 
     SAM and unmixing compare ``X`` (pixels, bands) with endmember ``spectra``;
     MTMF compares ``mnfData`` (pixels, components) with ``targets`` in MNF space.
+    Unmixing fills in ``report`` (how the abundances were solved).
     """
     if method is MapMethod.SAM:
         assert X is not None and spectra is not None
@@ -73,7 +79,9 @@ def mapBands(
         ]
     if method is MapMethod.UNMIX:
         assert X is not None and spectra is not None
-        abundances, rmse = linearUnmix(X, spectra, constraint, progress)
+        abundances, rmse = linearUnmix(
+            X, spectra, constraint, progress, report=report
+        )
         return np.column_stack([abundances, rmse]), [*names, "RMS Error"]
     assert mnfData is not None and targets is not None
     mf, infeasibility = mixtureTunedMatchedFilter(mnfData, targets)
@@ -93,10 +101,11 @@ def mapRaster(
     names: list[str],
     colors: list[str],
     detail: str,
+    metadata: dict | None = None,
 ) -> VardaRaster:
     """A map result over ``image``'s footprint; ``bands`` holds one row per
     flat index in ``validFlat``. The endmember names and colors go in the
-    metadata (``classes``, ``classColors``)."""
+    metadata (``classes``, ``classColors``), with any other ``metadata``."""
     shape = (image.height, image.width)
     out = np.full((shape[0] * shape[1], bands.shape[1]), np.nan, dtype=np.float32)
     out[validFlat] = bands
@@ -112,9 +121,32 @@ def mapRaster(
             "classes": names,
             "classColors": colors,
             "mapMethod": method.name,
+            **(metadata or {}),
         },
     )
     return VardaRaster(source, name=f"{image.name} {_SUFFIX[method]}")
+
+
+UNMIXING_METADATA_KEY = "unmixing"
+
+
+def unmixingMetadata(constraint: Constraint, report: UnmixingReport) -> dict:
+    """How an unmixing result was solved, for its metadata."""
+    return {"constraint": constraint.name, **report.asMetadata()}
+
+
+def unmixingDetail(constraint: Constraint, report: UnmixingReport) -> str:
+    """The constraint for the description, with a warning when ADMM left
+    pixels short of its tolerance."""
+    detail = constraint.value
+    if report.pixelsConverged < report.pixels:
+        short = report.pixels - report.pixelsConverged
+        detail += (
+            f"; {short:,} of {report.pixels:,} pixels did not converge in "
+            f"{report.maxIterations} ADMM iterations"
+        )
+        logger.warning("Linear unmixing: %s", detail)
+    return detail
 
 
 # --- Processing entries ------------------------------------------------------------
@@ -226,6 +258,7 @@ class _RoiEndmemberMapping(_RoiTrainingAnalysis):
         validFlat = np.flatnonzero(valid.ravel())
         X = cube.reshape(-1, cube.shape[2])[validFlat]
         reportProgress(20, "mapping")
+        self._metadata: dict = {}
         bands, bandNames, detail = self._map(
             cube, valid, X, spectra, masks, names, reportProgress
         )
@@ -239,9 +272,11 @@ class _RoiEndmemberMapping(_RoiTrainingAnalysis):
             names=names,
             colors=colors,
             detail=detail,
+            metadata=self._metadata,
         )
 
     def _map(self, cube, valid, X, spectra, masks, names, reportProgress):
+        """(bands, band names, detail); may add to ``self._metadata``."""
         raise NotImplementedError
 
 
@@ -285,6 +320,7 @@ class UnmixingAnalysis(_RoiEndmemberMapping):
 
     def _map(self, cube, valid, X, spectra, masks, names, reportProgress):
         constraint = Constraint(self.constraint.value)
+        report = UnmixingReport()
         bands, bandNames = mapBands(
             MapMethod.UNMIX,
             names,
@@ -292,8 +328,10 @@ class UnmixingAnalysis(_RoiEndmemberMapping):
             spectra,
             constraint=constraint,
             progress=lambda p, m: reportProgress(20 + int(0.7 * p), m),
+            report=report,
         )
-        return bands, bandNames, constraint.value
+        self._metadata[UNMIXING_METADATA_KEY] = unmixingMetadata(constraint, report)
+        return bands, bandNames, unmixingDetail(constraint, report)
 
 
 class MtmfAnalysis(_RoiEndmemberMapping):

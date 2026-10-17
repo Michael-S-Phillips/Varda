@@ -8,6 +8,11 @@ can alter results.
 
 ### Added
 
+- **Unmixing reports convergence:** unmixing results record their solver
+  and, for the iterative (ADMM) solver used above ten endmembers, the
+  iterations run and the share of pixels that converged (`unmixing`
+  metadata, saved with the file); pixels left short are named in the
+  description and the log.
 - **MNF keeps its noise model:** the result's transform metadata (saved
   with the file) holds the noise covariance MNF whitened by, each band's
   noise σ, the noise estimate and its ROI classes, from the Processing menu

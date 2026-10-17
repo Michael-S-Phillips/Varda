@@ -266,6 +266,7 @@ def test_unmixing_map_recovers_abundances():
     model = _withTrueEndmembers()
     result = model.mapTask(MapMethod.UNMIX)(_noProgress)
     assert result.bandNames == ["flat", "clay", "mafic", "RMS Error"]
+    assert result.extraMetadata["unmixing"]["solver"] == "exact"
     abundances = result.getData()[1:, 1:, :3]
     assert np.abs(abundances - truth[1:, 1:]).mean() < 0.03
 
