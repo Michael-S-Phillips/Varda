@@ -3,7 +3,7 @@ plus live checks that run with VARDA_LIVE_TESTS=1."""
 
 import json
 import os
-from datetime import datetime
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 
 import geopandas as gpd
@@ -254,6 +254,26 @@ def test_footprint_files_search_by_area_id_and_date(footprintFile):
     assert "hrl000040ff_07_if183j_mtr3" not in [
         p.id for p in late.products
     ]  # observed 2007-01-29
+
+
+def test_footprint_files_to_date_at_end_of_day_includes_that_day(footprintFile):
+    path = str(FIXTURES / "ode_mtrdr_footprints.gpkg")
+    endOfDay = datetime.combine(date(2007, 1, 29), time.max, timezone.utc)
+    ids = [
+        p.id
+        for p in footprintFile.search(
+            SearchQuery(path, end=endOfDay), _progress
+        ).products
+    ]
+    assert "hrl000040ff_07_if183j_mtr3" in ids  # observed 2007-01-29
+
+
+def test_ode_is_sent_the_to_day_which_it_takes_to_the_end_of_that_day(monkeypatch):
+    # ODE reads maxobtime=2008-01-01 as 2008-01-01T23:59:59.999
+    catalog, http = _ode(monkeypatch)
+    endOfDay = datetime.combine(date(2008, 1, 1), time.max, timezone.utc)
+    catalog.search(SearchQuery("mars:MRO:CRISM:MTRDR", end=endOfDay), _progress)
+    assert http.calls[-1][1]["maxobtime"] == "2008-01-01"
 
 
 def test_ode_footprint_files_get_their_files_from_ode(footprintFile, monkeypatch):

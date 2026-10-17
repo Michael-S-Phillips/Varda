@@ -17,7 +17,7 @@ from PyQt6.QtSvg import QSvgGenerator
 from varda.common.spectral_axis import SpectralUnit
 
 if TYPE_CHECKING:
-    from varda.plotting.plot import VardaPlotWidget
+    from varda.plotting.plot import Curve, VardaPlotWidget
 
 EXPORT_FILTER = (
     "PNG image (*.png);;SVG vector image (*.svg);;PDF (*.pdf);;CSV data (*.csv)"
@@ -104,23 +104,55 @@ def _pdf(plotItem: pg.PlotItem, target: Path) -> None:
 
 
 def _csv(widget: VardaPlotWidget, target: Path) -> None:
-    curves = [
-        (c.plotDataItem.name() or f"curve {i + 1}", *c.displayedData())
-        for i, c in enumerate(widget.plots)
+    """The curves' own values (without any display Y scale/offset, which a
+    comment line records), and for mean spectra the standard deviation and
+    pixel count n behind each mean."""
+    names = [
+        c.plotDataItem.name() or f"curve {i + 1}" for i, c in enumerate(widget.plots)
     ]
+    curves = [(name, c, *c.data()) for name, c in zip(names, widget.plots)]
     xColumn = _UNIT_COLUMN.get(widget.spectralUnit, "x") if widget.spectralUnit else "x"
     with target.open("w", newline="") as f:
+        transformed = [(n, c) for n, c, _, _ in curves if c.isTransformed()]
+        if transformed:
+            f.write(
+                "# Values are the curves' own data. The plot showed these "
+                "curves as y * scale + offset:\n"
+            )
+            for name, c in transformed:
+                f.write(
+                    f"# {name}: scale={c.config.scale.value:.10g}, "
+                    f"offset={c.config.offset.value:.10g}\n"
+                )
         out = csv.writer(f)
         sharedX = bool(curves) and all(
-            len(x) == len(curves[0][1]) and np.allclose(x, curves[0][1], equal_nan=True)
-            for _, x, _ in curves
+            len(x) == len(curves[0][2]) and np.allclose(x, curves[0][2], equal_nan=True)
+            for _, _, x, _ in curves
         )
         if sharedX:
-            out.writerow([xColumn, *[name for name, _, _ in curves]])
-            for row in zip(curves[0][1], *[y for _, _, y in curves]):
+            columns = [col for name, c, _, y in curves for col in _columns(name, c, y)]
+            out.writerow([xColumn, *[header for header, _ in columns]])
+            for row in zip(curves[0][2], *[values for _, values in columns]):
                 out.writerow([f"{v:.10g}" for v in row])
         else:
-            out.writerow(["curve", "x", "y"])
-            for name, x, y in curves:
-                for xv, yv in zip(x, y):
-                    out.writerow([name, f"{xv:.10g}", f"{yv:.10g}"])
+            spread = any(
+                c.std is not None or c.count is not None for _, c, _, _ in curves
+            )
+            out.writerow(["curve", "x", "y", *(["std", "n"] if spread else [])])
+            for name, c, x, y in curves:
+                for i, (xv, yv) in enumerate(zip(x, y)):
+                    extra = [_cell(c.std, i), _cell(c.count, i)] if spread else []
+                    out.writerow([name, f"{xv:.10g}", f"{yv:.10g}", *extra])
+
+
+def _columns(name: str, curve: Curve, y: np.ndarray) -> list[tuple[str, np.ndarray]]:
+    columns = [(name, y)]
+    if curve.std is not None:
+        columns.append((f"{name} std", curve.std))
+    if curve.count is not None:
+        columns.append((f"{name} n", curve.count))
+    return columns
+
+
+def _cell(values: np.ndarray | None, i: int) -> str:
+    return "" if values is None else f"{values[i]:.10g}"
