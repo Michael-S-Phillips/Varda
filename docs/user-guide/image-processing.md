@@ -67,6 +67,13 @@ the cube covers less than 90% of (HiRISE BG below CRISM's first band, say)
 is skipped, and the result's description lists it. A pixel missing more
 than 10% of a band's response (from no-data) is no-data in that band.
 
+Each band's **coverage**, the share of its response (area) that the cube's
+good bands cover, is in the result's description (e.g. "coverage BG 93%,
+RED 100%, NIR 100%") and its metadata (`sensorBands`: the sensor, the
+coverage of every sensor band, used or skipped, as a fraction 0–1, the
+90% threshold and the skipped bands). The metadata is saved with the
+file.
+
 Built in:
 
 - **Landsat 8 OLI, Landsat 9 OLI-2, Sentinel-2A, -2B and -2C MSI:** the
@@ -384,9 +391,12 @@ a number:
   approximations (the result's description says so), and CTX is rebuilt
   from published edges: fine for a scene to align, not for comparing
   values with the real instrument. For that, give the instrument's measured
-  response file. A band can be kept with up to 10% of its response missing,
-  and Varda doesn't report how much was: compare the band's range with the
-  cube's wavelengths yourself.
+  response file. A band can be kept with up to 10% of its response
+  missing; its coverage (in the description and the `sensorBands`
+  metadata) says how much of it the cube covers. Report it for any band
+  below 100%: the missing part of the response is left out and the rest
+  renormalized, so the band is biased toward the cube's side of it when
+  the spectrum slopes across it.
 - **Band Math and Image Arithmetic** don't propagate errors. For a ratio
   R = A / B with independent noise, (σR / R)² = (σA / A)² + (σB / B)². Take
   σA and σB from the standard deviation of each band over a uniform area

@@ -8,6 +8,9 @@ can alter results.
 
 ### Added
 
+- **Convolve to Sensor Bands records coverage:** each band's coverage (the
+  share of its response the cube covers) is in the result's description
+  and, for every sensor band, in its saved metadata (`sensorBands`).
 - **Spectral Slope reports its uncertainty (changes results):** by default
   the result has two more bands, the slope's standard error (per nm, from
   each pixel's residuals) and the fit's R². Turn off **Fit Statistics** for

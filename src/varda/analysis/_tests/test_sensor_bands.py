@@ -13,6 +13,7 @@ from varda.analysis.sensor_bands import (
     SensorBandsAnalysis,
     SensorChoice,
     Sensor,
+    bandWeights,
     boxcar,
     convolve,
     gaussian,
@@ -128,6 +129,25 @@ def test_custom_bands_and_nothing_covered():
     analysis.custom.set("")
     with pytest.raises(ValueError, match="Custom Bands"):
         analysis.run(_image(), lambda *_: None)
+
+
+def test_each_bands_coverage_is_recorded_and_shown():
+    """The share of each sensor band's response the cube covers goes in the
+    result's metadata (every band, used or skipped) and its description."""
+    analysis = SensorBandsAnalysis()
+    analysis.sensor.set(SensorChoice.CUSTOM)
+    analysis.custom.set("Green 550/40; Edge 985/20; Far 2200/100")
+    result = analysis.run(_image(), lambda *_: None)
+    _, coverage = bandWeights(WL, parseBands("Green 550/40; Edge 985/20; Far 2200/100"))
+    recorded = result.extraMetadata["sensorBands"]
+    assert recorded["minCoverage"] == pytest.approx(0.9)
+    assert recorded["coverage"] == pytest.approx(
+        {"Green": coverage[0], "Edge": coverage[1], "Far": coverage[2]}
+    )
+    assert recorded["skipped"] == ["Far"]
+    assert 0.9 <= coverage[1] < 0.999
+    assert f"Edge {100 * coverage[1]:.0f}%" in result.dataSource.description
+    assert "Green 100%" in result.dataSource.description
 
 
 @pytest.mark.parametrize(
