@@ -8,7 +8,8 @@ Everything else on this page reads the data as stored.
 
 Each view shows either one band through a color map (**Mono**) or three
 bands as red, green and blue (**RGB**), set under **Render Settings**. A
-stretch maps each band's values to 0–1. Varda then multiplies by 255 and
+stretch maps each band's values to 0–1. Varda then clips to 0–1 (so
+values outside saturate at black or full brightness), multiplies by 255 and
 truncates to 8 bits; in Mono, that 8-bit value picks one of 256 colors from
 the color map. No-data pixels are drawn as 0: black in RGB, the color
 map's lowest color in Mono.
@@ -25,12 +26,13 @@ map's lowest color in Mono.
 | **Histogram Equalization** | Each value maps to the fraction of pixels at or below it, from a 4,096-bin histogram between the band's minimum and maximum | None |
 
 Each band of an RGB view is stretched on its own statistics. **No Stretch**
-is listed but doesn't work yet: the view fails to draw. Use **Min-Max
-(Manual)** with limits 0 and 1 to show reflectance as it is.
+shows the values as they are, as if they were already 0–1: right for
+reflectance; values below 0 draw as 0 and above 1 as 1.
 
 **Percentiles are approximate.** Varda finds them from a 1,024-bin
-histogram, not by sorting. Each limit is the lower edge of the bin the
-percentile falls in, so it can be low by up to one bin width: (maximum −
+histogram, not by sorting. The p-th percentile is the smallest value with
+at least p % of the pixels at or below it, and each limit is the lower edge
+of the bin that value falls in, so it can be low by up to one bin width: (maximum −
 minimum) / 1,024. For RGB, the bins span the range of all three bands
 together, so a band with a narrow range gets coarser limits. **High
 Percent** at 100 gives the lower edge of the top bin, a little under the

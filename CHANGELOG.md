@@ -37,6 +37,12 @@ can alter results.
   **ROI to Mask** (Processing → Image Math) makes a 0/1 mask from ROI
   classes.
 
+### Fixed
+
+- **No Stretch** draws again (the view failed to draw). Values outside 0–1
+  from any stretch now saturate at black or full brightness instead of
+  wrapping around to the other end of the 8-bit range.
+
 ## 0.9.0 (2026-10-16)
 
 ### Added
