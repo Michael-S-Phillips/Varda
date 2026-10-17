@@ -39,6 +39,12 @@ can alter results.
 
 ### Fixed
 
+- **PDS products open through their labels.** After a Find Data download,
+  Varda opened a product's raw data file (such as a CaSSIS `.DAT`), which
+  has no header and failed to open; it now opens the PDS4 `.xml` or PDS3
+  `.lbl` label, and **File → Open** lists labels. For PDS4, values outside
+  the label's valid range are no-data, as its special constants already
+  were.
 - **Edge Detection, Scharr (changes results):** Scharr was √2 times the
   gradient magnitude; it's now in band units per pixel, like Sobel, Prewitt
   and Roberts. Scharr results from earlier versions are √2 (about 1.414)
