@@ -6,9 +6,9 @@ settle (sigChanged), as each one rebuilds its texture."""
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtWidgets import QScrollArea, QSplitter, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
-from varda.common.ui import MutedLabel
+from varda.common.ui import MutedLabel, PanelScrollArea
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.new_histogram_view import NewHistogramView
 from varda.workspaces.terrain.overlay_panel import TerrainOverlay
@@ -50,10 +50,8 @@ class OverlayDisplay(QWidget):
             return
         self.title.setText(f"<b>{overlay.image.name}</b>")
         renderer = overlay.renderer
-        settings = QScrollArea()
         # the overlay's opacity is set in the Overlays panel
-        settings.setWidget(renderer.getSettingsPanel(opacity=False))
-        settings.setWidgetResizable(True)
+        settings = PanelScrollArea(renderer.getSettingsPanel(opacity=False))
         self.splitter.addWidget(settings)
         self.splitter.addWidget(NewHistogramView(renderer))
         self.splitter.setSizes([300, 220])

@@ -29,7 +29,6 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
-    QScrollArea,
     QSplitter,
     QStackedWidget,
     QVBoxLayout,
@@ -38,7 +37,7 @@ from PyQt6.QtWidgets import (
 
 from varda.common.entities import VardaRaster
 from varda.common.grid import compatibleImages
-from varda.common.ui import VardaDockWidget
+from varda.common.ui import ElidingComboBox, PanelScrollArea, VardaDockWidget
 from varda.image_rendering.image_renderer import ImageRenderer
 from varda.image_rendering.new_histogram_view import NewHistogramView
 from varda.image_rendering.raster_view.image_viewport import ImageViewport
@@ -136,14 +135,12 @@ class LinkedImagesWorkspace(QMainWindow):
         self.spectra = LinkedSpectraPanel(self.images)
 
         # Each image's display settings, with its histograms
-        self.displayChoice = QComboBox()
+        self.displayChoice = ElidingComboBox()
         self.displayStack = QStackedWidget()
         self.histograms = []
         for image, renderer in zip(self.images, self.renderers):
             self.displayChoice.addItem(image.name)
-            settings = QScrollArea()
-            settings.setWidget(renderer.getSettingsPanel())
-            settings.setWidgetResizable(True)
+            settings = PanelScrollArea(renderer.getSettingsPanel())
             histogram = NewHistogramView(renderer)
             self.histograms.append(histogram)
             page = QSplitter(Qt.Orientation.Vertical)

@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.analysis.endmembers import interpolatePlane, randomPlane
+from varda.common.ui import FlowLayout, HBoxBuilder, WrapperWidget
 
 _FRAME_MS = 33
 _HOVER_PIXELS = 7.0
@@ -214,32 +215,41 @@ class NdVisualizer(QWidget):
         self.hintLabel = QLabel()
         self.hintLabel.setWordWrap(True)
 
-        controls = QHBoxLayout()
+        # both rows wrap in a narrow dock
+        controls = FlowLayout()
         for widget in (
             self.rotateButton,
             self.lassoButton,
             self.playButton,
             self.stepButton,
             newButton,
-            QLabel("Speed"),
-            self.speedSlider,
+            WrapperWidget(
+                HBoxBuilder(margins=0)
+                .withWidget(QLabel("Speed"))
+                .withWidget(self.speedSlider)
+            ),
         ):
             controls.addWidget(widget)
-        controls.addStretch()
-        dims = QHBoxLayout()
         dimsLabel = QLabel("Tour through MNF:")
         dimsLabel.setToolTip(
             "The cloud is rotated through these MNF components. Untick one to hold "
             "it out of every view, e.g. a noisy component or one you have explored."
         )
-        dims.addWidget(dimsLabel)
-        dims.addLayout(self.dimsLayout)
-        dims.addStretch()
-        dims.addWidget(self.collapseBox)
-        dims.addWidget(self.axesBox)
-        dims.addWidget(self.backgroundBox)
-        dims.addWidget(QLabel("Size"))
-        dims.addWidget(self.sizeSlider)
+        dims = FlowLayout()
+        for widget in (
+            WrapperWidget(
+                HBoxBuilder(margins=0).withWidget(dimsLabel).withLayout(self.dimsLayout)
+            ),
+            self.collapseBox,
+            self.axesBox,
+            self.backgroundBox,
+            WrapperWidget(
+                HBoxBuilder(margins=0)
+                .withWidget(QLabel("Size"))
+                .withWidget(self.sizeSlider)
+            ),
+        ):
+            dims.addWidget(widget)
 
         layout = QVBoxLayout(self)
         layout.addLayout(controls)

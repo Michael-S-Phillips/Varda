@@ -144,7 +144,7 @@ class IntParameterWidget(QWidget):
         self.spinBox = (
             SpinBoxBuilder(self)
             .sizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-            .minimumSize(60, 30)
+            .minimumSize(0, 30)  # as wide as its range needs (0: from its hint)
             .range(param.range if param.range is not None else (-100000, 100000))
             .default(param.get())
             .binding(self.valueChanged)

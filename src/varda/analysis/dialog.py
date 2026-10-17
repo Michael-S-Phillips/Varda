@@ -26,6 +26,8 @@ from varda.common.ui import (
     SectionBox,
     VBoxBuilder,
     MutedLabel,
+    PanelScrollArea,
+    WrapperWidget,
 )
 from varda.image_loading.raster_writer import SAVE_FILE_FILTER, suggestedOutputPath
 from varda.rois.roi_collection import ROICollection
@@ -112,15 +114,22 @@ class RunAnalysisDialog(QDialog):
         form.addRow("Analysis", self.analysisCombo)
         if analysis is not None:
             form.setRowVisible(self.analysisCombo, False)
-        self.setLayout(
-            VBoxBuilder(Qt.AlignmentFlag.AlignTop)
-            .withLayout(form)
+        # before the scroll area below measures them, so it opens wide enough
+        self._showSettings()
+        # the settings scroll when they're taller than a laptop screen
+        body = WrapperWidget(
+            VBoxBuilder(Qt.AlignmentFlag.AlignTop, margins=0)
             .withWidget(self.descriptionLabel)
             .withWidget(self.settingsBox)
             .withWidget(self.previewBox)
             .withWidget(outputBox)
             .withWidget(self.statusLabel)
             .withStretch()
+        )
+        self.setLayout(
+            VBoxBuilder()
+            .withLayout(form)
+            .withWidget(PanelScrollArea(body), 1)
             .withLayout(
                 HBoxBuilder()
                 .withWidget(self.runButton)
@@ -133,7 +142,6 @@ class RunAnalysisDialog(QDialog):
         self.imageParam.sigParameterChanged.connect(lambda _: self._showSettings())
         self.saveCheck.toggled.connect(self._updateRunState)
         self.pathEdit.textChanged.connect(self._updateRunState)
-        self._showSettings()
         self.accepted.connect(
             lambda: self.sigRunRequested.emit(
                 self.selectedAnalysis(), self.selectedImage(), self.outputPath()

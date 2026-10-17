@@ -18,7 +18,6 @@ from PyQt6.QtCore import QObject, QPointF, QRectF, QSize, Qt
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QButtonGroup,
-    QComboBox,
     QHBoxLayout,
     QLabel,
     QToolButton,
@@ -26,6 +25,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.common.entities import Color, ROIMode
+from varda.common.ui import ElidingComboBox
 from varda.image_rendering.raster_view.viewport_tools.roi_tools import ROIDrawTool
 from varda.image_rendering.raster_view.viewport_tools.tool_manager import ToolManager
 from varda.image_rendering.raster_view.viewport_tools.viewport_tool import ViewportTool
@@ -125,11 +125,7 @@ class ROIClassPicker(QWidget):
     ):
         super().__init__(parent)
         self.state = state
-        self.classBox = QComboBox()
-        self.classBox.setMinimumContentsLength(12)
-        self.classBox.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
-        )
+        self.classBox = ElidingComboBox()
         self.classBox.setPlaceholderText("first shape starts Class 1")
         self.classBox.setToolTip(
             "New shapes join this class. ROIs that share a name are one class "

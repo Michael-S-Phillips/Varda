@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtCore import QPointF, QRectF, pyqtSignal
+from PyQt6.QtCore import QPointF, QRectF, QSize, pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout, QWidget
 
 from varda.common.entities import VardaRaster
@@ -99,14 +99,13 @@ class CropPreview(QWidget):
         addRange.clicked.connect(self.addRange)
         keepAll = QPushButton("Keep All Bands")
         keepAll.clicked.connect(self.keepAll)
-        buttons = QHBoxLayout()
-        buttons.addWidget(
-            MutedLabel(
-                "Drag the box over the part to keep, and the ranges over the "
-                "bands to keep (double-click a range to remove it)."
-            ),
-            1,
+        hint = MutedLabel(
+            "Drag the box over the part to keep, and the ranges over the "
+            "bands to keep (double-click a range to remove it)."
         )
+        hint.setWordWrap(True)
+        buttons = QHBoxLayout()
+        buttons.addWidget(hint, 1)
         buttons.addWidget(addRange)
         buttons.addWidget(keepAll)
         layout = QVBoxLayout(self)
@@ -118,6 +117,9 @@ class CropPreview(QWidget):
 
         analysis.sigParameterChanged.connect(self._onSettings)
         self._showSettings()
+
+    def sizeHint(self) -> QSize:
+        return QSize(640, 520)  # room to drag the box; the dialog opens this wide
 
     # --- rows and columns ---------------------------------------------------------
 

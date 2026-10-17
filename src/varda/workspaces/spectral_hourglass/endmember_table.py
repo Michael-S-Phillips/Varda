@@ -13,7 +13,6 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QColorDialog,
     QFileDialog,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
     QMessageBox,
@@ -26,6 +25,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.common.spectral_axis import SpectralUnit
+from varda.common.ui import FlowLayout, HBoxBuilder, WrapperWidget
 from varda.workspaces.spectral_hourglass.hourglass_model import HourglassModel
 
 _COLUMNS = ["", "Name", "Pixels", "Identified as"]
@@ -97,7 +97,8 @@ class EndmemberTable(QWidget):
         exportButton.setToolTip("Write the endmember mean spectra as a CSV library")
         exportButton.clicked.connect(self._exportSpectra)
 
-        edit = QHBoxLayout()
+        # button rows wrap in a narrow dock
+        edit = FlowLayout()
         for button in (
             self.addButton,
             self.mergeButton,
@@ -105,12 +106,14 @@ class EndmemberTable(QWidget):
             self.undoButton,
         ):
             edit.addWidget(button)
-        edit.addStretch()
-        edit.addWidget(QLabel("Suggest"))
-        edit.addWidget(self.suggestCount)
-        edit.addWidget(self.suggestButton)
-        files = QHBoxLayout()
-        files.addStretch()
+        suggest = (
+            HBoxBuilder(margins=0)
+            .withWidget(QLabel("Suggest"))
+            .withWidget(self.suggestCount)
+            .withWidget(self.suggestButton)
+        )
+        edit.addWidget(WrapperWidget(suggest))
+        files = FlowLayout()
         for button in (saveButton, loadButton, exportButton):
             files.addWidget(button)
 

@@ -22,7 +22,6 @@ from PyQt6.QtCore import QSignalBlocker, Qt
 from PyQt6.QtGui import QAction, QActionGroup, QColor
 from PyQt6.QtWidgets import (
     QColorDialog,
-    QComboBox,
     QHBoxLayout,
     QLabel,
     QMenu,
@@ -35,6 +34,7 @@ from varda.common.entities import VardaRaster
 from varda.common.grid import compatibleImages
 from varda.common.observable_list import ObservableList
 from varda.common.palette import classColor
+from varda.common.ui import ElidingComboBox
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.image_rendering.image_renderer import ImageRenderer, RenderMode
 from varda.image_rendering.render_parameters import StretchParameter
@@ -43,7 +43,6 @@ from varda.image_rendering.raster_view.image_viewport import ImageViewport
 
 NO_OVERLAY = "No overlay"
 CLASSES = "Classes"
-NAME_CHARS = 24  # the overlay picker shows about this much of a name
 # Color maps for a single-band overlay: menu name, pyqtgraph's name
 COLOR_MAPS = {
     "Viridis": "viridis",
@@ -147,16 +146,12 @@ class OverlayBar(QWidget):
         self.renderer: ImageRenderer | None = None
         self._candidates: list[VardaRaster] = []
 
-        self.imageBox = QComboBox()
+        self.imageBox = ElidingComboBox()
         self.imageBox.setToolTip(
             "Lay another image of this scene (e.g. a classification) over the view"
         )
-        # Long result names are elided (the full name is in each item's tooltip)
-        self.imageBox.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
-        )
-        self.imageBox.setMinimumContentsLength(NAME_CHARS)
-        self.layerBox = QComboBox()
+        # long names are elided, with the full name in the tooltip
+        self.layerBox = ElidingComboBox()
         self.opacityLabel = QLabel("Opacity:")
         self.opacitySlider = QSlider(Qt.Orientation.Horizontal)
         self.opacitySlider.setRange(0, 100)

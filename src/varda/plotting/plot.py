@@ -15,7 +15,6 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtGui import QDrag
 from PyQt6.QtWidgets import (
-    QComboBox,
     QDoubleSpinBox,
     QFileDialog,
     QGraphicsItem,
@@ -36,7 +35,8 @@ from varda.common.ui import (
     SectionBox,
     ButtonBuilder,
     WrapperWidget,
-    VerticalScrollArea,
+    PanelScrollArea,
+    ElidingComboBox,
     MutedLabel,
 )
 from varda.common.vec2 import Vec2
@@ -490,10 +490,7 @@ class VardaPlotWidget(QWidget):
 
         spectraNames = listSpectra(libraryPath) if libraryPath else []
         if spectraNames:
-            self.libraryCombo = QComboBox()
-            self.libraryCombo.setSizeAdjustPolicy(
-                QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
-            )
+            self.libraryCombo = ElidingComboBox()  # long names are elided
             self.libraryCombo.addItems(spectraNames)
             libraryHint = MutedLabel(
                 "Added spectra are scaled to overlay the selected curve "
@@ -515,7 +512,7 @@ class VardaPlotWidget(QWidget):
         sidebar.withWidget(self.curveSettingsBox)
         sidebar.withWidget(SectionBox("Appearance", groupWidget(self.appearanceConfig)))
         self._sidebar = sidebar
-        self.sidebarArea = VerticalScrollArea(sidebar)
+        self.sidebarArea = PanelScrollArea(WrapperWidget(sidebar))
         # A slim arrow beside the plot folds the settings away in narrow docks
         self.sidebarToggle = QToolButton()
         self.sidebarToggle.setCheckable(True)

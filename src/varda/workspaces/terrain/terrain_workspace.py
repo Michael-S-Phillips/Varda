@@ -39,10 +39,8 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMenu,
     QPushButton,
-    QScrollArea,
     QSpinBox,
     QSplitter,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -51,7 +49,7 @@ from varda.common.entities import VardaRaster
 from varda.common.grid import compatibleImages
 from varda.common.observable_list import ObservableList
 from varda.common.palette import classColor
-from varda.common.ui import MutedLabel
+from varda.common.ui import MutedLabel, PanelScrollArea
 from varda.image_rendering.image_renderer import ImageRenderer, RenderMode
 from varda.lines.line_collection import (
     LineCollection,
@@ -417,11 +415,8 @@ class TerrainWorkspace(QMainWindow):
         self.view.sigFailed.connect(self._onFailed)
         self._buildPanel()
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        scroll = QScrollArea()  # the panel is tall; small screens scroll it
-        scroll.setWidget(self.panel)
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        splitter.addWidget(scroll)
+        # the panel is tall: small screens scroll it (never cut off its side)
+        splitter.addWidget(PanelScrollArea(self.panel))
         splitter.addWidget(self.view)
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([320, 1100])
@@ -615,13 +610,11 @@ class TerrainWorkspace(QMainWindow):
         self.lineList.itemSelectionChanged.connect(self._updateProfiles)
         self.lineList.itemChanged.connect(self._onLineItem)
         self.lineList.itemDoubleClicked.connect(self._recolorLine)
-        addLines = QToolButton()
-        addLines.setText("Add Lines")
+        addLines = QPushButton("Add Lines")  # sized for its menu's arrow
         addLines.setToolTip(
             "Lines drawn in an image workspace (Draw Line), or a vector file "
             "(GeoJSON, GeoPackage, shapefile, KML): a traverse, mapped contacts"
         )
-        addLines.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.addLinesMenu = QMenu(addLines)
         self.addLinesMenu.aboutToShow.connect(self._fillLinesMenu)
         addLines.setMenu(self.addLinesMenu)

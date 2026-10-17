@@ -15,11 +15,9 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QComboBox,
     QDateEdit,
     QFileDialog,
     QFormLayout,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
     QMainWindow,
@@ -49,7 +47,14 @@ from varda.catalogs.stac import StacCatalog
 from varda.common.entities import VardaRaster
 from varda.common.observable_list import ObservableList
 from varda.common.parameter_widgets import groupWidget
-from varda.common.ui import MutedLabel, VardaDockWidget
+from varda.common.ui import (
+    ElidingComboBox,
+    FlowLayout,
+    HBoxBuilder,
+    MutedLabel,
+    VardaDockWidget,
+    WrapperWidget,
+)
 from varda.image_loading.image_loading_service import ImageLoadingService
 from varda.utilities.background import runInBackground
 from varda.workspaces.find_data.basemap import basemap, imageBody, imageBounds
@@ -66,6 +71,7 @@ from varda.workspaces.find_data.results_model import SORT_ROLE, ResultsModel
 
 AREA_VIEW, AREA_BOX, AREA_IMAGE = "Map view", "Box on the map", "An image's footprint"
 DEFAULT_LIMIT = 100
+THUMBNAIL_SIZE, THUMBNAIL_MIN = 260, 160  # px: the largest, and the panel's least
 
 
 class SelectedFilter(QSortFilterProxyModel):
@@ -143,7 +149,7 @@ class FindDataWorkspace(QMainWindow):
     # --- layout ---------------------------------------------------------------------
 
     def _buildSearchPanel(self) -> None:
-        self.catalogBox = QComboBox()
+        self.catalogBox = ElidingComboBox()
         for catalog in availableCatalogs():
             self.catalogBox.addItem(catalog.name, catalog.catalogId)
         self.catalogBox.currentIndexChanged.connect(lambda _: self._onCatalog())
@@ -159,11 +165,6 @@ class FindDataWorkspace(QMainWindow):
         self.collectionBox.setToolTip(
             "Click to search collections by body, mission or instrument"
         )
-        # wide enough to tell collections apart; the full name is its tooltip
-        self.collectionBox.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
-        )
-        self.collectionBox.setMinimumContentsLength(32)
         self.collectionBox.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
@@ -173,10 +174,10 @@ class FindDataWorkspace(QMainWindow):
         self.filters = QWidget()
         self.filtersLayout = QVBoxLayout(self.filters)
         self.filtersLayout.setContentsMargins(0, 0, 0, 0)
-        self.areaBox = QComboBox()
+        self.areaBox = ElidingComboBox()
         self.areaBox.addItems([AREA_VIEW, AREA_BOX, AREA_IMAGE])
         self.areaBox.currentIndexChanged.connect(lambda _: self._onArea())
-        self.areaImage = QComboBox()
+        self.areaImage = ElidingComboBox()
         self.fromCheck, self.toCheck = QCheckBox("From"), QCheckBox("To")
         self.fromDate, self.toDate = (
             QDateEdit(QDate(2000, 1, 1)),
@@ -203,26 +204,28 @@ class FindDataWorkspace(QMainWindow):
         self.searchStatus.setWordWrap(True)
 
         form = QFormLayout()
+        # fields fill the panel on every platform (macOS keeps them narrow)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         form.addRow("Catalog:", self.catalogBox)
         form.addRow("", self.catalogAbout)
-        catalogButtons = QHBoxLayout()
-        catalogButtons.addWidget(self.loginButton)
-        catalogButtons.addWidget(self.stacApisButton)
-        catalogButtons.addStretch()
-        form.addRow("", catalogButtons)
+        form.addRow(
+            "",
+            FlowLayout().withWidget(self.loginButton).withWidget(self.stacApisButton),
+        )
         form.addRow("Collection:", self.collectionBox)
         form.addRow("", self.addFileButton)
         form.addRow("Area:", self.areaBox)
         form.addRow("Image:", self.areaImage)
-        dates = QHBoxLayout()
-        for widget in (self.fromCheck, self.fromDate, self.toCheck, self.toDate):
-            dates.addWidget(widget)
+        dates = FlowLayout()
+        for check, edit in (
+            (self.fromCheck, self.fromDate),
+            (self.toCheck, self.toDate),
+        ):
+            pair = HBoxBuilder(margins=0).withWidget(check).withWidget(edit)
+            dates.addWidget(WrapperWidget(pair))
         form.addRow("Dates:", dates)
         form.addRow("At most:", self.limit)
-        buttons = QHBoxLayout()
-        buttons.addWidget(self.searchButton)
-        buttons.addWidget(self.moreButton)
-        buttons.addStretch()
+        buttons = FlowLayout().withWidget(self.searchButton).withWidget(self.moreButton)
         self.searchPanel = QWidget()
         layout = QVBoxLayout(self.searchPanel)
         layout.addLayout(form)
@@ -234,11 +237,11 @@ class FindDataWorkspace(QMainWindow):
 
     def _buildMapBar(self) -> None:
         self.bodyLabel = QLabel()
-        self.projectionBox = QComboBox()
+        self.projectionBox = ElidingComboBox()
         for projection in MapProjection:
             self.projectionBox.addItem(projection.value, projection)
         self.projectionBox.currentIndexChanged.connect(lambda _: self._onProjection())
-        self.basemapBox = QComboBox()
+        self.basemapBox = ElidingComboBox()
         self.basemapBox.setToolTip(
             "A loaded, georeferenced image of the same body under the footprints"
         )
@@ -252,14 +255,27 @@ class FindDataWorkspace(QMainWindow):
         clear.clicked.connect(self._clearOverlays)
         whole = QPushButton("Whole Body")
         whole.clicked.connect(self.map.showWhole)
-        bar = QHBoxLayout()
-        bar.addWidget(self.bodyLabel)
-        bar.addWidget(self.projectionBox)
-        bar.addWidget(QLabel("Basemap:"))
-        bar.addWidget(self.basemapBox, 1)
-        bar.addWidget(overlay)
-        bar.addWidget(clear)
-        bar.addWidget(whole)
+        # wraps onto more rows rather than making the map's panel wide
+        bar = (
+            FlowLayout(margins=2)
+            .withWidget(
+                WrapperWidget(
+                    HBoxBuilder(margins=0)
+                    .withWidget(self.bodyLabel)
+                    .withWidget(self.projectionBox)
+                )
+            )
+            .withWidget(
+                WrapperWidget(
+                    HBoxBuilder(margins=0)
+                    .withWidget(QLabel("Basemap:"))
+                    .withWidget(self.basemapBox)
+                )
+            )
+            .withWidget(overlay)
+            .withWidget(clear)
+            .withWidget(whole)
+        )
         self.mapPanel = QWidget()
         layout = QVBoxLayout(self.mapPanel)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -269,7 +285,8 @@ class FindDataWorkspace(QMainWindow):
     def _buildPreview(self) -> None:
         self.thumbnail = QLabel("Select a product to see it here.")
         self.thumbnail.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.thumbnail.setMinimumSize(220, 220)
+        self.thumbnail.setWordWrap(True)
+        self.thumbnail.setMinimumSize(THUMBNAIL_MIN, THUMBNAIL_MIN)
         self.details = QLabel()
         self.details.setWordWrap(True)
         self.details.setTextInteractionFlags(
@@ -300,11 +317,9 @@ class FindDataWorkspace(QMainWindow):
             "Only the products selected now; selecting on the map changes the list"
         )
         self.onlySelected.toggled.connect(self._onOnlySelected)
-        bar = QHBoxLayout()
-        for button in (add, checkAll, checkNone):
-            bar.addWidget(button)
-        bar.addStretch()
-        bar.addWidget(self.onlySelected)
+        bar = FlowLayout(margins=2)
+        for widget in (add, checkAll, checkNone, self.onlySelected):
+            bar.addWidget(widget)
         self.resultsPanel = QWidget()
         layout = QVBoxLayout(self.resultsPanel)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -312,6 +327,7 @@ class FindDataWorkspace(QMainWindow):
         layout.addLayout(bar)
 
     def _buildDocks(self) -> None:
+        # every panel fits its dock: forms scroll down, rows wrap, names elide
         self.dockManager = ads.CDockManager(self)
         mapDock = VardaDockWidget("Map").withWidget(self.mapPanel)
         manager = self.dockManager
@@ -377,6 +393,7 @@ class FindDataWorkspace(QMainWindow):
         layout = self.filtersLayout
         while (item := layout.takeAt(0)) is not None:
             if (widget := item.widget()) is not None:
+                widget.hide()  # not drawn under the new filters until deleted
                 widget.deleteLater()
         if catalog.params:
             layout.addWidget(groupWidget(catalog))
@@ -674,10 +691,11 @@ class FindDataWorkspace(QMainWindow):
         if not pixmap.loadFromData(data):
             self.thumbnail.setText("No thumbnail.")
             return
+        side = max(min(THUMBNAIL_SIZE, self.thumbnail.width()), THUMBNAIL_MIN)
         self.thumbnail.setPixmap(
             pixmap.scaled(
-                260,
-                260,
+                side,
+                side,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )

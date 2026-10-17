@@ -28,7 +28,6 @@ from PyQt6.QtWidgets import (
     QMenu,
     QPushButton,
     QSlider,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -90,9 +89,8 @@ class OverlayPanel(QWidget):
         )
         self.list.itemChanged.connect(self._onItemChanged)
         self.list.currentRowChanged.connect(lambda _: self.showSelected())
-        self.addButton = QToolButton()
-        self.addButton.setText("Add Overlay")
-        self.addButton.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        # a push button with a menu is sized for the menu's arrow
+        self.addButton = QPushButton("Add Overlay")
         self.addMenu = QMenu(self.addButton)
         self.addMenu.aboutToShow.connect(self._fillAddMenu)
         self.addButton.setMenu(self.addMenu)
