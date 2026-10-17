@@ -32,6 +32,7 @@ Varda is developed across several machines and Claude Code sessions. **Before ma
 - **Run one test file / test:** `uv run pytest src/varda/image_rendering/_tests/test_foo.py` or `... -k "test_name"`. Tests are colocated in `_tests/` folders as `test_*.py`.
 - **Format:** `uv run ruff format` — **Lint:** `uv run ruff check` (add `--fix` to autofix)
 - **Type check:** `uv run ty check`
+- **Import contracts:** `uv run lint-imports` (a required CI check, with pytest, the app self-test and the citation file): the Qt-free modules listed in `pyproject.toml`'s import-linter contract (e.g. all of `varda.analysis`) must not reach PyQt6. Put GUI elsewhere; never grow the contract's `ignore_imports`.
 - **Build standalone bundle:** `uv run pyinstaller Varda.spec`; check it with `dist/Varda/Varda --self-test` (`self_test.py`; release builds run it on every platform)
 
 Requires Python 3.13. GUI tests use `pytest-qt`.

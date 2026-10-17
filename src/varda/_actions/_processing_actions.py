@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import QMessageBox
 
 from varda._actions._menu_ids import MenuId
 from varda.analysis.accuracy_assessment import accuracyRecord
-from varda.analysis.accuracy_dialog import AccuracyReportDialog
+from varda.accuracy_report_dialog import AccuracyReportDialog
 from varda.analysis.analysis import SUBMENU, Analysis, categoryLevels
 from varda.analysis.dialog import RunAnalysisDialog
 from varda.analysis.eigenvalue_dialog import EigenvaluePlotDialog
