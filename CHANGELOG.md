@@ -68,6 +68,10 @@ can alter results.
 
 ### Fixed
 
+- **Odd-only windows record what they use:** the CNN and ViT **Patch Size**
+  and the **Spatial Entropy** window silently raised an even value by one,
+  so a result's record could say 4 where 5 was used. They now take odd
+  values only.
 - **Linked Images, bits of negative values:** a signed bit mask's negative
   values showed the wrong bits (they were wrapped to 64 bits). They're now
   read as the unsigned integer of the image's own width (an int16 −1 is

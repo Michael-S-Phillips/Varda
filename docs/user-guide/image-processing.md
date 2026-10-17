@@ -183,7 +183,8 @@ agree. One bit (frame 0, say) shows where that frame was left out.
 - **Spatial Entropy:** the Shannon entropy (bits) of one band's values in a
   window around each pixel, after sorting the band into equal-width bins
   between its minimum and maximum. Textured areas score high, uniform areas
-  low.
+  low. The **Window** (pixels, 3–99, default 7) takes odd sizes only, so the
+  recorded size is the one used.
 - **Spectral Entropy:** the Shannon entropy (bits) of each pixel's spectrum,
   treated as a distribution over its bands (each band's share of the
   spectrum's sum), over its good bands (bad bands are left out). A flat

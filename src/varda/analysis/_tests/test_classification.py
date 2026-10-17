@@ -5,7 +5,11 @@ import pytest
 from shapely.geometry import box
 
 from varda.analysis.analysis import AnalysisContext
-from varda.analysis.classification import MlpClassificationAnalysis
+from varda.analysis.classification import (
+    CnnClassificationAnalysis,
+    MlpClassificationAnalysis,
+    VitClassificationAnalysis,
+)
 from varda.common.entities import Color, ROIMode, VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.rois.roi_collection import ROICollection
@@ -89,3 +93,12 @@ def test_the_mlp_is_reproducible_from_its_seed():
     assert not np.array_equal(other.getData(), first, equal_nan=True)
     assert other.extraMetadata["seed"] == 3
     assert "seed 3" in other.dataSource.description
+
+
+def test_patch_sizes_take_only_odd_values():
+    """CNN/ViT patches are centered: only odd sizes can be set, so the
+    recorded patch size is the one used."""
+    for analysis in (CnnClassificationAnalysis(), VitClassificationAnalysis()):
+        analysis.patchSize.set(6)
+        assert analysis.patchSize.get() == 7
+        assert analysis.patchSize.step == 2

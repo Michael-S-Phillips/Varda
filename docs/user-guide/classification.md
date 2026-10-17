@@ -106,7 +106,7 @@ its neighborhood.
 | Setting | Meaning | Range | Default |
 | --- | --- | --- | --- |
 | **ROI classes** | The classes to train on | at least two | all |
-| **Patch Size** | Width of the square neighborhood, in pixels (odd; an even value is raised by 1) | 1–15 | 5 |
+| **Patch Size** | Width of the square neighborhood, in pixels (odd sizes only: the box steps 1, 3, 5, …, so the recorded size is the one used) | 1–15 | 5 |
 | **Channels** | Filters in each convolutional layer | 4–256 | 32 |
 | **Conv Layers** | Number of convolutional layers | 1–4 | 2 |
 | **Epochs** | Passes through the training patches | 1–2000 | 50 |
