@@ -140,6 +140,10 @@ can alter results.
 
 ### Fixed
 
+- **Find Data's ODE searches with no matches** said `'str' object has no
+  attribute 'get'` instead of "Nothing found here.": where nothing matches,
+  ODE answers with a message in place of the product list, which Varda
+  didn't expect.
 - **Odd-only windows record what they use:** the CNN and ViT **Patch Size**
   and the **Spatial Entropy** window silently raised an even value by one,
   so a result's record could say 4 where 5 was used. They now take odd

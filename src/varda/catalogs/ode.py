@@ -85,6 +85,18 @@ def _list(value) -> list:
     return value if isinstance(value, list) else [value]
 
 
+def _items(reply: dict, *path: str) -> list:
+    """The items at ``path`` in an ODE reply. Where nothing matches, ODE puts
+    a message in place of the container (``"Products": "No Products
+    Found"``), so anything that isn't a dict on the way means no items."""
+    value: object = reply
+    for key in path:
+        if not isinstance(value, dict):
+            return []
+        value = value.get(key)
+    return _list(value)
+
+
 def _time(text: str | None) -> datetime | None:
     if not text:
         return None
@@ -129,9 +141,7 @@ class OdeCatalog(Catalog):
                 reply = fetchJson(
                     ODE_URL, {"query": "iipt", "odemetadb": database, "output": "JSON"}
                 )
-                for s in _list(
-                    reply.get("ODEResults", {}).get("IIPTSets", {}).get("IIPTSet")
-                ):
+                for s in _items(reply, "ODEResults", "IIPTSets", "IIPTSet"):
                     if s.get("ValidFootprints") != "T":
                         continue
                     key = f"{database}:{s['IHID']}:{s['IID']}:{s['PT']}"
@@ -192,7 +202,7 @@ class OdeCatalog(Catalog):
         total = int(reply.get("Count") or 0)
         products = tuple(
             self._product(p, query.collection)
-            for p in _list(reply.get("Products", {}).get("Product"))
+            for p in _items(reply, "Products", "Product")
             if isinstance(p, dict)
         )
         more = offset + len(products) < total and products
@@ -252,11 +262,11 @@ class OdeCatalog(Catalog):
                 "pt": pt,
             },
         ).get("ODEResults", {})
-        products = _list(reply.get("Products", {}).get("Product"))
+        products = _items(reply, "Products", "Product")
         if not products:
             raise CatalogError(f"ODE has no files listed for {pdsid}.")
         files = []
-        for f in _list(products[0].get("Product_files", {}).get("Product_file")):
+        for f in _items(products[0], "Product_files", "Product_file"):
             name = f.get("FileName") or PurePosixPath(f.get("URL", "")).name
             if not f.get("URL", "").startswith("http"):
                 continue

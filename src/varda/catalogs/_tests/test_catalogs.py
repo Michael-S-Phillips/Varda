@@ -120,6 +120,27 @@ def test_ode_search_sends_the_filters_and_reads_products(monkeypatch):
     assert page.total == 2 and page.nextPage is None
 
 
+NO_PRODUCTS = {
+    "ODEResults": {
+        "Products": "No Products Found",
+        "QuerySummary": {"query": "PRODUCT"},
+        "Status": "Success",
+    }
+}  # what ODE answers when nothing matches (checked against the live API)
+
+
+def test_ode_search_with_no_matches_is_empty_not_an_error(monkeypatch):
+    monkeypatch.setattr(ode, "fetchJson", FakeHttp(lambda *a: NO_PRODUCTS))
+    page = OdeCatalog().search(SearchQuery("mars:MRO:CRISM:MTRDR", JEZERO), _progress)
+    assert page.products == () and page.total == 0 and page.nextPage is None
+
+
+def test_ode_files_with_no_match_say_so(monkeypatch):
+    monkeypatch.setattr(ode, "fetchJson", FakeHttp(lambda *a: NO_PRODUCTS))
+    with pytest.raises(CatalogError, match="no files listed"):
+        OdeCatalog.filesFor(OdeCatalog(), "nothing", "mars", "MRO", "CRISM", "MTRDR")
+
+
 def test_ode_files_mark_the_products_own_files_essential(monkeypatch):
     catalog, _ = _ode(monkeypatch)
     page = catalog.search(SearchQuery("mars:MRO:CRISM:MTRDR", JEZERO), _progress)
