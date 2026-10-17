@@ -146,7 +146,9 @@ class _ComponentAnalysis(Analysis):
         self.wavelengths.set(Vec2(lo, hi))
         current = self.weights.get()
         self.weights.setProvider(lambda: self._weightCandidates(image))
-        self.weights.set(current if current in self._weightCandidates(image) else None)
+        self.weights.setOrClear(
+            current if current in self._weightCandidates(image) else None
+        )
 
     @staticmethod
     def _bandAxis(image: VardaRaster) -> np.ndarray:

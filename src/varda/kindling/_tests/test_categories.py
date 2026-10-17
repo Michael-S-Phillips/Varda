@@ -13,8 +13,9 @@ FLAT = [
 
 
 def test_varda_categories_come_in_menu_order_as_paths():
-    assert EXISTING[:3] == [
+    assert EXISTING[:4] == [
         "Spectral Parameters",
+        "Image Math",  # beside Band Math
         "Filtering/Spatial",
         "Filtering/Spectral",
     ]

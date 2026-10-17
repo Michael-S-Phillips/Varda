@@ -1,8 +1,10 @@
-"""Band math: a new image from an expression over an image's bands.
+"""Band math: a new image from an expression over an image's bands, and
+other images' on the same pixel grid.
 
     R2300 / R2200                  bands nearest 2300 and 2200 nm
     (b10 - b4) / (b10 + b4)        band numbers, 1-based (like ENVI's b1)
     where(b3 > 0.2, R2300, 0)      comparisons and where()
+    b1 * (i3_b1 > 0)               i3_: the 3rd image in the Image List
 
 The expression is checked (syntax, functions, every band reference) before any
 data is read, then evaluated in row chunks that read only the bands it uses.
@@ -15,6 +17,7 @@ from __future__ import annotations
 
 import ast
 import re
+from collections.abc import Sequence
 
 import numpy as np
 from PyQt6.QtCore import QSettings
@@ -30,6 +33,7 @@ from PyQt6.QtWidgets import (
 from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.rasters import singleBandRaster
 from varda.common.entities import VardaRaster
+from varda.common.grid import compatibleImages
 from varda.common.expressions import ExpressionError as ExpressionError, evaluate, parse
 from varda.common.parameter import StringParameter
 from varda.common.parameter_widgets import connectWhileAlive
@@ -47,11 +51,12 @@ BAND_FUNCTIONS = {
     "clip": np.clip,
 }
 CONSTANTS = {"pi": float(np.pi), "e": float(np.e)}
-_REFERENCE = re.compile(r"^(?:R(?P<nm>\d+)|b(?P<band>\d+))$")
+_REFERENCE = re.compile(r"^(?:i(?P<image>\d+)_)?(?:R(?P<nm>\d+)|b(?P<band>\d+))$")
 SETTINGS_KEY = "bandMath/saved"
 MAX_SAVED = 20
 HELP_TEXT = (
     "<b>R2300</b>: band nearest 2300 nm · <b>b12</b>: band 12 · "
+    "<b>i3_b1</b>: band 1 of the 3rd image in the Image List (same grid) · "
     "+ − × / ** · comparisons (&lt; &gt; &lt;= &gt;= == !=) · "
     "functions: " + ", ".join(BAND_FUNCTIONS) + " · constants: pi, e"
 )
@@ -64,21 +69,24 @@ def _referenceTolerance(centers: np.ndarray) -> float:
     return max(3.0 * spacing, 25.0)
 
 
+Reference = tuple[VardaRaster, int]  # an image and one of its bands (0-based)
+
+
 def checkExpression(
-    text: str, image: VardaRaster
-) -> tuple[ast.Expression, dict[str, int]]:
-    """The parsed expression and its band references (name -> band index);
-    raises ExpressionError naming the problem. Reads no data."""
+    text: str, image: VardaRaster, images: Sequence[VardaRaster] = ()
+) -> tuple[ast.Expression, dict[str, Reference]]:
+    """The parsed expression and its band references (name -> image, band
+    index); ``images`` are the Image List's, which ``i<n>_`` names refer to.
+    Raises ExpressionError naming the problem. Reads no data."""
     tree = parse(
         text,
         lambda name: _REFERENCE.match(name) is not None,
         BAND_FUNCTIONS,
         CONSTANTS,
         comparisons=True,
-        unknownName="unknown name '{}' (use R<nm> or b<band number>)",
+        unknownName="unknown name '{}' (use R<nm>, b<band number> or i<image>_b<band>)",
     )
-    model = image.bandModel
-    references: dict[str, int] = {}
+    references: dict[str, Reference] = {}
     for node in ast.walk(tree):
         if (
             not isinstance(node, ast.Name)
@@ -88,54 +96,83 @@ def checkExpression(
             continue
         match = _REFERENCE.match(node.id)
         assert match is not None
-        if match["band"] is not None:
-            band = int(match["band"])
-            if not 1 <= band <= image.bandCount:
-                raise ExpressionError(
-                    f"{node.id}: {image.name} has bands 1-{image.bandCount}"
-                )
-            references[node.id] = band - 1
-            continue
-        if model.centers is None:
-            raise ExpressionError(
-                f"{node.id}: {image.name} has no wavelengths; use band numbers (b1, b2...)"
-            )
-        target = float(match["nm"])
-        good = np.flatnonzero(~model.badBands)
-        index = int(good[np.argmin(np.abs(model.centers[good] - target))])
-        if abs(model.centers[index] - target) > _referenceTolerance(
-            model.centers[good]
-        ):
-            raise ExpressionError(
-                f"{node.id}: no band near {target:g} nm "
-                f"({image.name} covers {np.nanmin(model.centers):g}-{np.nanmax(model.centers):g} nm)"
-            )
-        references[node.id] = index
+        source = image
+        if match["image"] is not None:
+            source = _imageNumbered(node.id, int(match["image"]), image, images)
+        references[node.id] = (source, _bandOf(node.id, match, source))
     return tree, references
 
 
+def _imageNumbered(
+    name: str, number: int, image: VardaRaster, images: Sequence[VardaRaster]
+) -> VardaRaster:
+    """The ``number``-th image of the Image List, on ``image``'s grid."""
+    if not 1 <= number <= len(images):
+        raise ExpressionError(f"{name}: the Image List has images 1-{len(images)}")
+    other = images[number - 1]
+    if other is not image and other not in compatibleImages(list(images), image):
+        raise ExpressionError(
+            f"{name}: {other.name} isn't on {image.name}'s pixel grid "
+            f"({other.width} × {other.height} against {image.width} × {image.height})"
+        )
+    return other
+
+
+def _bandOf(name: str, match: re.Match[str], image: VardaRaster) -> int:
+    """The band a reference (b<n> or R<nm>) names in ``image``."""
+    if match["band"] is not None:
+        band = int(match["band"])
+        if not 1 <= band <= image.bandCount:
+            raise ExpressionError(f"{name}: {image.name} has bands 1-{image.bandCount}")
+        return band - 1
+    model = image.bandModel
+    if model.centers is None:
+        raise ExpressionError(
+            f"{name}: {image.name} has no wavelengths; use band numbers (b1, b2...)"
+        )
+    target = float(match["nm"])
+    good = np.flatnonzero(~model.badBands)
+    index = int(good[np.argmin(np.abs(model.centers[good] - target))])
+    if abs(model.centers[index] - target) > _referenceTolerance(model.centers[good]):
+        raise ExpressionError(
+            f"{name}: no band near {target:g} nm ({image.name} covers "
+            f"{np.nanmin(model.centers):g}-{np.nanmax(model.centers):g} nm)"
+        )
+    return index
+
+
 def evaluateExpression(
-    text: str, image: VardaRaster, progress: ProgressCallback | None = None
+    text: str,
+    image: VardaRaster,
+    progress: ProgressCallback | None = None,
+    images: Sequence[VardaRaster] = (),
 ) -> np.ndarray:
-    """The (rows, cols) float32 result of ``text`` on ``image``."""
-    tree, references = checkExpression(text, image)
-    bands = sorted(set(references.values()))
-    position = {band: i for i, band in enumerate(bands)}
-    noData = image.bandModel.noData
+    """The (rows, cols) float32 result of ``text`` on ``image`` (and the
+    Image List's ``images``, for ``i<n>_`` names)."""
+    tree, references = checkExpression(text, image, images)
+    sources: dict[int, tuple[VardaRaster, list[int]]] = {}
+    for source, band in references.values():
+        _, bands = sources.setdefault(id(source), (source, []))
+        if band not in bands:
+            bands.append(band)
     out = np.empty((image.height, image.width), dtype=np.float32)
     for start in range(0, image.height, CHUNK_ROWS):
         rows = min(CHUNK_ROWS, image.height - start)
         values: dict[str, np.ndarray] = {}
         missing = np.zeros((rows, image.width), dtype=bool)
-        if bands:
+        chunks: dict[int, np.ndarray] = {}
+        for key, (source, bands) in sources.items():
             chunk = np.asarray(
-                image.getData(bandIndices=bands, window=(start, 0, rows, image.width)),
+                source.getData(bandIndices=bands, window=(start, 0, rows, image.width)),
                 dtype=np.float64,
             )
+            noData = source.bandModel.noData
             if noData is not None:
                 chunk[chunk == noData] = np.nan
-            values = {name: chunk[:, :, position[b]] for name, b in references.items()}
-            missing = np.isnan(chunk).any(axis=2)  # no data in a band it uses
+            chunks[key] = chunk
+            missing |= np.isnan(chunk).any(axis=2)  # no data in a band it uses
+        for name, (source, band) in references.items():
+            values[name] = chunks[id(source)][:, :, sources[id(source)][1].index(band)]
         with np.errstate(all="ignore"):
             result = np.asarray(
                 evaluate(tree, values, BAND_FUNCTIONS, CONSTANTS), dtype=np.float64
@@ -177,7 +214,7 @@ class BandMathAnalysis(Analysis):
 
     def unavailableReason(self, image: VardaRaster) -> str:
         try:
-            checkExpression(self.expression.get(), image)
+            checkExpression(self.expression.get(), image, self.context.images)
         except ExpressionError as error:
             return str(error).capitalize()
         return ""
@@ -188,7 +225,7 @@ class BandMathAnalysis(Analysis):
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         text = self.expression.get().strip()
         reportProgress(0, "evaluating")
-        values = evaluateExpression(text, image, reportProgress)
+        values = evaluateExpression(text, image, reportProgress, self.context.images)
         return singleBandRaster(
             image, values, name=f"{image.name} [{text}]", bandName=text, units=""
         )
@@ -267,17 +304,30 @@ class BandMathHelp(QWidget):
 
     def _showReferences(self) -> None:
         try:
-            _, references = checkExpression(self.analysis.expression.get(), self.image)
+            _, references = checkExpression(
+                self.analysis.expression.get(), self.image, self.analysis.context.images
+            )
         except ExpressionError as error:
             self.referencesLabel.setText(
                 f"<span style='color:#d33'>{str(error).capitalize()}</span>"
             )
             return
-        model = self.image.bandModel
         parts = []
-        for name, band in references.items():
+        for name, (source, band) in references.items():
+            model = source.bandModel
             where = ""
             if model.centers is not None:
                 where = f" ({model.native([model.centers[band]])[0]:g} {model.label})"
-            parts.append(f"{name} → band {band + 1}{where}")
-        self.referencesLabel.setText(" · ".join(parts) or "No band references.")
+            of = "" if source is self.image else f" of {source.name}"
+            parts.append(f"{name} → band {band + 1}{where}{of}")
+        images = self.analysis.context.images
+        grid = [self.image, *compatibleImages(list(images), self.image)]
+        numbered = [
+            f"i{n}: {other.name}"
+            for n, other in enumerate(images, start=1)
+            if other in grid
+        ]
+        self.referencesLabel.setText(
+            (" · ".join(parts) or "No band references.")
+            + ("<br>On this grid: " + " · ".join(numbered) if len(numbered) > 1 else "")
+        )

@@ -10,6 +10,11 @@ from varda.analysis.classification import (
 )
 from varda.analysis.bit_masks import DecodeBitMaskAnalysis
 from varda.analysis.continuum import ContinuumRemovalAnalysis
+from varda.analysis.image_math import (
+    ApplyMaskAnalysis,
+    ImageArithmeticAnalysis,
+    ThresholdToMaskAnalysis,
+)
 from varda.analysis.sensor_bands import SensorBandsAnalysis
 from varda.analysis.detection import (
     AceAnalysis,
@@ -74,6 +79,9 @@ from varda.analysis.transforms import (
 ANALYSES: list[type[Analysis]] = [
     BandParametersAnalysis,
     BandMathAnalysis,
+    ImageArithmeticAnalysis,
+    ThresholdToMaskAnalysis,
+    ApplyMaskAnalysis,
     ContinuumRemovalAnalysis,
     SensorBandsAnalysis,
     SmoothingAnalysis,
