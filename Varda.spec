@@ -40,6 +40,8 @@ a = Analysis(
     # tables, Varda's resources and the bundled spectral library
     datas=collect_data_files('rasterio') + collect_data_files('pyproj')
     + collect_data_files('hypyrameter')
+    # CRISM processing's PDS tables and learned artifact bases
+    + [('src/varda/crism/resources', 'varda/crism/resources')]
     + [('resources', 'resources')]
     + LIBRARY_SPECTRA
     + TORCH_WORKER

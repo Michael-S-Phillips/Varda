@@ -13,6 +13,7 @@ Detailed guides to Varda's features. For an overview, see the
 - [Spectral Hourglass](spectral-hourglass.md): finding, identifying and mapping endmembers, preparing a spectral library
 - [Factor Analysis Target Transformation](fatt.md): which library spectra are components of an image, and where they fit
 - [Mosaicking](mosaicking.md): joining overlapping images, aligning them with nudges and tie points, exporting
+- [CRISM processing](crism-processing.md): TRR3 I/F to MTRDR-consistent, map-projected products with σ and provenance, from the dialog or the command line
 - [Optional features](optional-features.md): HyPyRameter band parameters, PyTorch classifiers
 - [Kindle a Feature](kindle-a-feature.md): describe a feature and have your AI build it as a plugin
 
