@@ -8,6 +8,10 @@ can alter results.
 
 ### Added
 
+- **K-Means records its clusters:** the result's metadata (`kmeans`, saved
+  with the file) gives the iterations run, whether it converged, and each
+  cluster's center spectrum, pixel count and RMS spread; a run that stops
+  before converging says so in its description and the log.
 - **Convolve to Sensor Bands records coverage:** each band's coverage (the
   share of its response the cube covers) is in the result's description
   and, for every sensor band, in its saved metadata (`sensorBands`).

@@ -10,6 +10,8 @@ by name instead of vanishing.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from spectral.algorithms.algorithms import create_training_classes
 
@@ -27,6 +29,8 @@ from varda.common.entities import VardaRaster
 from varda.common.palette import classColor
 from varda.common.parameter import IntParameter
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+
+logger = logging.getLogger(__name__)
 
 MIN_CLASS_PIXELS = 3
 MAX_AUTO_COMPONENTS = 30
@@ -186,16 +190,23 @@ class KMeansAnalysis(Analysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
-        cube, valid, _ = readGoodBands(image)
+        cube, valid, bands = readGoodBands(image)
         reportProgress(20, "clustering")
-        labels, _centres = _spy.kmeans(
-            cube[valid], int(self.clusters.value), int(self.iterations.value)
-        )
-        found = np.unique(labels)
-        renumbered = np.searchsorted(found, labels)  # 0..n-1 for the clusters found
+        X = cube[valid]
+        maxIterations = int(self.iterations.value)
+        fit = _spy.kmeans(X, int(self.clusters.value), maxIterations)
+        found = np.unique(fit.labels)
+        renumbered = np.searchsorted(found, fit.labels)  # 0..n-1 for those found
         classes = np.full(valid.shape, np.nan, dtype=np.float32)
         classes[valid] = renumbered
         names = [f"Cluster {i + 1}" for i in range(found.size)]
+        description = f"K-means ({found.size} clusters) of {image.name}"
+        if not fit.converged:
+            description += (
+                f"; did not converge: {fit.changed:,} pixels changed cluster in "
+                f"the last of {fit.iterations} iterations"
+            )
+            logger.warning("%s: %s", self.name, description)
         source = ArrayDataSource(
             classes[:, :, None],
             wavelengths=np.array(["Class"]),
@@ -203,10 +214,32 @@ class KMeansAnalysis(Analysis):
             bandNames=["Class"],
             transform=image.transform,
             crs=image.crs,
-            description=f"K-means ({found.size} clusters) of {image.name}",
+            description=description,
             extraMetadata={
                 "classes": names,
                 "classColors": [classColor(i) for i in range(found.size)],
+                "kmeans": {
+                    "iterations": fit.iterations,
+                    "maxIterations": maxIterations,
+                    "converged": fit.converged,
+                    "pixelsChangedLastIteration": fit.changed,
+                    **clusterStatistics(X, renumbered, found.size),
+                    "bands": [int(b) + 1 for b in bands],
+                },
             },
         )
         return VardaRaster(source, name=f"{image.name} k-means")
+
+
+def clusterStatistics(X: np.ndarray, labels: np.ndarray, count: int) -> dict:
+    """Per cluster (labels 0..count-1 of the rows of ``X``): its pixel
+    count, its center (the mean of its pixels, per band) and its RMS
+    Euclidean distance from that center, in the data's units."""
+    centers, counts, spread = [], [], []
+    for k in range(count):
+        members = X[labels == k]
+        center = members.mean(axis=0)
+        centers.append(center.tolist())
+        counts.append(int(members.shape[0]))
+        spread.append(float(np.sqrt(np.mean(np.sum((members - center) ** 2, axis=1)))))
+    return {"pixelCounts": counts, "centers": centers, "rmsDistance": spread}

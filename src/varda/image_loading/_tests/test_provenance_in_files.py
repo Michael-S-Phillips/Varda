@@ -156,7 +156,7 @@ def test_a_record_names_every_input_and_the_software():
     assert record["inputs"] == [{"name": "scene", "path": "/data/scene.img"}]
 
 
-@pytest.mark.parametrize("key", ["sensorBands"])
+@pytest.mark.parametrize("key", ["sensorBands", "kmeans"])
 def test_quality_figures_are_kept_in_files(tmp_path, key):
     """Analyses' quality figures (coverage, convergence, cluster statistics)
     survive export, so a reopened result can still be reported on."""
