@@ -9,6 +9,7 @@ from rasterio.crs import CRS
 from scipy import ndimage
 
 from varda.common.entities import VardaRaster
+from varda.common.layout_audit import assertNothingClipped
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 from varda.mosaicking.recipe import RadiometryMethod
 from varda.mosaicking.grid import defaultGrid
@@ -92,3 +93,40 @@ def test_the_radiometry_survives_a_session(workspace, qtbot):
     panel = reopened.radiometryPanel
     assert panel.method.currentData() is RadiometryMethod.GLOBAL
     assert reopened.project.input(1).radiometry is not None
+
+
+def _headers(table):
+    return [table.horizontalHeaderItem(c).text() for c in range(table.columnCount())]
+
+
+def test_the_fit_quality_is_shown_and_recorded(workspace, qtbot):
+    panel = _balance(workspace, qtbot, RadiometryMethod.GLOBAL)
+    rms = _headers(panel.table).index("Fit RMS")
+    assert panel.table.item(0, rms).text() == "held"
+    assert float(panel.table.item(1, rms).text()) < 0.01
+    assert "RMS" in panel.table.item(1, rms).toolTip()
+    assert "samples" in panel.table.item(1, rms).toolTip()
+    overlaps = panel.overlaps
+    assert overlaps.rowCount() == 1
+    columns = _headers(overlaps)
+    before = float(overlaps.item(0, columns.index("Before")).text())
+    after = float(overlaps.item(0, columns.index("After")).text())
+    assert after < before
+    grid = defaultGrid(workspace.project)
+    result = renderMosaic(workspace.project, grid)
+    raster = mosaicRaster(workspace.project, result, grid, Resampling.NEAREST)
+    quality = raster.extraMetadata["mosaic"]["recipe"]["radiometry"]["quality"]
+    assert set(quality["fits"]) == {"1"} and len(quality["overlaps"]) == 1
+    recipe = raster.extraMetadata["provenance"]["parameters"]["recipe"]
+    assert recipe["radiometry"]["quality"] == quality
+
+
+def test_the_quality_fits_a_laptop_screen(workspace, qtbot):
+    workspace.showNormal()
+    workspace.resize(1280, 700)
+    workspace.radiometryDock.toggleView(True)
+    workspace.radiometryDock.setAsCurrentTab()
+    qtbot.waitExposed(workspace)
+    panel = _balance(workspace, qtbot, RadiometryMethod.GLOBAL)
+    qtbot.wait(50)
+    assertNothingClipped(panel)

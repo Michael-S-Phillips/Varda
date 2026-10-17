@@ -25,7 +25,14 @@ import numpy as np
 from affine import Affine
 from attrs import frozen
 
-from varda.mosaicking.recipe import Correction, LinearMode, RadiometryMethod
+from varda.mosaicking.recipe import (
+    Correction,
+    FitQuality,
+    LinearMode,
+    OverlapAgreement,
+    RadiometryMethod,
+    RadiometryQuality,
+)
 from varda.mosaicking.grid import TargetGrid, overlapGrid
 from varda.mosaicking.model import MosaicError, MosaicProject
 from varda.mosaicking.render import Resampling, readCube, sampleOnGrid
@@ -34,6 +41,7 @@ __all__ = [
     "Correction",
     "LinearMode",
     "RadiometryMethod",
+    "RadiometryQuality",
     "RadiometryResult",
     "balance",
 ]
@@ -51,6 +59,7 @@ class RadiometryResult:
     held: frozenset[int]
     corrections: dict[int, Correction]  # by input key; held images get identity
     message: str = ""
+    quality: RadiometryQuality | None = None  # None: not assessed (ISIS's)
 
     @property
     def visual(self) -> bool:
@@ -81,7 +90,7 @@ def balance(
     names = {i.key: i.image.name for i in project.inputs}
     identity = {k: Correction.identity(bands) for k in held}
     if method is RadiometryMethod.REFERENCE:
-        corrections, unreached = _toHeld(pairs, neighbors, held, mode, bands)
+        corrections, unreached, defaulted = _toHeld(pairs, neighbors, held, mode, bands)
     elif method is RadiometryMethod.GLOBAL:
         unreachable = set(neighbors) - _reachable(neighbors, held)
         if unreachable:
@@ -92,12 +101,16 @@ def balance(
                 f"{'it' if len(unreachable) == 1 else 'them'} too, or hide "
                 f"{'it' if len(unreachable) == 1 else 'them'}."
             )
-        corrections, unreached = (
-            _global(pairs, list(neighbors), held, mode, bands),
-            set(),
-        )
+        corrections, defaulted = _global(pairs, list(neighbors), held, mode, bands)
+        unreached = set()
     else:
-        corrections, unreached = _histograms(pairs, neighbors, held, bands)
+        corrections, unreached, defaulted = _histograms(pairs, neighbors, held, bands)
+    corrections = identity | corrections
+    fittedTo = {
+        key: near & held if method is RadiometryMethod.REFERENCE else near
+        for key, near in neighbors.items()
+    }
+    quality = _assess(pairs, corrections, fittedTo, held, defaulted, bands)
     message = (
         f"{_list(names[k] for k in sorted(unreached))} "
         f"{'was' if len(unreached) == 1 else 'were'} left as they are: "
@@ -109,7 +122,82 @@ def balance(
         if unreached
         else ""
     )
-    return RadiometryResult(method, mode, held, identity | corrections, message)
+    few = [
+        f"band{'s' if len(b) > 1 else ''} {_list(str(n + 1) for n in b)} of {names[k]}"
+        for k, b in sorted(defaulted.items())
+    ]
+    if few:
+        message = " ".join(
+            part
+            for part in (
+                message,
+                f"Too few overlapping pixels in {_list(few)}: "
+                "kept gain 1, offset 0 there.",
+            )
+            if part
+        )
+    return RadiometryResult(method, mode, held, corrections, message, quality)
+
+
+def _assess(
+    pairs: dict[tuple[int, int], Pair],
+    corrections: dict[int, Correction],
+    fittedTo: dict[int, set[int]],
+    held: frozenset[int],
+    defaulted: dict[int, tuple[int, ...]],
+    bands: int,
+) -> RadiometryQuality:
+    """How well the corrections fit: for each corrected image, the RMS of
+    its corrected values minus those of the images it was fitted to (also
+    corrected) per band, over their co-located samples; for each overlap,
+    the mean absolute difference before and after."""
+
+    def corrected(key: int, values: np.ndarray) -> np.ndarray:
+        correction = corrections.get(key)
+        return values if correction is None else correction.apply(values)
+
+    fits = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # empty bands stay NaN
+        for key in sorted(corrections):
+            if key in held:
+                continue
+            differences = []
+            for other in sorted(fittedTo[key]):
+                mine, theirs = _samplesOf(pairs, key, other)
+                differences.append(corrected(key, mine) - corrected(other, theirs))
+            stacked = (
+                np.concatenate(differences).astype(float)
+                if differences
+                else np.empty((0, bands))
+            )
+            fits[key] = FitQuality(
+                np.sqrt(np.nanmean(stacked**2, axis=0))
+                if len(stacked)
+                else np.full(bands, np.nan),
+                np.isfinite(stacked).sum(axis=0),
+                defaulted.get(key, ()),
+            )
+        overlaps = []
+        for (i, j), (a, b) in sorted(pairs.items()):
+            before = a - b
+            after = corrected(i, a).astype(float) - corrected(j, b)
+            overlaps.append(
+                OverlapAgreement(
+                    i,
+                    j,
+                    np.nanmean(np.abs(before), axis=0),
+                    np.nanmean(np.abs(after), axis=0),
+                    np.isfinite(before).sum(axis=0),
+                )
+            )
+    return RadiometryQuality(fits, tuple(overlaps))
+
+
+def _fewSamples(x: np.ndarray, y: np.ndarray) -> tuple[int, ...]:
+    """The bands where fewer than MIN_SAMPLES pixels have both values."""
+    both = (np.isfinite(x) & np.isfinite(y)).sum(axis=0)
+    return tuple(int(b) for b in np.flatnonzero(both < MIN_SAMPLES))
 
 
 def _list(names: Iterable[str]) -> str:
@@ -210,8 +298,10 @@ def _toHeld(
     held: frozenset[int],
     mode: LinearMode,
     bands: int,
-) -> tuple[dict[int, Correction], set[int]]:
-    corrections, unreached = {}, set()
+) -> tuple[dict[int, Correction], set[int], dict[int, tuple[int, ...]]]:
+    """Each image overlapping a held one fitted to it; also the images that
+    don't, and each image's bands with too few samples to fit."""
+    corrections, unreached, defaulted = {}, set(), {}
     for key, near in neighbors.items():
         if key in held:
             continue
@@ -226,7 +316,9 @@ def _toHeld(
         corrections[key] = Correction(
             np.array([g for g, _ in fits]), np.array([o for _, o in fits])
         )
-    return corrections, unreached
+        if few := _fewSamples(x, y):
+            defaulted[key] = few
+    return corrections, unreached, defaulted
 
 
 def _global(
@@ -235,10 +327,11 @@ def _global(
     held: frozenset[int],
     mode: LinearMode,
     bands: int,
-) -> dict[int, Correction]:
+) -> tuple[dict[int, Correction], dict[int, tuple[int, ...]]]:
     """ISIS equalizer's solution: gains so each overlap's standard deviations
     agree, then offsets so its means agree, by least squares over all
-    overlaps (weighted by their size), held images fixed."""
+    overlaps (weighted by their size), held images fixed. Also each image's
+    bands that no overlap had enough samples in (left at identity)."""
     free = [k for k in keys if k not in held]
     column = {k: n for n, k in enumerate(free)}
     gains = np.ones((len(keys), bands))
@@ -280,7 +373,18 @@ def _global(
                 rhs.append(value)
             for key, solved in _solve(rows, rhs, column).items():
                 offsets[position[key], band] = solved
-    return {k: Correction(gains[position[k]], offsets[position[k]]) for k in free}
+    defaulted = {}
+    for key in free:
+        usable = np.zeros(bands, bool)
+        for (i, j), (si, sj, _, _, _) in stats.items():
+            if key in (i, j):
+                usable |= np.isfinite(si) & np.isfinite(sj)
+        if not usable.all():
+            defaulted[key] = tuple(int(b) for b in np.flatnonzero(~usable))
+    corrections = {
+        k: Correction(gains[position[k]], offsets[position[k]]) for k in free
+    }
+    return corrections, defaulted
 
 
 def _solve(
@@ -325,10 +429,12 @@ def _histograms(
     neighbors: dict[int, set[int]],
     held: frozenset[int],
     bands: int,
-) -> tuple[dict[int, Correction], set[int]]:
+) -> tuple[dict[int, Correction], set[int], dict[int, tuple[int, ...]]]:
     """Breadth first from the held images: each image's overlap values are
-    matched, quantile by quantile, to its balanced neighbor's (corrected)."""
+    matched, quantile by quantile, to its balanced neighbor's (corrected).
+    Also the images not reached, and each image's bands left unmatched."""
     corrections: dict[int, Correction] = {k: Correction.identity(bands) for k in held}
+    defaulted: dict[int, tuple[int, ...]] = {}
     queue = deque(sorted(held))
     levels = np.linspace(0, 100, QUANTILES)
     while queue:
@@ -340,6 +446,7 @@ def _histograms(
             for b in range(bands):
                 both = np.isfinite(mine[:, b]) & np.isfinite(theirs[:, b])
                 if both.sum() < MIN_SAMPLES:  # nothing to match: leave the band
+                    defaulted[key] = (*defaulted.get(key, ()), b)
                     ins.append(levels.copy())
                     outs.append(levels.copy())
                     continue
@@ -355,4 +462,8 @@ def _histograms(
             )
             queue.append(key)
     unreached = set(neighbors) - set(corrections)
-    return {k: v for k, v in corrections.items() if k not in held}, unreached
+    return (
+        {k: v for k, v in corrections.items() if k not in held},
+        unreached,
+        defaulted,
+    )

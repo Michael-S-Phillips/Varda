@@ -64,6 +64,12 @@ can alter results.
   (sessions, the mosaic's metadata and provenance) and as a fourth band of
   the Displacement Field. Points without refinement (manual, ORB, SIFT,
   LoFTR, ASP) have none and show it blank.
+- **Mosaic radiometry reports how well it fit:** after balancing, the
+  Radiometry tab shows each image's fit RMS (per band on hover, in data
+  units, with the number of samples) and every overlap's mean absolute
+  difference before and after; bands left uncorrected because too few
+  pixels overlap are named. All of it is saved with the session and the
+  recipe in the mosaic's metadata and provenance.
 
 ### Changed
 

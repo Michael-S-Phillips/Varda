@@ -127,8 +127,15 @@ With [ISIS](optional-features.md#isis-mosaicking) installed, **Compare with
 ISIS equalizer** solves the same balance with ISIS and shows its gains and
 offsets beside Varda's (and **Use ISIS's Corrections** applies them).
 Statistics come from a subsample of each overlap. The table shows each
-image's mean gain and offset; hover for every band. The corrections are
-saved with the session and recorded in the exported mosaic's metadata.
+image's mean gain and offset and its **Fit RMS** (below); hover for every
+band's gain, offset, RMS and number of samples. Under it, **Overlap
+agreement** lists every overlap's mean absolute difference **Before** and
+**After** the corrections (the median over bands; hover for every band).
+A band with fewer than 50 shared pixels can't be fitted: it keeps gain 1
+and offset 0, the status line names it, and the tooltip lists it. The
+corrections and these figures are saved with the session and recorded in
+the exported mosaic's metadata and provenance (the recipe's `radiometry`
+→ `quality`).
 
 ## Seams
 
@@ -207,8 +214,9 @@ for what applies to every process.
   LoFTR, ASP `image_align`, or by hand), the bands matched on, the outlier
   threshold, how many points the fit kept and their RMS, and (with
   sub-pixel refinement) their median phase SNR.
-- The radiometric balance (method and fit), the seam method, any blending,
-  and the export's resampling and pixel size.
+- The radiometric balance (method and fit) with its fit RMS and the
+  overlaps' agreement before and after, the seam method, any blending, and
+  the export's resampling and pixel size.
 
 Settings Auto Align uses that aren't in the dialog:
 
@@ -269,12 +277,23 @@ smooth warps.
 - **Residual units.** Each point's residual in the table is in map units
   (meters in a projected CRS, degrees in a geographic one). The RMS values
   are in the moving image's pixels.
-- **Radiometry** reports each image's gains and offsets, but not how well
-  the fit worked. Compare the overlaps before and after balancing (with
-  [linked images](linked-images.md) or ROI statistics) if you need a number.
-  Histogram matching, blending and bilinear resampling change spectra, which
-  is why their results are labeled "(visual)": don't use them for
-  quantitative spectral work.
+- **Radiometric fit quality.** For each corrected image and band, **Fit
+  RMS** is the root mean square of (corrected image − corrected images it
+  was fitted to) over their co-located samples, in the inputs' data units,
+  with the number of samples. "Fitted to" is the held images it overlaps
+  for **Linear, to the held images**, and every image it overlaps for the
+  global and histogram methods. It includes every sample (the robust fit's
+  trimmed outliers too) and everything that differs between the images
+  besides brightness (misregistration, parallax, changed surfaces,
+  illumination and photometric angle), so it is an upper bound on the
+  calibration mismatch, not a calibration uncertainty. **Overlap
+  agreement** gives each overlap's mean absolute difference before and
+  after (data units); report both. Bands left uncorrected for too few
+  samples are listed (`defaulted`, 0-based, in the recipe). These figures
+  are not computed for **Use ISIS's Corrections**; balance in Varda to get
+  them. Histogram matching, blending and bilinear resampling change
+  spectra, which is why their results are labeled "(visual)": don't use
+  them for quantitative spectral work.
 - **Nearest-neighbor export** keeps every spectrum as measured, but moves it
   by up to half an output pixel.
 

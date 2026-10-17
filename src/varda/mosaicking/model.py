@@ -18,6 +18,7 @@ from varda.mosaicking.recipe import (
     Correction,
     LinearMode,
     RadiometryMethod,
+    RadiometryQuality,
     Seam,
     SeamMethod,
 )
@@ -188,6 +189,8 @@ class MosaicProject:
         self.radiometryMethod = RadiometryMethod.NONE
         self.radiometryMode = LinearMode.BOTH
         self.heldKeys: frozenset[int] = frozenset()
+        # How well the corrections fit (None: none, or not assessed)
+        self.radiometryQuality: RadiometryQuality | None = None
         self.seamMethod = SeamMethod.PRIORITY
         self.seams: list[Seam] = []
         self.blend = Blend()
@@ -224,12 +227,14 @@ class MosaicProject:
         self.radiometryMethod = result.method
         self.radiometryMode = result.mode
         self.heldKeys = frozenset(result.held)
+        self.radiometryQuality = result.quality
 
     def clearRadiometry(self) -> None:
         for item in self.inputs:
             item.radiometry = None
         self.radiometryMethod = RadiometryMethod.NONE
         self.heldKeys = frozenset()
+        self.radiometryQuality = None
 
     @property
     def isVisual(self) -> bool:
@@ -370,6 +375,9 @@ class MosaicProject:
                 "method": self.radiometryMethod.name,
                 "mode": self.radiometryMode.name,
                 "held": sorted(self.heldKeys),
+                "quality": None
+                if self.radiometryQuality is None
+                else self.radiometryQuality.state(),
             },
             "inputs": [
                 {
@@ -422,6 +430,10 @@ class MosaicProject:
         self.radiometryMethod = RadiometryMethod[radiometry.get("method", "NONE")]
         self.radiometryMode = LinearMode[radiometry.get("mode", "BOTH")]
         self.heldKeys = frozenset(radiometry.get("held", []))
+        quality = radiometry.get("quality")
+        self.radiometryQuality = (
+            None if quality is None else RadiometryQuality.fromState(quality)
+        )
         order = state.get("order")
         if order and sorted(order) == sorted(i.key for i in self.inputs):
             self.inputs.sort(key=lambda i: order.index(i.key))
