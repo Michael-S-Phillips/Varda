@@ -65,6 +65,7 @@ class SmoothMethod(LabeledEnum):
 
 class SmoothingAnalysis(BandwiseAnalysis):
     analysisId = "smoothing"
+    software = ("scipy", "scikit-image")
     name = "Smoothing"
     category = CATEGORY
     description = (
@@ -134,6 +135,7 @@ class SharpenMethod(LabeledEnum):
 
 class SharpeningAnalysis(BandwiseAnalysis):
     analysisId = "sharpening"
+    software = ("scipy", "scikit-image")
     name = "Sharpening"
     category = CATEGORY
     description = (
@@ -189,6 +191,7 @@ class EdgeMethod(LabeledEnum):
 
 class EdgeDetectionAnalysis(BandwiseAnalysis):
     analysisId = "edge_detection"
+    software = ("scipy", "scikit-image")
     name = "Edge Detection"
     category = CATEGORY
     description = (
@@ -283,6 +286,7 @@ def footprint(shape: StructureShape, size: int) -> np.ndarray:
 
 class MorphologyAnalysis(BandwiseAnalysis):
     analysisId = "morphology"
+    software = ("scipy", "scikit-image")
     name = "Morphology"
     category = CATEGORY
     description = (
@@ -371,6 +375,7 @@ def frost(band: np.ndarray, size: int, damping: float) -> np.ndarray:
 
 class SpeckleFilterAnalysis(BandwiseAnalysis):
     analysisId = "speckle_filter"
+    software = ("scipy", "scikit-image")
     name = "Speckle Filters (Lee, Kuan, Frost)"
     category = CATEGORY
     description = (
@@ -464,6 +469,7 @@ def frequencyFilter(
 
 class FrequencyFilterAnalysis(BandwiseAnalysis):
     analysisId = "frequency_filter"
+    software = ("scipy", "scikit-image")
     name = "Frequency Filter (FFT)"
     category = CATEGORY
     description = (
@@ -530,6 +536,7 @@ def parseKernel(text: str) -> np.ndarray:
 
 class CustomKernelAnalysis(BandwiseAnalysis):
     analysisId = "custom_kernel"
+    software = ("scipy", "scikit-image")
     name = "Custom Kernel"
     category = CATEGORY
     description = (

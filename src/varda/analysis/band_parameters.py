@@ -22,6 +22,7 @@ _DEFAULT_DISPLAY = ("R637", "R550", "R463")
 
 class BandParametersAnalysis(Analysis):
     analysisId = "band_parameters"
+    software = ("hypyrameter",)
     name = "Band Parameters (HyPyRameter)"
     category = "Spectral Parameters"
     requirement = "HyPyRameter"

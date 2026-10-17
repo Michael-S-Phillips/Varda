@@ -5,6 +5,7 @@ import json
 import numpy as np
 
 from varda.analysis.band_math import BandMathAnalysis
+from varda.analysis.detection import RxAnalysis
 from varda.analysis.provenance import PROVENANCE_KEY, provenanceText, recordProvenance
 from varda.analysis.runner import AnalysisRunner
 from varda.common.di_types import ProjectImages
@@ -32,7 +33,8 @@ def test_a_result_records_the_analysis_parameters_inputs_and_version():
     result = analysis.run(image, lambda p, m: None)
     recordProvenance(result, analysis, image)
     record = result.extraMetadata[PROVENANCE_KEY]
-    assert record["analysis"] == "Band Math"
+    assert record["process"] == "Band Math"
+    assert record["processId"] == "band_math"
     assert record["parameters"] == {"Expression": "R2300 / R2200"}
     assert record["inputs"] == [{"name": "scene", "path": "/data/scene.img"}]
     assert record["vardaVersion"] == vardaVersion()
@@ -65,3 +67,35 @@ def test_provenance_text_reads_like_a_sentence():
     assert text.startswith(
         f"Made with Varda {vardaVersion()}: Band Math (Expression=b1) from /data/scene.img"
     )
+
+
+class _PluginBandMath(BandMathAnalysis):
+    plugin = "Ratios 1.2"  # as the plugin manager sets it
+
+
+def test_provenance_text_names_the_plugin():
+    analysis = _PluginBandMath()
+    analysis.expression.set("b1")
+    image = _image()
+    result = analysis.run(image, lambda p, m: None)
+    recordProvenance(result, analysis, image)
+    assert result.extraMetadata[PROVENANCE_KEY]["plugin"] == "Ratios 1.2"
+    assert provenanceText(result).endswith("by the plugin Ratios 1.2")
+
+
+def test_the_software_that_did_the_work_is_recorded():
+    image = _image()
+    analysis = RxAnalysis()
+    result = analysis.run(image, lambda p, m: None)
+    recordProvenance(result, analysis, image)
+    software = result.extraMetadata[PROVENANCE_KEY]["software"]
+    assert set(software) == {"spectral"}
+
+
+def test_long_parameter_values_are_shortened_in_the_one_line_text():
+    analysis = BandMathAnalysis()
+    analysis.expression.set("b1 + " * 40 + "b1")
+    image = _image()
+    result = analysis.run(image, lambda p, m: None)
+    recordProvenance(result, analysis, image)
+    assert "…" in provenanceText(result)

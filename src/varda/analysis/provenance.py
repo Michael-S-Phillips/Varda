@@ -1,39 +1,15 @@
-"""How a result was made: the analysis, its parameters, its inputs, the Varda
-version and the time, kept in the result's metadata and written into the
-description of an exported file."""
+"""How a Processing-menu result was made: the analysis, its parameters, its
+inputs (with their own records), the software and the time, as a provenance
+record (``common.provenance``) kept in the result's metadata and its files."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from enum import Enum
-
-import numpy as np
-
 from varda.analysis.analysis import Analysis
 from varda.common.entities import VardaRaster
-from varda.common.parameter import Parameter, ParameterGroup
-from varda.common.provenance import PROVENANCE_KEY
+from varda.common.parameter import ImageParameter, Parameter, ParameterGroup
+from varda.common.provenance import PROVENANCE_KEY as PROVENANCE_KEY
+from varda.common.provenance import makeProvenance, plain, setProvenance
 from varda.common.provenance import provenanceText as provenanceText
-from varda.version import vardaVersion
-
-
-def _plain(value):
-    """A parameter value as JSON-friendly data."""
-    if isinstance(value, Enum):
-        return value.name
-    if isinstance(value, VardaRaster):
-        return value.name
-    if callable(getattr(value, "name", None)):  # e.g. a QColor: its hex name
-        return value.name()
-    if isinstance(value, np.ndarray):
-        return value.tolist()
-    if isinstance(value, np.generic):
-        return value.item()
-    if isinstance(value, list | tuple):
-        return [_plain(v) for v in value]
-    if value is None or isinstance(value, bool | int | float | str):
-        return value
-    return str(value)
 
 
 def parameterValues(group: ParameterGroup) -> dict:
@@ -42,20 +18,34 @@ def parameterValues(group: ParameterGroup) -> dict:
         if isinstance(param, ParameterGroup):
             values[type(param).__name__] = parameterValues(param)
         elif isinstance(param, Parameter):
-            values[param.name] = _plain(param.get())
+            values[param.name] = plain(param.get())
     return values
+
+
+def imageInputs(group: ParameterGroup) -> list[VardaRaster]:
+    """The other images an analysis's settings use (weights, a second image)."""
+    found = []
+    for param in group.params.values():
+        if isinstance(param, ParameterGroup):
+            found += imageInputs(param)
+        elif isinstance(param, ImageParameter) and param.get() is not None:
+            found.append(param.get())
+    return found
 
 
 def recordProvenance(
     result: VardaRaster, analysis: Analysis, image: VardaRaster
 ) -> None:
-    result.extraMetadata[PROVENANCE_KEY] = {
-        "analysis": analysis.name,
-        "analysisId": analysis.analysisId,
-        "parameters": parameterValues(analysis),
-        "inputs": [{"name": image.name, "path": image.filePath}],
-        "vardaVersion": vardaVersion(),
-        "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-    }
-    if analysis.plugin:  # added by a plugin: say which, and which version
-        result.extraMetadata[PROVENANCE_KEY]["plugin"] = analysis.plugin
+    inputs = [image]
+    inputs += [other for other in imageInputs(analysis) if other is not image]
+    setProvenance(
+        result,
+        makeProvenance(
+            analysis.name,
+            parameterValues(analysis),
+            inputs,
+            processId=analysis.analysisId,
+            plugin=analysis.plugin,
+            software=analysis.softwareVersions(),
+        ),
+    )

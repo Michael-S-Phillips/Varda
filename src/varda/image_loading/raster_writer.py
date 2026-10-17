@@ -3,6 +3,9 @@
 The metadata written is what Varda's own data sources read back: ENVI header
 items (wavelength, wavelength units, band names, default bands, description)
 for ENVI, and the equivalent GDAL tags plus band descriptions for GeoTIFF.
+The provenance record and the scientific metadata worth keeping go, as JSON,
+in the ``VARDA`` metadata domain: inside a GeoTIFF, in ``<file>.aux.xml``
+beside an ENVI file (``common.provenance.fileTags``).
 """
 
 from __future__ import annotations
@@ -12,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import rasterio
 
-from varda.common.provenance import provenanceText
+from varda.common.provenance import VARDA_NAMESPACE, fileTags, provenanceText
 from varda.common.spectral_axis import BAND_METADATA_KEYS
 from varda.common.entities import VardaRaster
 from varda.utilities.proj_lock import PROJ_LOCK
@@ -102,6 +105,9 @@ def writeRaster(image: VardaRaster, path: str | Path) -> Path:
             dst.update_tags(**tags)
             for i, name in enumerate(names, start=1):
                 dst.update_tags(i, name=name)
+        varda = fileTags(image.extraMetadata)
+        if varda:
+            dst.update_tags(ns=VARDA_NAMESPACE, **varda)
     return target
 
 

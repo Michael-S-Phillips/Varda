@@ -120,6 +120,7 @@ class _GaussianClassification(_RoiTrainingAnalysis):
 
 class MaximumLikelihoodAnalysis(_GaussianClassification):
     analysisId = "maximum_likelihood"
+    software = ("spectral",)
     name = "Maximum Likelihood"
     suffix = "ML classes"
     description = (
@@ -144,6 +145,7 @@ class MaximumLikelihoodAnalysis(_GaussianClassification):
 
 class MahalanobisAnalysis(_GaussianClassification):
     analysisId = "mahalanobis"
+    software = ("spectral",)
     name = "Mahalanobis Distance"
     suffix = "Mahalanobis classes"
     description = (
@@ -167,6 +169,7 @@ class MahalanobisAnalysis(_GaussianClassification):
 
 class KMeansAnalysis(Analysis):
     analysisId = "kmeans"
+    software = ("spectral",)
     name = "K-Means Clustering"
     category = "Classification"
     description = (

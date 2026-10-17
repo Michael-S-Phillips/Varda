@@ -71,6 +71,7 @@ def hillshade(
 
 class TerrainAnalysis(Analysis):
     analysisId = "terrain"
+    software = ("scipy",)
     name = "Terrain (Slope, Aspect, Hillshade)"
     category = "Topography"
     description = (

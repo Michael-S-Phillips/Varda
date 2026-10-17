@@ -61,6 +61,7 @@ def _scoreImage(values: np.ndarray, valid: np.ndarray) -> np.ndarray:
 
 class RxAnalysis(Analysis):
     analysisId = "rx_global"
+    software = ("spectral",)
     name = "RX Anomaly (Global)"
     category = CATEGORY
     description = (
@@ -85,6 +86,7 @@ class RxAnalysis(Analysis):
 
 class LocalRxAnalysis(Analysis):
     analysisId = "rx_local"
+    software = ("spectral", "scipy")
     name = "RX Anomaly (Local)"
     category = CATEGORY
     description = (
@@ -186,6 +188,7 @@ class _TargetDetection(_RoiTrainingAnalysis):
 
 class AceAnalysis(_TargetDetection):
     analysisId = "ace"
+    software = ("spectral",)
     name = "ACE Target Detection"
     detectorLabel = "ACE"
     description = (
@@ -201,6 +204,7 @@ class AceAnalysis(_TargetDetection):
 
 class MatchedFilterAnalysis(_TargetDetection):
     analysisId = "matched_filter"
+    software = ("spectral",)
     name = "Matched Filter"
     detectorLabel = "matched filter"
     description = (

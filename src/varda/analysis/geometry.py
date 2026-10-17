@@ -47,6 +47,7 @@ class Interpolation(LabeledEnum):
 
 class ResampleAnalysis(Analysis):
     analysisId = "resample"
+    software = ("scipy",)
     name = "Resample (Resize)"
     category = CATEGORY
     description = (
@@ -127,6 +128,7 @@ def reorient(cube: np.ndarray, how: Orientation) -> tuple[np.ndarray, Affine]:
 
 class RotateFlipAnalysis(Analysis):
     analysisId = "rotate_flip"
+    software = ("scipy",)
     name = "Rotate / Flip"
     category = CATEGORY
     description = (
