@@ -11,6 +11,7 @@ A provenance record is plain JSON-friendly data in an image's
       "vardaVersion": "0.9.0", "created": "2026-10-17T12:00:00+00:00",
       "plugin": "name version",                  # when a plugin made it
       "software": {"spectral": "0.24"},          # libraries/tools that did the work
+      "results": {"validation": {...}},          # figures measured on the result
       "source": {...},                           # a downloaded file: where from
     }
 
@@ -47,6 +48,9 @@ PROVENANCE_KEY = "provenance"
 # GDAL metadata domain and its two keys (JSON text)
 VARDA_NAMESPACE = "VARDA"
 METADATA_TAG = "metadata"
+# Figures a process measured on its result (accuracy, hold-out validation, the
+# training data used): kept in files, and copied into the provenance record
+RESULT_KEYS = ("accuracy", "validation", "trainingData")
 # Scientific metadata kept in files: class names and colors (class maps), what
 # Eigenvalue Plot and Inverse Transform need, classifier training figures,
 # the mosaic recipe, displacement and FATT settings
@@ -58,10 +62,15 @@ KEPT_METADATA_KEYS = (
     "layerSizes",
     "finalLoss",
     "patchSize",
+    "components",
+    "seed",
+    "device",
+    "torchVersion",
     "mapMethod",
     "mosaic",
     "displacement",
     "fatt",
+    *RESULT_KEYS,
 )
 # Beside a downloaded file: where it came from (catalogs/downloads.py)
 SOURCE_SUFFIX = ".varda-source.json"
@@ -121,6 +130,7 @@ def makeProvenance(
     processId: str = "",
     plugin: str = "",
     software: Mapping[str, str] | None = None,
+    results: Mapping | None = None,
 ) -> dict:
     """A provenance record (see the module docstring)."""
     record = {
@@ -136,6 +146,8 @@ def makeProvenance(
         record["plugin"] = plugin
     if software:
         record["software"] = dict(software)
+    if results:
+        record["results"] = plain(results)
     return record
 
 

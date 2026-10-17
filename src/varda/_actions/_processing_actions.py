@@ -16,6 +16,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMessageBox
 
 from varda._actions._menu_ids import MenuId
+from varda.analysis.accuracy_assessment import accuracyRecord
+from varda.accuracy_report_dialog import AccuracyReportDialog
 from varda.analysis.analysis import SUBMENU, Analysis, categoryLevels
 from varda.analysis.dialog import RunAnalysisDialog
 from varda.analysis.eigenvalue_dialog import EigenvaluePlotDialog
@@ -54,9 +56,38 @@ def openRunAnalysisDialog(
     # Analyses that use ROIs get the current workspace's collection (the
     # workspaces assume their images are co-registered with it).
     rois = getattr(mainGui.currentWorkspace(), "roiCollection", None)
+    # A result that carries an accuracy report (Accuracy Assessment, or a
+    # classifier's hold-out validation) shows it
+    runner.sigFinished.connect(
+        lambda result: showAccuracyReport(images, mainGui, result)
+    )
     RunAnalysisDialog(
         list(images), [analysis], analysis=analysis, rois=rois, parent=mainGui
     ).connectOnRun(runner.run).open()
+
+
+def showAccuracyReport(
+    images: ProjectImages, mainGui: MainGUI, result: VardaRaster
+) -> None:
+    if accuracyRecord(result) is not None:
+        openAccuracyReport(images, mainGui, result)
+
+
+def openLatestAccuracyReport(images: ProjectImages, mainGui: MainGUI) -> None:
+    latest = next(
+        (i for i in reversed(list(images)) if accuracyRecord(i) is not None), None
+    )
+    openAccuracyReport(images, mainGui, latest)
+
+
+def openAccuracyReport(
+    images: ProjectImages, mainGui: MainGUI, image: VardaRaster | None
+) -> None:
+    """The accuracy report of ``image``; non-modal, so the error map or the
+    class map can be inspected alongside."""
+    dialog = AccuracyReportDialog(list(images), image=image, parent=mainGui)
+    dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+    dialog.show()
 
 
 def offerInstall(
@@ -244,6 +275,7 @@ def openSpectralHourglass(images: ProjectImages, mainGui: MainGUI) -> None:
 
 
 EIGENVALUE_PLOT_ACTION_ID = "varda.processing.eigenvalue_plot"
+ACCURACY_REPORT_ACTION_ID = "varda.processing.accuracy_report"
 SPECTRAL_HOURGLASS_ACTION_ID = "varda.processing.spectral_hourglass"
 FATT_ACTION_ID = "varda.processing.fatt"
 CAM2MAP_ACTION_ID = "varda.processing.cam2map"
@@ -253,6 +285,19 @@ PROCESSING_SUBMENUS = processingSubmenus(MenuId.PROCESSING, ANALYSES)
 PROCESSING_ACTIONS = processingActions(
     MenuId.PROCESSING, "varda.processing", ANALYSES, _menuCallback
 ) + [
+    Action(
+        id=ACCURACY_REPORT_ACTION_ID,
+        title="Accuracy Report…",
+        tooltip=(
+            "Show, and save as CSV, the confusion matrix and accuracy of an "
+            "Accuracy Assessment result or of a classifier's hold-out validation"
+        ),
+        callback=openLatestAccuracyReport,
+        enablement=EXPR_HAS_IMAGES,
+        menus=[
+            MenuRule(id=categoryMenuId(MenuId.PROCESSING, "Classification"), order=99)
+        ],
+    ),
     Action(
         id=EIGENVALUE_PLOT_ACTION_ID,
         title="Eigenvalue Plot…",
