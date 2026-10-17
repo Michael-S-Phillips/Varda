@@ -16,7 +16,7 @@ from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.classification import _RoiTrainingAnalysis, _requireRois
 from varda.analysis.endmembers import pixelPurityIndex
 from varda.analysis.linear_algebra import flattenValid, mnf, noiseCovariance
-from varda.analysis.rasters import readCube, singleBandRaster
+from varda.analysis.rasters import readGoodBands, singleBandRaster
 from varda.analysis.unmixing import (
     Constraint,
     linearUnmix,
@@ -153,8 +153,8 @@ class PixelPurityAnalysis(Analysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
-        cube, _ = readCube(image)
-        k = min(int(self.components.value), image.bandCount)
+        cube, _, _ = readGoodBands(image)
+        k = min(int(self.components.value), cube.shape[2])
         X, valid = flattenValid(cube[:, :, :k], None)
         counts = pixelPurityIndex(
             X,
@@ -210,7 +210,7 @@ class _RoiEndmemberMapping(_RoiTrainingAnalysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
-        cube, valid = readCube(image)
+        cube, valid, _ = readGoodBands(image)
         names, colors, spectra, masks = self._endmembers(image, cube, valid)
         validFlat = np.flatnonzero(valid.ravel())
         X = cube.reshape(-1, cube.shape[2])[validFlat]

@@ -42,7 +42,10 @@ isolated spikes, judging each value against its neighbors in both space and
 wavelength. It subtracts a smooth reference from each spectrum, runs a
 Grubbs outlier test on every small window (rows × columns × bands) of what's
 left, and replaces the values that enough windows flag, round after round.
-Spectral filters added by plugins (a spectral smoothing filter, say) go here
+A replaced value is the distance-weighted (Gaussian) average of its
+neighbors that weren't flagged, with the weights renormalized over those
+neighbors; with none left, it takes the reference value. Bands marked bad
+keep their input values. Spectral filters added by plugins (a spectral smoothing filter, say) go here
 too.
 
 ## Spatial gradient (Derivatives)
@@ -181,8 +184,9 @@ agree. One bit (frame 0, say) shows where that frame was left out.
   low.
 - **Spectral Entropy:** the Shannon entropy (bits) of each pixel's spectrum,
   treated as a distribution over its bands (each band's share of the
-  spectrum's sum). A flat spectrum scores the most, log₂ of the number of
-  bands; a spectrum dominated by a few bands scores low. Negative values
+  spectrum's sum), over its good bands (bad bands are left out). A flat
+  spectrum scores the most, log₂ of the number of good bands; a spectrum
+  dominated by a few bands scores low. Negative values
   count as zero, so use it on data that can't be negative, such as
   reflectance or radiance.
 
@@ -314,7 +318,7 @@ Sizes are made odd (a 4 becomes 5).
 
 | Tool | As implemented | Defaults | Output |
 |---|---|---|---|
-| IOVF | Reference per spectrum: 19-band running median, then Savitzky–Golay (9 bands, cubic). Two-sided Grubbs test in every window of the residual, α = 0.125 (0.05 for windows cut below 45 values at the cube's edges); each flag is a vote, and values with at least as many votes as the window's smallest side are replaced by a Gaussian-weighted mean of their unflagged neighbors. Later rounds test only around the last round's replacements | Window 7 rows × 5 columns × 5 bands; Stop Below 1% of round 1 (it also stops when nothing is flagged, when the counts cycle or stall, or after 200 rounds) | Input units |
+| IOVF | Reference per spectrum: 19-band running median, then Savitzky–Golay (9 bands, cubic). Two-sided Grubbs test in every window of the residual, α = 0.125 (0.05 for windows cut below 45 values at the cube's edges); each flag is a vote, and values with at least as many votes as the window's smallest side are replaced by a Gaussian-weighted mean of their unflagged, valid neighbors (weights renormalized over them; the reference value when none is left). Later rounds test only around the last round's replacements | Window 7 rows × 5 columns × 5 bands; Stop Below 1% of round 1 (it also stops when nothing is flagged, when the counts cycle or stall, or after 200 rounds) | Input units |
 | Spatial Gradient | Sobel magnitude (÷ 8); edges extended; no-data not filled | Band 1 | Band units per pixel |
 | Convolve to Sensor Bands | Each cube band weighted by the response at its center times its share of the wavelength axis; bad bands and no-data left out and the weights renormalized per pixel; a band is kept if the cube covers ≥ 90% of its response (area), a pixel if ≥ 90% is present | Sensor MRO CTX | Input units; each band's wavelength is its response-weighted mean, its FWHM the width of a box of the same area and peak |
 | Band Math | Expression in 64-bit floats; `R<nm>` as above | `R2300 / R2200` | As the expression |
@@ -324,7 +328,7 @@ Sizes are made odd (a 4 becomes 5).
 | Local Statistics | Moments over the window (variance divided by n, not n − 1) | Standard deviation; 7 px; One band | Band units (variance: squared; skewness: none) |
 | GLCM | Symmetric co-occurrence of pairs inside the window (windows are cut at the image's edges); gray levels over the band's 2–98% range | Contrast; 7 px; 32 levels; all directions; distance 1 px; One band | Gray levels: contrast, variance in levels²; dissimilarity, mean in levels; entropy in nats (natural log); second moment (Σp², not its square root), homogeneity, correlation unitless |
 | Spatial Entropy | Histogram of the window's valid pixels in equal-width bins over the band's whole valid range | Band 1; 7 px; 64 bins | Bits; at most log₂ of the smaller of the bins and the window's pixel count (5.6 bits for 7 × 7) |
-| Spectral Entropy | −Σ p log₂ p with p = band value / spectrum sum, negatives as 0 | None | Bits, 0 to log₂(bands) |
+| Spectral Entropy | −Σ p log₂ p over the good bands, with p = band value / spectrum sum, negatives as 0 | None | Bits, 0 to log₂(good bands) |
 | Color Transform | matplotlib's HSV conversion (HLS from it); forward stretches each band 2–98% to 0–1 | RGB to HSV | 0–1; hue as a fraction of a turn |
 | Decorrelation Stretch | Principal components of the three bands' covariance, each scaled to unit variance, rotated back, then scaled to each band's standard deviation and mean | Display bands | Band units |
 | Saturation Stretch | Three bands scaled together min–max to 0–1, saturation equalized (scikit-image `equalize_hist`) | Stretch Brightness Too off | 0–1 |
@@ -362,8 +366,10 @@ a number:
   from the input (Image Arithmetic): the difference is zero, to rounding,
   except where a value was replaced. The window and the stop setting change
   what's replaced, so report both. Bad bands, and a pixel's no-data bands,
-  are filled along the spectrum before filtering and stay filled in the
-  result.
+  are filled along the spectrum before filtering (so filled values take
+  part in the windows); in the result, bad bands get their input values
+  back and stay marked bad, while a pixel's filled no-data bands stay
+  filled.
 - **Convolve to Sensor Bands.** The built-in HiRISE and THEMIS VIS bands are
   approximations (the result's description says so), and CTX is rebuilt
   from published edges: fine for a scene to align, not for comparing
@@ -383,7 +389,7 @@ a number:
   Spatial Entropy values depend on the gray levels or bins and on each
   band's own range, so compare them only between results made with the
   same settings on the same band. Spectral Entropy depends on the number of
-  bands and changes if you add an offset to the data.
+  good bands and changes if you add an offset to the data.
 - **Color tools** are visual products (see above): report them as
   enhancements in figure captions.
 - **Class map tools** don't report how many pixels they changed. To count

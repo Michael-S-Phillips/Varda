@@ -22,7 +22,7 @@ from varda.analysis.classification import (
     _RoiTrainingAnalysis,
 )
 from varda.analysis.linear_algebra import pca
-from varda.analysis.rasters import readCube
+from varda.analysis.rasters import readGoodBands
 from varda.common.entities import VardaRaster
 from varda.common.palette import classColor
 from varda.common.parameter import IntParameter
@@ -77,7 +77,7 @@ class _GaussianClassification(_RoiTrainingAnalysis):
         if len(names) < 2:
             raise ValueError("Training needs at least two ROI classes.")
         reportProgress(0, "reading image")
-        cube, valid = readCube(image)
+        cube, valid, _ = readGoodBands(image)
         labels = np.zeros(valid.shape, dtype=np.int64)  # 0 = not training
         for k, name in enumerate(names, start=1):
             labels[rois.classMask(name, image) & valid] = k
@@ -183,7 +183,7 @@ class KMeansAnalysis(Analysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
-        cube, valid = readCube(image)
+        cube, valid, _ = readGoodBands(image)
         reportProgress(20, "clustering")
         labels, _centres = _spy.kmeans(
             cube[valid], int(self.clusters.value), int(self.iterations.value)

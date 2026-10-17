@@ -13,7 +13,7 @@ from scipy import ndimage
 from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.bandwise import fillGaps, readBand
 from varda.analysis.crop_preview import CropPreview
-from varda.analysis.rasters import sameBandsRaster
+from varda.analysis.rasters import bandMetadataSubset, sameBandsRaster
 from varda.common.entities import VardaRaster
 from varda.common.parameter import (
     BoolParameter,
@@ -25,7 +25,6 @@ from varda.common.parameter import (
     StringParameter,
     parsePositions,
 )
-from varda.common.spectral_axis import BAND_METADATA_KEYS, parseEnviList
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
 CATEGORY = "Geometry"
@@ -151,24 +150,6 @@ class RotateFlipAnalysis(Analysis):
         )
 
 
-def _subsetMetadata(image: VardaRaster, bands: list[int]) -> dict:
-    """The per-band metadata (FWHM, bad bands) for just ``bands``."""
-    metadata = {}
-    for key in BAND_METADATA_KEYS:
-        value = image.extraMetadata.get(key)
-        if value is None:
-            continue
-        try:
-            values = parseEnviList(value)
-        except (TypeError, ValueError):
-            values = None
-        if values is not None and len(values) == image.bandCount:
-            metadata[key] = [values[b] for b in bands]
-        else:
-            metadata[key] = value  # one value for every band, e.g. the scale factor
-    return metadata
-
-
 def crop(
     image: VardaRaster,
     top: int,
@@ -203,7 +184,7 @@ def crop(
         transform=image.transform * Affine.translation(left, top),
         crs=image.crs,
         defaultBands=np.array(default[:3]) if len(default) >= 3 else None,
-        extraMetadata=_subsetMetadata(image, bands),
+        extraMetadata=bandMetadataSubset(image, bands),
         description=description
         or f"Crop of {image.name}: rows {top + 1}-{top + height}, columns {left + 1}-{left + width}",
     )

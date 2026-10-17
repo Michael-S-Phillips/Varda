@@ -4,7 +4,7 @@ the smooth spectra around them."""
 import numpy as np
 import pytest
 
-from varda.analysis.iovf import _isStalled, iovfFilter
+from varda.analysis.iovf import _isStalled, _kernelTables, _pad, _replace, iovfFilter
 
 
 def _smoothCube(rows=24, cols=20, bands=60, seed=0) -> np.ndarray:
@@ -90,3 +90,31 @@ def test_stalled_rounds_stop_the_filter():
     assert not _isStalled([100, 50, 40, 30, 20, 10])
     assert _isStalled([100, 50, 40, 41, 42, 40, 40, 41])  # no net fall over five rounds
     assert not _isStalled([100, 90])
+
+
+def _replaced(noise: np.ndarray, flagged: list[tuple[int, int, int]]) -> np.ndarray:
+    window = (3, 3, 3)
+    half = (1, 1, 1)
+    out = noise.copy()
+    F = np.array(flagged)
+    _replace(out, _pad(noise, half), F, window, half, _kernelTables(window), 4.0)
+    return out[F[:, 0], F[:, 1], F[:, 2]]
+
+
+def test_replacement_is_the_weighted_average_of_the_neighbors_left():
+    """Flagged and no-data neighbors are ignored (Phillips et al. 2024, 2.2):
+    the weights of the neighbors left are renormalized, so an outlier among
+    neighbors that all read 0.2 becomes 0.2, not a value pulled toward the
+    reference (0)."""
+    noise = np.full((5, 5, 5), 0.2)
+    noise[2, 2, 2] = 5.0  # the outlier
+    noise[2, 2, 3] = -4.0  # a flagged neighbor
+    noise[1, 1, 1] = np.nan  # a no-data neighbor
+    values = _replaced(noise, [(2, 2, 2), (2, 2, 3)])
+    np.testing.assert_allclose(values, 0.2)
+
+
+def test_an_outlier_with_no_neighbors_left_takes_the_reference():
+    noise = np.full((3, 3, 3), np.nan)
+    noise[1, 1, 1] = 5.0
+    assert _replaced(noise, [(1, 1, 1)])[0] == 0.0  # noise 0: the reference

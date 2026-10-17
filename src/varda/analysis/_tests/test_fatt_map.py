@@ -71,13 +71,47 @@ def test_only_the_wavelength_range_is_used():
     analysis.minWavelength.set(2100.0)
     analysis.maxWavelength.set(2600.0)
     result = analysis.run(_scene(), lambda p, m: None)
-    assert result.extraMetadata["fatt"]["bands"] == int(
-        ((WAVELENGTHS >= 2100) & (WAVELENGTHS <= 2600)).sum()
-    )
+    inRange = int(((WAVELENGTHS >= 2100) & (WAVELENGTHS <= 2600)).sum())
+    assert result.extraMetadata["fatt"]["bands"] == [inRange, inRange]
 
 
 def test_targets_are_needed():
     analysis = FattMapAnalysis()
     assert "target" in analysis.unavailableReason(_scene()).lower()
     with pytest.raises(ValueError):
+        analysis.run(_scene(), lambda p, m: None)
+
+
+def test_each_targets_map_uses_the_bands_it_covers():
+    """Ticking a target that covers fewer bands must not change another
+    target's map."""
+    kaolinite = LibrarySpectrum("kaolinite", WAVELENGTHS, KAOLINITE)
+    short = WAVELENGTHS >= 2000
+    calcite = LibrarySpectrum("calcite", WAVELENGTHS[short], CALCITE[short])
+
+    alone = FattMapAnalysis([kaolinite])
+    both = FattMapAnalysis([kaolinite, calcite])
+    for analysis in (alone, both):
+        analysis.factors.set(4)
+        analysis.threshold.set(0.1)
+    image = _scene()
+    aloneResult = alone.run(image, lambda p, m: None)
+    bothResult = both.run(image, lambda p, m: None)
+
+    np.testing.assert_array_equal(
+        aloneResult.getData()[:, :, 1], bothResult.getData()[:, :, 1]
+    )
+    inRange = (WAVELENGTHS >= 1700) & (WAVELENGTHS <= 2600)  # the default range
+    assert bothResult.extraMetadata["fatt"]["bands"] == [
+        int(inRange.sum()),
+        int((inRange & short).sum()),
+    ]
+
+
+def test_a_target_covering_too_few_bands_is_named():
+    tiny = LibrarySpectrum("tiny", WAVELENGTHS[:3], KAOLINITE[:3])
+    analysis = FattMapAnalysis(
+        [LibrarySpectrum("kaolinite", WAVELENGTHS, KAOLINITE), tiny]
+    )
+    with pytest.raises(ValueError, match="tiny"):
         analysis.run(_scene(), lambda p, m: None)

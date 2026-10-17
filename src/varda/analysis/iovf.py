@@ -9,16 +9,21 @@ spectra around them:
    default) of the noise cube (alpha 0.125, or 0.05 for edge windows truncated
    below 45 voxels). Every voxel a window flags gets one vote.
 3. Voxels with at least ``min(window)`` votes are replaced by the
-   Gaussian-weighted average of their unflagged neighbors.
+   Gaussian-weighted average of their unflagged neighbors, the weights
+   renormalized over those neighbors (the reference value if none is left).
 4. Later rounds re-run the election only around the voxels replaced in the
    previous round, until nothing is flagged or the vote counts cycle.
 5. The result is reference + cleaned noise.
 
 Ported from the vectorized ``iovf_fast.py`` (PTYS 551 lab code), without its
 mode that reproduces the original ``iovf_generic`` round-off for round-off.
-One change: NaN voxels (no-data) are left out of the windows instead of
+Two changes: NaN voxels (no-data) are left out of the windows instead of
 counting as zero noise, so a scene's no-data border is not mistaken for
-outliers. Cubes without NaN filter exactly as with ``iovf_fast``.
+outliers; and a replacement's weights are renormalized over the neighbors
+it uses, as the paper's "distance-weighted spatial interpolation (ignoring
+neighboring pixels that are also outliers)" describes, where ``iovf_fast``
+counted the flagged and no-data neighbors (and the voxel itself) as zero,
+pulling replacements toward the reference.
 Windows are strided views of one padded cube tested in small batches; a cheap
 screen built from separable box statistics skips windows that cannot contain
 an outlier; row blocks run on a thread pool (numpy releases the GIL).
@@ -439,8 +444,10 @@ def _replace(
     kernels: list[np.ndarray],
     batchMb: float,
 ) -> None:
-    """Every flagged voxel gets the weighted average of its unflagged
-    neighbors, using the values from before this round (order-independent)."""
+    """Every flagged voxel gets the Gaussian-weighted average of its usable
+    neighbors (not flagged, not no-data), using the values from before this
+    round (order-independent). The weights are renormalized over those
+    neighbors; a voxel with none left gets 0 noise, the reference value."""
     shape = noise.shape
     V = sliding_window_view(P, window)
     FP = np.zeros(P.shape, dtype=bool)
@@ -450,14 +457,26 @@ def _replace(
     new = np.empty(F.shape[0])
     for q in range(0, F.shape[0], nwin):
         f = F[q : q + nwin]
-        W = np.nan_to_num(V[f[:, 0], f[:, 1], f[:, 2]], nan=0.0)
-        W[:, half[0], half[1], half[2]] = 0.0
-        W[VF[f[:, 0], f[:, 1], f[:, 2]]] = 0.0
+        W = V[f[:, 0], f[:, 1], f[:, 2]]
+        usable = ~np.isnan(W) & ~VF[f[:, 0], f[:, 1], f[:, 2]]
+        usable[:, half[0], half[1], half[2]] = False
         lo = [np.maximum(0, half[d] - f[:, d]) for d in range(3)]
         hi = [np.maximum(0, f[:, d] + window[d] - half[d] - shape[d]) for d in range(3)]
-        t = np.einsum("nabc,nc->nab", W, kernels[2][lo[2], hi[2]])
-        t = np.einsum("nab,nb->na", t, kernels[1][lo[1], hi[1]])
-        new[q : q + nwin] = np.einsum("na,na->n", t, kernels[0][lo[0], hi[0]])
+
+        def weighted(values: np.ndarray) -> np.ndarray:
+            t = np.einsum("nabc,nc->nab", values, kernels[2][lo[2], hi[2]])
+            t = np.einsum("nab,nb->na", t, kernels[1][lo[1], hi[1]])
+            return np.einsum("na,na->n", t, kernels[0][lo[0], hi[0]])
+
+        total = weighted(np.where(usable, W, 0.0))
+        weight = weighted(usable.astype(np.float64))
+        new[q : q + nwin] = np.divide(
+            total, weight, out=np.zeros_like(total), where=weight > 0
+        )
     original = noise[F[:, 0], F[:, 1], F[:, 2]]
-    new[new == original] = 0.0  # kept from the original implementation
+    # Kept from the original implementation: a replacement equal to the value
+    # it replaces would leave the voxel an outlier, flagged again every round,
+    # so it takes the reference value (0 noise) instead. With the outlier left
+    # out of its own average this needs an exact tie and is very rare.
+    new[new == original] = 0.0
     noise[F[:, 0], F[:, 1], F[:, 2]] = new
