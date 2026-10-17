@@ -122,3 +122,30 @@ def test_the_phase_snr_survives_a_session():
     restored.restore(state)
     assert restored.tiePoints[0].phaseSnr == 0.8
     assert np.isnan(restored.tiePoints[1].phaseSnr)
+
+
+def test_each_inputs_alignment_is_summarized():
+    project = _project()
+    for i in range(3):
+        project.addTiePoint(
+            1,
+            (i, 2 * i),
+            0,
+            (30 + i, 2 * i),
+            auto=True,
+            quality=0.9,
+            phaseSnr=0.7 + i / 10,
+        )
+    project.fit(1)
+    reference, moving = project.alignmentSummary()
+    assert reference == {
+        "class": 0,
+        "image": "a",
+        "model": "TRANSLATION",
+        "tiePoints": 0,
+        "kept": 0,
+        "rmsPixels": None,
+        "medianPhaseSnr": None,
+    }
+    assert moving["tiePoints"] == moving["kept"] == 3
+    assert moving["medianPhaseSnr"] == pytest.approx(0.8)

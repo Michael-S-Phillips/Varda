@@ -358,6 +358,34 @@ class MosaicProject:
             report[band] = BandFit(len(points), int(kept.size), rms, median)
         return report
 
+    def alignmentSummary(self) -> list[dict]:
+        """Each input's alignment quality, in priority order (an input's
+        position is its class in the source map): its transform, enabled
+        tie points, how many the last fit kept, their RMS residual (moving
+        image's pixels) and median phase-plane SNR (None when there's none)."""
+        summary = []
+        for position, item in enumerate(self.inputs):
+            points = [p for p in self.tiePointsOf(item.key) if p.enabled]
+            kept = np.array(
+                [p.residual for p in points if p.inlier and np.isfinite(p.residual)]
+            )
+            snr = np.array([p.phaseSnr for p in points], float)
+            snr = snr[np.isfinite(snr)]
+            summary.append(
+                {
+                    "class": position,
+                    "image": item.image.name,
+                    "model": item.model.name,
+                    "tiePoints": len(points),
+                    "kept": int(kept.size),
+                    "rmsPixels": float(np.sqrt(np.mean(kept**2))) / item.pixelSize
+                    if kept.size
+                    else None,
+                    "medianPhaseSnr": float(np.median(snr)) if snr.size else None,
+                }
+            )
+        return summary
+
     # --- saving ----------------------------------------------------------------
 
     def state(self) -> dict:

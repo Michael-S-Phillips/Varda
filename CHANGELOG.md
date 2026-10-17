@@ -70,6 +70,10 @@ can alter results.
   difference before and after; bands left uncorrected because too few
   pixels overlap are named. All of it is saved with the session and the
   recipe in the mosaic's metadata and provenance.
+- **Mosaic source maps carry each source's alignment quality:** the
+  exported source map's metadata and provenance list, per class, the
+  image's transform, tie points (enabled and kept), RMS in pixels and
+  median phase-plane SNR.
 
 ### Changed
 

@@ -110,6 +110,14 @@ def test_tie_points_from_clicks_then_fit_put_the_image_back(qtbot, setup):
     assert record["parameters"]["grid"]["width"] == grid.width
     sourcesRecord = sources.extraMetadata["provenance"]
     assert sourcesRecord["inputs"][0]["provenance"] == record
+    # each source's alignment quality, so a pixel's quality can be traced
+    left, right = sources.extraMetadata["mosaic"]["sources"]
+    assert (left["class"], left["image"], left["tiePoints"]) == (0, "left", 0)
+    assert left["rmsPixels"] is None and left["medianPhaseSnr"] is None
+    assert (right["class"], right["image"], right["tiePoints"]) == (1, "right", 3)
+    assert right["kept"] == 3 and right["rmsPixels"] == pytest.approx(0, abs=0.01)
+    assert right["medianPhaseSnr"] is None  # placed by hand
+    assert sourcesRecord["parameters"]["sources"] == [left, right]
 
 
 def test_the_recipe_survives_a_session(setup):

@@ -183,7 +183,12 @@ labeled "(visual)". Keep **None** for analysis.
   with the top image's pixels, so at that size its pixels are copied
   unchanged (unless you rotate or warp it).
 - **Source map**: a class map of which image each mosaic pixel came from,
-  useful for checking seams and tracing a spectrum back to its strip.
+  useful for checking seams and tracing a spectrum back to its strip. Its
+  metadata (`mosaic` → `sources`, also in its provenance) lists, for each
+  class, the image, its transform, its enabled tie points, how many the fit
+  kept, their RMS (moving image's pixels) and their median phase SNR
+  (`null` where there is none, e.g. for the reference image), so each
+  pixel's alignment quality can be traced through its class.
 
 Seams are hard (no blending), so spectra are never mixed across them. The
 mosaic's provenance record holds the inputs (with their own records), the
@@ -192,7 +197,7 @@ points, radiometric corrections, seams and blending) and the versions of
 ISIS or the Ames Stereo Pipeline when their results are used. A displacement
 field records how Auto Align matched (method asked for and used, bands,
 tile size, refinement), and the source map records the mosaic it belongs
-to. A file you save keeps all of this (see [Reporting results from
+to and each source's alignment quality. A file you save keeps all of this (see [Reporting results from
 Varda](reporting-results.md#where-it-lives-in-files)), along with a one-line
 summary in its description.
 
