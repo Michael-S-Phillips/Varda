@@ -37,7 +37,7 @@ def main(argv: list[str]) -> int:
             protocol.writeMatches(argv[0], METHODS[method](reference, moving, progress))
             return 0
         arrays, classes, spec = protocol.readJob(argv[0])
-        probabilities, finalLoss = job.trainAndClassify(
+        probabilities, info = job.trainAndClassify(
             arrays["cube"],
             arrays["valid"],
             arrays["rows"],
@@ -47,11 +47,7 @@ def main(argv: list[str]) -> int:
             spec,
             progress,
         )
-        protocol.writeResult(
-            argv[0],
-            probabilities,
-            {"finalLoss": finalLoss, "device": models.device().type},
-        )
+        protocol.writeResult(argv[0], probabilities, info)
         return 0
     except Exception as error:  # report every failure to Varda, then exit 1
         _say(

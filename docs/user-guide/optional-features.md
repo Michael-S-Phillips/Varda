@@ -46,11 +46,13 @@ uv sync --extra ml
 # or, with pip:  pip install "varda[ml]"
 ```
 Training runs on CUDA or Apple MPS when available, otherwise on the CPU.
-Training shuffles its batches with a fixed seed, but Varda doesn't seed the
-network's starting weights, and GPU arithmetic isn't exactly repeatable, so
-results can differ between CPU, CUDA and Apple (MPS) runs, and may differ
-between runs; the device used isn't recorded with the result. What the
-classifiers do and how to report them: [Classification](classification.md).
+The classifiers' **Seed** setting seeds the starting weights and the
+shuffling, and Varda asks PyTorch for deterministic algorithms, so the same
+seed and settings repeat on the same device and PyTorch version. GPU
+arithmetic isn't identical to CPU arithmetic, so results can differ slightly
+between CPU, CUDA and Apple (MPS) runs; each result records the device and
+PyTorch version. What the classifiers do and how to report them:
+[Classification](classification.md).
 Maintainers: `scripts/compile_torch_locks.py` regenerates the pinned locks in
 `resources/optional_features/torch/`.
 
