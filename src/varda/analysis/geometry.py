@@ -13,7 +13,7 @@ from scipy import ndimage
 from varda.analysis.analysis import Analysis, ProgressCallback
 from varda.analysis.bandwise import fillGaps, readBand
 from varda.analysis.crop_preview import CropPreview
-from varda.analysis.rasters import sameBandsRaster
+from varda.analysis.rasters import bandMetadataSubset, sameBandsRaster
 from varda.common.entities import VardaRaster
 from varda.common.parameter import (
     BoolParameter,
@@ -25,7 +25,6 @@ from varda.common.parameter import (
     StringParameter,
     parsePositions,
 )
-from varda.common.spectral_axis import BAND_METADATA_KEYS, parseEnviList
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
 CATEGORY = "Geometry"
@@ -47,13 +46,16 @@ class Interpolation(LabeledEnum):
 
 class ResampleAnalysis(Analysis):
     analysisId = "resample"
+    software = ("scipy",)
     name = "Resample (Resize)"
     category = CATEGORY
     description = (
         "Change the number of pixels: a factor above 1 enlarges, below 1 "
         "shrinks (e.g. 0.5 halves each side). Nearest neighbor keeps the "
         "original values (use it for class maps); bilinear and cubic "
-        "interpolate. The georeferencing is updated to the new pixel size."
+        "interpolate (anti-aliased when shrinking, with a Gaussian as in "
+        "scikit-image's resize). The georeferencing is updated to the new "
+        "pixel size."
     )
 
     factor = FloatParameter(
@@ -77,10 +79,15 @@ class ResampleAnalysis(Analysis):
             Interpolation.BILINEAR: 1,
             Interpolation.CUBIC: 3,
         }[self.interpolation.value]
+        # Anti-aliasing when shrinking, as scikit-image's resize: a Gaussian
+        # of σ = (old / new − 1) / 2 old pixels along each shrunk axis
+        sigma = tuple(max(0.0, (1.0 / z - 1.0) / 2.0) for z in zoom) if order else None
         output = np.empty((rows, cols, image.bandCount), np.float32)
         for index in range(image.bandCount):
             reportProgress(int(100 * index / image.bandCount), f"band {index + 1}")
             filled, missing = fillGaps(readBand(image, index))
+            if sigma is not None and any(sigma):
+                filled = ndimage.gaussian_filter(filled, sigma, mode="nearest")
             # grid_mode: pixels are areas, so the corners stay where they were
             band = ndimage.zoom(
                 filled, zoom, order=order, mode="nearest", grid_mode=True
@@ -94,7 +101,18 @@ class ResampleAnalysis(Analysis):
             image,
             output,
             name=f"{image.name} ×{factor:g}",
-            description=f"{image.name} resampled ×{factor:g} ({self.interpolation.value.value.lower()})",
+            description=(
+                f"{image.name} resampled to {rows} × {cols} pixels: rows "
+                f"×{zoom[0]:.6g}, columns ×{zoom[1]:.6g} (factor {factor:g} "
+                f"asked, pixel counts rounded; "
+                f"{self.interpolation.value.value.lower()}"
+                + (
+                    f", Gaussian anti-aliasing σ {sigma[0]:.3g} × {sigma[1]:.3g} old pixels"
+                    if sigma is not None and any(sigma)
+                    else ""
+                )
+                + ")"
+            ),
             transform=transform,
         )
 
@@ -127,6 +145,7 @@ def reorient(cube: np.ndarray, how: Orientation) -> tuple[np.ndarray, Affine]:
 
 class RotateFlipAnalysis(Analysis):
     analysisId = "rotate_flip"
+    software = ("scipy",)
     name = "Rotate / Flip"
     category = CATEGORY
     description = (
@@ -149,24 +168,6 @@ class RotateFlipAnalysis(Analysis):
             description=f"{image.name}, {how.lower()}",
             transform=image.transform * toOriginal,
         )
-
-
-def _subsetMetadata(image: VardaRaster, bands: list[int]) -> dict:
-    """The per-band metadata (FWHM, bad bands) for just ``bands``."""
-    metadata = {}
-    for key in BAND_METADATA_KEYS:
-        value = image.extraMetadata.get(key)
-        if value is None:
-            continue
-        try:
-            values = parseEnviList(value)
-        except (TypeError, ValueError):
-            values = None
-        if values is not None and len(values) == image.bandCount:
-            metadata[key] = [values[b] for b in bands]
-        else:
-            metadata[key] = value  # one value for every band, e.g. the scale factor
-    return metadata
 
 
 def crop(
@@ -203,7 +204,7 @@ def crop(
         transform=image.transform * Affine.translation(left, top),
         crs=image.crs,
         defaultBands=np.array(default[:3]) if len(default) >= 3 else None,
-        extraMetadata=_subsetMetadata(image, bands),
+        extraMetadata=bandMetadataSubset(image, bands),
         description=description
         or f"Crop of {image.name}: rows {top + 1}-{top + height}, columns {left + 1}-{left + width}",
     )

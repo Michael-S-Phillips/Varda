@@ -74,3 +74,13 @@ def test_a_window_at_the_edge_uses_the_pixels_inside(plot):
     (curve,) = plot.addPixelSpectra([_image(cube)], 0, 0)
     inside = cube[0:3, 0:3].reshape(-1, 3)
     assert np.allclose(curve.plotDataItem.getData()[1], inside.mean(axis=0), atol=1e-6)
+
+
+def test_a_window_keeps_its_spread_and_n_for_export(plot):
+    cube = np.full((6, 6, 3), 0.2)
+    cube[2, 2, 1] = -1.0  # no-data in band 1 of one pixel
+    plot.pixelConfig.windowWidth.set(3)
+    plot.pixelConfig.windowHeight.set(3)
+    (curve,) = plot.addPixelSpectra([_image(cube, nodata=-1.0)], 2, 2)
+    assert curve.std is not None and np.allclose(curve.std, 0.0)
+    assert curve.count is not None and list(curve.count) == [9, 8, 9]

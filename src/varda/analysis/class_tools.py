@@ -100,6 +100,7 @@ class MajorityRule(LabeledEnum):
 
 class MajorityFilterAnalysis(ClassMapAnalysis):
     analysisId = "majority_filter"
+    software = ("scipy",)
     name = "Majority/Minority Filter"
     category = CATEGORY
     description = (
@@ -177,6 +178,7 @@ def fillFromNeighbors(classes: np.ndarray, holes: np.ndarray) -> np.ndarray:
 
 class SieveAnalysis(ClassMapAnalysis):
     analysisId = "sieve"
+    software = ("scipy",)
     name = "Sieve Classes"
     category = CATEGORY
     description = (
@@ -220,6 +222,7 @@ class SieveAnalysis(ClassMapAnalysis):
 
 class ClumpAnalysis(ClassMapAnalysis):
     analysisId = "clump"
+    software = ("scipy",)
     name = "Clump Classes"
     category = CATEGORY
     description = (

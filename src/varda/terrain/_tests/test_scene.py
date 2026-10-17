@@ -18,10 +18,12 @@ from varda.terrain.scene import (
     buildTerrain,
     fillGaps,
     groundSize,
+    mapUnit,
     pageHtml,
     pngDataUrl,
     quantize,
     trimToRectangle,
+    verticalUnit,
 )
 
 
@@ -134,3 +136,53 @@ def test_a_trimmed_terrain_has_straight_edges():
 def test_edges_are_smooth_unless_chosen_otherwise():
     assert TerrainSettings().edges == "smooth"
     assert TerrainSettings.fromDict({}).edges == "smooth"
+
+
+def _sceneData(html: str) -> dict:
+    found = re.search(r"window.VARDA_SCENE = (.*?);</script>", html, re.S)
+    assert found is not None
+    return json.loads(found.group(1).replace("<\\/", "</"))
+
+
+def test_a_terrain_knows_where_its_points_stand():
+    # 10 × 6 pixels averaged 4 at a time: blocks of 4, 4 and 2 across
+    terrain = buildTerrain(_dem(np.zeros((6, 10))), maxSide=3)
+    assert terrain.step == 4 and terrain.heights.shape == (2, 3)
+    assert terrain.columns == pytest.approx([0.2, 0.6, 0.9])
+    assert terrain.rows == pytest.approx([2 / 6, 5 / 6])
+    data = _sceneData(pageHtml(terrain, None, TerrainSettings()))
+    assert data["columnAt"] == pytest.approx([0.2, 0.6, 0.9])
+    assert data["rowAt"] == pytest.approx([2 / 6, 5 / 6])
+
+
+def test_height_units_default_to_meters_and_are_kept():
+    assert TerrainSettings().heightUnit == "m"
+    assert TerrainSettings.fromDict({"heightUnit": "km"}).heightUnit == "km"
+    assert TerrainSettings(heightUnit="ft").metersPerHeightUnit == pytest.approx(0.3048)
+    assert TerrainSettings(heightUnit="km").metersPerHeightUnit == 1000.0
+
+
+@pytest.mark.parametrize(
+    ("crs", "unit"),
+    [
+        ("EPSG:32612+5703", "m"),  # UTM with NAVD88 heights
+        ("EPSG:2229+6360", "ft"),  # California state plane, NAVD88 in US feet
+        ("EPSG:4979", "m"),  # WGS 84 with ellipsoidal heights
+        ("EPSG:32612", None),  # no vertical part: nothing declared
+    ],
+)
+def test_the_vertical_unit_a_crs_declares(crs, unit):
+    assert verticalUnit(CRS.from_user_input(crs)) == unit
+
+
+@pytest.mark.parametrize(
+    ("crs", "unit"),
+    [
+        ("EPSG:32612", "m"),
+        ("EPSG:4326", "°"),
+        ("EPSG:2229", "US ft"),
+        ("+proj=eqc +R=3389500 +units=km", "km"),
+    ],
+)
+def test_map_units_are_labeled(crs, unit):
+    assert mapUnit(CRS.from_user_input(crs)) == unit

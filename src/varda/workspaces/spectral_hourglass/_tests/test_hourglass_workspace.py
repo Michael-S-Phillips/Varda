@@ -7,6 +7,7 @@ from PyQt6.QtGui import QColor
 
 from synthetic_scene import PATCHES, WAVELENGTHS, endmemberSpectra, syntheticScene
 from varda.analysis.spectral_library import LibrarySpectrum
+from varda.analysis.transforms import InverseTransformAnalysis
 from varda.image_rendering.image_renderer import RenderMode
 from varda.workspaces.spectral_hourglass.hourglass_model import (
     MapMethod,
@@ -114,6 +115,16 @@ def test_suggest_identify_and_map_end_to_end(workspace):
     page.runButton.click()
     result = workspace.projectImages[-1]
     assert result.name == "scene SAM"
+    record = result.extraMetadata["provenance"]
+    assert record["process"] == "Spectral Hourglass Map"
+    assert record["inputs"][0]["name"] == "scene"
+    parameters = record["parameters"]
+    assert parameters["map"]["method"] == "SAM"
+    assert "maxAngle" in parameters["map"]
+    assert parameters["mnf"]["componentsKept"] == 3
+    assert parameters["ppi"]["iterations"] == 3000
+    assert [e["name"] for e in parameters["endmembers"]] == list(PATCHES)
+    assert len(parameters["endmembers"][0]["pixels"]) == 16
     assert workspace.scene.currentOverlay() == "Map: SAM"
     assert model.state(Step.MAP) is StepState.DONE
 
@@ -125,7 +136,11 @@ def test_suggest_identify_and_map_end_to_end(workspace):
     page.review.scoreLine.setValue(0.8)
     assert workspace.scene.currentOverlay() == Overlay.DETECTIONS
     page.review.sigAddToProject.emit(page.review.detectionsRaster())
-    assert workspace.projectImages[-1].name.startswith("scene MTMF detections")
+    detections = workspace.projectImages[-1]
+    assert detections.name.startswith("scene MTMF detections")
+    record = detections.extraMetadata["provenance"]
+    assert record["parameters"]["minimumScore"] == pytest.approx(0.8)
+    assert record["inputs"][0]["provenance"]["parameters"]["map"]["method"] == "MTMF"
 
 
 def test_hovering_a_point_marks_the_pixel_and_plots_it(workspace):
@@ -142,7 +157,23 @@ def test_mnf_and_ppi_can_join_the_project(workspace):
     workspace.pipeline.purityPage.addButton.click()
     names = [image.name for image in workspace.projectImages]
     assert names[-2:] == ["scene MNF", "scene PPI"]
-    assert workspace.projectImages[-2].bandCount == 3
+    mnfImage, ppiImage = workspace.projectImages[-2:]
+    assert mnfImage.bandCount == 3
+    mnfRecord = mnfImage.extraMetadata["provenance"]
+    assert mnfRecord["process"] == "Spectral Hourglass MNF"
+    prepare = mnfRecord["parameters"]["prepare"]
+    assert prepare["useIovf"] is False and "bandsKept" in prepare
+    assert mnfRecord["parameters"]["mnf"]["noiseEstimate"] == "HORIZONTAL"
+    ppiRecord = ppiImage.extraMetadata["provenance"]
+    assert ppiRecord["parameters"]["ppi"]["threshold"] == 0.5
+    assert "seed" in ppiRecord["parameters"]["ppi"]
+    # the MNF image works with Eigenvalue Plot and Inverse Transform
+    assert len(mnfImage.extraMetadata["transform"]["eigenvalues"]) == 3
+    inverse = InverseTransformAnalysis()
+    assert inverse.unavailableReason(mnfImage) == ""
+    inverse.prepareFor(mnfImage)
+    rebuilt = inverse.run(mnfImage, lambda p, m: None)
+    assert rebuilt.bandCount == len(workspace.model.prepared.bandIndices)
 
 
 def test_library_preview_is_plotted_scaled(workspace):
@@ -366,3 +397,55 @@ def test_a_crop_box_on_the_scene_adds_a_crop_to_the_project(workspace):
     cropped = workspace.projectImages[-1]
     assert (cropped.width, cropped.height) == (10, 12)
     assert "Spectral Hourglass" in workspace.status.currentMessage()
+
+
+def test_ppi_uses_the_pages_seed_and_describes_it_in_the_project_image(workspace):
+    page = workspace.pipeline.purityPage
+    assert page.seed.value() == 0
+    page.seed.setValue(42)
+    _runThroughPpi(workspace)
+    assert workspace.model.ppi is not None and workspace.model.ppi.seed == 42
+    page.addButton.click()
+    description = workspace.projectImages[-1].dataSource.description
+    assert "3,000 iterations" in description and "seed 42" in description
+
+
+def test_run_more_is_disabled_once_the_ppi_settings_change(workspace):
+    _runThroughPpi(workspace)
+    page = workspace.pipeline.purityPage
+    assert page.moreButton.isEnabled()
+    page.threshold.setValue(0.75)
+    assert not page.moreButton.isEnabled()
+    page.threshold.setValue(0.5)
+    assert page.moreButton.isEnabled()
+    page.seed.setValue(9)
+    assert not page.moreButton.isEnabled()
+    page.seed.setValue(0)
+    workspace.pipeline.reducePage.components.set(2)
+    assert not page.moreButton.isEnabled()
+
+
+def test_run_more_adds_to_the_total_iterations(workspace):
+    _runThroughPpi(workspace)
+    page = workspace.pipeline.purityPage
+    page.iterations.setValue(1000)
+    page.moreButton.click()
+    assert workspace.model.ppiIterations == 4000
+    assert "4,000 iterations" in page.summary.text() and "seed 0" in page.summary.text()
+
+
+def test_the_saved_workflow_records_the_seed_and_both_iteration_counts(workspace):
+    _runThroughPpi(workspace)
+    page = workspace.pipeline.purityPage
+    page.iterations.setValue(1000)
+    page.moreButton.click()
+    state = workspace.sessionState()
+    assert state["ppi"]["seed"] == 0
+    assert state["ppi"]["iterationsPerRun"] == 1000
+    assert state["ppiCounts"]["totalIterations"] == 4000
+    assert state["ppiCounts"]["seed"] == 0
+
+    page.seed.setValue(5)
+    page.iterations.setValue(2000)
+    workspace.restoreSessionState(state)
+    assert (page.seed.value(), page.iterations.value()) == (0, 1000)

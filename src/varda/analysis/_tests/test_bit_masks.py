@@ -71,3 +71,18 @@ def test_one_bit_or_any_of_several():
 def test_masks_must_be_whole_numbers():
     image = VardaRaster(ArrayDataSource(np.zeros((2, 2, 1), np.float32)), name="f")
     assert "whole-number" in DecodeBitMaskAnalysis().unavailableReason(image)
+
+
+@pytest.mark.parametrize("dtype", [np.int8, np.int16, np.int32, np.int64])
+def test_signed_masks_keep_their_width(dtype):
+    """-1 in 16 bits is 16 bits set, not 64: a signed value is the same bits
+    read as unsigned of the same width."""
+    cube = np.array([[[-1], [-2]]], dtype=dtype)  # (1, 2, 1)
+    image = VardaRaster(ArrayDataSource(cube), name="QA")
+    analysis = DecodeBitMaskAnalysis()
+    analysis.output.set(BitOutput.SET_BITS)
+    result = analysis.run(image, lambda *_: None)
+    width = np.dtype(dtype).itemsize * 8
+    np.testing.assert_array_equal(
+        np.asarray(result.getData())[0, :, 0], [width, width - 1]
+    )

@@ -7,7 +7,7 @@ from collections import Counter
 import numpy as np
 import pytest
 
-from varda.terrain.solid import printSolid, solid, stlBytes, volume
+from varda.terrain.solid import blockCenters, printSolid, solid, stlBytes, volume
 
 
 def _edges(mesh):
@@ -117,3 +117,35 @@ def test_smooth_edges_relax_a_sawtooth_outline_into_a_line():
     middle = edge.ravel() & (y > 3) & (y < 17)  # away from the pinned border
     offset = (x - 2 * y)[middle] / np.sqrt(5)  # across the line, in cells
     assert np.ptp(offset) < 0.05  # straight: 45° cuts alone leave 0.45
+
+
+def test_block_centers_are_where_the_averaged_pixels_are():
+    # 10 pixels in blocks of 4: [0, 4), [4, 8) and the partial [8, 10)
+    assert blockCenters(10, 4) == pytest.approx([2 / 10, 6 / 10, 9 / 10])
+    # no decimation: each pixel's center
+    assert blockCenters(4, 1) == pytest.approx([0.125, 0.375, 0.625, 0.875])
+
+
+def test_points_stand_at_their_block_centers():
+    heights = np.ones((3, 3))
+    columns, rows = blockCenters(10, 4), blockCenters(6, 2)
+    mesh = solid(heights, 100.0, 60.0, columns=columns, rows=rows)
+    top = mesh.vertices[: heights.size]
+    assert np.unique(top[:, 0]) == pytest.approx((columns - 0.5) * 100.0)
+    assert np.unique(top[:, 1]) == pytest.approx(np.sort((0.5 - rows) * 60.0))
+
+
+def test_a_print_spans_its_width_between_block_centers():
+    heights = np.ones((3, 3))
+    columns = rows = blockCenters(10, 4)
+    mesh = printSolid(heights, 1000.0, 1000.0, 140.0, columns=columns, rows=rows)
+    xs, ys = mesh.vertices[:, 0], mesh.vertices[:, 1]
+    assert xs.max() - xs.min() == pytest.approx(140.0)
+    assert ys.max() - ys.min() == pytest.approx(140.0)  # the same scale
+
+
+def test_heights_in_kilometers_print_as_tall_as_in_meters():
+    _, xx = np.mgrid[0:20, 0:30]
+    meters = printSolid(xx * 100.0, 29000, 19000, 150)
+    kilometers = printSolid(xx * 0.1, 29000, 19000, 150, metersPerHeightUnit=1000.0)
+    assert kilometers.vertices == pytest.approx(meters.vertices)

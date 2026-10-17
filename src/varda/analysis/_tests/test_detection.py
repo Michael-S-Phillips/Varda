@@ -87,3 +87,48 @@ def test_target_detectors_need_a_target_class():
 def test_the_detectors_are_offered_together():
     for cls in (RxAnalysis, LocalRxAnalysis, AceAnalysis, MatchedFilterAnalysis):
         assert cls in ANALYSES and cls.category == "Target Detection"
+
+
+def test_ace_is_zero_at_the_background_mean():
+    """A pixel equal to the scene mean has no direction: ACE is 0, not 0/0."""
+    rng = np.random.default_rng(1)
+    # dyadic offsets in +/- pairs, so the scene mean is exactly 0.5
+    half = rng.integers(-8, 9, size=(16, 32, 4)) / 64
+    half[0, 0] = 0.0  # this pixel (and its pair) sits at the mean
+    half[8:11, 8:11] = np.array([0.25, 0.125, -0.125, -0.25])  # the target
+    cube = 0.5 + np.concatenate([half, -half], axis=0)
+    image = VardaRaster(
+        ArrayDataSource(cube, wavelengths=np.arange(1000.0, 1004.0)), name="scene"
+    )
+    rois = ROICollection()
+    rois.addROI(box(8, 8, 11, 11), "target", Color(1, 0, 0, 1), ROIMode.RECTANGLE)
+    analysis = AceAnalysis()
+    analysis.setContext(AnalysisContext(rois=rois))
+    analysis.prepareFor(image)
+    scores = analysis.run(image, lambda p, m: None).getData()[:, :, 0]
+    assert np.isfinite(scores).all()
+    assert scores[0, 0] == 0.0 and scores[16, 0] == 0.0
+    assert scores[9, 9] == pytest.approx(1.0)
+
+
+def test_local_rx_windows_are_odd_and_nested():
+    analysis = LocalRxAnalysis()
+    analysis.innerWindow.set(4)
+    assert analysis.innerWindow.get() == 5
+    analysis.outerWindow.set(10)
+    assert analysis.outerWindow.get() == 11
+    analysis.outerWindow.set(5)  # must leave a ring around the inner window
+    assert analysis.outerWindow.get() == 7
+    analysis.innerWindow.set(13)
+    assert analysis.outerWindow.get() == 15
+
+
+def test_local_rx_records_the_windows_it_used():
+    image, _ = _scene()
+    analysis = LocalRxAnalysis()
+    analysis.innerWindow.set(4)
+    analysis.outerWindow.set(8)
+    result = analysis.run(image, lambda p, m: None)
+    used = (analysis.innerWindow.get(), analysis.outerWindow.get())
+    assert used == (5, 9)
+    assert result.bandNames == ["Local RX 5/9"]

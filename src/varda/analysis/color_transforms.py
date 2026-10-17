@@ -188,6 +188,7 @@ class DecorrelationStretchAnalysis(ThreeBandAnalysis):
 
 class SaturationStretchAnalysis(ThreeBandAnalysis):
     analysisId = "saturation_stretch"
+    software = ("scikit-image",)
     name = "Saturation Stretch"
     category = CATEGORY
     description = (

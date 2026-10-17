@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 )
 
 from varda.common.entities import VardaRaster
+from varda.common.provenance import makeProvenance, setProvenance
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
 _MAX_POINTS = 30_000
@@ -167,4 +168,16 @@ class MtmfReview(QWidget):
             ),
         )
         base = result.name.removesuffix(" MTMF")
-        return VardaRaster(source, name=f"{base} MTMF detections {name}")
+        raster = VardaRaster(source, name=f"{base} MTMF detections {name}")
+        thresholds = {
+            "endmember": name,
+            "minimumScore": self.scoreLine.value(),
+            "maximumInfeasibility": self.infeasibilityLine.value(),
+        }
+        setProvenance(
+            raster,
+            makeProvenance(
+                "MTMF Detections", thresholds, [result], processId="mtmf_detections"
+            ),
+        )
+        return raster

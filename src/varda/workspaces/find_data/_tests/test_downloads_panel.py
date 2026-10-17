@@ -101,7 +101,12 @@ def test_the_queue_downloads_into_the_product_folder_and_opens_the_data(
         panel.downloadButton.click()
     qtbot.waitUntil(lambda: panel.downloadButton.isEnabled(), timeout=10000)
     folder = tmp_path / "downloads" / "archive" / "mars_obs" / "obs"
-    assert sorted(p.name for p in folder.iterdir()) == ["obs.hdr", "obs.img"]
+    assert sorted(p.name for p in folder.iterdir()) == [
+        "obs.hdr",
+        "obs.hdr.varda-source.json",  # where each file came from
+        "obs.img",
+        "obs.img.varda-source.json",
+    ]
     assert (folder / "obs.img").read_bytes() == FILES["obs.img"]
     assert opened.args[0] == [folder / "obs.hdr"]  # one per image, the header
     assert panel.queue[0].status == DONE

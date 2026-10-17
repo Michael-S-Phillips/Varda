@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 
 import numpy as np
 from affine import Affine
 
 from varda.common.entities import VardaRaster
-from varda.common.spectral_axis import BAND_METADATA_KEYS
+from varda.common.spectral_axis import BAND_METADATA_KEYS, parseEnviList
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
 
@@ -51,6 +52,27 @@ def readCube(image: VardaRaster) -> tuple[np.ndarray, np.ndarray]:
         )
         cube[:, :, model.badBands] = np.nan
     return fillAlongSpectrum(cube, badBands=model.badBands)
+
+
+def goodBands(image: VardaRaster) -> np.ndarray:
+    """Indices of the bands not marked bad in the image's header (ENVI ``bbl``)."""
+    bad = image.bandModel.badBands
+    if bad.size != image.bandCount:
+        return np.arange(image.bandCount)
+    return np.flatnonzero(~bad)
+
+
+def readGoodBands(image: VardaRaster) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """``readCube`` without the bad bands, and the indices of the bands kept.
+
+    For analyses that compute statistics or fits across bands: a bad band
+    filled from its neighbors is a linear combination of them, which makes a
+    covariance (nearly) singular and counts its neighbors twice."""
+    cube, valid = readCube(image)
+    bands = goodBands(image)
+    if bands.size < image.bandCount:
+        cube = np.ascontiguousarray(cube[:, :, bands])
+    return cube, valid, bands
 
 
 def fillAlongSpectrum(
@@ -164,6 +186,25 @@ def bandMetadata(image: VardaRaster) -> dict:
         for k in BAND_METADATA_KEYS
         if k in image.extraMetadata
     }
+
+
+def bandMetadataSubset(image: VardaRaster, bands: Sequence[int] | np.ndarray) -> dict:
+    """The per-band metadata (FWHM, bad bands) for just ``bands``; values for
+    every band (the scale factor) carry over as they are."""
+    metadata = {}
+    for key in BAND_METADATA_KEYS:
+        value = image.extraMetadata.get(key)
+        if value is None:
+            continue
+        try:
+            values = parseEnviList(value)
+        except (TypeError, ValueError):
+            values = None
+        if values is not None and len(values) == image.bandCount:
+            metadata[key] = [values[b] for b in bands]
+        else:
+            metadata[key] = value
+    return metadata
 
 
 def sameBandsRaster(

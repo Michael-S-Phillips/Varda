@@ -70,6 +70,7 @@ def localStatistic(band: np.ndarray, measure: LocalMeasure, size: int) -> np.nda
 
 class LocalStatisticsAnalysis(BandwiseAnalysis):
     analysisId = "local_statistics"
+    software = ("scipy",)
     name = "Local Statistics (Texture)"
     category = CATEGORY
     description = (
@@ -223,6 +224,7 @@ def glcmTexture(
 
 class CooccurrenceTextureAnalysis(BandwiseAnalysis):
     analysisId = "cooccurrence_texture"
+    software = ("scipy",)
     name = "Co-occurrence Texture (GLCM)"
     category = CATEGORY
     description = (

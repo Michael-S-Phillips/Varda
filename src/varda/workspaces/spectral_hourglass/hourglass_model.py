@@ -23,8 +23,9 @@ import numpy as np
 from psygnal import Signal
 
 from varda.analysis.endmembers import pixelPurityIndex, suggestGroups
-from varda.analysis.iovf import iovfFilter
+from varda.analysis.iovf import DEFAULT_STOP_FRACTION, DEFAULT_WINDOW, iovfFilter
 from varda.analysis.linear_algebra import (
+    NoiseEstimate,
     TransformResult,
     flattenValid,
     mnf,
@@ -34,7 +35,9 @@ from varda.analysis.linear_algebra import (
 from varda.analysis.rasters import readCube
 from varda.analysis.mapping import DEFAULT_SAM_MAX_ANGLE, MapMethod, mapBands, mapRaster
 from varda.analysis.unmixing import Constraint
+from varda.analysis.transforms import TRANSFORM_METADATA_KEY, transformMetadata
 from varda.common.entities import VardaRaster
+from varda.common.provenance import makeProvenance, setProvenance
 
 ProgressCallback = Callable[[int, str], None]
 
@@ -63,6 +66,7 @@ PALETTE = [
 DEFAULT_PPI_ITERATIONS = 10_000
 DEFAULT_PPI_THRESHOLD = 2.5  # MNF units = noise sigmas
 DEFAULT_MAX_CANDIDATES = 2_000
+MNF_NOISE_ESTIMATE = NoiseEstimate.HORIZONTAL
 # Suggested endmembers smaller than this are left out (single outliers)
 MIN_SUGGESTED_PIXELS = 3
 __all__ = ["DEFAULT_SAM_MAX_ANGLE", "HourglassModel", "MapMethod", "Step", "StepState"]
@@ -134,13 +138,16 @@ class PreparedData:
     bandIndices: np.ndarray  # indices of the kept bands in the source image
     wavelengthsNm: np.ndarray | None = None  # the same centers in nm (for libraries)
     fwhmNm: np.ndarray | None = None  # their FWHM in nm, when the header gives it
+    settings: HourglassSettings | None = None  # what Prepare ran with
 
 
 @attrs.frozen
 class PpiResult:
     counts: np.ndarray  # int64, one per valid pixel (flattenValid order)
-    iterations: int
+    iterations: int  # total skewers behind the counts, over every Run More
     threshold: float
+    seed: int | None  # None: loaded from a workflow saved before seeds were kept
+    components: int  # MNF components projected
 
 
 class HourglassModel:
@@ -250,6 +257,7 @@ class HourglassModel:
                 bandIndices=indices,
                 wavelengthsNm=None if nm is None else nm[indices],
                 fwhmNm=None if bands.fwhm is None else bands.fwhm[indices],
+                settings=settings,
             )
 
         return task
@@ -267,7 +275,7 @@ class HourglassModel:
         def task(progress: ProgressCallback) -> TransformResult:
             progress(0, "estimating noise")
             X, valid = flattenValid(prepared.cube, None)
-            noise = noiseCovariance(prepared.cube, valid)
+            noise = noiseCovariance(prepared.cube, valid, MNF_NOISE_ESTIMATE)
             progress(30, "computing components")
             result = mnf(X, noise, X.shape[1])
             progress(100, "done")
@@ -310,17 +318,39 @@ class HourglassModel:
     def ppiIterations(self) -> int:
         return 0 if self.ppi is None else self.ppi.iterations
 
+    def canRunMore(self, threshold: float, seed: int) -> bool:
+        """Whether Run More can add skewers to the current counts: only while
+        they are up to date and were made with this threshold and seed, so the
+        seed and the total number of skewers still determine them."""
+        ppi = self.ppi
+        return (
+            ppi is not None
+            and self._states[Step.PURITY] is StepState.DONE
+            and ppi.seed == seed
+            and ppi.threshold == threshold
+            and ppi.components == self.components
+        )
+
     def ppiTask(
         self,
         iterations: int = DEFAULT_PPI_ITERATIONS,
         threshold: float = DEFAULT_PPI_THRESHOLD,
         *,
-        seed: int | None = None,
+        seed: int = 0,
         resume: bool = False,
     ) -> Callable[[ProgressCallback], PpiResult]:
+        """Count ``iterations`` skewers of ``seed``'s sequence; with ``resume``
+        (Run More), the next ``iterations`` of that sequence onto the current
+        counts."""
         result = self._require(self.mnf, Step.REDUCE)
-        X = result.scores[:, : self.components]
-        previous = self.ppi if resume and self.ppi is not None else None
+        components = self.components
+        X = result.scores[:, :components]
+        if resume and not self.canRunMore(threshold, seed):
+            raise ValueError(
+                "The pixel purity settings changed since the last run: run PPI again."
+            )
+        previous = self.ppi if resume else None
+        before = 0 if previous is None else previous.iterations
 
         def task(progress: ProgressCallback) -> PpiResult:
             counts = pixelPurityIndex(
@@ -328,11 +358,17 @@ class HourglassModel:
                 iterations,
                 threshold,
                 seed=seed,
+                firstSkewer=before,
                 start=None if previous is None else previous.counts,
                 progress=progress,
             )
-            done = iterations + (0 if previous is None else previous.iterations)
-            return PpiResult(counts=counts, iterations=done, threshold=threshold)
+            return PpiResult(
+                counts=counts,
+                iterations=before + iterations,
+                threshold=threshold,
+                seed=seed,
+                components=components,
+            )
 
         return task
 
@@ -597,8 +633,10 @@ class HourglassModel:
             "validPixels": int(self.ppi.counts.size),
             "rows": rows.tolist(),
             "counts": self.ppi.counts[rows].tolist(),
-            "iterations": self.ppi.iterations,
+            "totalIterations": self.ppi.iterations,
             "threshold": self.ppi.threshold,
+            "seed": self.ppi.seed,
+            "components": self.ppi.components,
         }
 
     def ppiFromJson(self, data: dict) -> None:
@@ -616,8 +654,11 @@ class HourglassModel:
         self.applyPpi(
             PpiResult(
                 counts=counts,
-                iterations=int(data["iterations"]),
+                # older workflows: "iterations", with no seed (it was random)
+                iterations=int(data.get("totalIterations", data.get("iterations", 0))),
                 threshold=float(data["threshold"]),
+                seed=None if data.get("seed") is None else int(data["seed"]),
+                components=int(data.get("components", self.components)),
             )
         )
 
@@ -651,6 +692,14 @@ class HourglassModel:
                 [np.nanmean(self.mnfCoordinates(e.pixels), axis=0) for e in endmembers]
             )
         image = self.image
+        settings: dict[str, object] = {"method": method.name}
+        if method is MapMethod.SAM:
+            settings["maxAngle"] = maxAngle  # radians
+        elif method is MapMethod.MTMF:
+            settings["components"] = self.components
+        else:
+            settings["constraint"] = constraint.name
+        record = self.provenance("Map", {"map": settings})
 
         def task(progress: ProgressCallback) -> VardaRaster:
             progress(0, "mapping")
@@ -686,6 +735,7 @@ class HourglassModel:
                 colors=colors,
                 detail=detail,
             )
+            setProvenance(result, record)
             progress(100, "done")
             return result
 
@@ -694,6 +744,73 @@ class HourglassModel:
     def applyMap(self, result: VardaRaster) -> VardaRaster:
         self._setState(Step.MAP, StepState.DONE)
         return result
+
+    # --- provenance ----------------------------------------------------------------------
+
+    def runSettings(self) -> dict:
+        """The settings of every step run so far, and the endmembers, as plain
+        data for a result's provenance."""
+        found: dict = {}
+        if self.prepared is not None:
+            settings = self.prepared.settings or self.settings
+            found["prepare"] = {
+                "wavelengthRange": settings.wavelengthRange,
+                "wavelengthUnits": self.image.wavelengthUnits,
+                "bandsKept": self.prepared.bandIndices,
+                "useIovf": settings.useIovf,
+                "iovf": {
+                    "window": DEFAULT_WINDOW,
+                    "stopFraction": DEFAULT_STOP_FRACTION,
+                }
+                if settings.useIovf
+                else None,
+            }
+        if self.mnf is not None:
+            found["mnf"] = {
+                "noiseEstimate": MNF_NOISE_ESTIMATE.name,
+                "componentsComputed": self.mnf.scores.shape[1],
+                "componentsKept": self.components,
+            }
+        if self.ppi is not None:
+            found["ppi"] = {
+                "iterations": self.ppi.iterations,
+                "threshold": self.ppi.threshold,
+                "seed": getattr(self.ppi, "seed", None),  # None: not recorded
+                "minCount": self.minCount,
+                "maxCandidates": self.maxCandidates,
+            }
+        found["endmembers"] = [
+            {
+                "name": e.name,
+                "identification": e.identification,
+                "pixels": e.pixels,  # flat indices: row * width + column
+            }
+            for e in self.usableEndmembers()
+        ]
+        return found
+
+    def provenance(self, output: str, extra: dict | None = None) -> dict:
+        """A provenance record for one of the run's outputs (MNF, PPI, Map)."""
+        return makeProvenance(
+            f"Spectral Hourglass {output}",
+            {**self.runSettings(), **(extra or {})},
+            [self.image],
+            processId=f"spectral_hourglass_{output.lower()}",
+        )
+
+    def mnfMetadata(self) -> dict:
+        """What Eigenvalue Plot and Inverse Transform need for the kept MNF
+        components, as the Processing menu's MNF gives them."""
+        result = self._require(self.mnf, Step.REDUCE)
+        prepared = self._require(self.prepared, Step.PREPARE)
+        info = transformMetadata(result, self.image, "MNF", prepared.bandIndices)
+        k = self.components
+        for key in ("inverse", "eigenvalues", "explainedVariance"):
+            info[key] = info[key][:k]
+        return {
+            "explainedVariance": info["explainedVariance"],
+            TRANSFORM_METADATA_KEY: info,
+        }
 
     # --- helpers -------------------------------------------------------------------------
 

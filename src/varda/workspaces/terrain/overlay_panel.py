@@ -79,6 +79,7 @@ class OverlayPanel(QWidget):
         DEM's body); ``references``: images on the DEM's grid to align to."""
         super().__init__(parent)
         self.overlays: list[TerrainOverlay] = []
+        self.mapUnit = "m"  # the DEM's map unit: shifts and RMS are in it
         self._candidates = candidates
         self._references = references
 
@@ -132,10 +133,9 @@ class OverlayPanel(QWidget):
         self.shiftEast, self.shiftNorth = QDoubleSpinBox(), QDoubleSpinBox()
         for box in (self.shiftEast, self.shiftNorth):
             box.setRange(-1e6, 1e6)
-            box.setDecimals(1)
-            box.setSingleStep(5)
-            box.setSuffix(" m")
+            box.setToolTip("A shift by hand, in the DEM's map units")
             box.editingFinished.connect(self._onShift)
+        self.setMapUnit(self.mapUnit)
         copy = QPushButton("Copy")
         copy.setToolTip("Copy this overlay's alignment, to paste on another")
         copy.clicked.connect(self.copyAlignment)
@@ -178,6 +178,19 @@ class OverlayPanel(QWidget):
         layout.addLayout(buttons)
         layout.addWidget(self.details)
         self.showSelected()
+
+    def setMapUnit(self, unit: str) -> None:
+        """Label shifts and RMS with the DEM's map unit (``mapUnit``): ° for
+        a geographic DEM, m for one projected in meters."""
+        self.mapUnit = unit
+        degrees = unit == "°"
+        for box in (self.shiftEast, self.shiftNorth):
+            box.setDecimals(6 if degrees else 1)
+            box.setSingleStep(1e-4 if degrees else 5)
+            box.setSuffix(unit if degrees else f" {unit}")
+        overlay = self.selected()
+        if overlay is not None:
+            self.showAlignment(overlay)
 
     # --- the list ------------------------------------------------------------------
 
@@ -291,7 +304,8 @@ class OverlayPanel(QWidget):
             return
         a = overlay.alignment
         fitted = (
-            f"Fitted to {a.points} tie points, RMS {a.rms:.3g} m."
+            f"Fitted to {a.points} tie points, RMS {a.rms:.3g}"
+            f"{'' if self.mapUnit == '°' else ' '}{self.mapUnit}."
             if a.points
             else "Placed by its georeferencing (not aligned yet)."
         )

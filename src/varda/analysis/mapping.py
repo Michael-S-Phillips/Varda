@@ -12,11 +12,11 @@ from enum import Enum
 
 import numpy as np
 
-from varda.analysis.analysis import Analysis, ProgressCallback
+from varda.analysis.analysis import Analysis, ProgressCallback, seedParameter
 from varda.analysis.classification import _RoiTrainingAnalysis, _requireRois
 from varda.analysis.endmembers import pixelPurityIndex
 from varda.analysis.linear_algebra import flattenValid, mnf, noiseCovariance
-from varda.analysis.rasters import readCube, singleBandRaster
+from varda.analysis.rasters import readGoodBands, singleBandRaster
 from varda.analysis.unmixing import (
     Constraint,
     linearUnmix,
@@ -145,6 +145,10 @@ class PixelPurityAnalysis(Analysis):
         step=0.5,
         description="Data units (MNF: noise sigmas)",
     )
+    seed = seedParameter(
+        "Picks the random skewers; the same seed, iterations and bands give "
+        "the same counts."
+    )
 
     def prepareFor(self, image: VardaRaster) -> None:
         self.components.setRange(
@@ -153,13 +157,17 @@ class PixelPurityAnalysis(Analysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
-        cube, _ = readCube(image)
-        k = min(int(self.components.value), image.bandCount)
+        cube, _, _ = readGoodBands(image)
+        k = min(int(self.components.value), cube.shape[2])
         X, valid = flattenValid(cube[:, :, :k], None)
+        iterations = int(self.iterations.value)
+        threshold = float(self.threshold.value)
+        seed = int(self.seed.value)
         counts = pixelPurityIndex(
             X,
-            int(self.iterations.value),
-            float(self.threshold.value),
+            iterations,
+            threshold,
+            seed=seed,
             progress=lambda p, m: reportProgress(5 + int(0.9 * p), m),
         )
         values = np.full(valid.shape, np.nan)
@@ -170,7 +178,10 @@ class PixelPurityAnalysis(Analysis):
             name=f"{image.name} PPI",
             bandName="PPI",
             units="count",
-            description=f"PPI of {image.name}: {int(self.iterations.value)} iterations",
+            description=(
+                f"PPI of {image.name}: {iterations} iterations, seed {seed}, "
+                f"threshold {threshold:g}, {k} bands"
+            ),
         )
 
 
@@ -210,7 +221,7 @@ class _RoiEndmemberMapping(_RoiTrainingAnalysis):
 
     def run(self, image: VardaRaster, reportProgress: ProgressCallback) -> VardaRaster:
         reportProgress(0, "reading image")
-        cube, valid = readCube(image)
+        cube, valid, _ = readGoodBands(image)
         names, colors, spectra, masks = self._endmembers(image, cube, valid)
         validFlat = np.flatnonzero(valid.ravel())
         X = cube.reshape(-1, cube.shape[2])[validFlat]

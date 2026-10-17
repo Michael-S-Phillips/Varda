@@ -10,13 +10,14 @@ from PyQt6.QtCore import QRect
 
 from varda.analysis.geometry import crop
 from varda.common.entities import VardaRaster
+from varda.common.provenance import makeProvenance, setProvenance
 
 
 def addCrop(
     image: VardaRaster, box: QRect, projectImages: MutableSequence[VardaRaster]
 ) -> VardaRaster:
     """Crop ``image`` to ``box`` (full-image pixels), add it to the project
-    and return it."""
+    and return it; its provenance records the window (0-based pixels)."""
     cropped = crop(
         image,
         box.top(),
@@ -25,6 +26,13 @@ def addCrop(
         box.width(),
         name=f"{image.name} crop {box.width()}×{box.height()}",
     )
+    window = {
+        "row": box.top(),
+        "column": box.left(),
+        "height": box.height(),
+        "width": box.width(),
+    }
+    setProvenance(cropped, makeProvenance("Crop", window, [image], processId="crop"))
     projectImages.append(cropped)
     return cropped
 

@@ -15,7 +15,12 @@ grid already ticked. Choose two or more, and how to link them:
   pipeline, which share a grid.
 - **By map location:** the same place on the ground. Use it for images on
   different grids or map projections (each must be georeferenced; an image
-  without georeferencing is linked by pixel, without a warning).
+  without georeferencing is linked by pixel, and a notice across the top of
+  the workspace names it).
+
+Linking by pixel images that aren't on the first image's grid (another size
+or georeferencing) pairs different places, so a notice across the top of the
+workspace names those images too.
 
 ## Reading every image at once
 
@@ -28,8 +33,12 @@ grid already ticked. Choose two or more, and how to link them:
   pixel's column and row (counted from 0). **Ctrl+drag**
   updates the spectra as you go. Bad bands and no-data values show as gaps.
   **Export…** saves the spectra at the cursor as CSV, with columns `image`,
-  `x` (the wavelength in the image's own unit, or the band number) and
-  `value` (empty for no data and bad bands).
+  `col` and `row` (the pixel read, counted from 0), `map_x` and `map_y`
+  (the cursor's position in that image's CRS; empty without
+  georeferencing), `x` and `x_unit` (the wavelength and its unit, such as
+  nm or µm, or the band number with `x_unit` "band") and `value` (empty
+  for no data and bad bands). Lines starting with `#` above the columns
+  give the Varda version and each image's CRS (name and WKT).
 - A **bit mask** shows as bits by wavelength instead of a number: a
   pipeline's per-frame exclusions (bit *i* set where frame *i* of a stack
   was left out) become a chart of which frames were left out at each
@@ -72,9 +81,8 @@ any of them. What you report is the images' own values at those places.
 ### What to state
 
 - The images compared, and the link (by pixel, or by map location).
-- For values you report: each image's pixel (column and row from the plot
-  titles, counted from 0) or map location. The CSV doesn't record them, so
-  note them when you export.
+- For values you report: each image's pixel (column and row, counted from
+  0) or map location, as the plot titles and the exported CSV give them.
 - For profiles across images, the same as for any
   [profile](lines-and-profiles.md#reporting-your-results), per image.
 
@@ -82,7 +90,7 @@ How images are linked:
 
 | Step | What Varda does |
 | --- | --- |
-| By pixel | The same column and row in every image. Varda doesn't check that the images share a grid (the dialog only pre-ticks those that do). |
+| By pixel | The same column and row in every image. Images not on the first image's grid (another size, CRS or transform) are named in a notice across the top of the workspace. |
 | By map location | The point's map coordinates in the georeferencing of the image you clicked, converted to each other image's CRS with PROJ (through pyproj), then to its pixel through its georeferencing. No co-registration is done. |
 | Values | The spectrum of the pixel the point falls in (nearest pixel, no interpolation). |
 | Lines | Vertices are kept in the first image's coordinates and moved to each image as above; each image's profile is then sampled along straight segments between them on its own grid. |
@@ -101,11 +109,12 @@ How images are linked:
   so with different pixel sizes the readings cover different areas of the
   ground, each centered up to half a pixel (in each direction) from the
   point.
-- **Unreferenced images aren't flagged.** In a map link, an image without
-  georeferencing is quietly read by pixel. Check each image's georeferencing
-  (Image Properties) before comparing by map location.
+- **Unreferenced images are read by pixel.** In a map link, an image
+  without georeferencing is read by pixel; the notice at the top of the
+  workspace names it. Don't report its values as being at the same place.
 - **By pixel assumes one grid.** Images of different sizes or grids are
-  still read pixel for pixel, with no warning.
+  still read pixel for pixel; the notice at the top of the workspace names
+  them. Link them by map location instead.
 - **Lines between images with different projections** follow straight
   segments on each image's own grid, so long segments can trace slightly
   different ground paths. Add vertices to keep them close.

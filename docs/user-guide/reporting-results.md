@@ -13,52 +13,113 @@ own methods, settings and references.
   in **Help → About Varda**, and in every result's record (below).
 - **The methods:** cite the papers behind each method you used, listed in
   each guide's references. Varda implements them; it doesn't replace them.
-- **Other software Varda ran for you:** HyPyRameter, ISIS, the Ames Stereo
-  Pipeline and PyTorch have their own citations. **Help → Copy System Info**
-  copies the versions of Varda, Python, Qt, numpy, GDAL, PROJ, HyPyRameter
-  and PyTorch, which you can quote or keep with your notes.
+- **Other software Varda ran for you:** Spectral Python, HyPyRameter, ISIS,
+  the Ames Stereo Pipeline and PyTorch have their own citations. **Help → Copy System Info**
+  copies the versions of Varda, Python, Qt, numpy, GDAL, PROJ, Spectral
+  Python (SPy), HyPyRameter and PyTorch, which you can quote or keep with
+  your notes. Each result's record also names the libraries that made it
+  (below).
 - **The data:** cite the instrument teams' data products and spectral
   libraries as their providers ask.
 
 ## What Varda records, and what it doesn't
 
-Every result of the **Processing** menu records how it was made: the
-analysis, every setting, the input image (by name and file path), the Varda
-version, the time, and the plugin and its version if a plugin made it.
-Exporting the result keeps most of this as one line in the file's
-description (the ENVI header's `description`, or the GeoTIFF's description
-tag), such as
-"Made with Varda 0.9.0: Band Math (Expression=…) from /data/scene.img on
-2026-10-16T…".
+Every result Varda makes carries a **provenance record**: how it was made,
+in enough detail to write a methods section from. That covers every
+**Processing** menu result and the results made in workspaces: mosaics and
+their source maps, displacement fields, crops made with the crop tool, and
+the Spectral Hourglass's MNF, PPI, map and MTMF detection images. The
+record holds:
 
-Some things aren't recorded yet, so note them yourself:
+- **The process:** its name and identifier (e.g. "Band Math",
+  `band_math`).
+- **Every setting**, as the dialog or workspace had it. Workspace results
+  record their own settings: a mosaic its full recipe (order, corrections,
+  tie points, radiometry, seams, blending), output grid and resampling; a
+  displacement field how Auto Align matched (method asked for and used,
+  bands, tile size, refinement); a crop its window (0-based row, column,
+  height and width); a Spectral Hourglass result the wavelength window and
+  bands kept, IOVF on or off and its settings, the MNF noise estimate and
+  components kept, the PPI iterations, threshold, seed and candidate rule,
+  every endmember's name, identification and pixels, and the map method
+  and its setting.
+- **The inputs:** each by name and file path, **with the input's own record**
+  when it has one. A chain of results (a ratio of a filtered image of a
+  crop, say) keeps every step, in Varda and in files.
+- **The software:** the Varda version, the plugin and its version if a
+  plugin made it, and the versions of the libraries or tools that did the
+  work where they matter: Spectral Python for the detectors, the
+  statistical classifiers and FATT's library resampling, HyPyRameter for
+  band parameters, PyTorch for the CNN and ViT classifiers (with the device
+  the Optional Features runtime was installed for), scikit-image and SciPy
+  for spatial filters, and ISIS or the Ames Stereo Pipeline when a mosaic
+  uses their results.
+- **The time** (UTC).
+- **Where downloaded data came from:** a file downloaded in Find Data has a
+  `<file>.varda-source.json` beside it (catalog, collection, product,
+  file, URL, size, checksum and what verified the download, the time and
+  the Varda version). Opening the file adds this to its record as its
+  `source`, so every result made from it names where the data came from.
 
-- **Chains of results.** A result records its immediate input only. If that
-  input was itself an unsaved result, its settings aren't carried along.
-  Export each intermediate result (or [package the
-  project](sessions-and-saving.md#sharing-a-project)) to keep the chain.
-- **Workspace results.** Mosaics, displacement fields, crops made with the
-  crop tool, and the Spectral Hourglass's MNF, PPI and maps carry a
-  description but not the full record of settings. The mosaic's recipe is
-  kept in Varda and in sessions, not in the exported file.
-- **The plugin** that made a result isn't in the exported file's one-line
-  description. Note its name and version yourself.
-- **Detailed metadata** (classifier settings and training loss, class names
-  and colors, eigenvalues and explained variance) exists only while the
-  result is open in Varda. Sessions don't keep in-memory results, and
-  exported files and packaged projects keep the pixels and band names but
-  not this metadata. Copy what you need into your notes before closing.
-- **Random seeds.** The Pixel Purity Index is random and its seed isn't
-  recorded, so two runs differ (see [Spectral
-  Hourglass](spectral-hourglass.md)). Report the number of iterations, and
-  the pixel lists you kept (the endmember JSON export has them).
+### Where it lives in files
+
+Exporting a result (or saving it from the analysis dialog, or packaging the
+project) writes the record, and the scientific metadata worth keeping, into
+the file's `VARDA` metadata domain as JSON:
+
+- **GeoTIFF:** inside the `.tif`.
+- **ENVI:** in `<file>.img.aux.xml` beside the `.img` and `.hdr`. Keep the
+  three together. A [packaged project](sessions-and-saving.md#sharing-a-project)
+  includes it.
+
+The domain has two keys: `provenance` (the record) and `metadata` (class
+names and colors, eigenvalues, explained variance and the inverse transform,
+classifier figures such as layer sizes and the final training loss, the
+mosaic recipe, displacement and FATT settings). Varda reads both back when
+it opens the file, so a reopened class map keeps its names and colors, and a
+reopened PCA, MNF or ICA result still works with **Eigenvalue Plot** and
+**Inverse Transform**. Files Varda didn't write open exactly as before.
+
+The file's description (the ENVI header's `description`, or the GeoTIFF's
+description tag) also keeps a one-line summary, such as "Made with Varda
+0.9.0: Band Math (Expression=…) from /data/scene.img on 2026-10-16T…",
+naming the plugin when there is one; long values are shortened there, never
+in the record.
+
+To read the record outside Varda:
+
+```sh
+gdalinfo -mdd VARDA result.tif        # or result.img
+```
+
+or in Python: `rasterio.open("result.img").tags(ns="VARDA")["provenance"]`
+(JSON text; `json.loads` gives the record).
+
+### What isn't recorded
+
+Note these yourself:
+
+- **ROI geometry.** Analyses trained on ROIs record their settings (such
+  as which classes they used), not the polygons. Save the session, which
+  keeps the ROIs, with the results.
 - **Edits to the input** made in Image Properties (no-data value,
   wavelengths, bad bands) aren't part of a result's record.
+- **Runs from Varda 0.9.0 and earlier** of the Pixel Purity Index and the
+  CNN and ViT classifiers used random numbers that weren't recorded, so
+  they can't be repeated exactly. These processes now have a **Seed**
+  setting (0 by default), recorded with their other settings; the CNN and
+  ViT can still differ slightly between devices (CPU, CUDA, MPS) and
+  PyTorch versions, which their records name (see
+  [Classification](classification.md)).
+- **Results kept only in memory** aren't in a session: export them, or
+  [package the project](sessions-and-saving.md#sharing-a-project).
+- **Display stretches** and other view settings aren't part of any result
+  (they never change the data).
 
 A [packaged project](sessions-and-saving.md#sharing-a-project) is the most
 complete record: it has the session, every image, every in-memory result
-(as files, with the one-line description) and a manifest with each file's
-SHA-256 checksum.
+(as files, with their records) and a manifest with each file's SHA-256
+checksum.
 
 ## Precision is not accuracy
 

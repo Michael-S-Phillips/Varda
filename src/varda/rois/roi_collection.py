@@ -377,8 +377,9 @@ class ROICollection:
         """Compute combined statistics for an ROI over an image.
 
         Returns:
-            Dict with keys: mean, std, min, max, pixel_count — all per-band
-            numpy arrays except pixel_count (int). See ``computeRegionStatistics``.
+            Dict with keys: mean, std, min, max, valid_count, pixel_count —
+            all per-band numpy arrays except pixel_count (int). See
+            ``computeRegionStatistics``.
         """
         return computeRegionStatistics(self.getPixelCoordinates(fid), image)
 

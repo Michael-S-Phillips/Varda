@@ -45,8 +45,9 @@ components are ordered by it. The plot and table still label them
 - **Averaged**: the horizontal and vertical differences together.
 - **Homogeneous Region**: the covariance of the pixels in a uniform area,
   such as a dark or flat ROI, where all variation is taken to be noise.
-  Choose it under **Noise ROI Class**. If several classes are ticked, only
-  the first is used.
+  Choose it under **Noise ROI Classes**: the pixels of every ticked class
+  are pooled into one region. The classes are offered only for this
+  estimate; with a neighbor-difference estimate none is ticked or recorded.
 
 Only pairs of pixels that are both valid count.
 
@@ -96,18 +97,19 @@ for what applies to every process.
 - The transform (PCA, MNF or ICA), the wavelength range and the number of
   bands that went in (bad bands are always left out), and the number of
   components computed.
-- For MNF, the **Noise Estimate** (direction, or the ROI used as the
-  homogeneous region). It changes the components, so always report it.
+- For MNF, the **Noise Estimate** (direction, or the ROI classes pooled as
+  the homogeneous region). It changes the components, so always report it.
 - For ICA, **Max Iterations** (200 by default, 10 to 5000).
 - Any weights: which image, and whether they were weights or σ.
 - For an inverse transform, exactly which components you kept (for example
-  "MNF components 1–12" or "PCA components 2–19"), and the output (a
-  rebuilt image in the original bands, or the component bands only).
+  "MNF components 1–12" or "PCA components 2–19"), and the **Output**:
+  **Denoised image (inverse transform to the original bands)**, or **Only
+  the chosen components (as component bands)**.
 
-The result's record keeps the settings, but an inverse transform records
-only its immediate input, the component image. Export that too, or note its
-settings yourself (see [Chains of
-results](reporting-results.md#what-varda-records-and-what-it-doesnt)).
+The result's record keeps the settings, and its input's record (the
+component image's, with the forward transform's settings and its own
+input), in Varda and in exported files (see [Reporting results from
+Varda](reporting-results.md#what-varda-records-and-what-it-doesnt)).
 
 Settings that aren't in the dialog:
 
@@ -149,10 +151,11 @@ and why (the eigenvalue curve, the component images, or both).
   have the same bands: if the transform left bands out, first cut the
   original to the same bands with **Subset (Crop Rows, Columns, Bands)**.
 - **What's saved where.** The band names of a PCA result carry each
-  component's share of the variance ("PC 1 (85.2%)"), and they are kept in
-  exported files. The eigenvalues, explained variance, mean and inverse are
-  kept in Varda and in sessions, not in exported files. Record the values
-  you report from **Eigenvalue Plot…**'s table.
+  component's share of the variance ("PC 1 (85.2%)"). The eigenvalues,
+  explained variance, mean and inverse are kept with the result and in its
+  exported files (the `VARDA` metadata domain), so **Eigenvalue Plot…** and
+  **Inverse Transform** work on a reopened file. Quote the values you report
+  from **Eigenvalue Plot…**'s table.
 
 ### References
 

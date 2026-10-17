@@ -1,5 +1,7 @@
 """The FATT window ranks library targets and sets up a detection map."""
 
+import csv
+
 import numpy as np
 import pytest
 from PyQt6.QtCore import Qt
@@ -9,6 +11,7 @@ from varda.analysis.fatt_map import FattMapAnalysis
 from varda.analysis.spectral_library import LibrarySpectrum
 from varda.common.entities import VardaRaster
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
+from varda.version import vardaVersion
 
 WAVELENGTHS = np.linspace(1000.0, 2600.0, 160)
 
@@ -67,6 +70,22 @@ def test_changing_the_factor_count_reranks(dialog, qtbot):
     before = dialog._fits[0].nrmse
     dialog.factorCount.set(1)
     assert dialog._fits[0].nrmse > before
+
+
+def test_the_ranking_exports_to_csv_with_its_settings(dialog, qtbot, tmp_path):
+    _analyze(dialog, qtbot)
+    path = tmp_path / "ranking.csv"
+    dialog.saveRanking(path)
+    lines = path.read_text().splitlines()
+    text = "\n".join(line for line in lines if line.startswith("#"))
+    assert "Image: scene" in text and "Factors: 3" in text
+    assert "Decomposition: Covariance" in text and "every 3rd pixel" in text
+    assert "Wavelengths: 1700–2600 nm" in text and f"Varda {vardaVersion()}" in text
+    rows = list(csv.reader(line for line in lines if not line.startswith("#")))
+    assert rows[0] == ["rank", "target", "nrmse", "angle_deg", "ticked", "fits"]
+    assert len(rows) == 1 + len(SCENE) + len(DECOYS)
+    assert {row[1] for row in rows[1:4]} == set(SCENE)
+    assert rows[1][0] == "1" and float(rows[1][3]) >= 0.0
 
 
 def test_the_filter_hides_other_targets(dialog, qtbot):

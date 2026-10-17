@@ -6,6 +6,8 @@ requires torch.
 
 from __future__ import annotations
 
+import os
+import random
 from collections.abc import Callable
 
 import numpy as np
@@ -19,6 +21,21 @@ def device() -> torch.device:
     if torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
+
+
+def seedEverything(seed: int) -> None:
+    """Seed Python's, numpy's and torch's random numbers and ask torch for
+    deterministic algorithms, so a run is repeatable on the same device and
+    PyTorch version. Call before building the model: its starting weights are
+    random. GPU kernels may still differ slightly from CPU ones."""
+    # cuBLAS is only deterministic with a fixed workspace, set before CUDA starts
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)  # also seeds CUDA and MPS
+    torch.use_deterministic_algorithms(True, warn_only=True)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 class PatchCnn(nn.Module):
@@ -98,8 +115,8 @@ def trainClassifier(
 ) -> list[float]:
     """Train with Adam + cross-entropy on shuffled mini-batches; returns the
     per-epoch mean loss. ``patches`` are (n, size, size, bands), already
-    standardized."""
-    torch.manual_seed(seed)
+    standardized. ``seed`` orders the mini-batches; seed the model's starting
+    weights with ``seedEverything`` before building it."""
     dev = device()
     model.to(dev).train()
     X = _toTensor(patches).to(dev)

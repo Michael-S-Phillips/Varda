@@ -71,20 +71,30 @@ def formatBytes(size: float) -> str:
 def openableFiles(paths: Sequence[Path]) -> list[Path]:
     """The downloaded files Varda can open, one per file stem: where a
     reader takes several extensions (ENVI's .hdr and .img), the one it lists
-    first."""
-    rank: dict[str, int] = {}
-    for entry in datasource_registry:
-        for position, extension in enumerate(entry.fileExtensions):
-            rank.setdefault(extension.lower(), position)
-    best: dict[str, Path] = {}
+    first. A file its reader declines is skipped, so a PDS product opens
+    through its label rather than its raw data file."""
+    best: dict[str, tuple[int, Path]] = {}
     for path in paths:
-        extension = path.suffix.lower()
-        if extension not in rank:
+        rank = _openRank(path)
+        if rank is None:
             continue
         stem = str(path.with_suffix("")).lower()
-        if stem not in best or rank[extension] < rank[best[stem].suffix.lower()]:
-            best[stem] = path
-    return list(best.values())
+        if stem not in best or rank < best[stem][0]:
+            best[stem] = (rank, path)
+    return [path for _, path in best.values()]
+
+
+def _openRank(path: Path) -> int | None:
+    """Where ``path``'s extension sits in the first reader that takes it, or
+    None if no reader does."""
+    extension = path.suffix.lower()
+    for entry in datasource_registry:
+        if extension not in entry.fileExtensions:
+            continue
+        canOpen = getattr(entry.dataSourceClass, "canOpen", None)
+        if canOpen is None or canOpen(str(path)):
+            return entry.fileExtensions.index(extension)
+    return None
 
 
 @define(eq=False)
@@ -415,6 +425,8 @@ class DownloadsPanel(QWidget):
                         ),
                         cancel,
                         queued.catalog.requestHeaders(),
+                        catalog=queued.catalog.name,
+                        product=queued.product,
                     )
                 except IncompleteDownload as error:
                     # the files that exist were downloaded; say which didn't

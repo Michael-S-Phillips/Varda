@@ -99,3 +99,31 @@ def test_an_image_without_a_projection_takes_up_as_north():
 def test_degrees_per_pixel_is_refused():
     image = _dtm(np.zeros((4, 4)), crs=CRS.from_epsg(4326))
     assert "projected" in TerrainAnalysis().unavailableReason(image)
+
+
+def _result(output, image, zFactor=1.0):
+    analysis = TerrainAnalysis()
+    analysis.output.set(output)
+    analysis.zFactor.set(zFactor)
+    return analysis.run(image, QUIET)
+
+
+def test_an_image_without_georeferencing_says_its_slopes_are_per_pixel():
+    image = VardaRaster(
+        ArrayDataSource(RISES_EAST.astype(np.float32)[:, :, None]), name="dtm"
+    )
+    result = _result(TerrainOutput.SLOPE, image)
+    assert "per pixel" in result.description
+    assert "per pixel" in result.wavelengthUnits
+    curvature = _result(TerrainOutput.CURVATURE, image)
+    assert "pixel" in curvature.wavelengthUnits
+    referenced = _result(TerrainOutput.SLOPE, _dtm(RISES_EAST))
+    assert "per pixel" not in referenced.description
+    assert referenced.wavelengthUnits == "degrees"
+
+
+def test_roughness_units_include_the_z_factor():
+    plain = _result(TerrainOutput.ROUGHNESS, _dtm(RISES_EAST))
+    assert plain.wavelengthUnits == "elevation units"
+    scaled = _result(TerrainOutput.ROUGHNESS, _dtm(RISES_EAST), zFactor=1000.0)
+    assert scaled.wavelengthUnits == "elevation units × 1000 (Z Factor)"

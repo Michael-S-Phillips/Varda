@@ -70,7 +70,10 @@ The map uses its own factor spaces: each window's is the first *Factors per
 window* singular vectors of its spectra, about the origin (no mean
 removed). The **Decomposition** and **Factors** chosen in the FATT window
 don't apply to it. The map starts with the FATT window's wavelength range
-and threshold, and uses only the bands that every ticked target covers.
+and threshold. Each target is fitted over the bands it covers, as in the
+ranking table, so a target's map doesn't depend on which other targets are
+ticked. A target covering fewer than 5 of the image's bands in the range
+stops the map, naming it.
 
 The result joins the image list. Its first band is the number of targets
 detected at each pixel; then there's one band per target with its
@@ -132,19 +135,25 @@ Settings that aren't in the dialog:
   no-data lie in fewer windows, so their values are less reliable.
 - **Ranking and map values aren't comparable.** The ranking uses one
   factor space for the whole sample; the map uses one per window, with a
-  different number of factors. Within the map, adding a ticked target that
-  covers fewer bands shrinks the bands used, which changes every target's
-  nRMSE: report the band count with the map.
+  different number of factors. Within the map, targets covering different
+  bands are fitted over different bands, so their nRMSE values aren't
+  directly comparable (nRMSE scales with the number of bands): report each
+  target's band count with the map.
 - **Library resampling.** A library spectrum measured at a different
   resolution, grain size or condition fits less well. Without the image's
   FWHM, the library is interpolated at band centers, which keeps narrow
   features the bands themselves would blur.
-- **What's saved where.** The ranking table (nRMSE and angle for each
-  target) can't be exported: record the values you report. The map's
-  targets, library, threshold, factors, windows and band count are kept in
-  Varda and in sessions, not in exported files. The export keeps the
-  result's record (threshold in units of 10⁻⁴, factors and wavelength
-  range) and the band names, which name the targets.
+- **What's saved where.** **Export Table…** saves the ranking as CSV:
+  every target's rank, name, nRMSE (unitless; the window shows it ×10⁻⁴),
+  spectral angle between the target and its fit (degrees), whether it was
+  ticked and whether it fits under the threshold, after commented (`#`)
+  lines giving the image, the spectra used (sampling or ROI class, and how
+  many), the wavelength window and band count, the decomposition, the
+  factor count, the library, the threshold, the Varda version and the time.
+  The map's targets, library, threshold, factors, windows and each
+  target's band count
+  are in its metadata and its provenance record (threshold in units of
+  10⁻⁴), in Varda and in exported files; the band names name the targets.
 
 ### References
 
