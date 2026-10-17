@@ -248,8 +248,10 @@ class SpectralHourglassWorkspace(QMainWindow):
         if self._resuming:
             self._finishResume()
 
-    def _runPpi(self, iterations: int, threshold: float, resume: bool) -> None:
-        task = self.model.ppiTask(iterations, threshold, resume=resume)
+    def _runPpi(
+        self, iterations: int, threshold: float, seed: int, resume: bool
+    ) -> None:
+        task = self.model.ppiTask(iterations, threshold, seed=seed, resume=resume)
         self.runner.run("Pixel purity", task, self._onPpi)
 
     def _onPpi(self, result) -> None:
@@ -297,7 +299,12 @@ class SpectralHourglassWorkspace(QMainWindow):
     # --- results to the project -------------------------------------------------------------
 
     def _footprintRaster(
-        self, values: np.ndarray, bandNames: list[str], name: str, units: str
+        self,
+        values: np.ndarray,
+        bandNames: list[str],
+        name: str,
+        units: str,
+        detail: str = "",
     ) -> VardaRaster:
         image = self.model.image
         source = ArrayDataSource(
@@ -307,7 +314,7 @@ class SpectralHourglassWorkspace(QMainWindow):
             bandNames=bandNames,
             transform=image.transform,
             crs=image.crs,
-            description=f"{name} (spectral hourglass)",
+            description=f"{name} (spectral hourglass{detail})",
         )
         return VardaRaster(source, name=name)
 
@@ -325,12 +332,18 @@ class SpectralHourglassWorkspace(QMainWindow):
         )
 
     def _addPpiToProject(self) -> None:
-        if self.model.ppi is None:
+        ppi = self.model.ppi
+        if ppi is None:
             return
         values = self.model.ppiImage()[:, :, np.newaxis]
+        seed = "unknown seed" if ppi.seed is None else f"seed {ppi.seed}"
+        detail = (
+            f": {ppi.iterations:,} iterations, {seed}, threshold {ppi.threshold:g}, "
+            f"{ppi.components} MNF components"
+        )
         self.projectImages.append(
             self._footprintRaster(
-                values, ["PPI"], f"{self.model.image.name} PPI", "count"
+                values, ["PPI"], f"{self.model.image.name} PPI", "count", detail
             )
         )
 
@@ -609,9 +622,10 @@ class SpectralHourglassWorkspace(QMainWindow):
                 "useIovf": settings.useIovf,
             },
             "components": self.model.components or None,
-            "ppi": {
-                "iterations": purity.iterations.value(),
+            "ppi": {  # the page's settings; the counts' own are in ppiCounts
+                "iterationsPerRun": purity.iterations.value(),
                 "threshold": purity.threshold.value(),
+                "seed": purity.seed.value(),
                 "minCount": purity.minCount.value(),
                 "maxCandidates": purity.maxCandidates.value(),
             },
@@ -633,9 +647,13 @@ class SpectralHourglassWorkspace(QMainWindow):
         purity = self.pipeline.purityPage
         ppi = state.get("ppi", {})
         purity.iterations.setValue(
-            int(ppi.get("iterations", purity.iterations.value()))
+            int(
+                ppi.get("iterationsPerRun", ppi.get("iterations"))
+                or purity.iterations.value()
+            )
         )
         purity.threshold.setValue(float(ppi.get("threshold", purity.threshold.value())))
+        purity.seed.setValue(int(ppi.get("seed", purity.seed.value())))
         purity.minCount.setValue(int(ppi.get("minCount", purity.minCount.value())))
         purity.maxCandidates.setValue(
             int(ppi.get("maxCandidates", purity.maxCandidates.value()))

@@ -28,8 +28,11 @@ two).
 - **Which pixels.** A pixel belongs to an ROI when its center is inside it.
   Only valid pixels count: no-data pixels, and pixels missing half or more
   of their good bands, are left out.
-- **Bands.** Every band is used. Bands marked bad (and the odd missing value)
-  are filled by linear interpolation along each spectrum, not removed.
+- **Bands.** Every good band is used. Bands marked bad in the image (the
+  ENVI `bbl` list, editable in **Image Properties**) are left out of
+  training and prediction, by every classifier here including K-Means. The
+  odd missing value in a good band is filled by linear interpolation along
+  the spectrum.
 - **Class numbers.** Classes are numbered from 0 in the order their first
   ROI was drawn (among those ticked). The class color is the color of the
   class's first ROI.
@@ -74,6 +77,7 @@ spectrum only.
 | **Neurons Per Layer** | Width of each hidden layer | 2–512 | 32 |
 | **Epochs** | Passes through the training pixels | 1–5000 | 200 |
 | **Learning Rate** | Adam step size | 0.00001–1 | 0.01 |
+| **Seed** | Seeds the starting weights and the shuffling | 0–2147483647 | 0 |
 
 How it works:
 
@@ -84,12 +88,11 @@ How it works:
 - Training minimizes cross-entropy with Adam (β₁ 0.9, β₂ 0.999, ε 10⁻⁸)
   on shuffled mini-batches of 256 pixels. There is no regularization, early
   stopping or validation split: it always runs every epoch.
-- The random seed is fixed (0), for the starting weights and the shuffling.
-  The same image, ROIs and settings give the same result on the same
-  computer.
+- **Seed** seeds the starting weights and the shuffling. The same image,
+  ROIs, settings and seed give the same result.
 
-The result also records the layer sizes (bands, hidden layers, classes) and
-the **final loss**: the mean cross-entropy (natural log) over the last
+The result also records the seed, the layer sizes (bands, hidden layers,
+classes) and the **final loss**: the mean cross-entropy (natural log) over the last
 epoch. The progress dialog shows the loss after each epoch; Varda keeps the
 final value with the result but doesn't display it, so note it as training
 ends.
@@ -109,6 +112,7 @@ its neighborhood.
 | **Epochs** | Passes through the training patches | 1–2000 | 50 |
 | **Learning Rate** | Adam step size | 0.000001–0.1 | 0.001 |
 | **Batch Size** | Patches per training step | 4–4096 | 64 |
+| **Seed** | Seeds the starting weights and the shuffling | 0–2147483647 | 0 |
 
 How it works:
 
@@ -124,9 +128,19 @@ How it works:
   learning rate), shuffled mini-batches. No regularization, early stopping
   or validation split.
 - **Where it runs.** On an NVIDIA GPU (CUDA) if there is one, else an Apple
-  GPU (MPS), else the CPU. Varda doesn't record which.
+  GPU (MPS), else the CPU.
+- **Repeatability.** Before the network is built, **Seed** seeds PyTorch,
+  numpy and Python's random numbers, so the starting weights and the
+  shuffling are fixed, and Varda asks PyTorch for deterministic algorithms
+  (cuDNN deterministic, benchmarking off). The same seed, settings and ROIs
+  give the same result on the same device and PyTorch version. GPU
+  arithmetic differs slightly from CPU arithmetic, and some GPU operations
+  have no deterministic version, so results can differ a little between
+  CPU, CUDA and MPS, or between PyTorch versions.
 
-The result records the patch size used and the final loss (as for the MLP).
+The result records the patch size, the seed, the final loss (as for the
+MLP), the device (cpu, cuda or mps) and the PyTorch version; the
+description says, e.g., "… (seed 0, PyTorch 2.5.1 on mps)".
 
 ## Train ViT on ROIs
 
@@ -141,14 +155,15 @@ tokens are blocks of pixels.
 | **Embedding Size** | Length of each token's vector | 8–512 | 64 |
 | **Attention Heads** | Heads per attention layer; must divide the embedding size | 1–16 | 4 |
 | **Transformer Layers** | Number of encoder layers | 1–8 | 2 |
-| **Epochs**, **Learning Rate**, **Batch Size** | As for the CNN | | 50, 0.001, 64 |
+| **Epochs**, **Learning Rate**, **Batch Size**, **Seed** | As for the CNN | | 50, 0.001, 64, 0 |
 
 How it works: each pixel spectrum is projected linearly to the embedding
 size; a learned class token and learned position embeddings are added; the
 encoder layers are pre-norm, with a feed-forward width of twice the
 embedding size and no dropout; the class token, normalized, goes through a
-linear layer and a softmax. Patches, standardization, training and the
-device are as for the CNN. The result records the patch size and final loss.
+linear layer and a softmax. Patches, standardization, training, the
+device and repeatability are as for the CNN, and the result records the
+same things.
 
 ## Maximum Likelihood
 
@@ -164,7 +179,7 @@ and each pixel goes to the class under which it is most likely.
 **Dimensions.** A class's covariance can only be inverted when it has more
 pixels than dimensions, and a 400-band image needs hundreds of pixels per
 class. So Varda may classify on principal components instead of bands. With
-*b* bands and *n* pixels in the smallest class, the number of dimensions
+*b* good bands and *n* pixels in the smallest class, the number of dimensions
 *k* is:
 
 - **Components** set (*c* > 0): *k* = the smallest of *c*, *b* and *n* − 1.
@@ -208,7 +223,7 @@ How it works (SPy's k-means): the starting centers are spaced evenly along
 the diagonal from the image's per-band minimum to its per-band maximum, so
 there is no randomness and every run gives the same result. Each iteration
 assigns every pixel to its nearest center (Euclidean distance on the raw
-values, all bands, not standardized) and moves each center to the mean of
+values, all good bands, not standardized) and moves each center to the mean of
 its pixels. It stops when no pixel changes cluster, or after **Iterations**.
 Bands with larger values or more variance count for more.
 
@@ -231,12 +246,14 @@ for what applies to every process.
   pixels, and how you chose them. Varda records which ROI classes you
   ticked, but not the ROIs' shapes or pixel counts: save the session, or
   export the ROIs from the ROI Manager (**Export...**), to keep them.
-- Any band subset, spatial subset or preprocessing of the input.
+- The bands used: the image's good bands (list the bad bands left out, from
+  **Image Properties**), and any band subset, spatial subset or
+  preprocessing of the input.
 - For Maximum Likelihood and Mahalanobis Distance: the number of dimensions
   *k*, and whether they were bands or principal components.
-- For the MLP, CNN and ViT: the final training loss, and for the CNN and ViT
-  the device (CPU, CUDA or MPS) and PyTorch version (**Help → Copy System
-  Info**).
+- For the MLP, CNN and ViT: the seed and the final training loss, and for
+  the CNN and ViT the device (CPU, CUDA or MPS) and PyTorch version (both
+  in the result's description).
 - For K-Means: the number of clusters found, and how you named them.
 - Any clean-up with the class map tools (filter size, minimum group size).
 
@@ -244,10 +261,10 @@ Settings the dialogs don't show:
 
 | Classifier | Setting |
 | --- | --- |
-| MLP | tanh hidden units, softmax output, cross-entropy; Adam (β₁ 0.9, β₂ 0.999, ε 10⁻⁸); mini-batches of 256; Glorot uniform starting weights; seed 0; bands standardized on the training pixels |
+| MLP | tanh hidden units, softmax output, cross-entropy; Adam (β₁ 0.9, β₂ 0.999, ε 10⁻⁸); mini-batches of 256; Glorot uniform starting weights; bands standardized on the training pixels |
 | CNN | 3 × 3 convolutions with padding, batch normalization and ReLU; global average pooling; linear output; cross-entropy; Adam |
 | ViT | Linear embedding of each pixel spectrum; learned class token and position embeddings; pre-norm encoder layers, feed-forward width 2 × embedding size, no dropout; cross-entropy; Adam |
-| CNN and ViT | Reflect padding at the edges; invalid pixels in a patch replaced by the image mean spectrum; bands standardized on all pixels of the training patches; shuffling seeded with 0 |
+| CNN and ViT | Reflect padding at the edges; invalid pixels in a patch replaced by the image mean spectrum; bands standardized on all pixels of the training patches; PyTorch's default layer initialization; deterministic algorithms requested (warnings, not errors, where none exists) |
 | Maximum Likelihood, Mahalanobis | Equal priors; covariances with N − 1; principal components from the covariance of all valid image pixels; at least 3 pixels per class |
 | K-Means | Euclidean distance on unstandardized values; starting centers evenly spaced from the per-band minimum to maximum; stops when no pixel changes cluster |
 
@@ -265,12 +282,13 @@ Settings the dialogs don't show:
   Gaussian, equal-prior model holds. Use them to rank pixels or to mask out
   doubtful ones, and don't report them as the chance a pixel is correct
   unless you have checked them against test data.
-- **Reproducibility.** The MLP, Maximum Likelihood, Mahalanobis Distance
-  and K-Means are deterministic: the same image, ROIs and settings give the
-  same map. The CNN and ViT are not: their starting weights aren't seeded,
-  and GPUs add their own run-to-run differences, so two runs differ. Run
-  them several times (three or more) and report how much the map or the
-  accuracy changes.
+- **Reproducibility.** Maximum Likelihood, Mahalanobis Distance and
+  K-Means are deterministic: the same image, ROIs and settings give the
+  same map. The MLP, CNN and ViT are random but seeded: the same seed
+  reproduces the map (for the CNN and ViT, on the same device and PyTorch
+  version). A seed fixes one outcome of training; it doesn't make that
+  outcome typical. Train with several seeds (three or more) and report how
+  much the map or the accuracy changes.
 - **Unseen materials.** Every pixel is given one of your classes (see
   [Outputs](#outputs)), so check areas that none of your ROIs represent.
 - **K-Means** has no quality measure. Its clusters depend on the starting

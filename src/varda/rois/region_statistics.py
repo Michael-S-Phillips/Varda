@@ -53,7 +53,10 @@ def computeRegionStatistics(
 
     Reads only the footprint's bounding window. Nodata is treated per element
     (a pixel may be valid at most wavelengths but nodata at a few), and pixels
-    with no valid band at all are dropped. An empty footprint yields zeros.
+    with no valid band at all are dropped. ``pixel_count`` is the number of
+    pixels kept; ``valid_count`` is, per band, the number with data there (the
+    n behind that band's mean and std). A band without data, or an empty
+    footprint, gives NaN statistics.
     """
     mask = rasterizeFootprint(pixelPolygon, (image.height, image.width))
     rows, cols = np.where(mask)
@@ -80,14 +83,17 @@ def computeRegionStatistics(
         "min": np.nanmin(pixels, axis=0),
         "max": np.nanmax(pixels, axis=0),
         "pixel_count": len(pixels),
+        "valid_count": np.sum(~np.isnan(pixels), axis=0),
     }
 
 
 def _emptyStatistics(bandCount: int) -> dict[str, npt.ArrayLike]:
+    missing = np.full(bandCount, np.nan)
     return {
-        "mean": np.zeros(bandCount),
-        "std": np.zeros(bandCount),
-        "min": np.zeros(bandCount),
-        "max": np.zeros(bandCount),
+        "mean": missing,
+        "std": missing.copy(),
+        "min": missing.copy(),
+        "max": missing.copy(),
         "pixel_count": 0,
+        "valid_count": np.zeros(bandCount, dtype=np.int64),
     }

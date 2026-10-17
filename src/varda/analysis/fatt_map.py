@@ -107,24 +107,35 @@ class FattMapAnalysis(Analysis):
         )
         centers = np.asarray(image.bandModel.centers)[bands]
         targets = np.stack([resampleTo(t, centers, fwhm) for t in self.targets])
-        covered = np.isfinite(targets).all(axis=0)
-        if covered.sum() < MIN_BANDS:
+        covered = np.isfinite(targets)  # (targets, bands)
+        tooFew = [
+            target.name
+            for target, count in zip(self.targets, covered.sum(axis=1), strict=True)
+            if count < MIN_BANDS
+        ]
+        if tooFew:
             raise ValueError(
-                "The targets and the wavelength range share fewer than "
-                f"{MIN_BANDS} of the image's bands."
+                f"{', '.join(tooFew)}: fewer than {MIN_BANDS} of the image's bands "
+                "in the wavelength range are covered."
             )
         cube, valid = readCube(image)
-        cube = cube[:, :, bands[covered]]
         cube[~valid] = np.nan
-        nrmse = windowedNrmse(
-            cube,
-            targets[:, covered],
-            int(self.factors.get()),
-            DEFAULT_WINDOW_SHAPES,
-            progress=lambda done: reportProgress(
-                int(5 + 90 * done), "fitting the windows"
-            ),
-        )
+        # Each target is fitted over the bands it covers (as the ranking table
+        # does), so its map never depends on which other targets are ticked;
+        # targets covering the same bands are fitted together.
+        nrmse = np.empty((len(targets),) + valid.shape)
+        bandSets = np.unique(covered, axis=0)
+        for k, bandSet in enumerate(bandSets):
+            members = (covered == bandSet).all(axis=1)
+            nrmse[members] = windowedNrmse(
+                np.ascontiguousarray(cube[:, :, bands[bandSet]]),
+                targets[members][:, bandSet],
+                int(self.factors.get()),
+                DEFAULT_WINDOW_SHAPES,
+                progress=lambda done, k=k: reportProgress(
+                    int(5 + 90 * (k + done) / len(bandSets)), "fitting the windows"
+                ),
+            )
         threshold = float(self.threshold.get()) * THRESHOLD_UNIT
         missing = np.isnan(nrmse).all(axis=0)
         detected = np.where(missing, np.nan, (nrmse < threshold).sum(axis=0))
@@ -146,7 +157,7 @@ class FattMapAnalysis(Analysis):
                     "threshold": threshold,
                     "factors": int(self.factors.get()),
                     "windows": [list(shape) for shape in DEFAULT_WINDOW_SHAPES],
-                    "bands": int(covered.sum()),
+                    "bands": [int(n) for n in covered.sum(axis=1)],
                 }
             },
             description=f"FATT detections of {len(names)} targets in {image.name}",

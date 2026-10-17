@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 
+from varda.analysis import endmembers
 from varda.analysis.endmembers import (
     findVertices,
     interpolatePlane,
@@ -39,12 +40,50 @@ def test_ppi_can_continue_from_earlier_counts_and_reports_progress():
         X,
         iterations=500,
         threshold=0.5,
-        seed=2,
+        seed=1,
+        firstSkewer=500,
         start=first,
         progress=lambda p, m: seen.append(p),
     )
     assert np.all(more >= first) and more.sum() > first.sum()
     assert seen[-1] == 100
+
+
+def test_ppi_is_seeded_with_zero_by_default():
+    X = _simplexMixtures(n=500)
+    np.testing.assert_array_equal(
+        pixelPurityIndex(X, iterations=300, threshold=0.5),
+        pixelPurityIndex(X, iterations=300, threshold=0.5, seed=0),
+    )
+
+
+def test_ppi_different_seeds_draw_different_skewers():
+    X = _simplexMixtures(n=500)
+    a = pixelPurityIndex(X, iterations=300, threshold=0.5, seed=0)
+    b = pixelPurityIndex(X, iterations=300, threshold=0.5, seed=1)
+    assert not np.array_equal(a, b)
+
+
+@pytest.mark.parametrize("batchSkewers", [1, 7, 64, 1000])
+def test_ppi_counts_do_not_depend_on_the_batch_size(monkeypatch, batchSkewers):
+    """The batch size follows the valid-pixel count and memory budget; the
+    skewers (and so the counts) must not."""
+    X = _simplexMixtures(n=500)
+    reference = pixelPurityIndex(X, iterations=2500, threshold=0.5, seed=3)
+    monkeypatch.setattr(endmembers, "_BATCH_BYTES", 8 * X.shape[0] * batchSkewers)
+    counts = pixelPurityIndex(X, iterations=2500, threshold=0.5, seed=3)
+    np.testing.assert_array_equal(counts, reference)
+
+
+def test_ppi_continued_in_parts_equals_one_run_of_the_total():
+    """Seed S and N total skewers determine the counts, however they were split."""
+    X = _simplexMixtures(n=500)
+    whole = pixelPurityIndex(X, iterations=2300, threshold=0.5, seed=4)
+    first = pixelPurityIndex(X, iterations=700, threshold=0.5, seed=4)
+    rest = pixelPurityIndex(
+        X, iterations=1600, threshold=0.5, seed=4, firstSkewer=700, start=first
+    )
+    np.testing.assert_array_equal(rest, whole)
 
 
 def test_ppi_ignores_rows_with_missing_values():

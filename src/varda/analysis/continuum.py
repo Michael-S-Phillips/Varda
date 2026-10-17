@@ -10,10 +10,9 @@ import numpy as np
 from numba import njit, prange
 
 from varda.analysis.analysis import Analysis, ProgressCallback
-from varda.analysis.rasters import readCube
+from varda.analysis.rasters import bandMetadataSubset, readCube
 from varda.common.entities import VardaRaster
 from varda.common.parameter import FloatParameter
-from varda.common.spectral_axis import BAND_METADATA_KEYS, parseEnviList
 from varda.image_loading.data_sources.array_data_source import ArrayDataSource
 
 _CACHE = not getattr(sys, "frozen", False)  # see stretch_algorithms._CACHE
@@ -114,25 +113,7 @@ class ContinuumRemovalAnalysis(Analysis):
             bandNames=names,
             transform=image.transform,
             crs=image.crs,
-            extraMetadata=_bandMetadataSubset(image, keep),
+            extraMetadata=bandMetadataSubset(image, keep),
             description=f"Continuum removed {low:g}-{high:g} nm of {image.name}",
         )
         return VardaRaster(source, name=f"{image.name} continuum removed")
-
-
-def _bandMetadataSubset(image: VardaRaster, keep: np.ndarray) -> dict:
-    """The per-band lists (FWHM, bad bands) for the kept bands only."""
-    metadata = {}
-    for key in BAND_METADATA_KEYS:
-        value = image.extraMetadata.get(key)
-        if value is None:
-            continue
-        try:
-            values = parseEnviList(value)
-        except (TypeError, ValueError):
-            values = None
-        if values is not None and len(values) == image.bandCount:
-            metadata[key] = [values[i] for i in keep]
-        else:
-            metadata[key] = value  # e.g. the scale factor, one value for all bands
-    return metadata

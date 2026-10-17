@@ -150,3 +150,10 @@ def test_bad_bands_are_left_out_of_the_slope():
         lambda p, m: None,
     ).getData()
     np.testing.assert_allclose(result, expected, rtol=1e-6, equal_nan=True)
+
+
+def test_spectral_slope_description_matches_its_defaults():
+    analysis = SpectralSlopeAnalysis()
+    start, end = analysis.startWavelength.get(), analysis.endWavelength.get()
+    assert f"{start:g}-{end:g} nm" in SpectralSlopeAnalysis.description
+    assert "µm" not in SpectralSlopeAnalysis.description

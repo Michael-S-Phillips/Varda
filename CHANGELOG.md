@@ -88,6 +88,79 @@ can alter results.
 - **Linked Images warnings:** a notice across the top of the workspace now
   names images linked by map location that have no georeferencing (read by
   pixel), and images linked by pixel that aren't on the first image's grid.
+These fixes change results; rerun affected analyses before reporting them.
+
+- **Bad bands are left out of analyses that work across bands.** RX
+  (global and local), ACE, Matched Filter, Maximum Likelihood, Mahalanobis
+  Distance, K-Means, the MLP, CNN and ViT classifiers, Spectral Angle Mapper,
+  Linear Spectral Unmixing, MTMF and Pixel Purity Index (Processing menu),
+  Spectral Derivative and Spectral Entropy used the image's bad bands as
+  values filled from their neighbors. That made covariances nearly singular
+  (unstable detector and classifier scores) and counted the neighbors twice.
+  They now use only the good bands, as the Spectral Hourglass and the
+  transforms already did. **Spectral Derivative** results now have only the
+  good bands (with their wavelengths and FWHM).
+- **IOVF replacements** were pulled toward the smooth reference spectrum: the
+  weights of flagged and no-data neighbors were dropped without renormalizing
+  the rest. A replaced value is now the weighted average of the neighbors it
+  uses (Phillips et al. 2024), or the reference value when none is left.
+  This changes IOVF results, in the Processing menu and in the Spectral
+  Hourglass. **Bad bands** in an IOVF result now keep the input's values
+  instead of values filled along the spectrum.
+- **ACE** gave no data (0/0) at a pixel exactly at the background mean; it
+  now scores 0 there.
+- **FATT Detection Map:** ticking a target that covers fewer bands shrank the
+  bands used for every target, changing their nRMSE. Each target is now
+  fitted over the bands it covers, as in the ranking table; the record gives
+  each target's band count.
+- **MNF with a homogeneous-region noise estimate** used only the first
+  ticked noise ROI class; it now pools every ticked class. With a
+  neighbor-difference estimate, no noise ROI class is recorded.
+- **RX Anomaly (Local):** even window sizes were silently raised by one (and
+  the outer window enlarged), so the result's record kept sizes that weren't
+  used. The windows now take odd sizes only, with the outer at least two
+  pixels larger than the inner, so the recorded sizes are the ones used.
+- Spectral Slope's description quoted a 1.8–2.5 µm example that didn't
+  match its 1000–2000 nm defaults.
+- Inverse Transform's **Output** choices show their full labels
+  ("Denoised image (inverse transform to the original bands)", "Only the
+  chosen components (as component bands)").
+- **Random processes are reproducible.** The Pixel Purity Index (Processing
+  menu and Spectral Hourglass) and Train MLP, CNN and ViT on ROIs have a
+  **Seed** setting (default 0), recorded with the result: the same seed and
+  settings now give the same result. **Results change:** PPI counts and
+  CNN/ViT maps differ from earlier versions, and the PPI no longer gives
+  different counts on every run (earlier runs used an unrecorded random
+  seed and can't be repeated). The MLP gives the same result as before at
+  seed 0.
+- **PPI counts no longer depend on image size.** The random projections
+  depended on how many valid pixels the image had (through the batch size);
+  now the seed and the number of iterations alone fix them.
+- **Spectral Hourglass Run More** continues the same seeded run, so
+  10,000 iterations then 10,000 more equal one run of 20,000, and it is
+  turned off once the threshold, seed or number of MNF components changes
+  (it used to add counts made with different settings together). The PPI
+  image's description and the saved workflow record the seed and total
+  iterations.
+- **CNN and ViT training** seeds the network's starting weights (they
+  weren't seeded, so every run differed) and asks PyTorch for deterministic
+  algorithms. Results record the device (cpu, cuda or mps) and PyTorch
+  version; GPU results can still differ slightly from CPU ones.
+- **No Stretch** draws again (the view failed to draw). Values outside 0–1
+  from any stretch now saturate at black or full brightness instead of
+  wrapping around to the other end of the 8-bit range.
+- **Spectrum plot CSV export** writes each curve's own values: a library
+  spectrum scaled and offset to overlay another curve was exported scaled.
+  The scale and offset shown are now recorded in comment lines (`#`) at the
+  top. Box and ROI means also export their ±1 standard deviation and the
+  pixel count n behind each band, which were left out.
+- **ROI and box statistics** with no data (an empty footprint, or a band
+  that's no-data in every pixel) are now missing (NaN) instead of 0, so an
+  empty ROI or box no longer gives a ratio of 0. The per-band pixel count n
+  is now available.
+- **Find Data's To date** now includes that whole day (to 23:59:59 UTC) for
+  STAC catalogs and footprint files, as it already did for ODE. It used to
+  stop at the start of the day, leaving the day out.
 
 ## 0.9.0 (2026-10-16)
 

@@ -45,8 +45,9 @@ components are ordered by it. The plot and table still label them
 - **Averaged**: the horizontal and vertical differences together.
 - **Homogeneous Region**: the covariance of the pixels in a uniform area,
   such as a dark or flat ROI, where all variation is taken to be noise.
-  Choose it under **Noise ROI Class**. If several classes are ticked, only
-  the first is used.
+  Choose it under **Noise ROI Classes**: the pixels of every ticked class
+  are pooled into one region. The classes are offered only for this
+  estimate; with a neighbor-difference estimate none is ticked or recorded.
 
 Only pairs of pixels that are both valid count.
 
@@ -96,13 +97,14 @@ for what applies to every process.
 - The transform (PCA, MNF or ICA), the wavelength range and the number of
   bands that went in (bad bands are always left out), and the number of
   components computed.
-- For MNF, the **Noise Estimate** (direction, or the ROI used as the
-  homogeneous region). It changes the components, so always report it.
+- For MNF, the **Noise Estimate** (direction, or the ROI classes pooled as
+  the homogeneous region). It changes the components, so always report it.
 - For ICA, **Max Iterations** (200 by default, 10 to 5000).
 - Any weights: which image, and whether they were weights or σ.
 - For an inverse transform, exactly which components you kept (for example
-  "MNF components 1–12" or "PCA components 2–19"), and the output (a
-  rebuilt image in the original bands, or the component bands only).
+  "MNF components 1–12" or "PCA components 2–19"), and the **Output**:
+  **Denoised image (inverse transform to the original bands)**, or **Only
+  the chosen components (as component bands)**.
 
 The result's record keeps the settings, but an inverse transform records
 only its immediate input, the component image. Export that too, or note its

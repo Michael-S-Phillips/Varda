@@ -139,8 +139,10 @@ class PreparedData:
 @attrs.frozen
 class PpiResult:
     counts: np.ndarray  # int64, one per valid pixel (flattenValid order)
-    iterations: int
+    iterations: int  # total skewers behind the counts, over every Run More
     threshold: float
+    seed: int | None  # None: loaded from a workflow saved before seeds were kept
+    components: int  # MNF components projected
 
 
 class HourglassModel:
@@ -310,17 +312,39 @@ class HourglassModel:
     def ppiIterations(self) -> int:
         return 0 if self.ppi is None else self.ppi.iterations
 
+    def canRunMore(self, threshold: float, seed: int) -> bool:
+        """Whether Run More can add skewers to the current counts: only while
+        they are up to date and were made with this threshold and seed, so the
+        seed and the total number of skewers still determine them."""
+        ppi = self.ppi
+        return (
+            ppi is not None
+            and self._states[Step.PURITY] is StepState.DONE
+            and ppi.seed == seed
+            and ppi.threshold == threshold
+            and ppi.components == self.components
+        )
+
     def ppiTask(
         self,
         iterations: int = DEFAULT_PPI_ITERATIONS,
         threshold: float = DEFAULT_PPI_THRESHOLD,
         *,
-        seed: int | None = None,
+        seed: int = 0,
         resume: bool = False,
     ) -> Callable[[ProgressCallback], PpiResult]:
+        """Count ``iterations`` skewers of ``seed``'s sequence; with ``resume``
+        (Run More), the next ``iterations`` of that sequence onto the current
+        counts."""
         result = self._require(self.mnf, Step.REDUCE)
-        X = result.scores[:, : self.components]
-        previous = self.ppi if resume and self.ppi is not None else None
+        components = self.components
+        X = result.scores[:, :components]
+        if resume and not self.canRunMore(threshold, seed):
+            raise ValueError(
+                "The pixel purity settings changed since the last run: run PPI again."
+            )
+        previous = self.ppi if resume else None
+        before = 0 if previous is None else previous.iterations
 
         def task(progress: ProgressCallback) -> PpiResult:
             counts = pixelPurityIndex(
@@ -328,11 +352,17 @@ class HourglassModel:
                 iterations,
                 threshold,
                 seed=seed,
+                firstSkewer=before,
                 start=None if previous is None else previous.counts,
                 progress=progress,
             )
-            done = iterations + (0 if previous is None else previous.iterations)
-            return PpiResult(counts=counts, iterations=done, threshold=threshold)
+            return PpiResult(
+                counts=counts,
+                iterations=before + iterations,
+                threshold=threshold,
+                seed=seed,
+                components=components,
+            )
 
         return task
 
@@ -597,8 +627,10 @@ class HourglassModel:
             "validPixels": int(self.ppi.counts.size),
             "rows": rows.tolist(),
             "counts": self.ppi.counts[rows].tolist(),
-            "iterations": self.ppi.iterations,
+            "totalIterations": self.ppi.iterations,
             "threshold": self.ppi.threshold,
+            "seed": self.ppi.seed,
+            "components": self.ppi.components,
         }
 
     def ppiFromJson(self, data: dict) -> None:
@@ -616,8 +648,11 @@ class HourglassModel:
         self.applyPpi(
             PpiResult(
                 counts=counts,
-                iterations=int(data["iterations"]),
+                # older workflows: "iterations", with no seed (it was random)
+                iterations=int(data.get("totalIterations", data.get("iterations", 0))),
                 threshold=float(data["threshold"]),
+                seed=None if data.get("seed") is None else int(data["seed"]),
+                components=int(data.get("components", self.components)),
             )
         )
 

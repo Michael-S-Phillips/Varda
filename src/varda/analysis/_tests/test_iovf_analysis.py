@@ -39,3 +39,25 @@ def test_result_keeps_bands_and_removes_the_spike():
     data = result.getData()
     assert abs(data[8, 7, 20] - 0.3) < 0.02
     assert np.isnan(data[0, 0]).all()  # nodata stays missing
+
+
+def test_bad_bands_keep_the_input_values():
+    """Bad bands are filled along the spectrum to filter the cube, but the
+    result gives them back as they were, still marked bad."""
+    image = _image()
+    cube = np.array(image.getData())
+    cube[:, :, 12] = 7.0 + np.arange(cube.shape[1])  # garbage in a bad band
+    bbl = [0 if b == 12 else 1 for b in range(cube.shape[2])]
+    source = ArrayDataSource(
+        cube,
+        wavelengths=np.asarray(image.wavelengths),
+        wavelengthUnits="nm",
+        nodata=-1.0,
+        extraMetadata={"bbl": bbl},
+    )
+    result = IovfAnalysis().run(VardaRaster(source, name="scene"), lambda p, m: None)
+    out = result.getData()
+    expected = cube[:, :, 12].astype(np.float32)
+    np.testing.assert_array_equal(out[1:, :, 12], expected[1:])
+    assert np.isnan(out[0, 0]).all()  # nodata stays missing
+    assert result.bandModel.badBands[12]

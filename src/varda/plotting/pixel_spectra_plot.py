@@ -280,6 +280,8 @@ class PixelSpectraPlotWidget(VardaPlotWidget):
                 mean - spread,
                 mean + spread,
                 pg.mkBrush(fill),
+                std=spread,
+                count=np.asarray(statistics["valid_count"]),
                 color=color,
                 name=label,
             )
